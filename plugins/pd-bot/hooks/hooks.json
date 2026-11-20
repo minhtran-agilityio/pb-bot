@@ -7,6 +7,12 @@
             "type": "command",
             "command": "bash",
             "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/session-rules.sh"]
+          },
+          {
+            "type": "command",
+            "command": "bash",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/session-role.sh"],
+            "timeout": 10
           }
         ]
       },
@@ -62,7 +68,8 @@
           {
             "type": "command",
             "command": "bash",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/pr-opened.sh"]
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/pr-opened.sh"],
+            "timeout": 15
           },
           {
             "type": "command",
