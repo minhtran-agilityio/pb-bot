@@ -1,0 +1,87 @@
+name: harness-ci
+
+# Claude Code CLI used by the plugin validator and the install smoke test. Package and Node
+# requirement from https://code.claude.com/docs/en/setup ("Install with npm": package
+# @anthropic-ai/claude-code, Node.js 22 or later). Pinned to an exact version so a new CLI release
+# cannot turn CI red unprompted; bump it on purpose.
+env:
+  CLAUDE_CODE_VERSION: "2.1.312"
+  NODE_VERSION: "22"
+
+on:
+  push:
+    branches: [main, podbay]
+  pull_request:
+
+jobs:
+  test:
+    name: tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      # The hooks are bash developed on macOS and run on contributors' Linux machines —
+      # the BSD/GNU split is exactly what this matrix exists to catch.
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      # fetch-depth: 0: full history for history-aware tests.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # scripts/lint-skill-bash.sh degrades to syntax-only when shellcheck is missing, so the
+      # suite passes either way — but CI is where the shellcheck pass must actually run, or the
+      # gate is only as strong as whatever each contributor happens to have installed.
+      # ubuntu-latest ships it; macos-latest does not.
+      - name: Install shellcheck (macOS)
+        if: runner.os == 'macOS'
+        run: brew install shellcheck
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Install Claude Code CLI
+        run: |
+          npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
+          claude --version
+      # REQUIRE_CLAUDE_CLI=1: the plugin validate step inside run-tests fails, not skips, if the
+      # CLI install above ever stops providing `claude`.
+      - name: Run harness test suite
+        env:
+          REQUIRE_CLAUDE_CLI: "1"
+        run: bash scripts/run-tests.sh
+
+  # Plugin gates that must not degrade to a local-only skip. The suite above already runs the
+  # frontmatter, link and validate checks in permissive mode; this job runs the same scripts with
+  # the strict env, adds the shellcheck gate that fails when shellcheck is absent, and the install
+  # smoke test (not in run-tests.sh because it installs a plugin). Linux only: the matrix covers
+  # BSD/GNU differences.
+  plugin:
+    name: plugin gates (ubuntu)
+    runs-on: ubuntu-latest
+    env:
+      REQUIRE_CLAUDE_CLI: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Install Claude Code CLI
+        run: |
+          npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
+          claude --version
+      - name: shellcheck (strict - fails if shellcheck is missing)
+        env:
+          REQUIRE_SHELLCHECK: "1"
+        run: bash scripts/check-shellcheck.sh
+      - name: Skill and agent frontmatter contract
+        run: python3 scripts/check_frontmatter_contract.py
+      - name: Markdown link check
+        run: bash scripts/check-md-links.sh
+      - name: Plugin version matches VERSION
+        run: bash scripts/check-plugin-version.sh
+      - name: claude plugin validate --strict (plugin and marketplace)
+        run: bash scripts/check-plugin-validate.sh
+      - name: Plugin install smoke test (isolated config dir)
+        run: |
+          export CLAUDE_CONFIG_DIR="$RUNNER_TEMP/claude-config"
+          rm -rf "$CLAUDE_CONFIG_DIR"
+          bash scripts/check-plugin-install.sh

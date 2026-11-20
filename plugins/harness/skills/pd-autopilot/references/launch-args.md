@@ -1,0 +1,82 @@
+# Workflow args for the ship workflow
+
+Pass `args` as a JSON object (not a string). Launch by name, `Workflow({name: "harness:autopilot-run", args})`:
+the plugin registers `./workflows/ship.js` in `plugin.json`, and the name works from any working
+directory (verified for #396; it supersedes `docs/adr/0001-workflow-capabilities.md`, decision 4).
+
+`pluginDir` comes from the plugin's own directory. SKILL.md step 8 gives it, already resolved. `repoDir` is the owner's checkout, not the plugin.
+
+```text
+{ repo: "owner/name", repoDir: "/abs/path", pluginDir: "<plugin directory>", remote: "origin", base: "<base>",
+  slug: "<milestone-or-ticket slug>",
+  tickets: [ { n: 346, title: "...", depth: "S|M|L", group: 1, deps: [345],
+               confirmed: "owner-confirmed decisions text incl. the Verify: row, may be empty" } ],
+  testCmd: "<related-tests command or template>", lintCmd: "<lint command>",
+  fullTestCmd: "bash scripts/run-tests.sh", advisorModel: "opus", noAsk: false, local: false,
+  profile: { stages: { review: { model: "opus", effort: "high" } } }, worktreeSetup: ["npm ci"] }
+```
+
+- `advisorModel` is the profile's `advisor`. `profile` is optional and holds the profile's `stages`
+  (see `profile.md`). Leave it out when `stages` is empty.
+- `worktreeSetup` is the profile's `worktreeSetup`, top-level. Leave it out when the list is empty or
+  absent. A stage runs it once, right after it creates a worktree.
+- `decisions` is optional. Use it only with `--no-ask`, for a ticket whose `Verify:` row the skill drafted (SKILL.md
+  step 6): one entry `{ title: "Verify: row drafted for #<n>", context, decision, why, consequences, how_to_reverse }`,
+  all strings, with the drafted row in `decision`. The workflow keeps only these text fields and always records the
+  entry with `needs_review: true` and `adr: false`, so the ticket is not merged until the owner accepts the row.
+
+- Take `testCmd`, `lintCmd` and `fullTestCmd` from `CLAUDE.md` → `## Run and test`, then the README, never from memory. If one is missing, ask in step 7. With `--no-ask`, record a `needs_review` decision and use `fullTestCmd` only.
+- `deps` holds only tickets inside the batch. `group` comes from the plan_groups.py helper.
+- One ticket means single mode: no integration branch (ADR 0001, decision 5).
+- `noAsk: true` when `--no-ask` was given. `local` stays false unless the owner asks for a run
+  without GitHub writes.
+
+## While the run goes
+
+Give the owner the run ID; `/workflows` shows progress. Wait for completion. Answer "done yet?" from the phase
+and agent counts.
+
+## Completion report
+
+First write the result's `specFiles`. No agent may write a report file such as `summary.md`, so the run returns
+each such file as `{ path, text }`. In a `claude --bg` session the shared-checkout guard can block every spec file
+of the writer agent, so `specFiles` may then hold all of them (#611). Before you write, run
+`git check-ignore -q specs/x` in the target repo; if it exits non-zero, write nothing and say in the report that `specs/` is
+not gitignored. For each entry, replace `{{DATE}}` in `text` with the output of `date +%F` and write `text` to
+`path` with the Write tool. If `text` still has the line `{{REQUEST}}`, replace it with the issue body, verbatim,
+from `gh issue view <n> --repo <repo> --json body -q .body`. Write only paths under `specs/` of the target repo;
+never stage or commit them. Then say in the report how many spec files you wrote.
+
+Short, in the owner's language: final PR link, per-ticket status, what was skipped and why, review
+rounds and findings, full-suite counts, the ADRs in `docs/adr/`.
+
+In local mode there is no PR. Print the result's `delivery` field: the branch that holds the code, the commit
+range (`<base>..<branch>`) and the sentence "the base branch has not changed". Never write that the code is on the base.
+
+If the Workflow ends with an error whose text starts with "ship", a stage output is missing (the ADR files or the
+`specs/` files). Say which stage the error names. A PR that was opened before the error is still open and lacks that output.
+
+Name the script that ran: take it from the `Script file:` line of the Workflow result. If it is not
+the repo's `plugins/harness/workflows/ship.js`, say so. If the result has no such line, write
+`script path not shown`. Do not read the session directory to find it.
+
+## Launch notes
+
+- Name not found: report it and stop. Do not copy the script to another path. The Workflow tool refuses
+  a `scriptPath` the session cannot read, so the fallback is inline `script` or `/add-dir <plugin dir>`.
+- Stale name after a plugin update: a session that started before the update can run an old cached
+  `harness:autopilot-run`. Restart Claude Code to load the new one (the main fix). The plugin CLI help names
+  `/reload-plugins`, but that is not confirmed here. If the repo's `plugins/harness/workflows/ship.js`
+  is inside the working directory or an added directory, `Workflow({scriptPath: "<abs>/plugins/harness/workflows/ship.js", args})`
+  runs the current file; the Workflow tool refuses a path the session cannot read.
+- Merge policy: the workflow merges only ticket PRs into `feat/<slug>`, and only tickets that pass the
+  per-ticket gate (CI, review, intent review, no open `needs_review` decision). The final PR (and a
+  single-ticket PR) is merged by the run only when `base` is not protected (not main, master, develop, development,
+  staging, production, release/* or the default branch) and every gate passed (`Merge: auto` in the PR body).
+  Otherwise it is a human merge (`Merge: human`, with the failed gate named). The merge guard hook stops any merge
+  into a protected base and fails closed. Local mode has no PRs: no guard, no gate.
+- Merge permission: the owner must allow `gh pr merge` into `feat/<slug>*`. Without it the merge stage
+  fails with a reason that names this permission. Do not change permission settings and do not work
+  around a denial; tell the owner. A ticket whose gate failed is not merged; its PR stays open with a
+  `needs_review` decision that holds the exact command.
+- Resume: the merge stage counts a PR already MERGED into the integration branch as merged.

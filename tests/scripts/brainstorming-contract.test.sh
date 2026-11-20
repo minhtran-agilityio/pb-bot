@@ -1,0 +1,25 @@
+#!/bin/bash
+source "$(dirname "$0")/../lib.sh"
+SKILL="plugins/harness/skills/pd-brainstorming/SKILL.md"
+REF="plugins/harness/skills/pd-brainstorming/references/spec-review-loop.md"
+t "brainstorming agrees the design before any code and hands off to xia2 then writing-plans"
+grep -q 'No code until the design is agreed' "$ROOT/$SKILL" && grep -q '`harness:pd-xia2`' "$ROOT/$SKILL" && grep -q '`harness:pd-writing-plans`' "$ROOT/$SKILL" && pass || fail "design gate or handoff missing"
+t "brainstorming drops the mandatory spec-review loop"
+! grep -q 'spec-review-loop\|spec-document-reviewer' "$ROOT/$SKILL" && [ ! -e "$ROOT/plugins/harness/skills/pd-brainstorming/spec-document-reviewer-prompt.md" ] && [ ! -e "$ROOT/plugins/harness/skills/pd-brainstorming/references/spec-review-loop.md" ] && pass || fail "review loop still present"
+t "brainstorming has an Auto mode section and writes the depth L design to specs/<slug>/design.md and a design ADR"
+grep -q '^## Auto mode' "$ROOT/$SKILL" && grep -q 'stage: design' "$ROOT/$SKILL" && grep -q 'docs/adr/' "$ROOT/$SKILL" && grep -q 'specs/<slug>/design.md' "$ROOT/$SKILL" && pass || fail "Auto mode, design.md or design ADR output missing"
+t "every flow file has a template with a Ticket/Depth header line"
+ok=1; for f in intent design decision plan summary; do grep -q '^Ticket: #<n> · Depth: S|M|L' "$ROOT/plugins/harness/templates/specs/$f.md" 2>/dev/null || { ok=0; echo "missing or no header: $f.md"; }; done
+[ $ok = 1 ] && pass || fail "a templates/specs file is missing"
+TPL="plugins/harness/skills/pd-brainstorming/references/design-template.md"
+BRIEF="plugins/harness/skills/pd-xia2/references/research-brief-template.md"
+has_all() { local f="$1"; shift; for a in "$@"; do grep -qF -- "$a" "$ROOT/$f" || return 1; done; }
+t "design template exists and brainstorming reads it"
+[ -f "$ROOT/$TPL" ] && grep -qF 'references/design-template.md' "$ROOT/$SKILL" && pass || fail "design template or its Read missing"
+t "design and research-brief templates carry the provenance header"
+has_all "$TPL" 'stage: design' 'Pins:' && has_all "$BRIEF" '# <slug> — Research Brief' 'Written <YYYY-MM-DD>. Pins:' && pass || fail "provenance header missing"
+t "specs README says specs/ is local scratch and points decisions to docs/adr/"
+has_all "plugins/harness/templates/structure/specs-README.md" 'local scratch' 'docs/adr/' && pass || fail "specs README scratch note or docs/adr pointer missing"
+t "specs README no longer documents the removed SUMMARY/ESCALATIONS/QUESTIONS files"
+! grep -qE 'SUMMARY|ESCALATIONS|QUESTIONS|RUN\.json' "$ROOT/plugins/harness/templates/structure/specs-README.md" && pass || fail "specs README still names a removed spec file"
+finish

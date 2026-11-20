@@ -1,0 +1,204 @@
+# Critical Patterns
+
+Always read when consuming this knowledge base, regardless of query domain. Keep this file short — entries here are high-leverage learnings that apply across many features.
+
+Add an entry only when the pattern:
+1. Has caused non-obvious bugs in multiple modules, OR
+2. Documents a non-negotiable project rule that can't be expressed in a linter
+
+## Entries
+
+## [2026-06-11] meta-repo-signal-remapping
+**Type:** knowledge
+**Module:** skills/pd-xia2 / agents/PROJECT.md (bootstrap-xia2 retired 2026-07-17)
+**Tags:** meta-repo, signal-remapping, project-md, dual-audience-docs, bootstrap-update-mode, hook-friction
+**Applicable when:** Bootstrapping or updating xia2 PROJECT.md (or any risk-classification config) for a repo whose "application" is the tooling itself — skills, hooks, scripts.
+
+A meta/harness repo does have high-blast files, security surfaces, and public contracts — they live in `settings.json`, `hooks/*.sh`, `tests/lib.sh`, and hook-parsed template fields (`Lane:`), not in app code layers. Map each app-centric xia2 signal category to its harness-native analog instead of leaving it empty, grounded in churn + inbound-reference evidence.
+
+**Full doc:** docs/solutions/harness-bootstrap/meta-repo-signal-remapping.md
+---
+
+## [2026-07-04] bash-empty-array-and-jsonl-parsing-gotchas
+**Type:** bug
+**Module:** scripts/harness-audit
+**Tags:** bash-set-u, empty-array-expansion, jsonl-parsing, defensive-parsing, harness-scripts, ci-macos-ubuntu
+**Applicable when:** Before iterating a bash array that can legitimately be empty under `set -u` (especially on macOS's bundled bash 3.2, which this repo's CI matrix specifically targets); or whenever a block is advertised as "advisory / never blocks" and you are about to enforce that with a try/except exception list instead of a `|| true` boundary on the command.
+
+Two crashes in advisory/non-blocking scripts. (1) `scripts/harness-audit.sh` crashed with `unbound variable` iterating a possibly-empty array under `set -u` — bash 3.2 (macOS) treats `"${arr[@]}"` on an empty array as an unset-variable reference, unlike bash 4.4+; fixed with `"${arr[@]+"${arr[@]}"}"`. (2) `scripts/harness-status.sh`'s JSONL trend block took **three** rounds, because the first two enforced "never blocks" with an exception allowlist: round 1 guarded `JSONDecodeError`, round 2 added `KeyError`/`TypeError` — and both left `open()` unguarded (it runs before the loop, outside every `try`), so an unreadable or non-UTF-8 log still killed the script under `set -euo pipefail` and silently swallowed the Drift Audit section. **Do not copy the round-2 pattern.** Fixed by putting the boundary on the command — `python3 - "$LOG" <<'PY' || echo "  [unreadable: $LOG]"` — the `|| true` convention the same file already used one section below.
+
+**Lesson:** an exception-type allowlist cannot be proven complete, so it is the wrong tool for "never fail" semantics; bound the block instead. And the boundary defect was missed by every per-line bug hunt (including `/correctness review`) — it surfaced only when a reviewer asked "is this fix deep enough, or a bandaid?" Ask that on purpose.
+
+**Full doc:** docs/solutions/scripts/bash-empty-array-and-jsonl-parsing-gotchas.md
+**Recurred:** 2026-10-17 — `scripts/verify_summary.py` `_red_fix_diff_issue` (gh-313): an advisory check guarded by `except OSError`/`CalledProcessError` lets `UnicodeDecodeError` from `text=True` decoding of `git diff -z` escape, so `--lane` exits 1 and the commit gate blocks.
+---
+
+<!--
+Example entry shape:
+
+## Async context propagation
+
+**Applies to:** any background task spawning
+**Rule:** Use `contextvars.copy_context()` when spawning; otherwise request-scoped state (user, tenant, trace_id) is lost.
+**Reference:** docs/solutions/async/context-propagation.md
+-->
+
+## [2026-07-10] test-r-dev-tty-does-not-detect-missing-controlling-terminal
+**Type:** bug
+**Module:** scripts/deploy-harness
+**Tags:** bash, dev-tty, controlling-terminal, curl-pipe-bash, harness-scripts, ci-macos-ubuntu, narrow-guard
+**Applicable when:** Watch for this when a shell script decides whether it may prompt the user — `[ -r /dev/tty ]`, `[ -t 0 ]`, and `[ -t 1 ]` are all wrong, and the failure is silent.
+
+`[ -r /dev/tty ]` is an `access(2)` mode-bit check on the `/dev/tty` alias node; those bits stay world-readable after `setsid()`, so it returns true in a process with no controlling terminal. The non-interactive fallback was dead code — a tty-less CI run entered the prompt branch, printed a menu nobody could answer, and reached the safe default only because `read … || true` swallowed `ENXIO`. Correct outcome, wrong mechanism, and the intended warning never printed. The only honest test is to open it: `have_tty() { (exec < /dev/tty) 2>/dev/null; }`.
+
+**Full doc:** docs/solutions/scripts/test-r-dev-tty-does-not-detect-missing-controlling-terminal.md
+---
+
+## [2026-07-10] unverified-premise-propagates-through-plan-anchored-reviews
+**Type:** failure
+**Module:** harness
+**Tags:** not-observed-not-absent, false-premise, plan-blind-review, correctness-pass, ground-truth, review-oracle, resync-conflict
+**Applicable when:** Watch for this when a spec, design, or plan asserts that something "is never shipped" / "does not exist" / "can never conflict", and downstream code, tests, and reviews all treat that absence claim as true without one independent `ls` or `git ls-files` against ground truth.
+
+A design doc asserted the harness ships no `*.proposed`; it shipped two, tracked since `f7d2d58`. Nobody ran `ls skills/pd-xia2/`. Per-task spec review, code-quality review, and the test author all passed the false premise — the test even encoded it as a comment. Only the plan-blind `/correctness review` caught it. Three reviewers agreeing means nothing when all three read the same wrong sentence: this is `rules/behavior.md` §1 `not_observed != absent`, and it is why the correctness and intent oracles are dispatched blind to the plan.
+
+**Full doc:** docs/solutions/harness/unverified-premise-propagates-through-plan-anchored-reviews.md
+---
+
+## [2026-07-17] verify-row-must-be-pipe-free-and-under-60s
+**Type:** failure
+**Module:** verify_summary / ci-strict-gate
+**Tags:** verify-table, summary-md, pipe-cell-split, strict-gate, timeout, plan-format-guardrail
+**Applicable when:** Writing a `### Verify` row in a spec SUMMARY.md — before pasting any command with a pipe or a whole-suite/build invocation.
+
+The `### Verify` table is machine-parsed data, not prose. `verify_summary` splits each row on `|`, so any pipe in a command (`||`, `&&|`, alternation `a|b`, `cmd | wc`) collides with the delimiter and the row never matches (hit 6× in one session). Separately, `ci-strict-gate` re-runs each Verify command under a 60s cap (= plan-format Guardrail 3), so a full-suite row (`bash scripts/run-tests.sh`) TIMES OUT on cold CI and blocks the PR (hit 1×). Rule: Verify commands must be pipe-free (`grep -e a -e b`, `X; a=$?; test -a`) AND <60s re-runnable — the full suite is a CI `tests` job, cited in prose, never a Verify row.
+
+**Full doc:** docs/solutions/harness/verify-row-must-be-pipe-free-and-under-60s.md
+---
+
+## [2026-07-17] automation-readiness
+**Type:** knowledge
+**Module:** skills/feature-intake / rules/auto-correct-scope
+**Tags:** automation-readiness, standing-automation, hooks, ci-workflow, scheduled-loop, fail-silent, design-gate, enforce-by-consultation
+**Applicable when:** A change adds a standing automation — a new hook (`hooks/*`), a CI / scheduled workflow, or a scheduled `/loop`. Consult before writing it.
+
+The risk-lane gate forces `high-risk` for `hooks/*`/`settings.json` (how carefully to build), but never asks two *design* questions that have already cost this repo. (1) **Fail-safe & stop condition** — finite retry, a fail-open boundary on advisory work (`… || true` on the command, not a try/except allowlist), no silent pass; the "advisory/never-blocks" bug shipped twice and a prompt-decision failed silently for want of this. (2) **Warranted & objectively verifiable** — does the task recur enough to justify a standing per-session/per-commit cost, and is its output checkable pass/fail with low false-alarm (an auth scanner matching an English word in a test comment is a tax paid every commit). If either fails, prefer a one-off script over a standing automation. Advisory (enforce-by-consultation); does not replace the high-blast hard gate.
+
+**Full doc:** docs/solutions/harness/automation-readiness.md
+---
+
+## [2026-07-17] skill-eval-blind-run-scoring
+**Type:** knowledge
+**Module:** evals / scripts/score_intake_eval.py
+**Tags:** skill-eval, workflow-eval, blind-run, deterministic-scorer, claim-discipline, non-determinism, hard-gate-respect, answer-key
+**Applicable when:** Building or extending a behavioral eval for a prompt-driven skill or workflow stage — where "prove it works" means measuring LLM judgment, not a green unit-test.
+
+Eval a prompt skill with **auto-score / manual-run**: labeled fixtures (`request.md` + parseable `truth.md`, `any` for unasserted dims) → **blind** subagent runs (given only the request + skill, never `truth.md` — the orchestrator authored the key, so a non-blind run is meaningless) → a deterministic, unit-tested scorer (pure Python, no key/LLM). **Separate the safety-critical dimension** (hard-gate respect → `--strict` hard-fail) from wobbly judgment dims (lane/confidence). **Multi-run**: one run hides borderline non-determinism (a fixture flipped tiny↔normal 3/4 while hard-gate respect stayed 3/3 across all 4). Scorer must **normalize LLM free-text** (`Data model` vs `data-model` → compare alphanumerics-only) or a correct call scores as a false miss. When N blind runs consistently disagree with a fixture, **suspect the answer key, not the skill** — revise `truth.md`, mark prior runs non-comparable.
+
+**Full doc:** docs/solutions/harness/skill-eval-blind-run-scoring.md
+**Recurred:** 2026-10-16 (gh-309: the answer key left fixture-settled decisions open; mark every decision the fixture states as settled before the first run)
+---
+
+## [2026-07-23] gate-config-must-read-index
+**Type:** bug
+**Module:** hooks/risk-corroboration.sh + harness-manifest.json (gate-mode contract)
+**Tags:** commit-time-hooks, index-vs-worktree, gate-integrity, fail-closed, policy-toctou, external-review
+**Applicable when:** A PreToolUse commit hook reads any config/policy file that influences allow/deny — it must read the INDEX-side copy (`git show :<path>`, fail-closed on absence) so unstaged edits cannot loosen the decision for the committed tree.
+
+> Superseded by specs/simplify-hook-surface (2026-09-29): risk-corroboration.sh merged into hooks/commit-gate.sh
+
+## [2026-07-27] no-report-reviewer-dispatch-is-not-a-pass
+**Type:** failure
+**Module:** harness (review chain + review receipt)
+**Tags:** review-chain, subagent-dispatch, no-report, review-receipt, independence, silent-degradation
+**Applicable when:** A dispatched reviewer subagent (correctness / intent / context-propagation) returns no findings text — it went idle, errored, or the channel dropped — and you are about to continue the ship chain.
+
+Four reviewers dispatched in one message all went idle without delivering findings; follow-up requests produced more silence. Silence is the absence of a review, not a clean result, and the receipt schema has no field for independence — so substituting a controller-run pass serializes identically to an independent one and Gate 0 passes on an overstated receipt. Re-dispatch or run it inline and say so verbatim in the `reviewer` string and `SUMMARY.md ### Review`; on a workflow-engine diff, get the missing independence from a reviewer outside the harness.
+
+**Full doc:** docs/solutions/harness/no-report-reviewer-dispatch-is-not-a-pass.md
+---
+
+## [2026-07-27] prose-encoded-state-logic-accrues-contradiction-chains
+**Type:** knowledge
+**Module:** harness (skill authoring — workflow-as-code)
+**Tags:** workflow-as-code, prose-vs-code, state-machine, skill-authoring, contradiction-chain, exhaustive-enumeration
+**Applicable when:** A SKILL.md section is about to branch on more than a couple of states of a real state machine (run-state FSM, plan lifecycle, CI status) — decide the medium before writing the third branch.
+
+State logic written as prose accrues contradiction chains: each correction is individually right and creates the next gap, because the preconditions live in the engine and prose never forces enumeration. Measured on PR #173: 6 of the last 8 findings were defects in prose that PR had just added, four of them a single chain (12→13→14→15), and two fixes ended by copying `FORWARD_TRANSITIONS` into markdown with a test comparing the copy to the original. Enumerate all states explicitly, assert executability rather than wording, and extract to a script once the branch count outgrows the medium — and remember every `|| true` in a skill is a place where such defects cannot announce themselves.
+
+**Full doc:** docs/solutions/harness/prose-encoded-state-logic-accrues-contradiction-chains.md
+---
+
+## [2026-08-10] plan-anchored-task-review-misses-fixture-fitted-bugs
+**Type:** failure
+**Module:** harness (review oracle)
+**Tags:** review-oracle, task-review, adversarial-review, corpus-testing, fixture-fitted-tests, plan-blind, green-is-not-correct
+**Applicable when:** A multi-task plan finished with every per-task review green (spec + quality) and the full suite passing, and you are about to treat that as sufficient correctness evidence — before the plan-blind adversarial correctness pass has run.
+
+On gh-175 every per-task review passed and 145 tests were green, yet the plan-blind `correctness review` (six independent finder angles) then found ~11 real, reproduced bugs — including a markdown plan mentioning `<task` parsing to an empty cursor (a resuming session would skip every task). The per-task tests were written by the same subagent from the same idealized assumptions using synthetic fixtures, so they proved consistency, not correctness; the bugs lived exactly where real `specs/*/PLAN.md` diverge from the tidy fixture. Correct path: keep the plan-blind adversarial correctness pass as a hard gate (different oracle, not redundant), add corpus tests that run the parser over EVERY real spec (parity/subset property), not synthetic fixtures, and re-verify each finding at truth-tier.
+
+**Full doc:** docs/solutions/harness/plan-anchored-task-review-misses-fixture-fitted-bugs.md
+---
+
+## [2026-09-09] hook-root-must-not-come-from-install-location
+**Type:** bug
+**Module:** hooks/repo-root-resolution
+**Tags:** hook-root-resolution, plugin-install-safety, silent-wrong-repo, claude-project-dir, fail-closed-posture, deployment-topology-assumption
+**Applicable when:** Writing or reviewing any hook or script that needs "the project root" and could ever run from a location decoupled from the target repo — plugin/marketplace packaging, a vendored install, a global `~/.claude/` copy, or any distribution path other than an in-tree copy.
+
+Eight of twelve hooks derived the repo root from the hook's own file location (`git -C "$SCRIPT_DIR" rev-parse --show-toplevel`), encoding a deployment topology as an identity. When the hook lives outside the project and its own directory sits inside any other git repo — the ordinary `claude plugin marketplace add` path, since it clones — that command exits **0** returning the wrong repo, so gates audit the wrong tree and report success: the pre-fix commit gate prints `Secrets scan... PASSED / Escalations... PASSED` against a foreign repo. Latent for the life of the repo because the deployed layout made the wrong inference produce the right answer. Fix: `${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}` with no `SCRIPT_DIR` fallback at any position, and a guard that matches each hook's already-documented blocking posture. Generalisation: never infer the identity of the thing you act on from where your own code lives — ask the runtime, and fail rather than return a plausible wrong answer.
+
+**Full doc:** docs/solutions/harness/hook-root-must-not-come-from-install-location.md
+---
+
+## [2026-09-09] ratchet-matches-spelling-not-property
+**Type:** failure
+**Module:** hooks/repo-root-resolution
+**Tags:** ratchet-blind-spot, spelling-vs-property, variable-name-enumeration, shared-blind-spot, text-anchored-guards, code-review-catch
+**Applicable when:** Watch for this when the same change that fixes a defect also writes the ratchet meant to prevent it, and the ratchet matches an identifier by name — a checker sourced from the same enumeration as the fix inherits that enumeration's blind spot and reports clean over the instances both missed.
+
+A manual `grep` for `git -C "$SCRIPT_DIR"` found seven hooks; seven were fixed, and the ratchet written to stop the pattern returning matched that same literal string. It reported clean, `run-tests.sh` printed ALL GREEN, and CI passed — while `hooks/session-knowledge.sh:22` still carried the identical defect spelled `git -C "$HOOK_DIR"`. The checker and the fix came from one enumeration pass, so they shared a single blind spot and neither could catch the other: a ratchet built from the same list as the change it guards is not an independent oracle, it is the same judgement written twice, and it converts a gap in that judgement into evidence of correctness. `SCRIPT_DIR` is a spelling; the defect is a property. Caught only by an independent review of a sibling PR whose reviewers re-derived the list from source. Correct path: match the defect's shape, and run the new ratchet against the pre-fix tree to watch it fail before trusting its green.
+
+**Full doc:** docs/solutions/harness/ratchet-matches-spelling-not-property.md
+---
+
+## [2026-09-29] bare-command-hook-must-be-executable-in-index
+**Type:** bug
+**Module:** hooks/registration
+**Tags:** hook-registration, file-mode, exit-126, fail-open, bash-invoked-tests, settings-json, deploy-propagation, correctness-pass-catch
+**Applicable when:** Adding or replacing a hook that settings.json registers as a bare command path (no `bash` prefix), including any file created by an agent Write tool (defaults to 100644).
+
+A new `hooks/commit-gate.sh` was committed `100644` while registered as a bare command, so the runtime got exit 126 — not a block — and every commit gate silently failed open, and every consumer deploy would have inherited the dead gate (caught before merge). It passed 200+ assertions because every hook test runs `bash hooks/x.sh`, which ignores the execute bit; `tests/scripts/settings-wiring.test.sh` now asserts `-x` and index mode `100755` for every registered command.
+
+**Full doc:** docs/solutions/harness/bare-command-hook-must-be-executable-in-index.md
+
+---
+
+## [2026-10-15] ste-rewrite-drops-scope-qualifiers
+**Type:** failure
+**Module:** skills/*/SKILL.md, rules/*.md, agents/*.md (agent-executed prose under an STE rewrite)
+**Tags:** ste100, prose-rewrite, scope-qualifier, sentence-split, word-ceiling, meaning-equivalence, green-is-not-correct, review-oracle
+**Applicable when:** You rewrite agent-executed prose for style (for example with asd-ste100), and the rewrite splits long sentences or cuts words to fit the 600-word skill ceiling.
+
+An STE rewrite of `feature-intake` dropped two conditions in one task. A sentence split moved checks out from under "if intent.md is present", and a word-ceiling cut removed "For a new SUMMARY". Every test passed and the lint count went down both times. Only a per-file meaning-equivalence review caught them. Repeat the scope on each split part, never cut a condition word to meet the ceiling, and review every rewritten file line by line.
+
+**Full doc:** docs/solutions/harness/ste-rewrite-drops-scope-qualifiers.md
+
+---
+
+## [2026-10-16] ste-ratchet-blind-to-fenced-prompt-prose
+**Type:** failure
+**Module:** skills/pd-asd-ste100/scripts/ste-lint.py + scripts/check_ste_baseline.py + skills/subagent-driven-development/scripts/review_package.py
+**Tags:** ste100, ste-lint, ratchet-blind-spot, fenced-dispatch-prompt, green-is-not-correct
+**Applicable when:** You change the prose of a `*-prompt.md` dispatch prompt and use the STE lint count (the baseline ratchet or the review package's `## STE lint` section) as evidence.
+
+`ste-lint.py` skips fenced blocks, and a dispatch prompt keeps its prompt text inside a fence. So
+the ratchet and the review package report `0 → 0` for the most load-bearing prose. This happened
+in the ste100 rollout and again in gh-312. Treat the lint count as no evidence for fenced prompt
+prose. Brief the task reviewer to check each fenced hunk by hand, and record the gap in
+`### Not auto-verified`.
+
+**Full doc:** docs/solutions/harness/ste-ratchet-blind-to-fenced-prompt-prose.md
+**Recurred:** 2026-10-16 (gh-312 Task 1.3: about 25 new fenced prompt lines, lint `0 → 0`)
+
+---

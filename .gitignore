@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.ruff_cache/
+.pytest_cache/
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
+
+# Claude Code (user-specific, not shared config)
+settings.local.json
+CLAUDE.local.md
+
+# Git worktrees (project-local, isolated feature workspaces)
+.worktrees/
+
+# Claude Code local folder (user-specific rules and settings; the plugin itself lives in plugins/harness/)
+.claude/
+
+# Playwright plugin output: screenshots, snapshots and GIF evidence from verify runs (local only)
+.playwright-mcp/
+
+# Timestamped harness backups (created by deploy/install scripts; not tracked)
+.harness-backup-*/
+
+# Local-only research notes (kept out of the tracked tree by request)
+docs/memory/
+
+# specs/ at the repo root is local scratch: one specs/<slug>/ per ticket (intent, design, decision, plan, summary).
+# Anchored, so plugins/harness/templates/specs/ stays tracked.
+/specs/
+
+.vercel
+
+# vscode
+.vscode
+
+# local research notes and generated reports
+/research_notes/
+/reports/
