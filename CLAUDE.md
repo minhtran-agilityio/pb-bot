@@ -92,9 +92,10 @@ Wired (✅) means registered in `plugins/pd-bot/hooks/hooks.json`. All hooks fai
 | Hook | Trigger | Action | Wired |
 |---|---|---|---|
 | `session-rules.sh` | SessionStart | Delivers `rules/behavior.md` as session context (a plugin has no rules component) | ✅ |
+| `session-role.sh` | SessionStart | In the Pod Bay session of the main workspace (`src`), adds the orchestrator role text (`hooks/orchestrator-role.md`): check, coordinate, decide, and delegate hands-on work; reads the tmux options Pod Bay sets (`@tn_context` has no `@NN` suffix in `src`); silent in `src-NN`, in a nested `claude -p` and outside Pod Bay; off with `{"orchestrator": "off"}` in `<repo>/.claude/pd-bot.json` or `PD_BOT_ROLE=none` | ✅ |
 | `secrets-scan.sh` | PreToolUse (Bash) | On `git commit`, blocks a staged secret pattern or a staged `.env` file | ✅ |
 | `merge-guard.sh` | PreToolUse (Bash) | Blocks `gh pr merge` and `gh api .../pulls/<n>/merge` unless the PR base is `feat/*`; one plain `gh pr merge <n> --repo o/r` into main or another base shows a confirmation prompt (`ask`) and runs only after the owner approves; it denies in a mode, subagent or `-p` run where nobody can answer, and still denies `--auto`, wrappers, `gh api`, GraphQL and every doubt path; fails closed (no env bypass); the owner's own `!` or terminal merge is not seen | ✅ |
-| `pr-opened.sh` | PostToolUse (Bash) | After `gh pr create`, reminds the main session to review the PR | ✅ |
+| `pr-opened.sh` | PostToolUse (Bash) | After `gh pr create`, reminds the main session to review the PR; the orchestrator session is told to hand the review to another session | ✅ |
 | `stop-evidence.sh` | Stop | When code changed and the transcript has no Bash output, blocks the end of the main session; a model judge (Opus 5.5) picks remind (blocks once) or force; an Opus main session skips the judge unless a bash risk floor matches (`hooks/`, `scripts/`, auth or secret words); fails open, except on the risk floor | ✅ |
 | `clean-worktrees.sh` | PostToolUse (Bash), SessionStart | After a merge, and at session start, fetches and removes the worktree and branch of merged branches (`git branch -D` only when a merged PR head equals the local tip); skips protected names (`develop`, `staging`, `release/*`, ...); the session-start sweep also skips a worktree a live process uses and stops after a 20 s budget | ✅ |
 
