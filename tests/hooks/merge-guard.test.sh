@@ -413,6 +413,20 @@ for c in '{g..g}h pr merge 7 --repo o/r --admin' 'g{h..h} pr merge 7 --repo o/r 
 done
 t "P5: no jq and a folded spelling of a merge (g\"\"h) is denied"; g 'g""h pr merge 7 --repo o/r --admin' "$NOJQ"; assert_rc 2
 t "P5: no jq and an upper-case GH merge is denied"; g 'GH pr merge 7 --repo o/r' "$NOJQ"; assert_rc 2
+# P5 code review: more spellings of the same kind, and the merge word in the payload's other fields.
+for c in 'gh pr mer{g..g}e 7 --repo o/r --admin' 'gh pr m{e..e}rge 7 --repo o/r' \
+         "\$'\\u67'h pr \$'m\\u65'rge 7 --repo o/r" "\$'\\U67'h pr \$'m\\U65'rge 7 --repo o/r" \
+         '/usr/bin/g? pr m?rge 7 --repo o/r --admin' "Bash -c 'gh pr merge 7 --repo o/r --admin'" \
+         'a=xghmerg; b=e; ${a:1:2} pr ${a:3}$b 7 --repo o/r --admin'; do
+  t "P5: a spelling that bash turns into a gh merge is denied: $c"; g "$c"; assert_rc 2
+done
+for c in 'printf "\033[1m" ; $EDITOR notes.txt' 'X=$HOME/bin; "$X/tool" && printf "\033[0m"'; do
+  t "P5: an escape next to a command built from a variable, with no merge word, is allowed: $c"; g "$c"; assert_rc 0
+done
+# (Without jq, a $ next to the word merge stays denied: the hook cannot tell a variable command name from text.)
+for c in 'ls *.md' 'git merge feat/x' 'printf "\033[0m"'; do
+  t "P5: no jq and a command that is not a gh merge is allowed: $c"; g "$c" "$NOJQ"; assert_rc 0
+done
 # ...and ordinary commands with braces, globs, escapes or a line break, and no merge, still run.
 for c in 'echo {a,b}.txt; ls *.md' "printf '\\x41\\n'" "git log --oneline \\${NL}  -3" 'echo Ghost'; do
   t "P5: a command without a merge is allowed: ${c//$NL/<NL>}"; g "$c"; assert_rc 0
