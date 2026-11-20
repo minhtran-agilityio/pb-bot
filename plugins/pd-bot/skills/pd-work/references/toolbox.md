@@ -16,6 +16,7 @@ report when a reader would expect it.
 | The ticket is risky (protocol, last paragraph) | the `pd-bot:security-reviewer` agent on your diff before you ask for review; fix every critical and high finding. The reviewer runs its own security review; yours only saves a round |
 | The same check failed twice after a fix | one question to the `pd-bot:advisor` agent; if still stuck, `escalate` with the attempts, their output and the advisor's answer |
 | You chose something a reader might not expect | `pd-bot:pd-decision-record` |
+| Your diff has a UI change (protocol, "Outcome contract") | attach a screenshot of the changed screen to the PR (`gh pr comment <n> --attach <file>`, before and after when the screen existed). If you cannot, write `Merge: human (no UI screenshot attached)` in the PR body and go on. The screenshot never decides pass or fail |
 | A test run of more than a few seconds | the `pd-bot:test-runner` agent, so your context stays small |
 
 You may start agents of your own and run independent work in parallel. Choose each agent's model
