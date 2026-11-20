@@ -208,6 +208,7 @@ Schema reference: `docs/solutions/README.md` (scaffolded by `/pd-bot:pd-setup`).
 ## Hooks
 
 `hooks/session-rules.sh` delivers `rules/behavior.md` at session start.
+`hooks/session-role.sh` adds the orchestrator role text (`hooks/orchestrator-role.md`) to the Pod Bay session of the main workspace, and to no other session.
 `hooks/secrets-scan.sh` runs before every `git commit`: it blocks a staged secret pattern or a staged `.env` file.
 `hooks/merge-guard.sh` blocks `gh pr merge` and `gh api .../pulls/<n>/merge` unless the PR base is `feat/*`; unlike the other hooks it fails closed.
 `hooks/pr-opened.sh` reminds the main session to review a PR after `gh pr create`, and `hooks/clean-worktrees.sh`

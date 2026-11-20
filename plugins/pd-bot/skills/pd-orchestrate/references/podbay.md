@@ -23,6 +23,24 @@ Other `ls` fields: `status` (`busy` or `idle`), `asks` (true: a dialog waits for
 `waiting_for`, `dir` (the checkout path), `changes`, `links` (pull requests, issues, artifacts),
 `description`, `attach` (the tmux command for a human).
 
+## Which session is the orchestrator
+
+A SessionStart hook of the plugin (the session-role hook) gives the orchestrator role text to one session: the Pod Bay
+session of the main workspace (`src`). It reads the tmux options that Pod Bay sets on each session
+it starts:
+
+| tmux option | Example | Meaning |
+|---|---|---|
+| `@tn_kind` | `claude` | Pod Bay started this session |
+| `@tn_context` | `pb-bot/pb-bot`, or `pb-bot/pb-bot@04` | `<project>/<repo>` in `src`; the suffix `@NN` means workspace `src-NN` |
+| `@claude_dir` | the checkout path | must be the session's project directory |
+
+Sessions in `src-NN` get no role from the hook: your brief gives a worker, a reviewer or an advisor
+its role. Pod Bay does not document these options. When they change, the hook is silent; check with
+`tmux show-options -t '<name>'`. The owner switches the role off with `{"orchestrator": "off"}` in
+the repository's `.claude/pd-bot.json`, or with `PD_BOT_ROLE=none` for one session;
+`PD_BOT_ROLE=orchestrator` gives the role to a session that Pod Bay did not start.
+
 ## Commands you use
 
 | Need | Command |

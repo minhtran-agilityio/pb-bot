@@ -13,6 +13,23 @@ t "pr-opened says nothing for another command"
 run_hook "$R" pr-opened.sh '{"tool_input":{"command":"gh pr view 1"}}'
 if [ "$RC" = 0 ] && [ -z "$OUT" ]; then pass; else fail "rc=$RC out=$OUT"; fi
 
+t "pr-opened keeps today's reminder (run /code-review here) for a session that is not the orchestrator"
+run_hook "$R" pr-opened.sh '{"tool_input":{"command":"gh pr create --title x"},"tool_response":"https://github.com/o/r/pull/42"}' PD_BOT_ROLE=none
+if [ "$RC" = 0 ] && printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext | test("run /code-review on it now")' >/dev/null; then pass; else fail "rc=$RC out=$OUT"; fi
+
+RO=$(new_repo pr-opened.sh session-role.sh)
+t "pr-opened tells the orchestrator session to hand the review to another session"
+run_hook "$RO" pr-opened.sh '{"tool_input":{"command":"gh pr create --title x"},"tool_response":"https://github.com/o/r/pull/42"}' PD_BOT_ROLE=orchestrator
+if [ "$RC" = 0 ] && printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext | (test("#42") and test("another session") and (test("run /code-review on it now") | not))' >/dev/null; then pass; else fail "rc=$RC out=$OUT"; fi
+
+t "pr-opened with session-role.sh present keeps today's reminder for another session"
+run_hook "$RO" pr-opened.sh '{"tool_input":{"command":"gh pr create --title x"},"tool_response":"https://github.com/o/r/pull/42"}' PD_BOT_ROLE=none
+if [ "$RC" = 0 ] && printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext | test("run /code-review on it now")' >/dev/null; then pass; else fail "rc=$RC out=$OUT"; fi
+
+t "pr-opened from a subagent of the orchestrator keeps the subagent text"
+run_hook "$RO" pr-opened.sh '{"agent_id":"a1","tool_input":{"command":"gh pr create --title x"},"tool_response":"https://github.com/o/r/pull/42"}' PD_BOT_ROLE=orchestrator
+if [ "$RC" = 0 ] && printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext | test("subagent")' >/dev/null; then pass; else fail "rc=$RC out=$OUT"; fi
+
 # ---- clean-worktrees.sh ----
 setup() {  # $1 = merged|open ; leaves $MAIN, $WT, $STUB
   MAIN=$(mktemp -d); _CLEANUP_DIRS+=("$MAIN")

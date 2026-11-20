@@ -42,6 +42,7 @@ docs/memory/
 /research_notes/
 /reports/
 
-# Project docs and research notes are kept local only
-/docs/
+# Project docs and research notes are kept local only, except the decision records in docs/adr/
+/docs/*
+!/docs/adr/
 research/
