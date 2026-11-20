@@ -8,7 +8,7 @@ The shared contract of `pd-bot:pd-orchestrate`, `pd-bot:pd-work`, `pd-bot:pd-rev
 Transport: `SendMessage` to the session name that the brief gives. The first line of every message is
 
 ```
-[harness-msg v1] <type> <run>/<ticket> <from-role>
+[pd-msg v1] <type> <run>/<ticket> <from-role>
 ```
 
 `<from-role>` is `orchestrator`, `worker`, `reviewer` or `advisor`. A body follows; where the table
@@ -62,7 +62,7 @@ present only on an `accepted` finding, and a reviewer never sets it on its own.
 ## Worker report (JSON)
 
 The worker writes `specs/<ticket>/report.md` (gitignored): the line
-`<!-- harness-fleet:report v2 -->`, then one JSON object. It sends the same text as `report`.
+`<!-- pd-fleet:report v2 -->`, then one JSON object. It sends the same text as `report`.
 
 ```json
 {"v": 2, "run": "r1", "ticket": "123", "reported_by": "worker",
