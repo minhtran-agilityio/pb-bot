@@ -91,7 +91,7 @@ writes it. It is the orchestrator's memory: after a context summary, read it fir
 ```json
 {"v": 1, "run": "r1", "base": "main", "repo": "owner/name",
  "tickets": {"123": {"state": "in_review", "kind": "bug", "depth": "S", "app": "none", "risky": false,
-   "deps": [],
+   "deps": [], "touches": ["src/a.py", "docs/"],
    "text": "<the ticket, verbatim>", "owner_answers": ["<verbatim>"],
    "worker": {"session": "...", "workspace": "src-02", "checkout": "/abs/path", "model": "..."},
    "reviewer": {"session": "...", "model": "..."},

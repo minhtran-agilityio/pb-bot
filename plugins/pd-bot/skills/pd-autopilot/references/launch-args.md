@@ -26,7 +26,7 @@ directory (verified for #396; it supersedes `docs/adr/0001-workflow-capabilities
   entry with `needs_review: true` and `adr: false`, so the ticket is not merged until the owner accepts the row.
 
 - Take `testCmd`, `lintCmd` and `fullTestCmd` from `CLAUDE.md` → `## Run and test`, then the README, never from memory. If one is missing, ask in step 7. With `--no-ask`, record a `needs_review` decision and use `fullTestCmd` only.
-- `deps` holds only tickets inside the batch. `group` comes from the plan_groups.py helper.
+- `deps` holds only tickets inside the batch. `group` comes from the plan_groups.py helper, which also keeps tickets with an overlapping path out of one group and applies the profile's `maxParallel`.
 - One ticket means single mode: no integration branch (ADR 0001, decision 5).
 - `noAsk: true` when `--no-ask` was given. `local` stays false unless the owner asks for a run
   without GitHub writes.

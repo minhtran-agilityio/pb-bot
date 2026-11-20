@@ -23,11 +23,11 @@ skill runs in the main session; `${CLAUDE_PLUGIN_ROOT}/workflows/ship.js` is the
    (exit 2: show the error, stop) and follow `references/profile.md`.
 2. **Triage.** One call per ticket, all in one message. A `researcher` finds facts (code the
    ticket touches, tests, links between tickets). An `intake`-model agent follows the `pd-bot:pd-intake` skill
-   and returns verdict `READY | CONFIRM | GRILL | BLOCKED`, depth `S|M|L`, deps and questions.
+   and returns verdict `READY | CONFIRM | GRILL | BLOCKED`, depth `S|M|L`, deps, `Touches:` paths and questions (`references/groups.md`).
    For an important ticket (intake: GRILL class) also ask the `advisor` agent.
-3. **Groups.** Drop BLOCKED tickets with the reason shown and flag their dependents. Pipe
-   `[{"n":1,"deps":[..]}]` into `python3 ${CLAUDE_SKILL_DIR}/scripts/plan_groups.py`. It returns
-   `[{"n":1,"group":1}]`. Exit 2 names a dependency cycle: stop and show it.
+3. **Groups.** Drop BLOCKED tickets with the reason shown and flag their dependents. Run
+   `python3 ${CLAUDE_SKILL_DIR}/scripts/plan_groups.py` as `references/groups.md` says. Exit 2:
+   stop and show it.
 4. **Clarify** (skip with `--no-ask`). Collect every ticket's CONFIRM questions. Ask with
    AskUserQuestion, at most 4 per call, in the `pd-bot:pd-grilling` "Question format". Evidence goes in the
    option `preview` (`pd-grilling/references/review-layout.md`). One decision each.

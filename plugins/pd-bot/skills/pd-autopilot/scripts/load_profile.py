@@ -53,6 +53,10 @@ def check(profile, source):
             if not isinstance(value, list) or not all(
                     isinstance(c, str) and c.strip() and "\n" not in c and "\r" not in c for c in value):
                 raise ValueError(f"{source}: worktreeSetup must be a list of one-line command strings")
+        elif key == "maxParallel":
+            # The most tickets of one group that run at the same time (plan_groups.py --max-parallel).
+            if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+                raise ValueError(f"{source}: maxParallel must be a whole number, 1 or more")
         elif key in ROLE_MODELS:
             if value not in ROLE_MODELS[key]:
                 raise ValueError(f"{source}: {key} must be one of {sorted(ROLE_MODELS[key])}")
