@@ -32,7 +32,7 @@ ticket -> /pd-bot:pd-intake -> verdict + depth -> build -> review -> ship
 
 One principle drives it: **ceremony scales with the size of the change, and human interruption scales with ambiguity.**
 
-See [HARNESS.md](HARNESS.md) for the model, [plugins/pd-bot/skills/README.md](plugins/pd-bot/skills/README.md) for every skill and handoff, and the Hooks table in [CLAUDE.md](CLAUDE.md) for what the five hooks enforce, including `merge-guard.sh`, which blocks any `gh pr merge` whose PR base is not `feat/*` and fails closed. For one plain `gh pr merge <n>` into the base from the main session, it asks the owner to approve that PR instead of blocking.
+See [plugins/pd-bot/skills/README.md](plugins/pd-bot/skills/README.md) for every skill and handoff, and the Hooks table in [CLAUDE.md](CLAUDE.md) for what the five hooks enforce, including `merge-guard.sh`, which blocks any `gh pr merge` whose PR base is not `feat/*` and fails closed. For one plain `gh pr merge <n>` into the base from the main session, it asks the owner to approve that PR instead of blocking.
 
 ## Installation
 

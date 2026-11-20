@@ -29,7 +29,7 @@ cd "$(dirname "$0")/.." || exit 1
 # reported as a missing doc.
 PLUGIN=plugins/pd-bot
 shopt -s nullglob
-DOCS=(CLAUDE.md README.md HARNESS.md $PLUGIN/skills/README.md agents/*.md $PLUGIN/agents/*.md $PLUGIN/rules/*.md)
+DOCS=(CLAUDE.md README.md AGENTS.md $PLUGIN/skills/README.md agents/*.md $PLUGIN/agents/*.md $PLUGIN/rules/*.md)
 shopt -u nullglob
 KNOWN_ROOTS="plugins skills rules hooks docs templates agents scripts tests xia2 .github .claude"
 FAILED=0

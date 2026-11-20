@@ -8,7 +8,7 @@
 # `#fragment` or `?query` is stripped before the file check; a leading `/` means repo root.
 # Links inside fenced code blocks are examples, not links, and are skipped.
 #
-# The living top-level docs (README.md HARNESS.md AGENTS.md CLAUDE.md skills/README.md)
+# The living top-level docs (README.md AGENTS.md CLAUDE.md skills/README.md)
 # also get a path check on backticked file paths such as `hooks/commit-gate.sh`:
 # a path with a "/" and a known extension must exist (from the repo root or the file's dir).
 # Paths under .claude/ (installed in consumer repos), placeholders (<>*${}), `specs/` and `docs/` (local-only, gitignored) are skipped.
@@ -54,7 +54,7 @@ extract_paths() {
   ' "$1"
 }
 
-LIVING=" README.md HARNESS.md AGENTS.md CLAUDE.md plugins/pd-bot/skills/README.md "
+LIVING=" README.md AGENTS.md CLAUDE.md plugins/pd-bot/skills/README.md "
 
 while IFS= read -r file; do
   case "$file" in
