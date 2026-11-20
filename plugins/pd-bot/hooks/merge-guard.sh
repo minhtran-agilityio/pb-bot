@@ -37,7 +37,8 @@ fold() {
 ESC_RE='\\([0-7]{1,3}|x[0-9A-Fa-f]{1,2}|u[0-9A-Fa-f]{1,4}|U[0-9A-Fa-f]{1,8})'
 has_escape() { printf '%s' "$1" | grep -qE "$ESC_RE"; }
 # P5: the text with its escapes decoded (printf %b reads octal only after \0, so add it).
-decode() { local s; s=$(printf '%s' "$1" | sed -E 's/\\([0-7]{1,3})/\\0\1/g'); printf '%b' "$s" 2>/dev/null; }
+# \c makes printf %b stop writing, so drop it first.
+decode() { local s; s=$(printf '%s' "$1" | sed -E 's/\\c//g; s/\\([0-7]{1,3})/\\0\1/g'); printf '%b' "$s" 2>/dev/null; }
 # P5: a word that can only matter next to a spelled merge: the pr subcommand, merge itself, the API words, or a
 # pipe into a shell or wrapper. Used with escapes and globs, which can spell any letters.
 merge_context() {
@@ -80,7 +81,7 @@ if ! command -v jq >/dev/null 2>&1; then
   # P5: without jq, cut the command field out of the payload by hand (a best effort that can include later
   # fields) and deny when it looks like a merge. The old check needed a plain `gh pr merge` and missed folded spellings.
   raw=$(printf '%s' "$payload" | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\(.*\)".*/\1/p')
-  if [ -z "$raw" ] || is_merge_like "$(printf '%b' "$raw" 2>/dev/null)"; then
+  if [ -z "$raw" ] || is_merge_like "$(printf '%b' "${raw//\\c/}" 2>/dev/null)"; then
     deny "jq is not installed, so the merge command cannot be parsed."
   fi
   exit 0

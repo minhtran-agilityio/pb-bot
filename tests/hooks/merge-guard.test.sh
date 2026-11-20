@@ -447,6 +447,11 @@ for c in "bash -c $E1" "eval $E1" "bash <<< $E1" "bash <($P1)" "$P1 | env bash" 
   t "P5: an escape-only merge handed to a wrapper is denied: $c"; g "$c"; assert_rc 2
 done
 # Known limit: without jq, gh inside a word next to a glob and pr (ls high/pr*) is denied; jq is a listed dependency.
+# P5 security review 3: printf %b stops at \c, so a \c earlier in the command hid the decoded merge.
+for c in ": '\\c'; \$'\\x67\\x68' \$'\\x70\\x72' \$'\\x6d\\x65\\x72\\x67\\x65' 7 --repo o/r" \
+         "# \\c${NL}\$'\\x67\\x68' \$'\\x70\\x72' \$'\\x6d\\x65\\x72\\x67\\x65' 7 --repo o/r"; do
+  t "P5: a \\c before an escape-only merge does not hide it: ${c//$NL/<NL>}"; g "$c"; assert_rc 2
+done
 # ...and ordinary commands with braces, globs, escapes or a line break, and no merge, still run.
 for c in 'echo {a,b}.txt; ls *.md' "printf '\\x41\\n'" "git log --oneline \\${NL}  -3" 'echo Ghost'; do
   t "P5: a command without a merge is allowed: ${c//$NL/<NL>}"; g "$c"; assert_rc 0
