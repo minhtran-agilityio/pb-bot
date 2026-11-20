@@ -49,7 +49,7 @@ is_merge_like() {
   esac
   # P5: a glob or a brace in the gh words (gh pr merg?, mer{g..g}e, /usr/bin/g? pr m?rge) can expand to them.
   case "$f" in
-    *gh*pr*[?*{]*) return 0 ;;
+    *gh*pr*[?*\{]*) return 0 ;;
   esac
   if printf '%s' "$f" | grep -q '[?*{]' && merge_context "$f"; then return 0; fi
   # P5: an escape ($'\147h', printf '\x67h' | bash) can spell gh or merge.
