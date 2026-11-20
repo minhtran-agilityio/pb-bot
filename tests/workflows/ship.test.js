@@ -1443,16 +1443,23 @@ test('ui-shot-d: a BE ticket whose diff touches no UI file needs no screenshot',
   const r = await run({ base: 'phase3-ui' }, withVerify('BE', c => (c.label === 'attach:1' ? new Error('gh too old') : gifOk(c))))
   assert(!adrPrompt(r).includes('no UI screenshot attached'), adrPrompt(r).slice(-1500))
 })
-test('ui-shot-e: a gated ticket whose diff touches a .tsx file and has no screenshot stays a human merge with the screenshot gate; its PR is kept', async () => {
-  const r = await gateFlow({}, c => { if (c.label === 'gdiffstat:1') return { files: [{ path: 'ui/src/App.tsx', added: 3, deleted: 1 }] } })
+test('ui-shot-e: a gated ticket whose diff touches a .tsx file and has no screenshot still merges; the final PR names it in its Merge: human reason', async () => {
+  const r = await gateFlow({ base: 'feat/x' }, c => { if (c.label === 'gdiffstat:1') return { files: [{ path: 'ui/src/App.tsx', added: 3, deleted: 1 }] } })
   const a = t1(r)
-  assert.strictEqual(a.status, 'blocked')
-  assert(a.reason.includes('screenshot'), a.reason)
-  assert.strictEqual(a.pr, 101, 'the PR is kept')
+  assert.strictEqual(a.status, 'done', a.reason)
   const body = named(r.calls, /^gbody:1$/)[0].prompt
-  assert(body.includes('Merge: human') && body.includes('screenshot'), body)
-  const t2 = r.result.tickets.find(t => t.n === 2)
-  assert.strictEqual(t2.status, 'done', 'the other ticket is not affected')
+  assert(body.includes('Merge: auto'), 'the ticket gate is not blocked by a missing screenshot')
+  assert(r.result.final.reason.includes('no UI screenshot attached (#1)'), r.result.final.reason)
+  const adr = adrPrompt(r)
+  assert(adr.includes('Merge: human') && adr.includes('no UI screenshot attached (#1)'), adr.slice(-1500))
+})
+test('ui-shot-e2: a UI ticket blocked at another gate is not named in the final reason', async () => {
+  const r = await gateFlow({ base: 'feat/x' }, c => {
+    if (c.label === 'gdiffstat:1') return { files: [{ path: 'ui/src/App.tsx', added: 3, deleted: 1 }] }
+    if (c.label === 'gintent:1') return { verdict: 'gaps found', findings: [{ kind: 'excess', clause: 'c', detail: 'd' }] }
+  })
+  assert.strictEqual(t1(r).status, 'blocked')
+  assert(!adrPrompt(r).includes('no UI screenshot attached (#1)'), adrPrompt(r).slice(-1500))
 })
 test('ui-shot-f: the final diff with a .css file and no ticket screenshot makes the final merge human', async () => {
   const r = await run({ base: 'phase3-ui' }, c => { if (c.label === 'diffstat') return { files: [{ path: 'src/app.css', added: 3, deleted: 0 }] } })
