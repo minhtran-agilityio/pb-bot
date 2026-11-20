@@ -440,6 +440,13 @@ for c in "printf '\\033[1mhi\\033[0m\\n'; bash scripts/run-tests.sh" "echo -e '\
          "grep -rlP '\\x00' . | xargs -n1 file"; do
   t "P5: an escape that spells no merge, next to a wrapper, is allowed: $c"; g "$c"; assert_rc 0
 done
+# P5 security review 2: an escape-only merge handed to a wrapper in other forms.
+E1="\$'\\x67\\x68 \\x70\\x72 \\x6d\\x65\\x72\\x67\\x65 7 --repo o/r'"
+P1="printf '\\x67\\x68 \\x70\\x72 \\x6d\\x65\\x72\\x67\\x65 7 --repo o/r'"
+for c in "bash -c $E1" "eval $E1" "bash <<< $E1" "bash <($P1)" "$P1 | env bash" "$P1 | timeout 9 bash"; do
+  t "P5: an escape-only merge handed to a wrapper is denied: $c"; g "$c"; assert_rc 2
+done
+# Known limit: without jq, gh inside a word next to a glob and pr (ls high/pr*) is denied; jq is a listed dependency.
 # ...and ordinary commands with braces, globs, escapes or a line break, and no merge, still run.
 for c in 'echo {a,b}.txt; ls *.md' "printf '\\x41\\n'" "git log --oneline \\${NL}  -3" 'echo Ghost'; do
   t "P5: a command without a merge is allowed: ${c//$NL/<NL>}"; g "$c"; assert_rc 0
