@@ -27,19 +27,107 @@ payload=$(cat)
 # Pre-filter on a folded copy (lowercase, quotes and backslashes removed) so "g""h", GH-case or
 # me\rge spellings do not skip the guard.
 fold() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d "\"'\\\\"; }
-is_merge_like() {
-  case "$(fold "$1")" in
-    *gh*merge*|*pulls/*merge*|*mergepullrequest*|*enablepullrequestautomerge*|*repos/*/merges*|*gh*pr*[\$\`]*|*[\$\`]*merge*) return 0 ;;
+is_merge_like() {  # is_merge_like <text> [loose]
+  local f; f=$(fold "$1")
+  case "$f" in
+    *pulls/*merge*|*mergepullrequest*|*enablepullrequestautomerge*|*repos/*/merges*|*[\$\`]*merge*) return 0 ;;
+  esac
+  # The raw payload still holds JSON escapes (\n, \t): fold drops the backslash and leaves an n or t in front
+  # of the next word. The first pass over the payload is therefore loose; the pass over the decoded command is not.
+  if [ -n "${2-}" ]; then
+    case "$f" in *gh*merge*|*gh*pr*[\$\`]*) return 0 ;; esac
+    return 1
+  fi
+  # P1: `gh` must be a word of its own, so "light" or "highlight" next to the word merge in prose is not a hit.
+  case "$f" in
+    gh[!a-z0-9]*merge*|*[!a-z0-9]gh[!a-z0-9]*merge*|gh[!a-z0-9]*pr*[\$\`]*|*[!a-z0-9]gh[!a-z0-9]*pr*[\$\`]*) return 0 ;;
   esac
   return 1
 }
-is_merge_like "$payload" || exit 0
+is_merge_like "$payload" loose || exit 0
 
 TMPF=""
 trap '[ -z "$TMPF" ] || rm -f "$TMPF"' EXIT
 deny() {
   printf 'merge-guard: BLOCKED. %s\nA human merges this PR: run the merge yourself in a terminal (or with the ! prefix).\n' "$1" >&2
   exit 2
+}
+
+# P1: may this wrapper segment be left alone although the command has merge-like text? Only a plain run of a
+# literal .sh file (`bash scripts/run-tests.sh [literal words] [> log]`), and only when nothing in the whole
+# command could have written that file or built its name:
+#   - every .sh word is the script of such a run, and the raw command names that script only where it is run;
+#   - every redirect target is /dev/null or a log-type file; a $ word is $NAME/literal; no backtick, brace,
+#     tilde, $( or input redirection; a backslash only in the pattern of grep, sed, tr, cut, echo or printf;
+#   - every other command is on a short list of commands that cannot run code from a file they did not show
+#     (a file-run interpreter such as `nodejs w.js` could write the script; python or node with the code in the
+#     command text is allowed, because that text is covered by the first rule).
+# bash -c, a script on stdin, source, eval and xargs stay denied. Reads the globals $segs and $cmd.
+plain_script_run() {  # plain_script_run <segment>
+  local seg=$1 script w t n_sh n_run words line c a rest runs p occ
+  # shellcheck disable=SC2086
+  set -- $seg
+  case "${1-}" in bash|sh|zsh|dash|ksh) ;; *) return 1 ;; esac
+  script=${2-}
+  printf '%s' "$script" | grep -qE '^[A-Za-z0-9_./-]+\.sh$' || return 1
+  case "$script" in -*) return 1 ;; esac
+  rest=$(printf '%s' "${seg#*"$script"}" | sed -E 's/[0-9]*>>?[[:space:]]*[^[:space:]]*//g')
+  # shellcheck disable=SC2086
+  set -- $rest
+  for w in "$@"; do printf '%s' "$w" | grep -qE '^[A-Za-z0-9_./:=,@%+-]+$' || return 1; done
+  # shellcheck disable=SC2016  # a literal $( in the pattern
+  case "$segs" in *[\`{}~]*|*'$('*) return 1 ;; esac
+  if printf '%s' "$segs" | sed -E 's/<<-?[A-Za-z_][A-Za-z0-9_]*//g' | grep -q '<'; then return 1; fi
+  words=$(printf '%s\n' "$segs" | tr -s '[:space:]' '\n' | sed -E 's/^[0-9]*>>?//')
+  n_sh=$(printf '%s\n' "$words" | grep -cE '\.sh$')
+  runs=$(printf '%s\n' "$segs" | sed -nE 's/^[[:space:]]*(bash|sh|zsh|dash|ksh)[[:space:]]+([A-Za-z0-9_./-]+\.sh)([[:space:]].*)?$/\2/p')
+  n_run=$(printf '%s\n' "$runs" | grep -c .)
+  [ "$n_sh" -eq "$n_run" ] || return 1
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    occ=$(printf '%s' "$cmd" | grep -oF -- "$p" | wc -l)
+    [ "$occ" -eq "$(printf '%s\n' "$runs" | grep -cxF -- "$p")" ] || return 1
+  done <<RUNS
+$runs
+RUNS
+  while IFS= read -r w; do
+    # shellcheck disable=SC2016  # a literal $ in the pattern
+    case "$w" in
+      *'$'*) printf '%s' "$w" | grep -qE '^([A-Za-z_][A-Za-z0-9_]*=)?\$([A-Za-z_][A-Za-z0-9_]*|\?)(/[^$]*)?$' || return 1 ;;
+    esac
+  done <<WORDS
+$words
+WORDS
+  while IFS= read -r t; do
+    [ -n "$t" ] || continue
+    case "$t" in /dev/null|'&'*) continue ;; esac
+    printf '%s' "$t" | grep -qE '\.(log|txt|out|err|json|md|diff|patch|xml|html|csv)$' || return 1
+  done <<TARGETS
+$(printf '%s\n' "$segs" | grep -oE '[0-9]*>>?[[:space:]]*[^[:space:]]*' | sed -E 's/^[0-9]*>>?[[:space:]]*//')
+TARGETS
+  while IFS= read -r line; do
+    line=$(printf '%s' "$line" | sed -E 's/^[[:space:]]+//')
+    while [[ $line =~ ^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*([[:space:]]+|$) ]]; do line=${line#"${BASH_REMATCH[0]}"}; done
+    case "$line" in
+      'do '*|'then '*|'else '*|'elif '*|'if '*|'while '*|'until '*|'! '*) line=$(printf '%s' "${line#* }" | sed -E 's/^[[:space:]]+//') ;;
+    esac
+    [ -n "$line" ] || continue
+    c=${line%%[[:space:]]*}; a=$(printf '%s' "${line#"$c"}" | sed -E 's/^[[:space:]]+//'); c=${c##*/}
+    # a backslash can spell a file name (x.s\h); it is only expected in the pattern of a text tool
+    case "$line" in
+      *\\*) case "$c" in grep|egrep|fgrep|sed|tr|cut|echo|printf|head|tail) ;; *) return 1 ;; esac ;;
+    esac
+    case "$c" in
+      cd|echo|printf|true|false|:|test|'['|'[['|ls|pwd|head|tail|wc|sort|uniq|tr|cut|grep|egrep|fgrep|mkdir|rm|mv|cat|sed|export|set|jq|date|basename|dirname|sleep|diff|'for'|'case'|'done'|'fi'|'esac'|'do'|'then'|'else') ;;
+      git) case "${a%%[[:space:]]*}" in add|status|diff|log|show|rev-parse|rev-list|branch|ls-files|check-ignore) ;; *) return 1 ;; esac ;;
+      python3|python|node) case "${a%%[[:space:]]*}" in -|-c|-e|'<<'*) ;; *) return 1 ;; esac ;;
+      bash|sh|zsh|dash|ksh) printf '%s\n' "$runs" | grep -qxF -- "$(printf '%s' "$a" | awk '{print $1}')" || return 1 ;;
+      *) return 1 ;;
+    esac
+  done <<CMDS
+$segs
+CMDS
+  return 0
 }
 
 if ! command -v jq >/dev/null 2>&1; then
@@ -299,13 +387,17 @@ while IFS= read -r seg; do
   else
     cw=${seg%%[[:space:]]*}
     case "$cw" in
-      # No exemption for a shell that runs a script file (#671): four security reviews of such an exemption
-      # each found a way to run a merge built at run time. A harmless command that trips this (a $ before a
-      # file name like post-merge-hooks.test.sh) is a known false positive: put the command in a script file
-      # with the Write tool and run that file by a path without the word.
+      # A shell that runs a script file is exempt only through plain_script_run (P1, see above): a literal .sh
+      # path, nothing else in the call that could write that file or build its name. Before that, four security
+      # reviews of a broader exemption (#671) each found a way to run a merge built at run time. Anything outside
+      # plain_script_run (a loop variable in the name, $S/run.sh, bash -c) is a known false positive: put the
+      # command in a script file with the Write tool and run that file by a path without the word.
       # This is a best-effort list of common shells and wrappers, not a complete one (interpreters such as
       # python or awk, find -exec and git -c alias are not on it; see the follow-up issue).
-      bash|sh|zsh|dash|ksh|rbash|eval|xargs|env|exec|nohup|time|command|sudo|doas|builtin|source|.|nice|timeout|stdbuf|setsid|ionice|taskset|chronic|unbuffer|repeat|coproc|busybox|flock|script|setpriv|prlimit|chrt|strace|fakeroot|runuser|su|watch|unshare)
+      bash|sh|zsh|dash|ksh)
+        # P1: a plain run of a literal .sh file next to prose that only mentions a merge is not a merge.
+        plain_script_run "$seg" || deny "a merge inside a shell string or wrapper ($cw) cannot be judged. If the command only mentions merge in text, write it to a script file with the Write tool and run that file by a path without the word." ;;
+      rbash|eval|xargs|env|exec|nohup|time|command|sudo|doas|builtin|source|.|nice|timeout|stdbuf|setsid|ionice|taskset|chronic|unbuffer|repeat|coproc|busybox|flock|script|setpriv|prlimit|chrt|strace|fakeroot|runuser|su|watch|unshare)
         deny "a merge inside a shell string or wrapper ($cw) cannot be judged." ;;
     esac
   fi

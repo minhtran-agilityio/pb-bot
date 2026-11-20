@@ -170,6 +170,28 @@ for c in 'bash tests/hooks/post-merge-hooks.test.sh' 'echo $HOME; grep -n merge_
   t "#671: a merge-named file with no wrapper or no \$ before it is allowed: $c"; g "$c"; assert_rc 0
 done
 t "#671: the accepted false positive is denied, as documented"; g 'S=/tmp/x; bash $S/run.sh tests/hooks/post-merge-hooks.test.sh'; assert_rc 2
+# P1 (skill-coach): a plain run of a literal .sh file next to prose that only mentions merge is allowed.
+# Seen in three sessions: a python heredoc that edits docs ("the merge order") plus `bash scripts/run-tests.sh`,
+# and "light" before "merge" (the old `*gh*merge*` glob matched the letters gh inside "light").
+for c in "$(printf "python3 - <<'EOF'\nprint('the merge order in the final report')\nEOF\nbash scripts/run-tests.sh > /tmp/o.log 2>&1")" \
+         'S=/tmp/x; bash scripts/run-tests.sh > $S/t.log 2>&1; grep -n "merge" $S/t.log | head -3' \
+         'echo "highlight the merge order"; bash scripts/run-tests.sh' \
+         "$(printf "python3 - <<'EOF'\nlight = 1  # gh merge\nEOF\nbash scripts/run-tests.sh")" \
+         'git status --short; bash scripts/run-tests.sh > /tmp/o.log 2>&1; echo rc=$?; grep -n "FAIL\|fail" /tmp/o.log | head; echo "gh: the merge order"'; do
+  t "P1: prose that mentions merge next to a plain bash <script>.sh run is allowed: ${c//$'\n'/ | }"; g "$c"; assert_rc 0
+done
+# ...and every way to run or write code in the same call stays denied.
+for c in "bash -c 'gh pr merge 1'" 'bash -c "gh pr merge 7 --repo o/r"; bash scripts/run-tests.sh' \
+         'gh api -X PUT repos/o/r/pulls/7/merge; bash scripts/run-tests.sh' \
+         'echo "gh pr merge 7" > f.sh; bash f.sh' 'S=/tmp/x; printf "gh pr merge 7" > $S/f.sh; bash $S/f.sh' \
+         'echo gh pr merge; nodejs w.js; bash scripts/run-tests.sh' 'echo gh pr merge; bash scripts/run-tests.sh; bash -s' \
+         "$(printf "bash <<'EOF'\ngh pr merge 7 --repo o/r\nEOF\nbash scripts/run-tests.sh")" \
+         "$(printf "python3 - <<'EOF'\nopen('scripts/a.sh','w').write('gh pr merge 7')\nEOF\nbash scripts/a.sh")" \
+         'echo gh pr merge; bash scripts/run-tests.sh -c "gh pr merge 7"' 'echo gh pr merge; bash scripts/$X.sh' \
+         'echo gh pr merge; bash scripts/run-tests.sh > f.sh' 'echo gh pr merge; source scripts/run-tests.sh' \
+         'echo gh pr merge; bash scripts/run-tests.sh < in.txt'; do
+  t "P1: a wrapper next to merge text that could carry or write a merge stays denied: ${c//$'\n'/ | }"; g "$c"; assert_rc 2
+done
 # A wrapper that runs code from a string or stdin stays denied, including merges built at run time
 # (the bypasses found in review of the first fix), and a script-file run that could carry a merge.
 for c in 'X="gh pr merge 7 --repo o/r"; bash -c "$X"' 'X=me; bash -c "gh pr ${X}rge 7 --repo o/r"' \
