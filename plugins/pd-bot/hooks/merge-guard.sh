@@ -37,8 +37,13 @@ fold() {
 ESC_RE='\\([0-7]{1,3}|x[0-9A-Fa-f]{1,2}|u[0-9A-Fa-f]{1,4}|U[0-9A-Fa-f]{1,8})'
 has_escape() { printf '%s' "$1" | grep -qE "$ESC_RE"; }
 # P5: the text with its escapes decoded (printf %b reads octal only after \0, so add it).
-# \c makes printf %b stop writing, so drop it first.
-decode() { local s; s=$(printf '%s' "$1" | sed -E 's/\\c//g; s/\\([0-7]{1,3})/\\0\1/g'); printf '%b' "$s" 2>/dev/null; }
+# \c makes printf %b stop writing, so drop it first. bash 3.2 (macOS) printf %b has no \u or \U, so an ASCII
+# \u/\U code point (the only ones that can spell gh or merge) becomes \x first.
+decode() {
+  local s
+  s=$(printf '%s' "$1" | sed -E 's/\\c//g; s/\\[uU]0*([0-7]?[0-9A-Fa-f])([^0-9A-Fa-f]|$)/\\x\1\2/g; s/\\([0-7]{1,3})/\\0\1/g')
+  printf '%b' "$s" 2>/dev/null
+}
 # P5: a word that can only matter next to a spelled merge: the pr subcommand, merge itself, the API words, or a
 # pipe into a shell or wrapper. Used with escapes and globs, which can spell any letters.
 merge_context() {
