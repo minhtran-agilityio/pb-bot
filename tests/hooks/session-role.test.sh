@@ -128,7 +128,7 @@ else
   cp "$HOOK" "$d/hooks/"
   printf 'say "hi" \\ back\ttab for {{context}}\nline two\n' > "$d/hooks/orchestrator-role.md"
   reset
-  OUT=$(cd "$PROJ" && env -u PD_BOT_ROLE "PATH=$BIN:$PATH" "CLAUDE_PROJECT_DIR=$PROJ" CLAUDE_CODE_ENTRYPOINT=cli TMUX_PANE=%3 \
+  OUT=$(cd "$PROJ" && env -u PD_BOT_ROLE -u STOP_EVIDENCE_GUARD "PATH=$BIN:$PATH" "CLAUDE_PROJECT_DIR=$PROJ" CLAUDE_CODE_ENTRYPOINT=cli TMUX_PANE=%3 \
     "FAKE_KIND=$KIND" "FAKE_CONTEXT=$CONTEXT" "FAKE_DIR=$CDIR" "FAKE_START=$START" bash "$d/hooks/session-role.sh" 2>&1 </dev/null)
   if printf '%s' "$OUT" | python3 -c '
 import json, sys
@@ -172,7 +172,7 @@ else fail "out: $(printf '%s' "$OUT" | head -c 120)"; fi
 t "the role text is missing: nothing, exit 0"
 d=$(mktemp -d); _CLEANUP_DIRS+=("$d"); mkdir -p "$d/hooks"; cp "$HOOK" "$d/hooks/"
 reset
-OUT=$(cd "$PROJ" && env -u PD_BOT_ROLE "PATH=$BIN:$PATH" "CLAUDE_PROJECT_DIR=$PROJ" CLAUDE_CODE_ENTRYPOINT=cli TMUX_PANE=%3 \
+OUT=$(cd "$PROJ" && env -u PD_BOT_ROLE -u STOP_EVIDENCE_GUARD "PATH=$BIN:$PATH" "CLAUDE_PROJECT_DIR=$PROJ" CLAUDE_CODE_ENTRYPOINT=cli TMUX_PANE=%3 \
   "FAKE_KIND=$KIND" "FAKE_CONTEXT=$CONTEXT" "FAKE_DIR=$CDIR" "FAKE_START=$START" bash "$d/hooks/session-role.sh" 2>&1 </dev/null); RC=$?
 is_none
 

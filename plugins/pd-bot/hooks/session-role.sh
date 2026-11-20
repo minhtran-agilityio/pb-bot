@@ -8,7 +8,9 @@
 #         These options are not documented by Pod Bay: when they are missing, the hook is silent.
 # Order   1. Only an interactive session (CLAUDE_CODE_ENTRYPOINT=cli): a nested `claude -p` (the
 #            stop-evidence judge is one) inherits TMUX_PANE and PD_BOT_ROLE and must not get the role.
-#         2. PD_BOT_ROLE: "orchestrator" gives the role, any other value gives none.
+#         2. PD_BOT_ROLE: "orchestrator" gives the role, any other value gives none. It wins over
+#            the project config by design, so set it for one session (PD_BOT_ROLE=... claude),
+#            never in a shell profile.
 #         3. Inside tmux, the session is Pod Bay's (@tn_kind=claude), it runs in this project
 #            (@claude_dir), and its pane was started as `claude ...` (not a shell the user split off).
 #         4. @tn_context has no @NN suffix.

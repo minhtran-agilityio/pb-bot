@@ -39,7 +39,8 @@ Sessions in `src-NN` get no role from the hook: your brief gives a worker, a rev
 its role. Pod Bay does not document these options. When they change, the hook is silent; check with
 `tmux show-options -t '<name>'`. The owner switches the role off with `{"orchestrator": "off"}` in
 the repository's `.claude/pd-bot.json`, or with `PD_BOT_ROLE=none` for one session;
-`PD_BOT_ROLE=orchestrator` gives the role to a session that Pod Bay did not start.
+`PD_BOT_ROLE=orchestrator` gives the role to a session that Pod Bay did not start. `PD_BOT_ROLE`
+wins over the repository's off switch, so set it for one session and never in a shell profile.
 
 ## Commands you use
 

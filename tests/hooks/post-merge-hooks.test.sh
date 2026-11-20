@@ -32,25 +32,48 @@ t "pr-opened says nothing for another gh command that prints a PR URL"
 run_hook "$R" pr-opened.sh "$(jq -n '{tool_input:{command:"gh pr edit 5 --body-file b.md"},tool_response:{stdout:"https://github.com/o/r/pull/5",stderr:""}}')"
 if [ "$RC" = 0 ] && [ -z "$OUT" ]; then pass; else fail "rc=$RC out=$OUT"; fi
 
+t "pr-opened says nothing for a grep for gh pr create whose output holds a PR URL"
+run_hook "$R" pr-opened.sh "$(jq -n '{tool_input:{command:"grep -rn \"gh pr create\" notes/"},tool_response:{stdout:"notes/a.md:3:ran gh pr create, got https://github.com/o/r/pull/9",stderr:""}}')"
+if [ "$RC" = 0 ] && [ -z "$OUT" ]; then pass; else fail "rc=$RC out=$OUT"; fi
+
+t "pr-opened says nothing for gh pr review whose body holds the text and whose output holds a PR URL"
+run_hook "$R" pr-opened.sh "$(jq -n '{tool_input:{command:"gh pr review 5 --comment --body \"do not run gh pr create twice\""},tool_response:{stdout:"https://github.com/o/r/pull/5#pullrequestreview-1",stderr:""}}')"
+if [ "$RC" = 0 ] && [ -z "$OUT" ]; then pass; else fail "rc=$RC out=$OUT"; fi
+
+t "pr-opened says nothing for echo of the text followed by another gh command that prints a PR URL"
+run_hook "$R" pr-opened.sh "$(jq -n '{tool_input:{command:"echo \"gh pr create\"; gh pr view 5"},tool_response:{stdout:"gh pr create\nurl: https://github.com/o/r/pull/5",stderr:""}}')"
+if [ "$RC" = 0 ] && [ -z "$OUT" ]; then pass; else fail "rc=$RC out=$OUT"; fi
+
+t "hooks.json gives pr-opened.sh a timeout (it asks session-role.sh, which runs tmux)"
+if jq -e '[.hooks.PostToolUse[].hooks[] | select((.args[0] // "") | endswith("hooks/pr-opened.sh")) | .timeout] | length == 1 and (.[0] | type == "number" and . <= 30)' "$ROOT/plugins/pd-bot/hooks/hooks.json" >/dev/null; then pass; else fail "no timeout on the pr-opened.sh entry"; fi
+
+t "pr-opened fires for gh pr create behind an env assignment, in a subshell and after a pipe-free chain"
+run_hook "$R" pr-opened.sh "$(jq -n '{tool_input:{command:"git push -u origin x; (GH_PAGER= gh pr create --fill)"},tool_response:{stdout:"https://github.com/o/r/pull/11",stderr:""}}')"
+if [ "$RC" = 0 ] && printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext | test("#11")' >/dev/null; then pass; else fail "rc=$RC out=$OUT"; fi
+
+t "pr-opened fires for gh pr create on its own line of a multi-line command"
+run_hook "$R" pr-opened.sh "$(jq -n '{tool_input:{command:"cd repo\ngh pr create --fill"},tool_response:{stdout:"https://github.com/o/r/pull/12",stderr:""}}')"
+if [ "$RC" = 0 ] && printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext | test("#12")' >/dev/null; then pass; else fail "rc=$RC out=$OUT"; fi
+
 t "pr-opened fires for gh pr create after cd and with an object tool response"
 run_hook "$R" pr-opened.sh "$(jq -n '{tool_input:{command:"cd repo && gh pr create --base main --title x"},tool_response:{stdout:"https://github.com/o/r/pull/7\n",stderr:""}}')"
 if [ "$RC" = 0 ] && printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext | test("#7")' >/dev/null; then pass; else fail "rc=$RC out=$OUT"; fi
 
 t "pr-opened keeps today's reminder (run /code-review here) for a session that is not the orchestrator"
-run_hook "$R" pr-opened.sh '{"tool_input":{"command":"gh pr create --title x"},"tool_response":"https://github.com/o/r/pull/42"}' PD_BOT_ROLE=none
+run_hook "$R" pr-opened.sh '{"tool_input":{"command":"gh pr create --title x"},"tool_response":"https://github.com/o/r/pull/42"}' -u STOP_EVIDENCE_GUARD PD_BOT_ROLE=none
 if [ "$RC" = 0 ] && printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext | test("run /code-review on it now")' >/dev/null; then pass; else fail "rc=$RC out=$OUT"; fi
 
 RO=$(new_repo pr-opened.sh session-role.sh)
 t "pr-opened tells the orchestrator session to hand the review to another session"
-run_hook "$RO" pr-opened.sh '{"tool_input":{"command":"gh pr create --title x"},"tool_response":"https://github.com/o/r/pull/42"}' PD_BOT_ROLE=orchestrator CLAUDE_CODE_ENTRYPOINT=cli
+run_hook "$RO" pr-opened.sh '{"tool_input":{"command":"gh pr create --title x"},"tool_response":"https://github.com/o/r/pull/42"}' -u STOP_EVIDENCE_GUARD PD_BOT_ROLE=orchestrator CLAUDE_CODE_ENTRYPOINT=cli
 if [ "$RC" = 0 ] && printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext | (test("#42") and test("another session") and (test("run /code-review on it now") | not))' >/dev/null; then pass; else fail "rc=$RC out=$OUT"; fi
 
 t "pr-opened with session-role.sh present keeps today's reminder for another session"
-run_hook "$RO" pr-opened.sh '{"tool_input":{"command":"gh pr create --title x"},"tool_response":"https://github.com/o/r/pull/42"}' PD_BOT_ROLE=none
+run_hook "$RO" pr-opened.sh '{"tool_input":{"command":"gh pr create --title x"},"tool_response":"https://github.com/o/r/pull/42"}' -u STOP_EVIDENCE_GUARD PD_BOT_ROLE=none
 if [ "$RC" = 0 ] && printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext | test("run /code-review on it now")' >/dev/null; then pass; else fail "rc=$RC out=$OUT"; fi
 
 t "pr-opened from a subagent of the orchestrator keeps the subagent text"
-run_hook "$RO" pr-opened.sh '{"agent_id":"a1","tool_input":{"command":"gh pr create --title x"},"tool_response":"https://github.com/o/r/pull/42"}' PD_BOT_ROLE=orchestrator CLAUDE_CODE_ENTRYPOINT=cli
+run_hook "$RO" pr-opened.sh '{"agent_id":"a1","tool_input":{"command":"gh pr create --title x"},"tool_response":"https://github.com/o/r/pull/42"}' -u STOP_EVIDENCE_GUARD PD_BOT_ROLE=orchestrator CLAUDE_CODE_ENTRYPOINT=cli
 if [ "$RC" = 0 ] && printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext | test("subagent")' >/dev/null; then pass; else fail "rc=$RC out=$OUT"; fi
 
 # ---- clean-worktrees.sh ----
