@@ -170,18 +170,23 @@ for c in 'bash tests/hooks/post-merge-hooks.test.sh' 'echo $HOME; grep -n merge_
   t "#671: a merge-named file with no wrapper or no \$ before it is allowed: $c"; g "$c"; assert_rc 0
 done
 t "#671: the accepted false positive is denied, as documented"; g 'S=/tmp/x; bash $S/run.sh tests/hooks/post-merge-hooks.test.sh'; assert_rc 2
-# P1 (skill-coach): a plain run of a literal .sh file next to prose that only mentions merge is allowed.
-# Seen in three sessions: a python heredoc that edits docs ("the merge order") plus `bash scripts/run-tests.sh`,
-# and "light" before "merge" (the old `*gh*merge*` glob matched the letters gh inside "light").
-for c in "$(printf "python3 - <<'EOF'\nprint('the merge order in the final report')\nEOF\nbash scripts/run-tests.sh > /tmp/o.log 2>&1")" \
-         'S=/tmp/x; bash scripts/run-tests.sh > $S/t.log 2>&1; grep -n "merge" $S/t.log | head -3' \
-         'echo "highlight the merge order"; bash scripts/run-tests.sh' \
-         "$(printf "python3 - <<'EOF'\nlight = 1  # gh merge\nEOF\nbash scripts/run-tests.sh")" \
-         'git status --short; bash scripts/run-tests.sh > /tmp/o.log 2>&1; echo rc=$?; grep -n "FAIL\|fail" /tmp/o.log | head; echo "gh: the merge order"'; do
-  t "P1: prose that mentions merge next to a plain bash <script>.sh run is allowed: ${c//$'\n'/ | }"; g "$c"; assert_rc 0
+# P1 (skill-coach): `gh` must be a word of its own. The old `*gh*merge*` glob matched the letters gh inside
+# "light" or "highlight", so prose next to a script run was denied (seen in three sessions).
+for c in 'echo "highlight the merge order"; bash scripts/run-tests.sh' \
+         "$(printf "python3 - <<'EOF'\nlight = 1  # merge\nEOF\nbash scripts/run-tests.sh")"; do
+  t "P1: the letters gh inside a word are not the gh command: ${c//$'\n'/ | }"; g "$c"; assert_rc 0
 done
-# ...and every way to run or write code in the same call stays denied.
-for c in "bash -c 'gh pr merge 1'" 'bash -c "gh pr merge 7 --repo o/r"; bash scripts/run-tests.sh' \
+# A plain script run next to real merge-like text stays the documented false positive (the fifth review broke
+# an exemption for it), and every way to run or write code in the same call stays denied.
+for c in "$(printf "python3 - <<'EOF'\nprint('gh: the merge order')\nEOF\nbash scripts/run-tests.sh")" \
+         "printf 'gh pr merge 7 --repo o/r --admin\n' > m.log; export BASH_ENV=m.log; bash scripts/run-tests.sh" \
+         "python3 -c \"open('m.s'+'h','w').write('gh pr merge 7 --repo o/r --admin')\"; bash m.sh" \
+         "node -e \"require('fs').writeFileSync('m.s'+'h','gh pr merge 7 --repo o/r --admin')\"; bash m.sh" \
+         "python3 -c \"open('m.sh','w').write('gh pr merge 7 --repo o/r --admin')\"; bash ./m.sh" \
+         "printf 'gh pr merge 7 --repo o/r --admin\n' > m.log; sed -n 'w m.sh' m.log; bash ./m.sh" \
+         "sed -i '1a gh pr merge 7 --repo o/r --admin' scripts/run-tests.s?; bash scripts/run-tests.sh" \
+         'bash scripts/passthru.sh gh pr -R o/r merge 7 --admin' \
+         "bash -c 'gh pr merge 1'" 'bash -c "gh pr merge 7 --repo o/r"; bash scripts/run-tests.sh' \
          'gh api -X PUT repos/o/r/pulls/7/merge; bash scripts/run-tests.sh' \
          'echo "gh pr merge 7" > f.sh; bash f.sh' 'S=/tmp/x; printf "gh pr merge 7" > $S/f.sh; bash $S/f.sh' \
          'echo gh pr merge; nodejs w.js; bash scripts/run-tests.sh' 'echo gh pr merge; bash scripts/run-tests.sh; bash -s' \
