@@ -427,6 +427,19 @@ done
 for c in 'ls *.md' 'git merge feat/x' 'printf "\033[0m"'; do
   t "P5: no jq and a command that is not a gh merge is allowed: $c"; g "$c" "$NOJQ"; assert_rc 0
 done
+# P5 security review: a backslash line break in a comment or a quoted heredoc body is not joined by bash, so the
+# merge on the next line runs; joining it in the hook hid that merge. Escape-only spellings with no literal word.
+for c in "#a\\${NL}gh pr merge 7 --repo o/r" "echo hi # done\\${NL}gh pr merge 7 --repo o/r" \
+         "cat <<'X'${NL}foo\\${NL}X${NL}gh pr merge 7 --repo o/r${NL}X" \
+         "\$'\\x67\\x68' \$'\\x70\\x72' \$'\\x6d\\x65\\x72\\x67\\x65' 7 --repo o/r" \
+         "\$'\\147\\150' \$'\\160\\162' \$'\\155\\145\\162\\147\\145' 7" \
+         "echo -e '\\x67\\x68 \\x70\\x72 \\x6d\\x65\\x72\\x67\\x65 7 --repo o/r' | . /dev/stdin"; do
+  t "P5: a hidden or escape-only merge is denied: ${c//$NL/<NL>}"; g "$c"; assert_rc 2
+done
+for c in "printf '\\033[1mhi\\033[0m\\n'; bash scripts/run-tests.sh" "echo -e '\\x41' && sh build.sh" \
+         "grep -rlP '\\x00' . | xargs -n1 file"; do
+  t "P5: an escape that spells no merge, next to a wrapper, is allowed: $c"; g "$c"; assert_rc 0
+done
 # ...and ordinary commands with braces, globs, escapes or a line break, and no merge, still run.
 for c in 'echo {a,b}.txt; ls *.md' "printf '\\x41\\n'" "git log --oneline \\${NL}  -3" 'echo Ghost'; do
   t "P5: a command without a merge is allowed: ${c//$NL/<NL>}"; g "$c"; assert_rc 0
