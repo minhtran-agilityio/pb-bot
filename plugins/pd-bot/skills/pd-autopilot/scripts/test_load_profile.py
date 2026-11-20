@@ -1,0 +1,107 @@
+"""Tests for load_profile.py."""
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+SCRIPT = Path(__file__).with_name("load_profile.py")
+DEFAULT = Path(__file__).resolve().parent.parent / "profile.json"
+
+
+def run(repo_dir, *extra):
+    return subprocess.run([sys.executable, str(SCRIPT), "--repo-dir", str(repo_dir), *extra],
+                          capture_output=True, text=True)
+
+
+def override(tmp_path, data):
+    d = tmp_path / ".claude"
+    d.mkdir()
+    (d / "autopilot-profile.json").write_text(data if isinstance(data, str) else json.dumps(data))
+
+
+def test_default_profile_without_override(tmp_path):
+    r = run(tmp_path)
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout) == json.loads(DEFAULT.read_text())
+
+
+def test_default_keeps_sonnet_orchestrator():
+    assert json.loads(DEFAULT.read_text())["orchestrator"] == "sonnet"
+
+
+def test_override_replaces_keys_and_merges_stages(tmp_path):
+    base = tmp_path / "base.json"
+    base.write_text(json.dumps({"orchestrator": "sonnet", "advisor": "opus",
+                                "stages": {"review": {"model": "sonnet"}, "qa": {"effort": "low"}}}))
+    override(tmp_path, {"orchestrator": "opus", "stages": {"review": {"model": "opus"}}})
+    r = run(tmp_path, "--default", str(base))
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout)
+    assert out["orchestrator"] == "opus" and out["advisor"] == "opus"
+    assert out["stages"] == {"review": {"model": "opus"}, "qa": {"effort": "low"}}
+
+
+def test_implement_and_fix_stages_can_be_set(tmp_path):
+    override(tmp_path, {"stages": {"implement": {"model": "opus"}, "fix": {"effort": "high"}}})
+    r = run(tmp_path)
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout)
+    assert out["stages"] == {"implement": {"model": "opus"}, "fix": {"effort": "high"}}
+
+
+def test_bad_values_exit_2(tmp_path):
+    for bad, msg in [({"orchestrator": "haiku"}, "orchestrator must be"),
+                     ({"stages": {"review": {"model": "fable"}}}, "review.model must be"),
+                     ({"stages": {"review": {"effort": "huge"}}}, "review.effort must be"),
+                     ({"color": "red"}, "unknown key 'color'")]:
+        sub = tmp_path / msg.split()[0].replace("'", "")
+        sub.mkdir()
+        override(sub, bad)
+        r = run(sub)
+        assert r.returncode == 2 and msg in r.stderr, (bad, r.stderr)
+
+
+def test_worktree_setup_list_is_passed_on(tmp_path):
+    override(tmp_path, {"worktreeSetup": ["npm ci", "uv sync"]})
+    r = run(tmp_path)
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout)["worktreeSetup"] == ["npm ci", "uv sync"]
+
+
+def test_default_has_no_worktree_setup():
+    assert "worktreeSetup" not in json.loads(DEFAULT.read_text())
+
+
+def test_bad_worktree_setup_exits_2(tmp_path):
+    for i, bad in enumerate(["npm ci", [""], ["  "], [3], ["npm ci\nrm -rf x"]]):
+        sub = tmp_path / f"w{i}"
+        sub.mkdir()
+        override(sub, {"worktreeSetup": bad})
+        r = run(sub)
+        assert r.returncode == 2 and "worktreeSetup must be" in r.stderr, (bad, r.stderr)
+
+
+def test_bad_json_exits_2(tmp_path):
+    override(tmp_path, "nope")
+    r = run(tmp_path)
+    assert r.returncode == 2 and "autopilot-profile.json" in r.stderr
+
+
+def test_max_parallel_is_passed_on(tmp_path):
+    override(tmp_path, {"maxParallel": 3})
+    r = run(tmp_path)
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout)["maxParallel"] == 3
+
+
+def test_default_has_no_max_parallel():
+    assert "maxParallel" not in json.loads(DEFAULT.read_text())
+
+
+def test_bad_max_parallel_exits_2(tmp_path):
+    for i, bad in enumerate([0, -1, "3", 2.5, True, [3]]):
+        sub = tmp_path / f"m{i}"
+        sub.mkdir()
+        override(sub, {"maxParallel": bad})
+        r = run(sub)
+        assert r.returncode == 2 and "maxParallel must be" in r.stderr, (bad, r.stderr)
