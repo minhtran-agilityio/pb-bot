@@ -13,6 +13,29 @@ t "pr-opened says nothing for another command"
 run_hook "$R" pr-opened.sh '{"tool_input":{"command":"gh pr view 1"}}'
 if [ "$RC" = 0 ] && [ -z "$OUT" ]; then pass; else fail "rc=$RC out=$OUT"; fi
 
+# A command that only holds the text `gh pr create` opened no PR: the output has no PR URL.
+t "pr-opened says nothing for a scan whose regex holds the text gh pr create"
+SCAN="python3 -c \"import re; print(re.findall(r'gh pr create', open('a.md').read()))\""
+PAYLOAD=$(jq -n --arg c "$SCAN" --arg o "['gh pr create']" '{tool_input:{command:$c},tool_response:{stdout:$o,stderr:""}}')
+run_hook "$R" pr-opened.sh "$PAYLOAD"
+if [ -n "$PAYLOAD" ] && [ "$RC" = 0 ] && [ -z "$OUT" ]; then pass; else fail "rc=$RC out=$OUT payload=$PAYLOAD"; fi
+
+t "pr-opened says nothing for a grep over skill files for gh pr create"
+run_hook "$R" pr-opened.sh "$(jq -n '{tool_input:{command:"grep -rn \"gh pr create\" plugins/pd-bot/skills"},tool_response:{stdout:"skills/x/SKILL.md:12:open the pull request with `gh pr create --head <branch>`",stderr:""}}')"
+if [ "$RC" = 0 ] && [ -z "$OUT" ]; then pass; else fail "rc=$RC out=$OUT"; fi
+
+t "pr-opened says nothing when gh pr create failed and printed no PR URL"
+run_hook "$R" pr-opened.sh "$(jq -n '{tool_input:{command:"gh pr create --title x"},tool_response:{stdout:"",stderr:"pull request create failed: GraphQL: No commits between main and x"}}')"
+if [ "$RC" = 0 ] && [ -z "$OUT" ]; then pass; else fail "rc=$RC out=$OUT"; fi
+
+t "pr-opened says nothing for another gh command that prints a PR URL"
+run_hook "$R" pr-opened.sh "$(jq -n '{tool_input:{command:"gh pr edit 5 --body-file b.md"},tool_response:{stdout:"https://github.com/o/r/pull/5",stderr:""}}')"
+if [ "$RC" = 0 ] && [ -z "$OUT" ]; then pass; else fail "rc=$RC out=$OUT"; fi
+
+t "pr-opened fires for gh pr create after cd and with an object tool response"
+run_hook "$R" pr-opened.sh "$(jq -n '{tool_input:{command:"cd repo && gh pr create --base main --title x"},tool_response:{stdout:"https://github.com/o/r/pull/7\n",stderr:""}}')"
+if [ "$RC" = 0 ] && printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext | test("#7")' >/dev/null; then pass; else fail "rc=$RC out=$OUT"; fi
+
 t "pr-opened keeps today's reminder (run /code-review here) for a session that is not the orchestrator"
 run_hook "$R" pr-opened.sh '{"tool_input":{"command":"gh pr create --title x"},"tool_response":"https://github.com/o/r/pull/42"}' PD_BOT_ROLE=none
 if [ "$RC" = 0 ] && printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext | test("run /code-review on it now")' >/dev/null; then pass; else fail "rc=$RC out=$OUT"; fi
