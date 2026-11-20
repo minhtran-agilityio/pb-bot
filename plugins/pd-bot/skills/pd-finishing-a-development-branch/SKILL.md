@@ -14,6 +14,12 @@ allowed-tools: Read, Write, Grep, Glob, Bash
    targeted tests for the change. Fix failures and retry at most twice. Never push a failing branch.
 3. Push without force: `git push -u origin <branch>`.
 4. Open one PR against the base with `gh pr create`.
+   A UI change is a diff that touches a `.tsx`, `.jsx`, `.vue`, `.svelte`, `.css`, `.scss` or `.html` file, or a ticket
+   of kind FE or FE+BE. A PR with a UI change needs at least one screenshot of the changed screen (before and after
+   when the screen existed, also when nothing visible changed). Attach it with `gh pr comment <n> --attach <file>`
+   (gh 2.99.0 or newer) or put it in the PR body. If you cannot attach one, do not stop: write
+   `Merge: human (no UI screenshot attached)` in the PR body. Skip this step when the caller says a later step
+   attaches the evidence. A screenshot is evidence for the reviewer; it never decides pass or fail.
 5. Write `specs/<slug>/summary.md` (local scratch; never stage it) from
    `${CLAUDE_PLUGIN_ROOT}/templates/specs/summary.md`: the real command output, the review results
    when they exist, and each deviation from `plan.md`. Return the URL and stop. A human reviews
