@@ -27,24 +27,13 @@ payload=$(cat)
 # Pre-filter on a folded copy (lowercase, quotes and backslashes removed) so "g""h", GH-case or
 # me\rge spellings do not skip the guard.
 fold() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d "\"'\\\\"; }
-is_merge_like() {  # is_merge_like <text> [loose]
-  local f; f=$(fold "$1")
-  case "$f" in
-    *pulls/*merge*|*mergepullrequest*|*enablepullrequestautomerge*|*repos/*/merges*|*[\$\`]*merge*) return 0 ;;
-  esac
-  # The raw payload still holds JSON escapes (\n, \t): fold drops the backslash and leaves an n or t in front
-  # of the next word. The first pass over the payload is therefore loose; the pass over the decoded command is not.
-  if [ -n "${2-}" ]; then
-    case "$f" in *gh*merge*|*gh*pr*[\$\`]*) return 0 ;; esac
-    return 1
-  fi
-  # P1: `gh` must be a word of its own, so "light" or "highlight" next to the word merge in prose is not a hit.
-  case "$f" in
-    gh[!a-z0-9]*merge*|*[!a-z0-9]gh[!a-z0-9]*merge*|gh[!a-z0-9]*pr*[\$\`]*|*[!a-z0-9]gh[!a-z0-9]*pr*[\$\`]*) return 0 ;;
+is_merge_like() {
+  case "$(fold "$1")" in
+    *gh*merge*|*pulls/*merge*|*mergepullrequest*|*enablepullrequestautomerge*|*repos/*/merges*|*gh*pr*[\$\`]*|*[\$\`]*merge*) return 0 ;;
   esac
   return 1
 }
-is_merge_like "$payload" loose || exit 0
+is_merge_like "$payload" || exit 0
 
 TMPF=""
 trap '[ -z "$TMPF" ] || rm -f "$TMPF"' EXIT
@@ -312,9 +301,11 @@ while IFS= read -r seg; do
     case "$cw" in
       # No exemption for a shell that runs a script file (#671): four security reviews of such an exemption
       # each found a way to run a merge built at run time, and a fifth (P1, 2026-11-20) found eight more
-      # (BASH_ENV, an interpreter that builds the script name, sed w/-i, ./ spellings). A harmless command that
-      # trips this (prose that mentions merge next to `bash x.sh`) is a known false positive: put the command in
-      # a script file with the Write tool and run that file by a path without the word.
+      # (BASH_ENV, an interpreter that builds the script name, sed w/-i, ./ spellings). Narrowing the pre-filter
+      # instead (gh as a word of its own) lets a renamed gh through a wrapper (bash -c "/tmp/ghx pr merge 7").
+      # A harmless command that trips this (prose that mentions merge next to `bash x.sh`, or a $ before a file
+      # name like post-merge-hooks.test.sh) is a known false positive: put the command in a script file with the
+      # Write tool and run that file by a path without the word.
       # This is a best-effort list of common shells and wrappers, not a complete one (interpreters such as
       # python or awk, find -exec and git -c alias are not on it; see the follow-up issue).
       bash|sh|zsh|dash|ksh|rbash|eval|xargs|env|exec|nohup|time|command|sudo|doas|builtin|source|.|nice|timeout|stdbuf|setsid|ionice|taskset|chronic|unbuffer|repeat|coproc|busybox|flock|script|setpriv|prlimit|chrt|strace|fakeroot|runuser|su|watch|unshare)

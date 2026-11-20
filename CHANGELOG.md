@@ -7,7 +7,7 @@ file. Versions change only in the release PR (see the release section of `AGENTS
 
 ## [Unreleased]
 
-- `merge-guard.sh` no longer treats the letters `gh` inside a word (such as "light") as the `gh` command, and its wrapper denial names the workaround (a script file run by a path without the word). A script run next to real merge text stays denied (P1).
+- `merge-guard.sh`: the wrapper denial names the workaround (put the command in a script file and run it by a path without the word). Prose that mentions merge next to `bash x.sh` stays denied: two security reviews broke both fixes tried; the bypasses they found are now regression tests (P1).
 
 ## [0.1.0] — 2026-11-20
 

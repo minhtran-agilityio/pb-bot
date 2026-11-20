@@ -170,12 +170,11 @@ for c in 'bash tests/hooks/post-merge-hooks.test.sh' 'echo $HOME; grep -n merge_
   t "#671: a merge-named file with no wrapper or no \$ before it is allowed: $c"; g "$c"; assert_rc 0
 done
 t "#671: the accepted false positive is denied, as documented"; g 'S=/tmp/x; bash $S/run.sh tests/hooks/post-merge-hooks.test.sh'; assert_rc 2
-# P1 (skill-coach): `gh` must be a word of its own. The old `*gh*merge*` glob matched the letters gh inside
-# "light" or "highlight", so prose next to a script run was denied (seen in three sessions).
-for c in 'echo "highlight the merge order"; bash scripts/run-tests.sh' 'echo light the merge order; bash scripts/run-tests.sh' \
-         "$(printf "python3 - <<'EOF'\nlight = 1  # merge\nEOF\nbash scripts/run-tests.sh")"; do
-  t "P1: the letters gh inside a word are not the gh command: ${c//$'\n'/ | }"; g "$c"; assert_rc 0
-done
+# P1 (skill-coach): prose that mentions merge next to `bash x.sh` was reported as a false positive in three
+# sessions. Two security reviews broke both fixes tried (a script-run exemption, and gh as a word of its own),
+# so it stays denied and the denial names the workaround.
+t "P1: the wrapper denial names the script-file workaround"; g 'echo "highlight the merge order"; bash scripts/run-tests.sh'
+assert_rc_contains 2 "put it in a script file with the Write tool"
 # A plain script run next to real merge-like text stays the documented false positive (the fifth review broke
 # an exemption for it), and every way to run or write code in the same call stays denied.
 for c in "$(printf "python3 - <<'EOF'\nprint('gh: the merge order')\nEOF\nbash scripts/run-tests.sh")" \
@@ -187,6 +186,7 @@ for c in "$(printf "python3 - <<'EOF'\nprint('gh: the merge order')\nEOF\nbash s
          "sed -i '1a gh pr merge 7 --repo o/r --admin' scripts/run-tests.s?; bash scripts/run-tests.sh" \
          'bash scripts/passthru.sh gh pr -R o/r merge 7 --admin' \
          'echo highlight; gh pr merge 7 --repo o/r --admin; bash scripts/run-tests.sh' \
+         'bash -c "/tmp/ghx pr merge 7 --repo o/r"' 'ghx(){ /usr/bin/gh pr merge 7 --repo o/r; }; bash -c ghx' \
          "bash -c 'gh pr merge 1'" 'bash -c "gh pr merge 7 --repo o/r"; bash scripts/run-tests.sh' \
          'gh api -X PUT repos/o/r/pulls/7/merge; bash scripts/run-tests.sh' \
          'echo "gh pr merge 7" > f.sh; bash f.sh' 'S=/tmp/x; printf "gh pr merge 7" > $S/f.sh; bash $S/f.sh' \
