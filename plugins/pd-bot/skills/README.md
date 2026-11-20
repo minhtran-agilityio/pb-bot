@@ -208,9 +208,11 @@ Schema reference: `docs/solutions/README.md` (scaffolded by `/pd-bot:pd-setup`).
 ## Hooks
 
 `hooks/session-rules.sh` delivers `rules/behavior.md` at session start.
+`hooks/session-role.sh` adds the orchestrator role text (`hooks/orchestrator-role.md`) to the Pod Bay session of the main workspace, and to no other session.
 `hooks/secrets-scan.sh` runs before every `git commit`: it blocks a staged secret pattern or a staged `.env` file.
 `hooks/merge-guard.sh` blocks `gh pr merge` and `gh api .../pulls/<n>/merge` unless the PR base is `feat/*`; unlike the other hooks it fails closed.
-`hooks/pr-opened.sh` reminds the main session to review a PR after `gh pr create`, and `hooks/clean-worktrees.sh`
+`hooks/pr-opened.sh` reminds the main session to review a PR after a `gh pr create` command whose output holds a PR URL; it tells the orchestrator session to hand the review to another session. A script that runs `gh pr create` inside it gets no reminder.
+`hooks/clean-worktrees.sh`
 removes merged worktrees and branches after a merge and at session start (it fetches first; `git branch -D` only when a merged PR head equals the local tip; it skips protected branch names (`develop`, `staging`, `release/*`, ...) and the session-start sweep also skips a worktree another live process uses and stops after a 20 s budget (`CLEAN_BUDGET`); `CLEAN_KEEP`, `CLEAN_STRICT`, `CLEAN_RECREATE` and `CLEAN_REMOTE` set it per project). The old commit gate is gone; its lane and escalation checks are judgment calls now.
 
 This is one of several wired hooks — see the full table in the root `CLAUDE.md`.
