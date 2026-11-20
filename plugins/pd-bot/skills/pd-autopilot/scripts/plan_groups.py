@@ -10,15 +10,18 @@ free slot under --max-parallel. Without paths and without --max-parallel that is
 
 paths (optional) are the files and directories a ticket is expected to change, relative to the
 repository root. Two paths overlap when they are equal or one is a directory that holds the other.
-A ticket without paths overlaps nothing. Of two overlapping tickets, the one that depends on the
-other goes later; otherwise the one later in the input goes later.
+A ticket without paths overlaps nothing. Letter case is ignored. A pattern (*, ?, [), an absolute
+path, a path with .. and the word unknown exit 2. Tickets are placed in the
+order of their dependency depth, then of the input, so of two overlapping tickets the one placed
+later goes to the later group.
 
 A dep outside the batch is ignored (a note goes to stderr): it must already be closed. Each ticket
 that moved because of an overlap or the cap gets one note on stderr. A cycle exits 2 and names the
-tickets.
+tickets; bad input and a ticket that is in the input twice exit 2 too.
 """
 import argparse
 import json
+import posixpath
 import sys
 
 
@@ -30,12 +33,20 @@ def norm_paths(n, raw):
     out = []
     for p in raw:
         p = p.strip().replace("\\", "/")
-        while p.startswith("./"):
-            p = p[2:]
-        p = p.strip("/")
         if not p:
             raise TypeError(f"#{n}: a path is empty; write . for the whole repository")
-        out.append("" if p == "." else p)  # "" is the repository root: it overlaps every path
+        if p.startswith("/"):
+            raise TypeError(f"#{n}: path {p!r} must be relative to the repository root")
+        if any(c in p for c in "*?[]"):
+            raise TypeError(f"#{n}: path {p!r} is a pattern; name the file or its directory")
+        if ".." in p.split("/"):
+            raise TypeError(f"#{n}: path {p!r} holds ..; write the path from the repository root")
+        p = posixpath.normpath(p)
+        if p.lower() == "unknown":
+            raise TypeError(f"#{n}: 'unknown' is not a path; leave paths out, or write . for the "
+                            f"whole repository")
+        # Compared without letter case: some file systems hold a.py and A.py as one file.
+        out.append("" if p == "." else p.casefold())  # "" is the root: it overlaps every path
     return sorted(set(out))
 
 
@@ -51,6 +62,9 @@ def overlap(a, b):
 def plan(items, max_parallel=None):
     nums = [int(i["n"]) for i in items]
     batch = set(nums)
+    twice = sorted({n for n in nums if nums.count(n) > 1})
+    if twice:
+        raise TypeError("a ticket is in the input twice: " + ", ".join(f"#{n}" for n in twice))
     deps, paths = {}, {}
     for i in items:
         n = int(i["n"])

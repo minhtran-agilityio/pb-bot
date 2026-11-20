@@ -43,17 +43,21 @@ Leave a default when the ticket gives you a reason, and say why in the ledger.
 Order the tickets: pipe `[{"n":1,"deps":[2],"paths":["src/a.py","docs/"]}]` (`paths` is the
 ledger's `touches`; the rules are in `groups.md`) into
 `python3 ${CLAUDE_PLUGIN_ROOT}/skills/pd-autopilot/scripts/plan_groups.py --max-parallel 3`; exit 2
-names a dependency cycle, which you show to the owner. Each stderr line names a ticket that moved to
+names a dependency cycle, which you show to the owner, or bad input, which you correct. Each stderr line names a ticket that moved to
 a later group and why (an overlap with another ticket, or a full group): record it in the ledger.
 The groups are the order, not a lock. When a worker slot is free, you may start a ticket of a later
-group early, but only when its dependencies are `done` and no ticket that still runs has a path
-that overlaps its own. When a ticket ends `blocked`, mark its dependents `skipped`.
+group early, but only when its dependencies are `done` and no ticket that still runs or has an
+open pull request has a path that overlaps its own. When a ticket ends `blocked`, mark its dependents `skipped`.
 
 The paths are a forecast. Before you push a ticket, list what it changed
 (`git -C <worker checkout> diff --name-only <base sha> <head sha>`). When a changed file is outside
 the ticket's `touches` and inside the `touches` or the diff of a ticket that still runs or has an
 open pull request, the two pull requests can conflict: record it in the ledger, and name both
 tickets and the order in which the owner should merge them in the final report.
+
+A ticket that overlaps an earlier ticket needs that ticket's code too, or both pull requests
+change the same lines from the same base. Treat the earlier ticket as its dependency for the start
+point: the next paragraph applies to it.
 
 A dependent ticket needs its dependency's code. Either wait until the owner merged the dependency
 and start from the updated base, or stack it: fetch the dependency's branch into the dependent's

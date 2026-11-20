@@ -129,3 +129,23 @@ def test_no_option_and_no_paths_gives_the_old_result():
 def test_dot_is_the_whole_repository_and_an_empty_path_exits_2():
     assert groups(run([{"n": 1, "paths": ["."]}, {"n": 2, "paths": ["x/y.py"]}])) == {1: 1, 2: 2}
     assert run([{"n": 1, "paths": [""]}]).returncode == 2
+
+
+# --- review of PR 2: spellings of one path, input the script must refuse ---------------------------
+
+def test_other_spellings_of_one_path_overlap():
+    for a, b in (("src//a.py", "src/a.py"), ("src/./a.py", "src/a.py"), ("SRC/A.py", "src/a.py"),
+                 ("./", "x/y.py")):
+        r = run([{"n": 1, "paths": [a]}, {"n": 2, "paths": [b]}])
+        assert r.returncode == 0 and groups(r) == {1: 1, 2: 2}, (a, b, r.stderr)
+
+
+def test_paths_the_script_cannot_compare_exit_2():
+    for bad in ("src/../a.py", "..", "src/*.py", "a?.py", "src/[ab].py", "unknown", "/abs/a.py"):
+        r = run([{"n": 1, "paths": [bad]}])
+        assert r.returncode == 2, (bad, r.stdout)
+
+
+def test_duplicate_ticket_number_exits_2():
+    r = run([{"n": 1}, {"n": 1}])
+    assert r.returncode == 2 and "#1" in r.stderr
