@@ -24,6 +24,10 @@ exit 2 it names the bad file and key.
 | `advisor` | `opus`, `fable` | Step 2 advisor call, and `advisorModel` in step 8 |
 | `stages` | `{ "<stage>": { "model": ..., "effort": ... } }` | Step 8: `profile: { stages }` |
 | `worktreeSetup` | list of one-line command strings, for example `["npm ci"]` | Step 8: `worktreeSetup` arg |
+| `maxParallel` | a whole number, 1 or more | Step 3: the `--max-parallel` option (`groups.md`) |
+
+`maxParallel` is optional and the default profile does not set it: without it, all tickets of a
+dependency group run at the same time. Set it when a large batch uses up the account's quota.
 
 `worktreeSetup` is optional and the default profile does not set it. Each stage that creates a
 worktree runs the commands once, in order, right after it creates the worktree. A stage whose setup

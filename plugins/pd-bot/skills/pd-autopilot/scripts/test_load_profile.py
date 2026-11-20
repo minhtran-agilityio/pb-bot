@@ -85,3 +85,23 @@ def test_bad_json_exits_2(tmp_path):
     override(tmp_path, "nope")
     r = run(tmp_path)
     assert r.returncode == 2 and "autopilot-profile.json" in r.stderr
+
+
+def test_max_parallel_is_passed_on(tmp_path):
+    override(tmp_path, {"maxParallel": 3})
+    r = run(tmp_path)
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout)["maxParallel"] == 3
+
+
+def test_default_has_no_max_parallel():
+    assert "maxParallel" not in json.loads(DEFAULT.read_text())
+
+
+def test_bad_max_parallel_exits_2(tmp_path):
+    for i, bad in enumerate([0, -1, "3", 2.5, True, [3]]):
+        sub = tmp_path / f"m{i}"
+        sub.mkdir()
+        override(sub, {"maxParallel": bad})
+        r = run(sub)
+        assert r.returncode == 2 and "maxParallel must be" in r.stderr, (bad, r.stderr)

@@ -6,12 +6,15 @@ Defaults, the brief, what to do when a ticket reports, and the final report. Par
 ## Before you assign
 
 - **Triage in parallel, ask once.** One agent per ticket follows `pd-bot:pd-intake` and returns the
-  verdict, the depth and its questions; it does not ask the owner. You collect every CONFIRM
+  verdict, the depth and its questions; it does not ask the owner. Add the `Touches:` request of
+  `${CLAUDE_PLUGIN_ROOT}/skills/pd-autopilot/references/groups.md` to its prompt, so it also
+  returns the paths it expects the ticket to change. You collect every CONFIRM
   question and ask them in one batch, then run `pd-bot:pd-grilling` for each GRILL ticket. Record the
   answers verbatim in the ledger and as a "Confirmed decisions" comment on the issue.
 - **Classify.** Write into the ledger for each ticket: `kind` (bug, feature, docs), `depth`, `app`
-  (`fe`, `be` or `none`: is there a running app to test?), `risky` (protocol, last paragraph) and
-  `deps`. A depth the owner set wins over intake: a label `depth:S`, `depth:M` or `depth:L`, or a
+  (`fe`, `be` or `none`: is there a running app to test?), `risky` (protocol, last paragraph),
+  `deps` and `touches` (the `Touches:` paths; for `unknown`, look in the code yourself, or write
+  `["."]`, which makes the ticket run alone). A depth the owner set wins over intake: a label `depth:S`, `depth:M` or `depth:L`, or a
   line `Depth: <S|M|L>` in the ticket or in the owner's answers. When intake says S or M but the
   ticket adds a public contract, spans modules or leaves design choices open, put "is this depth L?"
   in the triage batch instead of deciding alone.
@@ -31,14 +34,30 @@ Leave a default when the ticket gives you a reason, and say why in the ledger.
 | Where the work runs | one Pod Bay session per ticket, in its own workspace | read-only or single-step work with no owner question: an in-process `Agent` with `isolation: worktree` is cheaper. It cannot exchange messages, so it returns its result to you and you route the review |
 | Worker model | Sonnet 5.5 for depth S and M; Opus 5.5 at depth L | the ticket touches hooks, security or a public contract; a worker already failed once on it |
 | Reviewer | a different session, Opus 5.5, skill `pd-bot:pd-review` | never the worker's session; never you alone |
-| Order | dependency groups (command below); tickets of one group in parallel | two tickets edit the same files: run them in sequence |
+| Order | dependency groups (command below); tickets of one group in parallel. The command puts two tickets with an overlapping path in different groups | you see an overlap that the paths do not show: give both tickets that path and run the command again |
+| Workers at once | 3 tickets (`--max-parallel 3`); reviewer and advisor sessions do not count | the owner gave another number; a usage-limit line appeared: lower it |
 | Budget | 60 minutes per ticket | depth L, or the owner gave a deadline |
 | Acceptance check | you start it after the receipt: `pd-bot:pd-uat` when `app` is `fe` or `be`, the `pd-bot:qa-verifier` agent for a ticket with no app at depth M or L | depth S docs or config: the review covers it |
 | Mode | one pull request per ticket into the base | the owner said `local`: commit only, no push, no pull request |
 
-Order the tickets: pipe `[{"n":1,"deps":[2]}]` into
-`python3 ${CLAUDE_PLUGIN_ROOT}/skills/pd-autopilot/scripts/plan_groups.py`; exit 2 names a dependency
-cycle, which you show to the owner. When a ticket ends `blocked`, mark its dependents `skipped`.
+Order the tickets: pipe `[{"n":1,"deps":[2],"paths":["src/a.py","docs/"]}]` (`paths` is the
+ledger's `touches`; the rules are in `groups.md`) into
+`python3 ${CLAUDE_PLUGIN_ROOT}/skills/pd-autopilot/scripts/plan_groups.py --max-parallel 3`; exit 2
+names a dependency cycle, which you show to the owner, or bad input, which you correct. Each stderr line names a ticket that moved to
+a later group and why (an overlap with another ticket, or a full group): record it in the ledger.
+The groups are the order, not a lock. When a worker slot is free, you may start a ticket of a later
+group early, but only when its dependencies are `done` and no ticket that still runs or has an
+open pull request has a path that overlaps its own. When a ticket ends `blocked`, mark its dependents `skipped`.
+
+The paths are a forecast. Before you push a ticket, list what it changed
+(`git -C <worker checkout> diff --name-only <base sha> <head sha>`). When a changed file is outside
+the ticket's `touches` and inside the `touches` or the diff of a ticket that still runs or has an
+open pull request, the two pull requests can conflict: record it in the ledger, and name both
+tickets and the order in which the owner should merge them in the final report.
+
+A ticket that overlaps an earlier ticket needs that ticket's code too, or both pull requests
+change the same lines from the same base. Treat the earlier ticket as its dependency for the start
+point: the next paragraph applies to it.
 
 A dependent ticket needs its dependency's code. Either wait until the owner merged the dependency
 and start from the updated base, or stack it: fetch the dependency's branch into the dependent's

@@ -1,20 +1,71 @@
 #!/usr/bin/env python3
 """Turn ticket dependencies into execution groups.
 
-Input JSON (stdin, or --input FILE): [{"n": 1, "deps": [2, 3]}, ...]
+Input JSON (stdin, or --input FILE): [{"n": 1, "deps": [2, 3], "paths": ["src/a.py", "docs/"]}, ...]
 Output JSON: [{"n": 1, "group": 1}, ...] in input order.
-group = 1 + the longest dependency path inside the batch. A dep outside the batch is ignored
-(a note goes to stderr): it must already be closed. A cycle exits 2 and names the tickets.
+The groups run in order; the tickets of one group run in parallel. A ticket gets the first group
+that comes after every dependency, that holds no ticket with an overlapping path, and that has a
+free slot under --max-parallel. Without paths and without --max-parallel that is
+1 + the longest dependency path inside the batch.
+
+paths (optional) are the files and directories a ticket is expected to change, relative to the
+repository root. Two paths overlap when they are equal or one is a directory that holds the other.
+A ticket without paths overlaps nothing. Letter case is ignored. A pattern (*, ?, [), an absolute
+path, a path with .. and the word unknown exit 2. Tickets are placed in the
+order of their dependency depth, then of the input, so of two overlapping tickets the one placed
+later goes to the later group.
+
+A dep outside the batch is ignored (a note goes to stderr): it must already be closed. Each ticket
+that moved because of an overlap or the cap gets one note on stderr. A cycle exits 2 and names the
+tickets; bad input and a ticket that is in the input twice exit 2 too.
 """
 import argparse
 import json
+import posixpath
 import sys
 
 
-def plan(items):
+def norm_paths(n, raw):
+    if raw is None:
+        return []
+    if not isinstance(raw, list) or not all(isinstance(p, str) for p in raw):
+        raise TypeError(f"#{n}: paths must be a list of strings")
+    out = []
+    for p in raw:
+        p = p.strip().replace("\\", "/")
+        if not p:
+            raise TypeError(f"#{n}: a path is empty; write . for the whole repository")
+        if p.startswith("/"):
+            raise TypeError(f"#{n}: path {p!r} must be relative to the repository root")
+        if any(c in p for c in "*?[]"):
+            raise TypeError(f"#{n}: path {p!r} is a pattern; name the file or its directory")
+        if ".." in p.split("/"):
+            raise TypeError(f"#{n}: path {p!r} holds ..; write the path from the repository root")
+        p = posixpath.normpath(p)
+        if p.lower() == "unknown":
+            raise TypeError(f"#{n}: 'unknown' is not a path; leave paths out, or write . for the "
+                            f"whole repository")
+        # Compared without letter case: some file systems hold a.py and A.py as one file.
+        out.append("" if p == "." else p.casefold())  # "" is the root: it overlaps every path
+    return sorted(set(out))
+
+
+def overlap(a, b):
+    """The first pair of overlapping paths of two tickets, or None."""
+    for x in a:
+        for y in b:
+            if x == y or not x or not y or y.startswith(x + "/") or x.startswith(y + "/"):
+                return x or ".", y or "."
+    return None
+
+
+def plan(items, max_parallel=None):
     nums = [int(i["n"]) for i in items]
     batch = set(nums)
-    deps = {}
+    twice = sorted({n for n in nums if nums.count(n) > 1})
+    if twice:
+        raise TypeError("a ticket is in the input twice: " + ", ".join(f"#{n}" for n in twice))
+    deps, paths = {}, {}
     for i in items:
         n = int(i["n"])
         inside = []
@@ -28,31 +79,56 @@ def plan(items):
                 print(f"plan_groups: #{n} depends on #{d}, outside the batch; "
                       f"ignored (it must already be closed)", file=sys.stderr)
         deps[n] = sorted(set(inside))
-    group, state = {}, {}
+        paths[n] = norm_paths(n, i.get("paths"))
+    depth, state = {}, {}
 
     def visit(n, path):
         if state.get(n) == 2:
-            return group[n]
+            return depth[n]
         if state.get(n) == 1:
             cyc = path[path.index(n):] + [n]
             raise ValueError("dependency cycle: " + " -> ".join(f"#{x}" for x in cyc))
         state[n] = 1
-        group[n] = 1 + max((visit(d, path + [n]) for d in deps[n]), default=0)
+        depth[n] = 1 + max((visit(d, path + [n]) for d in deps[n]), default=0)
         state[n] = 2
-        return group[n]
+        return depth[n]
 
     for n in nums:
         visit(n, [])
+
+    # Place the tickets in dependency order (then input order), each in the first group that fits.
+    group, size = {}, {}
+    for n in sorted(nums, key=lambda x: (depth[x], nums.index(x))):
+        g = 1 + max((group[d] for d in deps[n]), default=0)
+        why = []
+        while True:
+            hit = next(((m, overlap(paths[n], paths[m])) for m in group
+                        if group[m] == g and overlap(paths[n], paths[m])), None)
+            if hit:
+                why.append(f"after #{hit[0]}: both touch {hit[1][0]}"
+                           + ("" if hit[1][0] == hit[1][1] else f" / {hit[1][1]}"))
+            elif max_parallel and size.get(g, 0) >= max_parallel:
+                why.append(f"group {g} is full (--max-parallel {max_parallel})")
+            else:
+                break
+            g += 1
+        group[n] = g
+        size[g] = size.get(g, 0) + 1
+        if why:
+            print(f"plan_groups: #{n} moved to group {g}: " + "; ".join(why), file=sys.stderr)
     return [{"n": n, "group": group[n]} for n in nums]
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--input", help="JSON file; default is stdin")
+    ap.add_argument("--max-parallel", type=int, help="the most tickets one group may hold")
     args = ap.parse_args(argv)
     try:
+        if args.max_parallel is not None and args.max_parallel < 1:
+            raise ValueError("--max-parallel must be 1 or more")
         raw = open(args.input).read() if args.input else sys.stdin.read()
-        out = plan(json.loads(raw))
+        out = plan(json.loads(raw), args.max_parallel)
     except ValueError as e:
         print(f"plan_groups: {e}", file=sys.stderr)
         return 2
