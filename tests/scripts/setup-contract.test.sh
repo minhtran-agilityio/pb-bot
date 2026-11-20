@@ -2,7 +2,7 @@
 # Contract tests for the setup skill: its SKILL.md steps and the old-install finder.
 source "$(dirname "$0")/../lib.sh"
 
-DIR="$ROOT/plugins/harness/skills/pd-setup"
+DIR="$ROOT/plugins/pd-bot/skills/pd-setup"
 SKILL="$DIR/SKILL.md"
 OLD="$DIR/scripts/old-install.sh"
 
@@ -54,8 +54,8 @@ done
 [ "$ok" -eq 1 ] && pass || fail "a referenced file is missing"
 
 t "the PROJECT.md template resource is gone and the init-structure templates exist"
-if [ ! -e "$DIR/resources" ] && [ -f "$ROOT/plugins/harness/templates/structure/specs-README.md" ] \
-   && [ -x "$ROOT/plugins/harness/scripts/init-structure.sh" ]; then pass; else fail "a setup resource is missing"; fi
+if [ ! -e "$DIR/resources" ] && [ -f "$ROOT/plugins/pd-bot/templates/structure/specs-README.md" ] \
+   && [ -x "$ROOT/plugins/pd-bot/scripts/init-structure.sh" ]; then pass; else fail "a setup resource is missing"; fi
 
 t "old-install.sh lists harness-named files and leaves the project's own files out"
 d=$(mktemp -d); _CLEANUP_DIRS+=("$d")
@@ -91,13 +91,13 @@ JSON
 fi
 
 t "implementer keeps a legacy agents/PROJECT.md fallback like test-runner"
-if grep -q 'agents/PROJECT.md' "$ROOT/plugins/harness/agents/implementer.md" 2>/dev/null; then pass; else fail "implementer.md has no agents/PROJECT.md fallback"; fi
+if grep -q 'agents/PROJECT.md' "$ROOT/plugins/pd-bot/agents/implementer.md" 2>/dev/null; then pass; else fail "implementer.md has no agents/PROJECT.md fallback"; fi
 
 t "setup allowed-tools includes Write and Edit (step 2 writes CLAUDE.md)"
-if sed -n '1,/^---$/p;' "$ROOT/plugins/harness/skills/pd-setup/SKILL.md" | grep -E '^allowed-tools:' | grep -q 'Write' \
-   && grep -E '^allowed-tools:' "$ROOT/plugins/harness/skills/pd-setup/SKILL.md" | grep -q 'Edit'; then pass; else fail "allowed-tools lacks Write or Edit"; fi
+if sed -n '1,/^---$/p;' "$ROOT/plugins/pd-bot/skills/pd-setup/SKILL.md" | grep -E '^allowed-tools:' | grep -q 'Write' \
+   && grep -E '^allowed-tools:' "$ROOT/plugins/pd-bot/skills/pd-setup/SKILL.md" | grep -q 'Edit'; then pass; else fail "allowed-tools lacks Write or Edit"; fi
 
 t "setup deletes the old PROJECT.md by an absolute CLAUDE_PROJECT_DIR path"
-if grep -qF 'rm -- ${CLAUDE_PROJECT_DIR}/agents/PROJECT.md' "$ROOT/plugins/harness/skills/pd-setup/SKILL.md"; then pass; else fail "rm of agents/PROJECT.md is not anchored to CLAUDE_PROJECT_DIR"; fi
+if grep -qF 'rm -- ${CLAUDE_PROJECT_DIR}/agents/PROJECT.md' "$ROOT/plugins/pd-bot/skills/pd-setup/SKILL.md"; then pass; else fail "rm of agents/PROJECT.md is not anchored to CLAUDE_PROJECT_DIR"; fi
 
 finish

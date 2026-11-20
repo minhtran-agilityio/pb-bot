@@ -2,8 +2,8 @@
 # Contract test: intake checks the login variables by name and never reads .env.
 source "$(dirname "$0")/../lib.sh"
 
-SKILL="$ROOT/plugins/harness/skills/pd-intake/SKILL.md"
-REF="$ROOT/plugins/harness/skills/pd-intake/references/verify-login.md"
+SKILL="$ROOT/plugins/pd-bot/skills/pd-intake/SKILL.md"
+REF="$ROOT/plugins/pd-bot/skills/pd-intake/references/verify-login.md"
 
 t "verify-login.md exists"
 if [ -f "$REF" ]; then pass; else fail "missing $REF"; fi

@@ -9,8 +9,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-SCRIPT = ROOT / "plugins/harness/scripts/write_adrs.py"
-TEMPLATE = ROOT / "docs/adr/TEMPLATE.md"
+SCRIPT = ROOT / "plugins/pd-bot/scripts/write_adrs.py"
+TEMPLATE = ROOT / "tests/fixtures/adr/TEMPLATE.md"
 
 
 def dec(**kw):

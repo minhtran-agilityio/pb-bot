@@ -4,7 +4,7 @@
 source "$(dirname "$0")/../lib.sh"
 
 REVIEW="$ROOT/REVIEW.md"
-SHIP="$ROOT/plugins/harness/workflows/ship.js"
+SHIP="$ROOT/plugins/pd-bot/workflows/ship.js"
 
 t "AC1: REVIEW.md has exactly 4 '## ' sections"
 n=$(grep -c '^## ' "$REVIEW" 2>/dev/null)

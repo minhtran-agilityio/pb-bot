@@ -6,7 +6,7 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/../.." && pwd)
 fm() { awk 'NR==1&&/^---$/{inb=1;next} inb&&/^---$/{exit} inb' "$1"; }
 
-f="$root/plugins/harness/agents/qa-verifier.md"
+f="$root/plugins/pd-bot/agents/qa-verifier.md"
 [ -f "$f" ] || { echo "missing $f" >&2; exit 1; }
 fm_f=$(fm "$f")
 printf '%s\n' "$fm_f" | grep -q '^name: qa-verifier$'

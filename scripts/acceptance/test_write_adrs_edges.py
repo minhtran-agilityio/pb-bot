@@ -1,4 +1,4 @@
-"""Acceptance tests for #591: three edge cases of plugins/harness/scripts/write_adrs.py.
+"""Acceptance tests for #591: three edge cases of plugins/pd-bot/scripts/write_adrs.py.
 
 Black box: the script runs as a subprocess against a temp ADR folder.
 """
@@ -12,8 +12,8 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-SCRIPT = ROOT / "plugins/harness/scripts/write_adrs.py"
-TEMPLATE = ROOT / "docs/adr/TEMPLATE.md"
+SCRIPT = ROOT / "plugins/pd-bot/scripts/write_adrs.py"
+TEMPLATE = ROOT / "tests/fixtures/adr/TEMPLATE.md"
 
 
 def dec(**kw):

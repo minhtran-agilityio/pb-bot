@@ -1,6 +1,6 @@
 #!/bin/bash
 source "$(dirname "$0")/../lib.sh"
-SKILL="plugins/harness/skills/pd-compound/SKILL.md"
+SKILL="plugins/pd-bot/skills/pd-compound/SKILL.md"
 
 t "compound preserves all four complete-track gates"
 for track in bug knowledge decision failure; do grep -q "| $track |" "$ROOT/$SKILL" || { fail "missing $track"; finish; }; done
@@ -16,8 +16,8 @@ t "compound treats a prediction → measured pair as a learning source"
 grep -qF 'prediction → measured' "$ROOT/$SKILL" && pass || fail "prediction → measured source missing"
 
 t "compound decision-track docs use plugin-root paths, not repo-relative ones"
-D="$ROOT/plugins/harness/skills/pd-compound"
-if grep -n 'plugins/harness/scripts/write_adrs\|`docs/adr/README.md`' "$D/templates/decision-consolidated.md" "$D/README.md" >/dev/null; then fail "repo-relative write_adrs path or docs/adr/README.md reference"; else pass; fi
+D="$ROOT/plugins/pd-bot/skills/pd-compound"
+if grep -n 'plugins/pd-bot/scripts/write_adrs\|`docs/adr/README.md`' "$D/templates/decision-consolidated.md" "$D/README.md" >/dev/null; then fail "repo-relative write_adrs path or docs/adr/README.md reference"; else pass; fi
 
 t "compound decision track sources how_to_reverse/confidence from the extractor and links ADRs, not solutions"
 if grep -q 'How_to_Reverse' "$D/subagents/decision-extractor-prompt.md" && grep -q 'Never invent a value' "$ROOT/$SKILL" && grep -q 'ADR path' "$ROOT/$SKILL"; then pass; else fail "decision track fields or ADR link missing"; fi
@@ -30,9 +30,6 @@ if grep -rlq '^problem_type: decision' "$D/templates" "$ROOT/docs/solutions" || 
 
 t "compound README and context analyzer do not offer problem_type decision"
 if grep -q 'problem_type: \[bug | knowledge | decision' "$D/README.md" || grep -q 'problem_types:.*applicable: bug, knowledge, decision' "$D/subagents/context-analyzer-prompt.md"; then fail "problem_type decision still offered"; else pass; fi
-
-t "docs/solutions/INDEX.md matches the solution docs (regenerated after a problem_type change)"
-if python3 "$ROOT/plugins/harness/scripts/rebuild_solution_index.py" --root "$ROOT" --check >/dev/null 2>&1; then pass; else fail "INDEX.md is stale; run rebuild_solution_index.py"; fi
 
 t "compound reports a decision with no ADR as not recorded, passes --table-out and adds no link"
 R="$D/references/not-recorded.md"

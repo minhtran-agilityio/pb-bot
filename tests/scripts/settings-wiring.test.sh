@@ -8,7 +8,7 @@
 source "$(dirname "$0")/../lib.sh"
 cd "$ROOT" || exit 1
 
-HOOKS=plugins/harness/hooks/hooks.json
+HOOKS=plugins/pd-bot/hooks/hooks.json
 
 t "hooks.json is valid JSON"
 if jq -e . "$HOOKS" >/dev/null 2>&1; then pass; else fail "$HOOKS does not parse"; fi
@@ -21,7 +21,7 @@ t "every registered script exists, has a bash shebang and is mode 100755 in the 
 ok=1
 while IFS= read -r arg; do
   [ -z "$arg" ] && continue
-  f="plugins/harness/hooks/${arg#\$\{CLAUDE_PLUGIN_ROOT\}/hooks/}"
+  f="plugins/pd-bot/hooks/${arg#\$\{CLAUDE_PLUGIN_ROOT\}/hooks/}"
   if [ ! -f "$f" ]; then ok=0; echo "        missing: $f"; continue; fi
   head -1 "$f" | grep -q '^#!.*sh' || { ok=0; echo "        no shebang: $f"; }
   mode=$(git ls-files -s -- "$f" | awk '{print $1}')
@@ -31,7 +31,7 @@ done < <(jq -r '.hooks[][].hooks[] | .args[0] // empty' "$HOOKS")
 
 t "every hooks/*.sh in the plugin is registered in hooks.json"
 ok=1
-for f in plugins/harness/hooks/*.sh; do
+for f in plugins/pd-bot/hooks/*.sh; do
   jq -e --arg n "hooks/$(basename "$f")" '[.hooks[][].hooks[] | .args[]? | select(endswith($n))] | length > 0' "$HOOKS" >/dev/null || { ok=0; echo "        not registered: $f"; }
 done
 [ "$ok" -eq 1 ] && pass || fail "a hook script is on disk but not wired"

@@ -23,10 +23,10 @@ Verdict: existing decision
 
 **Possibly stale**
 - All three records are 20 days old (confirmed_at 2026-10-15 and 2026-10-16), so none is over 30 days. The principles above still hold.
-- `skills/subagent-driven-development/scripts/review_package.py` is not found. Glob found no `review_package.py` in the repo. The `DISABLED_RULES` and `## STE lint` advice that depends on it is unverified until you locate the file or its replacement under `plugins/harness/`.
+- `skills/subagent-driven-development/scripts/review_package.py` is not found. Glob found no `review_package.py` in the repo. The `DISABLED_RULES` and `## STE lint` advice that depends on it is unverified until you locate the file or its replacement under `plugins/pd-bot/`.
 - `skills/subagent-driven-development/task-reviewer-prompt.md` and `skills/subagent-driven-development/SKILL.md` are not found at those paths. Glob found no `task-reviewer-prompt.md`. The "add a meaning-equivalence instruction to the task-reviewer prompt" guardrail is only proposed, so it is unverified.
-- `skills/subagent-driven-development/implementer-prompt.md` has moved to `plugins/harness/skills/implement/implementer-prompt.md`.
-- `skills/asd-ste100/*` and `skills/feature-intake/SKILL.md` have moved under `plugins/harness/skills/`. I confirmed this for `UPSTREAM.md` and `scripts/ste-lint.py`. I did not check `feature-intake`.
+- `skills/subagent-driven-development/implementer-prompt.md` has moved to `plugins/pd-bot/skills/implement/implementer-prompt.md`.
+- `skills/asd-ste100/*` and `skills/feature-intake/SKILL.md` have moved under `plugins/pd-bot/skills/`. I confirmed this for `UPSTREAM.md` and `scripts/ste-lint.py`. I did not check `feature-intake`.
 - `specs/ste100-prose-rollout/PLAN.md` is not found. The spec is not in the repo.
 - `scripts/check_ste_baseline.py`, `scripts/ste-baseline.json` and `scripts/audit_skill_prompts.py` exist. `DISABLED_RULES`, `--strict` and `--against` appear in `check_ste_baseline.py`, and `UPSTREAM` appears in `audit_skill_prompts.py`. I did not read their code.
 - `rules/orchestration.md` is not checked.

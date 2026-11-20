@@ -9,10 +9,10 @@ LINT_SRC="$ROOT/scripts/lint-adr-paths.sh"
 adr_repo() {
   local d; d=$(mktemp -d); _CLEANUP_DIRS+=("$d")
   git -C "$d" init -q
-  mkdir -p "$d/docs/adr" "$d/scripts" "$d/plugins/harness/hooks"
+  mkdir -p "$d/docs/adr" "$d/scripts" "$d/plugins/pd-bot/hooks"
   [ -f "$LINT_SRC" ] && cp "$LINT_SRC" "$d/scripts/"
   printf 'x\n' > "$d/scripts/real.sh"
-  printf 'x\n' > "$d/plugins/harness/hooks/real-hook.sh"
+  printf 'x\n' > "$d/plugins/pd-bot/hooks/real-hook.sh"
   mkdir -p "$d/.claude/rules"; printf 'x\n' > "$d/.claude/rules/real-rule.md"
   printf '%s\n' "$2" > "$d/docs/adr/$1"
   git -C "$d" add -A
@@ -36,7 +36,7 @@ t "AC3: a path that exists at the repo root passes unmarked"
 d=$(adr_repo 0099-x.md 'See `scripts/real.sh`.')
 run_lint "$d"; [ "$RC" = 0 ] && pass || fail "rc=$RC: $OUT"
 
-t "AC3: a path that exists under plugins/harness/ passes unmarked"
+t "AC3: a path that exists under plugins/pd-bot/ passes unmarked"
 d=$(adr_repo 0099-x.md 'See `hooks/real-hook.sh`.')
 run_lint "$d"; [ "$RC" = 0 ] && pass || fail "rc=$RC: $OUT"
 

@@ -20,7 +20,7 @@ None.
 
 **Possibly stale**
 - `scripts/score_intake_eval.py` and the `evals dir` named in `skill-eval-blind-run-scoring` are not in the repo. A repo-wide search for `score_*` found nothing. The `--run`/`--strict` command and the `results/<date>-<label>/` layout are out of date as written. The only evals now are `tests/evals/recall/` and `tests/evals/tickets/`, so follow their READMEs for current layout.
-- `skills/subagent-driven-development/task-reviewer-prompt.md`, `task_brief.py`, `review_package.py` and `specs/gh-312-test-seams/canary.md` (from the canary record) are not in the repo. `plugins/harness/agents/task-reviewer.md` exists and may hold the reviewer prompt now. The canary check `grep -q "^Canary result: pass$" specs/<slug>/canary.md` is unverified.
+- `skills/subagent-driven-development/task-reviewer-prompt.md`, `task_brief.py`, `review_package.py` and `specs/gh-312-test-seams/canary.md` (from the canary record) are not in the repo. `plugins/pd-bot/agents/task-reviewer.md` exists and may hold the reviewer prompt now. The canary check `grep -q "^Canary result: pass$" specs/<slug>/canary.md` is unverified.
 - `runtime/resume_decision.py`, its test file and `skills/correctness review/SKILL.md` (from the fixture-fitted-bugs record) are not in the repo. The record also cites `hooks/risk-corroboration.sh`, which is superseded by `hooks/commit-gate.sh`. The corpus-test principle still holds.
 - Age: all three records have `confirmed_at` between 2026-08-10 and 2026-10-16. Today is 2026-11-04, so two are about 19 days old and the 2026-08-10 one is about 86 days old (over 30).
 

@@ -7,7 +7,7 @@ const fs = require('fs')
 const path = require('path')
 const assert = require('assert')
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', '..', 'plugins', 'harness', 'workflows', 'ship.js'), 'utf8')
+const SRC = fs.readFileSync(path.join(__dirname, '..', '..', 'plugins', 'pd-bot', 'workflows', 'ship.js'), 'utf8')
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 
 function metaText() {
@@ -304,7 +304,7 @@ test('rv10: a missing REVIEW.md is logged once per base; a git show error is log
 })
 
 test('rv8: the reviewNote gate statement has a Verifies and Does not verify split naming CLAUDE.md and .claude/rules/', () => {
-  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'plugins', 'harness', 'workflows', 'ship.js'), 'utf8')
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'plugins', 'pd-bot', 'workflows', 'ship.js'), 'utf8')
   const c = src.slice(src.indexOf('// Gate statement:'), src.indexOf('const reviewMdNote'))
   assert(/Verifies:/.test(c) && /Does not verify:/.test(c) && c.includes('CLAUDE.md') && c.includes('.claude/rules/') && /PR worktree/.test(c), c)
 })
@@ -419,12 +419,10 @@ test('e9b: a dangerous or contradicting decision sent with adr true reaches the 
   assert(j >= 0 && p2.slice(j, p2.indexOf('}', j)).includes('"adr":true'), 'an unflagged adr decision lost adr')
 })
 
-test('e9c: ADR_WHEN and the ADR README state the dangerous/contradicting carve-out', async () => {
+test('e9c: ADR_WHEN states the dangerous/contradicting carve-out', async () => {
   const { calls } = await run({}, null)
   const c = named(calls, /^intent:1$/)[0]
   assert(c.prompt.includes('dangerous or contradicts_confirmed are never adr'), 'RULES omit the carve-out')
-  const readme = fs.readFileSync(path.join(__dirname, '../../docs/adr/README.md'), 'utf8')
-  assert(/dangerous.*contradicts_confirmed[\s\S]*never `adr`|never `adr` either/.test(readme), 'README omits the carve-out')
 })
 
 test('e7: RULES gives one source for project rules, not the owner checkout and the worktree at once', async () => {
@@ -437,7 +435,7 @@ test('e7: RULES gives one source for project rules, not the owner checkout and t
 })
 
 test('e8: the project-rules text lives in one place (rulesCommon) and names the repoDir paths', async () => {
-  const src = require('fs').readFileSync(require('path').join(__dirname, '../../plugins/harness/workflows/ship.js'), 'utf8')
+  const src = require('fs').readFileSync(require('path').join(__dirname, '../../plugins/pd-bot/workflows/ship.js'), 'utf8')
   assert(!/Project rule files:/.test(src), 'second copy of the project-rules text is back in RULES')
   assert(/const rulesCommon = repoDir =>/.test(src), 'rulesCommon is not a function of repoDir')
   const { calls } = await run()
@@ -757,7 +755,7 @@ test('c: needs_advisor triggers one advisor call and one stage re-run; a second 
   const adv = named(calls, /^advisor:/)
   assert.strictEqual(adv.length, 1, labelsOf(calls).join())
   assert.strictEqual(adv[0].opts.model, 'fable')
-  assert.strictEqual(adv[0].opts.agentType, 'harness:advisor')
+  assert.strictEqual(adv[0].opts.agentType, 'pd-bot:advisor')
   assert.strictEqual(adv[0].opts.effort, 'high')
   assert(adv[0].prompt.includes('Q-ONE'))
   assert.strictEqual(intents, 2)
@@ -775,7 +773,7 @@ test('c2: depth L gets one advisor call on design and plan before implement', as
 })
 
 test('c3: an unknown agent type falls back to the default agent with the role file', async () => {
-  const { calls, result } = await run({}, c => (c.opts.agentType === 'harness:intent-reviewer' ? new Error('unknown agent type') : undefined))
+  const { calls, result } = await run({}, c => (c.opts.agentType === 'pd-bot:intent-reviewer' ? new Error('unknown agent type') : undefined))
   const rr = named(calls, /^intent-review$/)
   assert.strictEqual(rr.length, 2)
   assert(!rr[1].opts.agentType && rr[1].prompt.includes('/plug/agents/intent-reviewer.md'))
@@ -871,7 +869,7 @@ test('f: intent review sees the request and not the plan or decisions', async ()
     if (c.label === 'intent-review') return { verdict: 'gaps found', findings: [{ kind: 'gap', clause: 'CLAUSE-1', detail: 'missing' }, { kind: 'excess', clause: 'C2', detail: 'extra' }] }
   })
   const p = named(calls, /^intent-review$/)[0]
-  assert.strictEqual(p.opts.agentType, 'harness:intent-reviewer')
+  assert.strictEqual(p.opts.agentType, 'pd-bot:intent-reviewer')
   assert(p.prompt.includes('REQUEST-BODY-1') && p.prompt.includes('origin/v5.0.0..origin/feat/1-ticket-1'))
   for (const bad of ['PLANSTEP-ABC', 'DECISION-TITLE-XYZ', 'GOAL-SECRET', 'SUMMARY-SECRET', 'did it']) assert(!p.prompt.includes(bad), `leaked ${bad}`)
   assert.strictEqual(named(calls, /^request:1$/)[0].prompt.includes('gh issue view 1 --repo o/r --json body -q .body'), true)
@@ -1826,7 +1824,7 @@ test('qv1: a docs ticket at depth M gets exactly one qa-verify agent call in pha
   const { calls } = await qvDocs()
   const q = named(calls, /^qa-verify:1$/)
   assert.strictEqual(q.length, 1, labelsOf(calls).join())
-  assert.strictEqual(q[0].opts.agentType, 'harness:qa-verifier')
+  assert.strictEqual(q[0].opts.agentType, 'pd-bot:qa-verifier')
   assert.strictEqual(q[0].opts.phase, 'UAT')
   assert.strictEqual(named(calls, /^uat/).length, 0, 'the browser UAT agent does not run on a docs ticket')
 })
@@ -1992,7 +1990,7 @@ test('qa: depth M writes blind tests before implement and implement starts on th
   const ls = labelsOf(calls)
   assert(ls.indexOf('plan:1') < ls.indexOf('qa:1') && ls.indexOf('qa:1') < ls.indexOf('implement:1'), ls.join(','))
   const q = named(calls, /^qa:1$/)[0]
-  assert.strictEqual(q.opts.agentType, 'harness:qa-writer')
+  assert.strictEqual(q.opts.agentType, 'pd-bot:qa-writer')
   assert(q.prompt.includes('Add acceptance tests for #1') && q.prompt.includes('git branch feat/1-ticket-1 HEAD') && q.prompt.includes('--detach'), q.prompt)
   assert(!q.prompt.includes('PLAN-MD'), 'the QA writer must never see the plan')
   const i = named(calls, /^implement:1$/)[0]
@@ -2034,14 +2032,14 @@ test('security: a ticket that names a risky area runs the gate on Opus before th
   const ls = labelsOf(r.calls)
   assert(ls.indexOf('verify:1') < ls.indexOf('security gate:1') && ls.indexOf('security gate:1') < ls.indexOf('finish:1'), ls.join(','))
   const s = named(r.calls, /^security gate:1$/)[0]
-  assert.strictEqual(s.opts.agentType, 'harness:security-reviewer')
+  assert.strictEqual(s.opts.agentType, 'pd-bot:security-reviewer')
   assert.strictEqual(s.opts.model, 'opus')
   assert.strictEqual(st(r, 1), 'done')
 })
 
 test('security: a ticket that touches a risky path runs the gate even when its text is plain', async () => {
   const r = await run({ tickets: [T(1, 1, [], { title: 'Rename a label' })] }, c => (c.label === 'implement:1'
-    ? ok({ worktree: '/wt/1', branch: 'b1', files: ['plugins/harness/hooks/x.sh'], commits: [], verify: [] }) : undefined))
+    ? ok({ worktree: '/wt/1', branch: 'b1', files: ['plugins/pd-bot/hooks/x.sh'], commits: [], verify: [] }) : undefined))
   assert.strictEqual(named(r.calls, /^security gate:1$/).length, 1)
 })
 
@@ -2270,7 +2268,7 @@ test('qt5: a fix test commit that touches the acceptance folder still blocks the
 })
 
 test('qt6: the qa-writer agent file states the rule that a test checks nothing the ticket does not state', async () => {
-  const f = fs.readFileSync(path.join(__dirname, '..', '..', 'plugins', 'harness', 'agents', 'qa-writer.md'), 'utf8')
+  const f = fs.readFileSync(path.join(__dirname, '..', '..', 'plugins', 'pd-bot', 'agents', 'qa-writer.md'), 'utf8')
   assert.strictEqual(f.split('\n').filter(l => l.includes('checks nothing the ticket')).length, 1)
 })
 

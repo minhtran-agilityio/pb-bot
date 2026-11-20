@@ -1,8 +1,8 @@
 #!/bin/bash
-# Contract for /harness:pd-tickets. Each case pins a rule that an earlier word-ceiling trim or a
+# Contract for /pd-bot:pd-tickets. Each case pins a rule that an earlier word-ceiling trim or a
 # review of the skill showed to be easy to lose or to get wrong.
 source "$(dirname "$0")/../lib.sh"
-DIR="$ROOT/plugins/harness/skills/pd-tickets"
+DIR="$ROOT/plugins/pd-bot/skills/pd-tickets"
 SKILL="$DIR/SKILL.md"
 PROCESS="$DIR/references/process.md"
 
@@ -14,7 +14,7 @@ t "SKILL.md makes the process file a required Read"
 grep -q 'Required: Read `references/process.md`' "$SKILL" && pass || fail "required Read missing"
 
 t "the goal line names intake READY and autopilot"
-grep -q 'Goal: every ticket you create passes `harness:pd-intake` as READY' "$SKILL" && grep -q 'no new question' "$SKILL" \
+grep -q 'Goal: every ticket you create passes `pd-bot:pd-intake` as READY' "$SKILL" && grep -q 'no new question' "$SKILL" \
   && pass || fail "goal line missing"
 
 t "the skill has a NEVER list"
@@ -104,7 +104,7 @@ grep -qF "gh issue list --milestone '<name>' --state all" "$PROCESS" && grep -q 
   && pass || fail "the milestone list is not proved"
 
 t "the next step has a form with no milestone"
-grep -qF '/harness:pd-autopilot #n #m' "$PROCESS" && pass || fail "no next step without a milestone"
+grep -qF '/pd-bot:pd-autopilot #n #m' "$PROCESS" && pass || fail "no next step without a milestone"
 
 t "milestone grants are literal: no repo wildcard, no id path, no free verb"
 fm="$(sed -n '/^allowed-tools:/p' "$SKILL")"

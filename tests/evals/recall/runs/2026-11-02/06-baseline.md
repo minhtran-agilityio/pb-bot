@@ -1,4 +1,4 @@
-**No skill in this worktree is over the 600-word limit, so I didn't change anything.** The one on this branch, `plugins/harness/skills/recall/SKILL.md`, has 379 words, which leaves 221 words for new sentences. It doesn't need trimming, and I found no test that pins its word count (I searched `scripts/run-tests.sh`, `tests/scripts/` and `.github/workflows/`).
+**No skill in this worktree is over the 600-word limit, so I didn't change anything.** The one on this branch, `plugins/pd-bot/skills/recall/SKILL.md`, has 379 words, which leaves 221 words for new sentences. It doesn't need trimming, and I found no test that pins its word count (I searched `scripts/run-tests.sh`, `tests/scripts/` and `.github/workflows/`).
 
 I counted every tracked `SKILL.md` with `wc -w`, which matches how the audit counts words:
 

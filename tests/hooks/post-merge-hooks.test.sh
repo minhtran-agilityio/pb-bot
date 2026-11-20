@@ -21,7 +21,7 @@ setup() {  # $1 = merged|open ; leaves $MAIN, $WT, $STUB
   WT="$MAIN-wt"; _CLEANUP_DIRS+=("$WT")
   git -C "$MAIN" worktree add -q -b feat "$WT"
   git -C "$WT" commit -q --allow-empty -m work
-  mkdir -p "$MAIN/hooks"; cp "$ROOT/plugins/harness/hooks/clean-worktrees.sh" "$MAIN/hooks/"
+  mkdir -p "$MAIN/hooks"; cp "$ROOT/plugins/pd-bot/hooks/clean-worktrees.sh" "$MAIN/hooks/"
   STUB=$(mktemp -d); _CLEANUP_DIRS+=("$STUB")
   tip=$(git -C "$MAIN" rev-parse feat)
   if [ "$1" = merged ]; then printf '#!/bin/sh\necho %s\n' "$tip" > "$STUB/gh"; else printf '#!/bin/sh\nexit 0\n' > "$STUB/gh"; fi
@@ -115,7 +115,7 @@ setup2() {  # leaves $MAIN, $WT, $WT2, $STUB; the stub answers pr view <n>, pr v
   git -C "$MAIN" worktree add -q -b feat "$WT"; git -C "$WT" commit -q --allow-empty -m work
   git -C "$MAIN" worktree add -q -b feat2 "$WT2"; git -C "$WT2" commit -q --allow-empty -m work2
   git -C "$MAIN" merge -q --no-ff feat -m m1; git -C "$MAIN" merge -q --no-ff feat2 -m m2
-  mkdir -p "$MAIN/hooks"; cp "$ROOT/plugins/harness/hooks/clean-worktrees.sh" "$MAIN/hooks/"
+  mkdir -p "$MAIN/hooks"; cp "$ROOT/plugins/pd-bot/hooks/clean-worktrees.sh" "$MAIN/hooks/"
   STUB=$(mktemp -d); _CLEANUP_DIRS+=("$STUB")
   tip1=$(git -C "$MAIN" rev-parse feat); tip2=$(git -C "$MAIN" rev-parse feat2)
   cat > "$STUB/gh" <<STUBEOF
@@ -194,7 +194,7 @@ rsetup() {  # $MAIN with remote r1 (a bare repo), main pushed; $STUB is an empty
   git -C "$MAIN" init -q -b main; git -C "$MAIN" config user.email t@t; git -C "$MAIN" config user.name t
   git -C "$MAIN" commit -q --allow-empty -m base
   git -C "$MAIN" remote add r1 "$REM"; git -C "$MAIN" push -q r1 main; git -C "$MAIN" fetch -q r1
-  mkdir -p "$MAIN/hooks"; cp "$ROOT/plugins/harness/hooks/clean-worktrees.sh" "$MAIN/hooks/"
+  mkdir -p "$MAIN/hooks"; cp "$ROOT/plugins/pd-bot/hooks/clean-worktrees.sh" "$MAIN/hooks/"
 }
 # gone_branch <name>: merged into main, pushed with upstream, then deleted on the remote
 gone_branch() {
@@ -258,9 +258,9 @@ rrun SessionStart
 if [ -n "$KEPT" ] && ! has old2 && [ ! -d "$OWT" ]; then pass; else fail "kept=$KEPT out1=$OUT1 out2=$OUT"; fi
 
 t "item 2: hooks.json runs clean-worktrees.sh SessionStart beside session-rules.sh"
-if jq -e '[.hooks.SessionStart[].hooks[].args | join(" ")] | (map(test("session-rules.sh")) | any) and (map(test("clean-worktrees.sh SessionStart$")) | any)' "$ROOT/plugins/harness/hooks/hooks.json" >/dev/null; then pass; else fail "hooks.json"; fi
+if jq -e '[.hooks.SessionStart[].hooks[].args | join(" ")] | (map(test("session-rules.sh")) | any) and (map(test("clean-worktrees.sh SessionStart$")) | any)' "$ROOT/plugins/pd-bot/hooks/hooks.json" >/dev/null; then pass; else fail "hooks.json"; fi
 t "item 2: the SessionStart sweep has a timeout and runs only on startup, and session-rules.sh has no matcher"
-if jq -e '([.hooks.SessionStart[] | select(.hooks[].args | join(" ") | test("clean-worktrees.sh SessionStart$"))] | length == 1 and (.[0].matcher == "startup") and (.[0].hooks[0].timeout | type == "number" and . > 0 and . <= 60)) and ([.hooks.SessionStart[] | select(.hooks[].args | join(" ") | test("session-rules.sh"))] | .[0].matcher == null)' "$ROOT/plugins/harness/hooks/hooks.json" >/dev/null; then pass; else fail "hooks.json timeout/matcher"; fi
+if jq -e '([.hooks.SessionStart[] | select(.hooks[].args | join(" ") | test("clean-worktrees.sh SessionStart$"))] | length == 1 and (.[0].matcher == "startup") and (.[0].hooks[0].timeout | type == "number" and . > 0 and . <= 60)) and ([.hooks.SessionStart[] | select(.hooks[].args | join(" ") | test("session-rules.sh"))] | .[0].matcher == null)' "$ROOT/plugins/pd-bot/hooks/hooks.json" >/dev/null; then pass; else fail "hooks.json timeout/matcher"; fi
 
 # item 3: worktree-* agent branches
 rsetup
@@ -372,7 +372,7 @@ t "docs/hooks.md: no sentence is cut by 'cleaned It is registered'"
 if ! grep -q 'cleaned It is' "$DOCS_HOOKS"; then pass; else fail "garbled sentence in docs/hooks.md"; fi
 
 t "docs: skills README ties the live-process skip to the SessionStart sweep only"
-README_ROW=$(grep 'removes merged worktrees and branches after a merge' "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/plugins/harness/skills/README.md")
+README_ROW=$(grep 'removes merged worktrees and branches after a merge' "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/plugins/pd-bot/skills/README.md")
 if printf '%s' "$README_ROW" | grep -q 'session-start sweep also skips a worktree another live process uses' && ! printf '%s' "$README_ROW" | grep -q 'and a worktree another live process uses'; then pass; else fail "row=$README_ROW"; fi
 
 t "docs: CLAUDE.md hook row ties the live-process skip to the SessionStart sweep only"

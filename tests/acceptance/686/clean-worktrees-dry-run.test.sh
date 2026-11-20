@@ -9,7 +9,7 @@
 # shellcheck source=../../lib.sh
 source "$(dirname "$0")/../../lib.sh"
 
-SCRIPT="$ROOT/plugins/harness/hooks/clean-worktrees.sh"
+SCRIPT="$ROOT/plugins/pd-bot/hooks/clean-worktrees.sh"
 GIT=$(command -v git)
 
 # A PATH with every command of the current PATH except gh (for the no-gh rules).

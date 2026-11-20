@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# v5 keeps exactly one rule, plugins/harness/rules/behavior.md. A plugin has no rules component,
+# v5 keeps exactly one rule, plugins/pd-bot/rules/behavior.md. A plugin has no rules component,
 # so a SessionStart hook (hooks/session-rules.sh) delivers it as additionalContext. This test
 # pins the inventory, and checks the delivery: valid JSON envelope, exact file content, fail-open.
 source "$(dirname "$0")/../lib.sh"
 
-RULES="$ROOT/plugins/harness/rules"
-HOOK="$ROOT/plugins/harness/hooks/session-rules.sh"
+RULES="$ROOT/plugins/pd-bot/rules"
+HOOK="$ROOT/plugins/pd-bot/hooks/session-rules.sh"
 
 has_paths_frontmatter() {
   awk '
@@ -33,13 +33,13 @@ if [ -z "$contextual" ]; then pass
 else fail "unexpected contextual inventory:$contextual"; fi
 
 t "hooks.json registers session-rules.sh on SessionStart"
-if jq -e '[.hooks.SessionStart[]?.hooks[]? | .args[]? | select(endswith("hooks/session-rules.sh"))] | length == 1' "$ROOT/plugins/harness/hooks/hooks.json" >/dev/null; then pass
+if jq -e '[.hooks.SessionStart[]?.hooks[]? | .args[]? | select(endswith("hooks/session-rules.sh"))] | length == 1' "$ROOT/plugins/pd-bot/hooks/hooks.json" >/dev/null; then pass
 else fail "SessionStart does not run session-rules.sh exactly once"; fi
 
 t "session-rules.sh prints a SessionStart envelope whose additionalContext equals behavior.md"
 if ! command -v python3 >/dev/null 2>&1; then skip "python3 is needed to compare the JSON text"
 else
-  OUT=$(CLAUDE_PLUGIN_ROOT="$ROOT/plugins/harness" bash "$HOOK" 2>&1); RC=$?
+  OUT=$(CLAUDE_PLUGIN_ROOT="$ROOT/plugins/pd-bot" bash "$HOOK" 2>&1); RC=$?
   if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | python3 -c '
 import json, sys
 d = json.load(sys.stdin)["hookSpecificOutput"]
@@ -68,13 +68,7 @@ OUT=$(CLAUDE_PLUGIN_ROOT="$d" bash "$HOOK" 2>&1); RC=$?
 if [ "$RC" -eq 0 ] && [ -z "$OUT" ]; then pass; else fail "rc=$RC out: $OUT"; fi
 
 t "session-rules.sh is mode 100755 in the index"
-mode=$(git -C "$ROOT" ls-files -s -- plugins/harness/hooks/session-rules.sh | awk '{print $1}')
+mode=$(git -C "$ROOT" ls-files -s -- plugins/pd-bot/hooks/session-rules.sh | awk '{print $1}')
 if [ "$mode" = "100755" ]; then pass; else fail "tracked mode '$mode'"; fi
-
-t "docs/hooks.md documents the one-rule inventory and the SessionStart delivery"
-if grep -q "one always-on file" "$ROOT/docs/hooks.md" \
-   && grep -q "no path-scoped ones" "$ROOT/docs/hooks.md" \
-   && grep -q "session-rules.sh" "$ROOT/docs/hooks.md"; then pass
-else fail "docs/hooks.md does not document one always-on file, no path-scoped ones, and session-rules.sh"; fi
 
 finish

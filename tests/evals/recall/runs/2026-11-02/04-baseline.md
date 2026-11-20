@@ -19,7 +19,7 @@ Verdict: this is a known failure, and the fix the record proposes never landed i
 
 **Possibly stale**
 - **Record age:** it was confirmed on 2026-09-29, so it is 34 days old and past the 30-day limit.
-- **Target path:** the guardrail targets `skills/subagent-driven-development/implementer-prompt.md`. The glob found no such file, though it may skip hidden directories. The live prompt is `plugins/harness/skills/implement/implementer-prompt.md`, and it has no pathspec-commit or no-reset rule.
+- **Target path:** the guardrail targets `skills/subagent-driven-development/implementer-prompt.md`. The glob found no such file, though it may skip hidden directories. The live prompt is `plugins/pd-bot/skills/implement/implementer-prompt.md`, and it has no pathspec-commit or no-reset rule.
 - **Regression test:** the proposed `tests/scripts/context-propagation-regression.test.sh` doesn't exist.
 - **Prevention today:** the only protection is the per-step worktree instruction in `implement/SKILL.md`. `ship.js:379` gives each ticket its own worktree, so that route avoids the problem, but nothing stops a manual dispatch into a shared worktree.
 
@@ -33,4 +33,4 @@ Verdict: this is a known failure, and the fix the record proposes never landed i
 
 **Decision:** the guardrail should go in its own PR, because it's outside #556. That PR should add the rule to the live implementer prompt, add a presence test, and fix the record's `affects` path.
 
-Search surface: `docs/solutions/INDEX.md` and `docs/` (grep), `plugins/harness/skills/implement/`, `plugins/harness/workflows/ship.js`, grep of `plugins/` and `tests/` for pathspec and amend rules, and this worktree's reflog and `git log --stat`.
+Search surface: `docs/solutions/INDEX.md` and `docs/` (grep), `plugins/pd-bot/skills/implement/`, `plugins/pd-bot/workflows/ship.js`, grep of `plugins/` and `tests/` for pathspec and amend rules, and this worktree's reflog and `git log --stat`.

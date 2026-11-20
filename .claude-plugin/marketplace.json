@@ -6,8 +6,8 @@
   "description": "Skill framework for Claude Code: triage, plan, implement, review, ship.",
   "plugins": [
     {
-      "name": "harness",
-      "source": "./plugins/harness",
+      "name": "pd-bot",
+      "source": "./plugins/pd-bot",
       "description": "Skill framework for Claude Code: triage, plan, implement, review, ship.",
       "author": {
         "name": "Minh Tran"

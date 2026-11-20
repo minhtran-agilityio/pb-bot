@@ -23,7 +23,7 @@ let chromium;
 try { ({ chromium } = require('playwright')); } catch (e) { console.log('acceptance 688 (page): skip — no playwright'); process.exit(0); }
 
 const root = path.join(__dirname, '..', '..', '..');
-const BOARD = path.join(root, 'plugins', 'harness', 'board', 'board.js');
+const BOARD = path.join(root, 'plugins', 'pd-bot', 'board', 'board.js');
 const cases = [];
 const test = (name, fn) => cases.push([name, fn]);
 const tmp = p => fs.mkdtempSync(path.join(os.tmpdir(), `acc688p-${p}-`));
@@ -52,7 +52,7 @@ async function board(args) {
 }
 
 const PR = n => `https://github.com/owner/name/pull/${n}`;
-// Ledger format: plugins/harness/skills/pd-orchestrate/references/protocol.md, section "Ledger".
+// Ledger format: plugins/pd-bot/skills/pd-orchestrate/references/protocol.md, section "Ledger".
 const TICKETS = {
   '9': { state: 'blocked', kind: 'bug', depth: 'S', worker: { session: 'w-nine-sess' }, reviewer: { session: 'r-nine-sess' }, head: 'h9', pr: PR(9) },
   '10': { state: 'in_review', kind: 'feature', depth: 'M', worker: { session: 'w-ten-sess' }, reviewer: { session: 'r-ten-sess' }, head: 'h10', pr: PR(10) },

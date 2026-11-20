@@ -19,5 +19,5 @@ From the repo root:
     bash tests/evals/qa-verifier/run.sh --runs 1
 
 If `claude plugin eval` cannot run a plugin subagent in a case, the prompt tells the run to act as the
-agent in `plugins/harness/agents/qa-verifier.md`, so the same graders check the agent prompt run as a
+agent in `plugins/pd-bot/agents/qa-verifier.md`, so the same graders check the agent prompt run as a
 `claude -p` style session. Say which way you ran it when you report a result.

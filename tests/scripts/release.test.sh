@@ -14,8 +14,8 @@ make_fixture() {
   git -C "$d" config user.email test@test
   git -C "$d" config user.name test
   printf '%s\n' "$v" > "$d/VERSION"
-  mkdir -p "$d/plugins/harness/.claude-plugin"
-  printf '{\n  "name": "harness",\n  "version": "%s",\n  "description": "d, \\"version\\": x"\n}\n' "$v" > "$d/plugins/harness/.claude-plugin/plugin.json"
+  mkdir -p "$d/plugins/pd-bot/.claude-plugin"
+  printf '{\n  "name": "harness",\n  "version": "%s",\n  "description": "d, \\"version\\": x"\n}\n' "$v" > "$d/plugins/pd-bot/.claude-plugin/plugin.json"
   printf '# Changelog\n\n## [Unreleased]\n\n## [%s] — 2026-01-01\n\n- seed\n' "$v" > "$d/CHANGELOG.md"
   git -C "$d" add -A && git -C "$d" commit -q -m init
   git -C "$d" tag -a "v$v" -m "v$v"
@@ -40,7 +40,7 @@ for pair in "patch 1.2.3 1.2.4" "minor 1.2.3 1.3.0" "major 1.2.3 2.0.0"; do
   merge_pr "$d" 1 "seed change"
   run "$1" --root "$d"
   if [ "$RC" -eq 0 ] && [ "$(cat "$d/VERSION")" = "$3" ] \
-     && grep -q "^  \"version\": \"$3\",\$" "$d/plugins/harness/.claude-plugin/plugin.json" \
+     && grep -q "^  \"version\": \"$3\",\$" "$d/plugins/pd-bot/.claude-plugin/plugin.json" \
      && bash "$ROOT/scripts/check-plugin-version.sh" --root "$d" >/dev/null \
      && [ "$(printf '%s\n' "$OUT" | tail -1)" = "NEW_VERSION=$3" ]; then pass
   else fail "rc=$RC version=$(cat "$d/VERSION") out=$OUT"; fi
@@ -91,7 +91,7 @@ t "only merges after the last v tag are listed"
 d=$(make_fixture 1.2.3)
 merge_pr "$d" 11 "old: before tag"
 printf '1.2.4\n' > "$d/VERSION"
-sed 's/1\.2\.3/1.2.4/' "$d/plugins/harness/.claude-plugin/plugin.json" > "$d/p.tmp" && mv "$d/p.tmp" "$d/plugins/harness/.claude-plugin/plugin.json"
+sed 's/1\.2\.3/1.2.4/' "$d/plugins/pd-bot/.claude-plugin/plugin.json" > "$d/p.tmp" && mv "$d/p.tmp" "$d/plugins/pd-bot/.claude-plugin/plugin.json"
 sed 's/^## \[1\.2\.3\]/## [1.2.4]/' "$d/CHANGELOG.md" > "$d/c.tmp" && mv "$d/c.tmp" "$d/CHANGELOG.md"
 git -C "$d" commit -q -am bump; git -C "$d" tag -a v1.2.4 -m x
 merge_pr "$d" 12 "new: after tag"
@@ -161,7 +161,7 @@ d=$(make_fixture 5.10.0); merge_pr "$d" 1 "seed change"; run patch --root "$d"
 if [ "$RC" -eq 0 ] && [ "$(cat "$d/VERSION")" = "5.10.1" ]; then pass; else fail "rc=$RC out=$OUT"; fi
 
 # snap <repo> → a checksum of the three files a release would write.
-snap() { (cd "$1" && cat VERSION plugins/harness/.claude-plugin/plugin.json CHANGELOG.md | cksum); }
+snap() { (cd "$1" && cat VERSION plugins/pd-bot/.claude-plugin/plugin.json CHANGELOG.md | cksum); }
 
 t "an empty release (no [Unreleased] bullets, no PR since the tag) is refused and writes nothing"
 d=$(make_fixture 1.2.3); before=$(snap "$d")

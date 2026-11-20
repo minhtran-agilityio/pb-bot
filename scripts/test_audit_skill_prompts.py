@@ -137,7 +137,7 @@ def test_validate_inventory_allows_a_pinned_pre_refactor_baseline(tmp_path):
 
 
 def test_real_repository_matches_expected_surface_shape():
-    root = SCRIPT.parent.parent / "plugins" / "harness"
+    root = SCRIPT.parent.parent / "plugins" / "pd-bot"
     result = run(root, "--json")
     assert result.returncode == 0, result.stderr
     data = json.loads(result.stdout)
@@ -145,7 +145,7 @@ def test_real_repository_matches_expected_surface_shape():
     assert data["totals"]["companion_prompts"] == 6
 
 
-RELEASE_NOTES = SCRIPT.parent.parent / "plugins" / "harness" / "skills" / "pd-release-notes"
+RELEASE_NOTES = SCRIPT.parent.parent / "plugins" / "pd-bot" / "skills" / "pd-release-notes"
 
 
 def test_release_notes_collects_per_item_facts():
@@ -190,8 +190,8 @@ def test_release_notes_collects_milestone_prs_through_issues():
     assert "whole union" in schema and "matches no ticket still counts" in schema
     assert "only when the union is empty" in skill
     assert all(k in schema for k in ("Closes", "Fixes", "Resolves", "Refs"))
-    readme = (SCRIPT.parent.parent / "plugins" / "harness" / "skills" / "README.md").read_text()
+    readme = (SCRIPT.parent.parent / "plugins" / "pd-bot" / "skills" / "README.md").read_text()
     row = next(l for l in readme.splitlines() if l.startswith("| `pd-release-notes`"))
-    assert "/harness:pd-release-notes" in row
+    assert "/pd-bot:pd-release-notes" in row
     for signal in ("title", "footer", "label"):
         assert signal in row

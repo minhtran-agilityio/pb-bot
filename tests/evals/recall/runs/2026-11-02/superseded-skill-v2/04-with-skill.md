@@ -23,7 +23,7 @@ Verdict: known risk
 - Check that the mixed commit is recorded as a deviation.
 
 **Possibly stale.**
-- `docs/solutions/harness/parallel-implementers-share-one-git-index.md`: the `affects` path `skills/subagent-driven-development/implementer-prompt.md` has moved. The file is now `plugins/harness/skills/implement/implementer-prompt.md`. A grep of it found no `git reset`, `--amend`, `stash`, pathspec or `git commit` rule. The record's Guardrail was marked "proposed" and has not been added, so the risk is still open. The record is 34 days old.
+- `docs/solutions/harness/parallel-implementers-share-one-git-index.md`: the `affects` path `skills/subagent-driven-development/implementer-prompt.md` has moved. The file is now `plugins/pd-bot/skills/implement/implementer-prompt.md`. A grep of it found no `git reset`, `--amend`, `stash`, pathspec or `git commit` rule. The record's Guardrail was marked "proposed" and has not been added, so the risk is still open. The record is 34 days old.
 - `docs/solutions/harness/wave-boundary-verify-evidence.md` was read but not used. It concerns Verify rows in SUMMARY.md, not this symptom. It also notes that `commit-quality-gate.sh` was merged into `hooks/commit-gate.sh`, so its `affects` path is stale.
 
-**Search surface:** `docs/solutions/INDEX.md`, `docs/solutions/critical-patterns.md`, `docs/solutions/harness/parallel-implementers-share-one-git-index.md`, `docs/solutions/harness/wave-boundary-verify-evidence.md`, `plugins/harness/skills/implement/implementer-prompt.md` (grep only)
+**Search surface:** `docs/solutions/INDEX.md`, `docs/solutions/critical-patterns.md`, `docs/solutions/harness/parallel-implementers-share-one-git-index.md`, `docs/solutions/harness/wave-boundary-verify-evidence.md`, `plugins/pd-bot/skills/implement/implementer-prompt.md` (grep only)

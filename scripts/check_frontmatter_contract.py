@@ -3,7 +3,7 @@
 
 Driven by the disk: every skills/*/SKILL.md is a skill and every agents/*.md is an agent,
 except agents/README.md, which is
-not an agent. Paths are relative to the plugin root, plugins/harness.
+not an agent. Paths are relative to the plugin root, plugins/pd-bot.
 
 Verifies:        every skill and agent on disk has a frontmatter block whose `name:` and
                  `description:` are present and non-empty, and whose `name:` matches the
@@ -21,7 +21,7 @@ Does not verify: that a description is GOOD (it routes well), or that a body mat
 Why this as well as `claude plugin validate --strict`: the validator is an external CLI that
 CI runners do not ship, so it cannot gate a pull request on its own. This check reaches the
 same load-bearing coverage with stdlib only, and runs everywhere. The default root is the
-plugin directory, plugins/harness.
+plugin directory, plugins/pd-bot.
 
 Stdlib only (no pyyaml) so CI needs no extra dependency.
 
@@ -155,9 +155,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--root",
-        default=Path(__file__).resolve().parent.parent / "plugins" / "harness",
+        default=Path(__file__).resolve().parent.parent / "plugins" / "pd-bot",
         type=Path,
-        help="plugin root holding skills/ and agents/ (default: plugins/harness)",
+        help="plugin root holding skills/ and agents/ (default: plugins/pd-bot)",
     )
     args = parser.parse_args()
     return check(args.root)

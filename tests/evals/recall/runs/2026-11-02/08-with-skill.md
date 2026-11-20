@@ -15,11 +15,11 @@ Verdict: known risk. A dormant file under `hooks/` is classed high-risk because 
 
 **Possibly stale**
 - `hooks-addition-is-high-risk-even-dormant.md` is marked superseded. It says `risk-corroboration.sh` was merged into `commit-gate.sh`.
-- `hooks/commit-gate.sh` and `hooks/risk-corroboration.sh` are not present. Under `plugins/harness/hooks/` I found only `clean-worktrees.sh`, `merge-guard.sh`, `pr-opened.sh`, `secrets-scan.sh`, `session-rules.sh` and `hooks.json`.
-- A search of `plugins/harness` for `high-risk`, `high-blast` and `^hooks/` matched only `skills/recall/evals/evals.json`. I did not find the `^hooks/` gate here, so the "gate rejects it" behaviour may not apply in this layout.
-- The `python scripts/verify_summary.py --lane/--check` commands are out of date because `verify_summary.py` was not found anywhere under `plugins/harness/`. The same applies to `templates/SUMMARY.template.md`. Only the principle holds.
+- `hooks/commit-gate.sh` and `hooks/risk-corroboration.sh` are not present. Under `plugins/pd-bot/hooks/` I found only `clean-worktrees.sh`, `merge-guard.sh`, `pr-opened.sh`, `secrets-scan.sh`, `session-rules.sh` and `hooks.json`.
+- A search of `plugins/pd-bot` for `high-risk`, `high-blast` and `^hooks/` matched only `skills/recall/evals/evals.json`. I did not find the `^hooks/` gate here, so the "gate rejects it" behaviour may not apply in this layout.
+- The `python scripts/verify_summary.py --lane/--check` commands are out of date because `verify_summary.py` was not found anywhere under `plugins/pd-bot/`. The same applies to `templates/SUMMARY.template.md`. Only the principle holds.
 - `hooks/protected-path-guard.sh` was not found, so that `affects` path is missing. The dormant-hook decision does not depend on it.
 - All three records are about 110 days old (confirmed_at 2026-07-17, today 2026-11-04), so each is over 30 days old.
-- The root-level `hooks/` and `scripts/` paths do not exist in this worktree. The harness is under `plugins/harness/`, so the records may describe an older layout.
+- The root-level `hooks/` and `scripts/` paths do not exist in this worktree. The harness is under `plugins/pd-bot/`, so the records may describe an older layout.
 
-**Search surface:** `docs/solutions/INDEX.md`, `docs/solutions/critical-patterns.md`, `docs/solutions/harness/hooks-addition-is-high-risk-even-dormant.md`, `docs/solutions/harness/gap-closure-decisions.md`, `docs/solutions/harness/automation-readiness.md`. I also checked `plugins/harness/hooks/` and the `plugins/harness` tree with Grep, Glob and a directory listing.
+**Search surface:** `docs/solutions/INDEX.md`, `docs/solutions/critical-patterns.md`, `docs/solutions/harness/hooks-addition-is-high-risk-even-dormant.md`, `docs/solutions/harness/gap-closure-decisions.md`, `docs/solutions/harness/automation-readiness.md`. I also checked `plugins/pd-bot/hooks/` and the `plugins/pd-bot` tree with Grep, Glob and a directory listing.

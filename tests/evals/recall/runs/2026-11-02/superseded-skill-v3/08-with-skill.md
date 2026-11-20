@@ -18,15 +18,15 @@ Verdict: existing decision
   - It says it is superseded by specs/simplify-hook-surface, which merged `risk-corroboration.sh` into `commit-gate.sh`.
   - Neither `hooks/risk-corroboration.sh` nor `hooks/commit-gate.sh` exists in this repo.
   - `scripts/verify_summary.py` and `templates/SUMMARY.template.md` are also missing. The record's commands depend on them.
-  - `hooks/` now lives at `plugins/harness/hooks/`.
+  - `hooks/` now lives at `plugins/pd-bot/hooks/`.
   - Its confirmed_at is 2026-07-17, more than 30 days ago.
 - docs/solutions/harness/gap-closure-decisions.md: more than 30 days old (confirmed_at 2026-07-17).
   - The `affects` paths `hooks/protected-path-guard.sh` and the `docs/research/...` file are missing.
   - The root `settings.json` exists.
   - The advice does not depend on the missing paths, so I kept it in the parts above.
 - docs/solutions/harness/automation-readiness.md: more than 30 days old (confirmed_at 2026-07-17).
-  - The root `hooks/` path moved to `plugins/harness/hooks/`.
+  - The root `hooks/` path moved to `plugins/pd-bot/hooks/`.
   - `.github/workflows/` exists.
   - The advice still holds.
 
-**Search surface:** docs/solutions/INDEX.md, docs/solutions/critical-patterns.md, docs/solutions/harness/hooks-addition-is-high-risk-even-dormant.md, docs/solutions/harness/gap-closure-decisions.md, docs/solutions/harness/automation-readiness.md. Path checks: `ls` of the repo root, `hooks/`, `plugins/harness/hooks/`, `plugins/harness/scripts/` and `.github/workflows/`. Glob for `commit-gate.sh`, `risk-corroboration.sh`, `protected-path-guard.sh`, `verify_summary.py` and `SUMMARY.template.md`. Grep for `high-risk` and `^hooks/`.
+**Search surface:** docs/solutions/INDEX.md, docs/solutions/critical-patterns.md, docs/solutions/harness/hooks-addition-is-high-risk-even-dormant.md, docs/solutions/harness/gap-closure-decisions.md, docs/solutions/harness/automation-readiness.md. Path checks: `ls` of the repo root, `hooks/`, `plugins/pd-bot/hooks/`, `plugins/pd-bot/scripts/` and `.github/workflows/`. Glob for `commit-gate.sh`, `risk-corroboration.sh`, `protected-path-guard.sh`, `verify_summary.py` and `SUMMARY.template.md`. Grep for `high-risk` and `^hooks/`.

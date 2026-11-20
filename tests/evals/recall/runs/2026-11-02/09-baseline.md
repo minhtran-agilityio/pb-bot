@@ -12,7 +12,7 @@ Part of that record is out of date, though the decision itself still stands:
 
 | Role | Model | Effort | Where it is set |
 |---|---|---|---|
-| Implementer | Sonnet 5.5 | medium | `plugins/harness/agents/implementer.md`, `ship.js:19-22` |
+| Implementer | Sonnet 5.5 | medium | `plugins/pd-bot/agents/implementer.md`, `ship.js:19-22` |
 | Correctness review (`ship.js` runs `/code-review`) | Sonnet 5.5 | medium | `MODEL.review`, `EFFORT.review` at `ship.js:19-22` |
 | Intent reviewer | Sonnet 5.5 | medium | model in `intent-reviewer.md:5`; `ship.js:1012` passes `EFFORT.review` |
 | `task-reviewer` | Opus 5.5 | medium | `task-reviewer.md:5-6` |
@@ -25,7 +25,7 @@ Set `MODEL.review` to `'opus'` and `intent-reviewer.md:5` to `claude-opus-5-5`, 
 
 ## Before you edit
 - **Shared effort setting:** `EFFORT.review` drives both the correctness and intent passes in `ship.js`. To set them separately, add a new `EFFORT` key and use it at line 1012. `effort` in `intent-reviewer.md` may not apply on that path, but I didn't read `call()` to confirm it.
-- **No `reviewer` agent here:** `plugins/harness/agents/` has only `task-reviewer` and `intent-reviewer`. The `reviewer` in this session's agent list comes from outside this directory, so editing it won't affect `ship.js`.
+- **No `reviewer` agent here:** `plugins/pd-bot/agents/` has only `task-reviewer` and `intent-reviewer`. The `reviewer` in this session's agent list comes from outside this directory, so editing it won't affect `ship.js`.
 - **`task-reviewer` is pinned by a test:** `tests/scripts/task-reviewer-readonly.test.sh:14` requires `claude-opus-5-5`, so changing its model means updating that test. The only dispatch I found is in `diagnosing-bugs`.
 - **`harness-models.json` is not in this repo:** PR #332 planned it, but the glob found nothing. Edit the files above directly.
 - **Docs to update:** `CLAUDE.md:16` says intent review runs on Sonnet 5.5, and the record's Consequences section needs correcting.

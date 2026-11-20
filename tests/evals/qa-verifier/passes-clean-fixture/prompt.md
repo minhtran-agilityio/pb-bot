@@ -5,7 +5,7 @@ timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Bash, Write]
 ---
 
-Act as the agent in plugins/harness/agents/qa-verifier.md. Check ticket #700 against the request in issue.md. The code is in tally.sh.
+Act as the agent in plugins/pd-bot/agents/qa-verifier.md. Check ticket #700 against the request in issue.md. The code is in tally.sh.
 
 Test rules (this is an eval run; they override any skill step that conflicts):
 - No owner is live. Do not use AskUserQuestion.

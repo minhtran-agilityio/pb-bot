@@ -5,7 +5,7 @@ timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Write, Edit, Skill]
 ---
 
-/harness:pd-own grill #900 --no-ask
+/pd-bot:pd-own grill #900 --no-ask
 
 The issue text is in issue-900.md (do not call gh).
 

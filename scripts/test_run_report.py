@@ -2,7 +2,7 @@ import importlib.util
 import json
 from pathlib import Path
 
-spec = importlib.util.spec_from_file_location("run_report", Path(__file__).parent.parent / "plugins" / "harness" / "scripts" / "run_report.py")
+spec = importlib.util.spec_from_file_location("run_report", Path(__file__).parent.parent / "plugins" / "pd-bot" / "scripts" / "run_report.py")
 rr = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(rr)
 

@@ -12,7 +12,7 @@ Verdict: reusable pattern
 
 **Possibly stale**
 - `docs/solutions/harness/skill-eval-blind-run-scoring.md` and `docs/solutions/harness/reviewer-prompt-change-proven-by-canary-and-replay.md`: both have confirmed_at 2026-10-16, which is 19 days before 2026-11-04, so neither is over 30 days old. Their `affects` paths are missing, but the advice still holds.
-  - `scripts/score_intake_eval.py` is not in the repo. I found no file of that name anywhere under the worktree, including `plugins/harness/`. The scorer command in Do first #1 therefore cannot run as written, and the scorer must be written or found.
+  - `scripts/score_intake_eval.py` is not in the repo. I found no file of that name anywhere under the worktree, including `plugins/pd-bot/`. The scorer command in Do first #1 therefore cannot run as written, and the scorer must be written or found.
   - The `evals dir:` entry is a malformed placeholder. The nearest existing locations are `tests/evals/recall/` and `tests/evals/tickets/`; `tests/evals/tickets/mocks/score.py` is a scorer-like file I did not open.
   - `specs/gh-312-test-seams/canary.md` was not found by `find` (I did not search `specs/` by path).
 

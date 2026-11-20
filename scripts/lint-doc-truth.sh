@@ -1,6 +1,6 @@
 #!/bin/bash
 # Doc-truth lint: the core docs must not reference paths that do not exist, and the
-# CLAUDE.md hook table must agree with plugins/harness/hooks/hooks.json. Mechanizes the
+# CLAUDE.md hook table must agree with plugins/pd-bot/hooks/hooks.json. Mechanizes the
 # manual docs-vs-code audit (PR #9 and PR #10 were both drift-repair PRs — this makes
 # the third drift a CI failure instead of a human re-audit).
 #
@@ -10,13 +10,13 @@
 #      prose mentions of paths. Unknown roots (example paths, upstream repo slugs) are
 #      out of scope. Placeholders (<>, *, [], {}, $) and specs/ (gitignored by design)
 #      are skipped. `.claude/...` is a consumer's own folder and is stripped.
-#      A path not found at the root is also tried under plugins/harness/, as skills/<path>
+#      A path not found at the root is also tried under plugins/pd-bot/, as skills/<path>
 #      and as skills/*/<path>
 #      (per-skill docs reference their own files relative to the skill dir).
-#   3. CLAUDE.md hook table: every `hook.sh` row exists in plugins/harness/hooks/; ✅ rows
+#   3. CLAUDE.md hook table: every `hook.sh` row exists in plugins/pd-bot/hooks/; ✅ rows
 #      are registered in hooks/hooks.json, ⬜ rows are not; every hooks/*.sh appears in the
 #      table; every script hooks.json registers exists; the repo's settings.json wires no hooks.
-#   4. Plugin docs: each backticked path in plugins/harness/**/*.md resolves inside the plugin.
+#   4. Plugin docs: each backticked path in plugins/pd-bot/**/*.md resolves inside the plugin.
 #
 # Known limitations: bare tokens without a slash (e.g. `.mcp.json`) are only caught
 # when written as markdown links; code-block contents are scanned like prose.
@@ -27,9 +27,9 @@ cd "$(dirname "$0")/.." || exit 1
 # execution subagent, so a dangling path there misleads exactly as much as one in CLAUDE.md.
 # nullglob so an empty folder yields no entries instead of a literal glob that would then be
 # reported as a missing doc.
-PLUGIN=plugins/harness
+PLUGIN=plugins/pd-bot
 shopt -s nullglob
-DOCS=(CLAUDE.md docs/hooks.md README.md HARNESS.md $PLUGIN/skills/README.md agents/*.md $PLUGIN/agents/*.md $PLUGIN/rules/*.md)
+DOCS=(CLAUDE.md README.md HARNESS.md $PLUGIN/skills/README.md agents/*.md $PLUGIN/agents/*.md $PLUGIN/rules/*.md)
 shopt -u nullglob
 KNOWN_ROOTS="plugins skills rules hooks docs templates agents scripts tests xia2 .github .claude"
 FAILED=0
@@ -42,6 +42,7 @@ check_path() { # check_path <doc> <raw-path>
     ''|http://*|https://*|mailto:*|'~'*) return ;;
     *'<'*|*'>'*|*'*'*|*'{'*|*'['*|*'$'*|*'…'*) return ;;   # placeholders / globs / vars
     specs/*) return ;;                                      # local-only by design
+    docs|docs/*) return ;;                                  # local-only (gitignored); plugin docs mean a consumer's docs/
     agents/PROJECT.md) return ;;                            # legacy file: setup migrates it, test-runner falls back to it
     .claude/*) p="${p#.claude/}" ;;                         # a consumer's own .claude/ folder
   esac

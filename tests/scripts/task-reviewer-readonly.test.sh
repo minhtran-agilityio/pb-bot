@@ -3,7 +3,7 @@
 # runtime, not the prompt, keeps it from writing. Model and tools live in the agent file itself.
 set -euo pipefail
 root=$(cd "$(dirname "$0")/../.." && pwd)
-agent="$root/plugins/harness/agents/task-reviewer.md"
+agent="$root/plugins/pd-bot/agents/task-reviewer.md"
 
 fm=$(awk 'NR==1&&/^---$/{inb=1;next} inb&&/^---$/{exit} inb' "$agent")
 printf '%s\n' "$fm" | grep -q '^tools: Glob, Grep, Read$'

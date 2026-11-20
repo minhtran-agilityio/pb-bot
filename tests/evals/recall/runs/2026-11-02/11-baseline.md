@@ -10,7 +10,7 @@ mode=$(git show :harness-manifest.json 2>/dev/null | jq -r '<your filter>' 2>/de
 
 **The file was removed**
 - `CHANGELOG.md:68` says 5.0.0 removed `harness-manifest.json`. It isn't at the repo root, and no tracked path has "manifest" in its name.
-- The hook in that record (`risk-corroboration.sh`, later merged into `commit-gate.sh`) is gone too. `plugins/harness/hooks/` has only five scripts, and `secrets-scan.sh` is the only commit-time one.
+- The hook in that record (`risk-corroboration.sh`, later merged into `commit-gate.sh`) is gone too. `plugins/pd-bot/hooks/` has only five scripts, and `secrets-scan.sh` is the only commit-time one.
 - All three gate-mode records are more than 30 days old, so treat their specifics as stale; the index-read rule still applies.
 - If you're restoring the file, you need to decide what happens in a project without it. The two records disagree:
   - `gate-config-must-read-index.md` treats a missing file as block.

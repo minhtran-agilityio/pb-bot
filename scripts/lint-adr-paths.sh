@@ -11,14 +11,14 @@
 #   and `~` paths are skipped. A leading `./` is stripped; a `.claude/` path is tried as written first, then without `.claude/`.
 #   Unlike lint-doc-truth.sh, specs/ (gitignored, absent in a fresh clone) and the removed
 #   agents/PROJECT.md are NOT exempt: where cited they need '(historical)'.
-#   A path is found at the repo root, under plugins/harness/, as skills/<path>, or as
+#   A path is found at the repo root, under plugins/pd-bot/, as skills/<path>, or as
 #   skills/*/<path>.
 #
 # ADR_LINT_ROOT overrides the repo root (default: the parent of this script's folder).
 set -u
 cd "${ADR_LINT_ROOT:-$(dirname "$0")/..}" || exit 1
 
-PLUGIN=plugins/harness
+PLUGIN=plugins/pd-bot
 KNOWN_ROOTS="plugins skills rules hooks docs templates agents scripts tests specs xia2 .github .claude"
 FAILED=0
 

@@ -8,10 +8,10 @@
 # `#fragment` or `?query` is stripped before the file check; a leading `/` means repo root.
 # Links inside fenced code blocks are examples, not links, and are skipped.
 #
-# The living top-level docs (README.md HARNESS.md AGENTS.md CLAUDE.md skills/README.md
-# docs/hooks.md) also get a path check on backticked file paths such as `hooks/commit-gate.sh`:
+# The living top-level docs (README.md HARNESS.md AGENTS.md CLAUDE.md skills/README.md)
+# also get a path check on backticked file paths such as `hooks/commit-gate.sh`:
 # a path with a "/" and a known extension must exist (from the repo root or the file's dir).
-# Paths under .claude/ (installed in consumer repos), placeholders (<>*${}) and `specs/` are skipped.
+# Paths under .claude/ (installed in consumer repos), placeholders (<>*${}), `specs/` and `docs/` (local-only, gitignored) are skipped.
 #
 # Usage: scripts/check-md-links.sh [repo-root]    (default: the git toplevel of the cwd)
 # Portable: bash 3.2, BSD awk/sed.
@@ -54,7 +54,7 @@ extract_paths() {
   ' "$1"
 }
 
-LIVING=" README.md HARNESS.md AGENTS.md CLAUDE.md plugins/harness/skills/README.md docs/hooks.md "
+LIVING=" README.md HARNESS.md AGENTS.md CLAUDE.md plugins/pd-bot/skills/README.md "
 
 while IFS= read -r file; do
   case "$file" in
@@ -85,9 +85,9 @@ while IFS= read -r file; do
   case "$LIVING" in
     *" $file "*)
       while IFS= read -r p; do
-        case "$p" in .claude/*|specs/*|/*) continue ;; esac
+        case "$p" in .claude/*|specs/*|docs/*|/*) continue ;; esac
         checked=$((checked + 1))
-        if [ ! -e "$ROOT/$p" ] && [ ! -e "$dir/$p" ] && [ ! -e "$ROOT/plugins/harness/$p" ]; then
+        if [ ! -e "$ROOT/$p" ] && [ ! -e "$dir/$p" ] && [ ! -e "$ROOT/plugins/pd-bot/$p" ]; then
           echo "DEAD  $file: \`$p\`"
           dead=$((dead + 1))
         fi

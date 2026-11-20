@@ -1,7 +1,7 @@
 #!/bin/bash
 # Run the Claude Code plugin validator, in strict mode, over the plugin and the marketplace.
 #
-# Verifies:        `claude plugin validate --strict` exits 0 for plugins/harness (manifest,
+# Verifies:        `claude plugin validate --strict` exits 0 for plugins/pd-bot (manifest,
 #                  skills, agents, hooks.json) and for the repo root (marketplace.json). Strict
 #                  mode turns a warning, such as a skill with no frontmatter, into a failure.
 # Does not verify: that a skill's frontmatter is CORRECT, only that it parses; or that the
@@ -23,7 +23,7 @@ if ! command -v claude >/dev/null 2>&1; then
 fi
 
 rc=0
-for target in plugins/harness .; do
+for target in plugins/pd-bot .; do
   if out=$(claude plugin validate "$target" --strict 2>&1); then
     echo "  ✓ plugin validate --strict $target"
   else

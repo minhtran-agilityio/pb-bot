@@ -12,7 +12,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/qa-verifier-evals.XXXXXX")"
 
-cp -R "$ROOT/plugins/harness" "$WORK/harness"
+cp -R "$ROOT/plugins/pd-bot" "$WORK/harness"
 mkdir -p "$WORK/harness/evals/fixtures"
 cp -R "$ROOT/tests/fixtures/qa-verifier" "$WORK/harness/evals/fixtures/qa-verifier"
 for case_dir in "$HERE"/*/; do

@@ -203,6 +203,6 @@ def test_deleted_skill_is_no_longer_checked(tmp_path):
 
 def test_live_repo_passes():
     """The real tree must satisfy the contract this checker enforces."""
-    root = Path(__file__).resolve().parent.parent / "plugins" / "harness"
+    root = Path(__file__).resolve().parent.parent / "plugins" / "pd-bot"
     result = run(root)
     assert result.returncode == 0, result.stderr

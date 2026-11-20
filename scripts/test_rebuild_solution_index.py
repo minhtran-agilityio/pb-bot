@@ -3,7 +3,7 @@ import re
 import subprocess
 import sys
 import sys
-PLUGIN_SCRIPTS = Path(__file__).resolve().parent.parent / 'plugins/harness/scripts'
+PLUGIN_SCRIPTS = Path(__file__).resolve().parent.parent / 'plugins/pd-bot/scripts'
 sys.path.insert(0, str(PLUGIN_SCRIPTS))
 import rebuild_solution_index as idx
 

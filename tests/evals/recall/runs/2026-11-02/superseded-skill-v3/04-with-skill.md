@@ -17,6 +17,6 @@ Verdict: known risk
 
 **Possibly stale**
 - docs/solutions/harness/parallel-implementers-share-one-git-index.md is not out of date. It is 36 days old (confirmed_at 2026-09-29, today 2026-11-04), which is more than 30 days.
-- Its `affects` path `skills/subagent-driven-development/implementer-prompt.md` no longer exists. The file is now at `plugins/harness/skills/implement/implementer-prompt.md`. A search of that file for `git commit`, `git reset`, `amend` and `stash` found no match. So the proposed guardrail is not yet in the prompt, and the advice still applies.
+- Its `affects` path `skills/subagent-driven-development/implementer-prompt.md` no longer exists. The file is now at `plugins/pd-bot/skills/implement/implementer-prompt.md`. A search of that file for `git commit`, `git reset`, `amend` and `stash` found no match. So the proposed guardrail is not yet in the prompt, and the advice still applies.
 
-**Search surface:** docs/solutions/INDEX.md, docs/solutions/critical-patterns.md, docs/solutions/harness/parallel-implementers-share-one-git-index.md, plugins/harness/skills/implement/implementer-prompt.md (grepped only)
+**Search surface:** docs/solutions/INDEX.md, docs/solutions/critical-patterns.md, docs/solutions/harness/parallel-implementers-share-one-git-index.md, plugins/pd-bot/skills/implement/implementer-prompt.md (grepped only)

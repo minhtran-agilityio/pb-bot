@@ -4,18 +4,18 @@ Skill framework for Claude Code (the only supported runtime): reusable prompt-ba
 
 ## Run and test
 
-`bash scripts/run-tests.sh` runs the whole suite. CI (`harness-ci`) runs the same suite on ubuntu and macOS. Run it before you change `plugins/harness/hooks/` or `scripts/`.
+`bash scripts/run-tests.sh` runs the whole suite. CI (`harness-ci`) runs the same suite on ubuntu and macOS. Run it before you change `plugins/pd-bot/hooks/` or `scripts/`.
 
 `bash scripts/check-shellcheck.sh` runs shellcheck over the harness shell scripts. Run it before the PR; CI runs the same script with `REQUIRE_SHELLCHECK=1`, which fails instead of skipping when shellcheck is missing.
 
-`node plugins/harness/board/board.js` shows the newest autopilot run of the current project live at `http://127.0.0.1:4317` (`plugins/harness/board/README.md`).
+`node plugins/pd-bot/board/board.js` shows the newest autopilot run of the current project live at `http://127.0.0.1:4317` (`plugins/pd-bot/board/README.md`).
 
-The plugin lives in `plugins/harness/`; the marketplace file is `.claude-plugin/marketplace.json`. To develop, run `claude --plugin-dir plugins/harness` from the repo root. The plugin's hooks and rule then load from there (the repo's `settings.json` wires no hooks), and its skills appear as `/harness:<name>`.
+The plugin lives in `plugins/pd-bot/`; the marketplace file is `.claude-plugin/marketplace.json`. To develop, run `claude --plugin-dir plugins/pd-bot` from the repo root. The plugin's hooks and rule then load from there (the repo's `settings.json` wires no hooks), and its skills appear as `/pd-bot:<name>`.
 
 ## Models
 
-- Main session: Sonnet 5.5 by default. `/harness:pd-autopilot` reads its models from the autopilot
-  profile (`plugins/harness/skills/pd-autopilot/profile.json`, overridden per project by
+- Main session: Sonnet 5.5 by default. `/pd-bot:pd-autopilot` reads its models from the autopilot
+  profile (`plugins/pd-bot/skills/pd-autopilot/profile.json`, overridden per project by
   `<repo>/.claude/autopilot-profile.json`); it warns when the session model differs from the profile's
   `orchestrator`. The profile can set every `ship.js` stage. Without a profile entry, `implement` and `fix` run
   Sonnet 5.5 at `medium`, except that `implement` runs Opus 5.5 at `medium` at depth L.
@@ -27,7 +27,7 @@ The plugin lives in `plugins/harness/`; the marketplace file is `.claude-plugin/
   (`intent-reviewer`). Checking a ticket with no app: Sonnet 5.5 (`qa-verifier`).
 - Advisor (`advisor`): Opus 5.5 by default. Use Fable 5.2 only when the Opus advice did not
   unblock the work, for a high-stakes architecture decision, or when the owner asks. In a fleet run
-  the Fable 5.2 advisor is a session in its own Pod Bay workspace (`harness:pd-advise`): it
+  the Fable 5.2 advisor is a session in its own Pod Bay workspace (`pd-bot:pd-advise`): it
   researches the problem and returns a solution, and the Opus orchestrator decides.
 - The orchestrator chooses the model and the effort for each subagent and each workflow agent,
   based on how hard the task is. It thinks for itself; the models above are defaults, not fixed
@@ -49,7 +49,7 @@ The plugin lives in `plugins/harness/`; the marketplace file is `.claude-plugin/
   - a decision would become an ADR with `needs_review`;
   - a grilling session reaches a deep design tree.
 - Workflow agents cannot spawn agents, so the script or the main session calls the advisor.
-- Per-role models, effort and tools live in each agent file's frontmatter, in `plugins/harness/agents/`.
+- Per-role models, effort and tools live in each agent file's frontmatter, in `plugins/pd-bot/agents/`.
 
 ## Workflow
 
@@ -67,19 +67,19 @@ intake   readiness gate: READY | CONFIRM | GRILL | BLOCKED, depth S | M | L
   -> finishing-a-development-branch   push and open a PR; a human merges
 ```
 
-**Fleet path (ADR 0041, phase 1).** `/harness:pd-orchestrate` runs the same tickets with free agent
+**Fleet path (ADR 0041, phase 1).** `/pd-bot:pd-orchestrate` runs the same tickets with free agent
 sessions instead of a fixed script: the main session (Opus 5.5) assigns one worker session per ticket
 in a Pod Bay workspace (`pd-work`), a different session reviews (`pd-review`), and a Fable 5.2 session
 advises when the orchestrator is stuck (`pd-advise`). Order is free; the end state must show the
-evidence of `plugins/harness/skills/pd-orchestrate/references/protocol.md`, which a reviewer and
-`plugins/harness/scripts/fleet-check.sh` (warn mode) check. `ship.js` stays as one of three
+evidence of `plugins/pd-bot/skills/pd-orchestrate/references/protocol.md`, which a reviewer and
+`plugins/pd-bot/scripts/fleet-check.sh` (warn mode) check. `ship.js` stays as one of three
 paths (ship.js, the fleet, a single agent), chosen per ticket (ADR 0043).
 
-Decisions made on the way are recorded as ADRs in `docs/adr/`. The skills above live in `plugins/harness/skills/` and run as `/harness:<name>`; `qa-writer`, `qa-verifier` and `security-reviewer` are agents in `plugins/harness/agents/`. `/harness:pd-autopilot` asks everything first, then launches `plugins/harness/workflows/ship.js` (one Workflow script for 1..N tickets). `plugins/harness/skills/README.md` has the full map, including the bug-fix path (`diagnosing-bugs`).
+Decisions made on the way are recorded as ADRs in `docs/adr/`. The skills above live in `plugins/pd-bot/skills/` and run as `/pd-bot:<name>`; `qa-writer`, `qa-verifier` and `security-reviewer` are agents in `plugins/pd-bot/agents/`. `/pd-bot:pd-autopilot` asks everything first, then launches `plugins/pd-bot/workflows/ship.js` (one Workflow script for 1..N tickets). `plugins/pd-bot/skills/README.md` has the full map, including the bug-fix path (`diagnosing-bugs`).
 
 ## Rules
 
-`plugins/harness/rules/behavior.md` is the single source of truth for behavior. A plugin has no rules component, so the `session-rules.sh` SessionStart hook delivers it as session context. Hard rules:
+`plugins/pd-bot/rules/behavior.md` is the single source of truth for behavior. A plugin has no rules component, so the `session-rules.sh` SessionStart hook delivers it as session context. Hard rules:
 
 - Never merge into main or the base branch unless the owner approves that one PR in the confirmation prompt; never force-push, never touch secrets, never weaken a test.
 - "Done" needs real command output.
@@ -87,7 +87,7 @@ Decisions made on the way are recorded as ADRs in `docs/adr/`. The skills above 
 
 ## Hooks
 
-Wired (✅) means registered in `plugins/harness/hooks/hooks.json`. `docs/hooks.md` has the detail; all hooks fail open except `merge-guard.sh`, which fails closed, and `stop-evidence.sh` on its risk floor. The plugin cannot ship `permissions.deny`: the repo's `settings.json` carries it (`.env`, force-push, push to `main`/`master`), and `/harness:pd-setup` merges it into a consuming project.
+Wired (✅) means registered in `plugins/pd-bot/hooks/hooks.json`. `docs/hooks.md` has the detail; all hooks fail open except `merge-guard.sh`, which fails closed, and `stop-evidence.sh` on its risk floor. The plugin cannot ship `permissions.deny`: the repo's `settings.json` carries it (`.env`, force-push, push to `main`/`master`), and `/pd-bot:pd-setup` merges it into a consuming project.
 
 | Hook | Trigger | Action | Wired |
 |---|---|---|---|
@@ -103,7 +103,7 @@ Wired (✅) means registered in `plugins/harness/hooks/hooks.json`. `docs/hooks.
 - One store per record type: decisions in `docs/adr/`, lessons in `docs/solutions/`. `docs/solutions/` holds solved problems and patterns. Start at `docs/solutions/INDEX.md`; read `docs/solutions/critical-patterns.md` when you plan. Entries carry `confirmed_at`: treat an entry older than 30 days as possibly stale.
 - `REVIEW.md` holds review-only rules that `ship.js` review stages read from the base branch. An agent never edits it inside a ticket PR; a new row needs the same miss in two PRs and owner approval in its own PR.
 - `docs/adr/` holds durable decisions and depth-L designs (an ADR with `stage: design`).
-- `specs/` is local scratch and is gitignored. Every ticket gets `specs/<slug>/` with five flow files: `intent.md`, `design.md`, `decision.md`, `plan.md`, `summary.md` (contract: `plugins/harness/templates/structure/specs-README.md`). A durable design or decision also goes to `docs/adr/`. Do not commit under `specs/`.
+- `specs/` is local scratch and is gitignored. Every ticket gets `specs/<slug>/` with five flow files: `intent.md`, `design.md`, `decision.md`, `plan.md`, `summary.md` (contract: `plugins/pd-bot/templates/structure/specs-README.md`). A durable design or decision also goes to `docs/adr/`. Do not commit under `specs/`.
 
 ## Gotchas
 

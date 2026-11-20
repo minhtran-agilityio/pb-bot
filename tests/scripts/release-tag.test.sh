@@ -32,8 +32,8 @@ make_fixture() {
   git -C "$d" config user.email test@test
   git -C "$d" config user.name test
   printf '%s\n' "$v" > "$d/VERSION"
-  mkdir -p "$d/plugins/harness/.claude-plugin" "$d/scripts"
-  printf '{\n  "version": "%s"\n}\n' "$v" > "$d/plugins/harness/.claude-plugin/plugin.json"
+  mkdir -p "$d/plugins/pd-bot/.claude-plugin" "$d/scripts"
+  printf '{\n  "version": "%s"\n}\n' "$v" > "$d/plugins/pd-bot/.claude-plugin/plugin.json"
   cp "$ROOT/scripts/check-plugin-version.sh" "$d/scripts/"
   printf '# Changelog\n\n## [Unreleased]\n\n## [%s] — 2026-11-06\n\n- feat: first (PR #1)\n- fix: second (PR #2)\n\n## [0.1.0] — 2026-01-01\n\n- old\n' "$v" > "$d/CHANGELOG.md"
   git -C "$d" add -A && git -C "$d" commit -q -m "release $v"
@@ -76,7 +76,7 @@ t "refuses when the tag points at a commit whose VERSION differs, and leaves the
 d=$(make_fixture 2.0.0)
 old=$(git -C "$d" rev-parse HEAD)
 printf '2.1.0\n' > "$d/VERSION"
-sed 's/2\.0\.0/2.1.0/' "$d/plugins/harness/.claude-plugin/plugin.json" > "$d/p.tmp" && mv "$d/p.tmp" "$d/plugins/harness/.claude-plugin/plugin.json"
+sed 's/2\.0\.0/2.1.0/' "$d/plugins/pd-bot/.claude-plugin/plugin.json" > "$d/p.tmp" && mv "$d/p.tmp" "$d/plugins/pd-bot/.claude-plugin/plugin.json"
 git -C "$d" commit -q -am "bump"
 git -C "$d" tag -a v2.1.0 "$old" -m "wrong place"
 git -C "$d" push -q origin refs/tags/v2.1.0 2>/dev/null
@@ -89,7 +89,7 @@ t "refuses when the tag exists only on origin and points at a commit with anothe
 d=$(make_fixture 2.0.0)
 old=$(git -C "$d" rev-parse HEAD)
 printf '2.1.0\n' > "$d/VERSION"
-sed 's/2\.0\.0/2.1.0/' "$d/plugins/harness/.claude-plugin/plugin.json" > "$d/p.tmp" && mv "$d/p.tmp" "$d/plugins/harness/.claude-plugin/plugin.json"
+sed 's/2\.0\.0/2.1.0/' "$d/plugins/pd-bot/.claude-plugin/plugin.json" > "$d/p.tmp" && mv "$d/p.tmp" "$d/plugins/pd-bot/.claude-plugin/plugin.json"
 git -C "$d" commit -q -am "bump"
 git -C "$d" tag -a v2.1.0 "$old" -m "wrong place"
 git -C "$d" push -q origin refs/tags/v2.1.0 2>/dev/null
@@ -99,7 +99,7 @@ if [ "$RC" -ne 0 ] && [ "$(git -C "$d.git" rev-parse 'refs/tags/v2.1.0^{commit}'
 
 t "refuses when plugin.json differs from VERSION, creates no tag"
 d=$(make_fixture 2.0.0)
-sed 's/2\.0\.0/1.9.9/' "$d/plugins/harness/.claude-plugin/plugin.json" > "$d/p.tmp" && mv "$d/p.tmp" "$d/plugins/harness/.claude-plugin/plugin.json"
+sed 's/2\.0\.0/1.9.9/' "$d/plugins/pd-bot/.claude-plugin/plugin.json" > "$d/p.tmp" && mv "$d/p.tmp" "$d/plugins/pd-bot/.claude-plugin/plugin.json"
 git -C "$d" commit -q -am "drift"
 run "$d"
 if [ "$RC" -ne 0 ] && [ -z "$(git -C "$d" tag)" ] && [ -z "$(git -C "$d.git" tag)" ] && [ -z "$(gh_calls "$d")" ]; then pass; else fail "rc=$RC out=$OUT"; fi

@@ -4,9 +4,15 @@ import shutil
 import subprocess
 import sys
 
+import pytest
+
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 EXPERIMENT = ROOT / "docs/research/ste-terminology-evidence/experiment"
+
+# The experiment lives under docs/research/, which is local-only (gitignored); skip where it is absent.
+if not EXPERIMENT.is_dir():
+    pytest.skip("docs/research experiment is not in this checkout", allow_module_level=True)
 
 
 def load_rerun_module():

@@ -6,7 +6,7 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/../.." && pwd)
 fm() { awk 'NR==1&&/^---$/{inb=1;next} inb&&/^---$/{exit} inb' "$1"; }
 
-qa="$root/plugins/harness/agents/qa-writer.md"
+qa="$root/plugins/pd-bot/agents/qa-writer.md"
 fm_qa=$(fm "$qa")
 printf '%s\n' "$fm_qa" | grep -q '^name: qa-writer$'
 if printf '%s\n' "$fm_qa" | grep -E '^tools:.*(Edit|Agent|WebFetch|WebSearch|mcp__)'; then
@@ -17,7 +17,7 @@ grep -q 'You must not read application source code' "$qa"
 grep -q 'Add acceptance tests for #' "$qa"
 grep -q 'Never push' "$qa"
 
-sec="$root/plugins/harness/agents/security-reviewer.md"
+sec="$root/plugins/pd-bot/agents/security-reviewer.md"
 fm_sec=$(fm "$sec")
 printf '%s\n' "$fm_sec" | grep -q '^name: security-reviewer$'
 printf '%s\n' "$fm_sec" | grep -q '^model: claude-opus-5-5$'

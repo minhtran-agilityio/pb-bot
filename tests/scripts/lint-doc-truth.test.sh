@@ -14,7 +14,7 @@ LINT="$ROOT/scripts/lint-doc-truth.sh"
 # hook-table check needs, and nothing else.
 lint_repo() {
   local d; d=$(mktemp -d); _CLEANUP_DIRS+=("$d")
-  P="$d/plugins/harness"
+  P="$d/plugins/pd-bot"
   mkdir -p "$d/scripts" "$P/hooks" "$P/agents" "$P/rules" "$P/skills"
   cp "$LINT" "$d/scripts/"
   printf '#!/bin/bash\nexit 0\n' > "$P/hooks/demo.sh"
@@ -44,36 +44,36 @@ assert_rc 0
 
 t "SCOPE: a dangling path in rules/*.md is caught (regression guard for DOCS)"
 r=$(lint_repo)
-printf 'See `rules/nope.md` for details.\n' > "$r/plugins/harness/rules/behavior.md"
+printf 'See `rules/nope.md` for details.\n' > "$r/plugins/pd-bot/rules/behavior.md"
 run_lint "$r"
 assert_rc_contains 1 "rules/nope.md"
 
 t "a dangling path in the plugin tree is caught even when the repo has that file"
 r=$(lint_repo)
 mkdir -p "$r/scripts"; : > "$r/scripts/only-in-repo.sh"
-mkdir -p "$r/plugins/harness/skills/demo"
-printf 'Run `scripts/only-in-repo.sh` first.\n' > "$r/plugins/harness/skills/demo/SKILL.md"
+mkdir -p "$r/plugins/pd-bot/skills/demo"
+printf 'Run `scripts/only-in-repo.sh` first.\n' > "$r/plugins/pd-bot/skills/demo/SKILL.md"
 run_lint "$r"
 assert_rc_contains 1 "plugin tree: skills/demo/SKILL.md:1 -> scripts/only-in-repo.sh"
 
 t "a CLAUDE_PLUGIN_ROOT and a CLAUDE_SKILL_DIR path that exist in the plugin pass"
 r=$(lint_repo)
-mkdir -p "$r/plugins/harness/skills/demo/scripts" "$r/plugins/harness/scripts"
-: > "$r/plugins/harness/skills/demo/scripts/x.sh"; : > "$r/plugins/harness/scripts/y.py"
-printf 'Run `${CLAUDE_SKILL_DIR}/scripts/x.sh` and `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/y.py`.\n' > "$r/plugins/harness/skills/demo/SKILL.md"
+mkdir -p "$r/plugins/pd-bot/skills/demo/scripts" "$r/plugins/pd-bot/scripts"
+: > "$r/plugins/pd-bot/skills/demo/scripts/x.sh"; : > "$r/plugins/pd-bot/scripts/y.py"
+printf 'Run `${CLAUDE_SKILL_DIR}/scripts/x.sh` and `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/y.py`.\n' > "$r/plugins/pd-bot/skills/demo/SKILL.md"
 run_lint "$r"
 assert_rc 0
 
 t "a CLAUDE_PLUGIN_ROOT path that does not exist in the plugin is caught"
 r=$(lint_repo)
-mkdir -p "$r/plugins/harness/skills/demo"
-printf 'Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gone.py`.\n' > "$r/plugins/harness/skills/demo/SKILL.md"
+mkdir -p "$r/plugins/pd-bot/skills/demo"
+printf 'Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gone.py`.\n' > "$r/plugins/pd-bot/skills/demo/SKILL.md"
 run_lint "$r"
 assert_rc_contains 1 "scripts/gone.py"
 
 t "a hook marked wired in CLAUDE.md but missing from hooks.json is caught"
 r=$(lint_repo)
-printf '{"hooks":{}}\n' > "$r/plugins/harness/hooks/hooks.json"
+printf '{"hooks":{}}\n' > "$r/plugins/pd-bot/hooks/hooks.json"
 run_lint "$r"
 assert_rc_contains 1 "'demo.sh' is wired but it is not in"
 
@@ -85,32 +85,32 @@ assert_rc_contains 1 "would run twice"
 
 t "SCOPE: a dangling path in agents/*.md is caught (regression guard for DOCS)"
 r=$(lint_repo)
-printf 'Read `agents/ghost.md` first.\n' > "$r/plugins/harness/agents/implementer.md"
+printf 'Read `agents/ghost.md` first.\n' > "$r/plugins/pd-bot/agents/implementer.md"
 run_lint "$r"
 assert_rc_contains 1 "agents/ghost.md"
 
 t "a real path in rules/*.md passes"
 r=$(lint_repo)
-printf 'Registered in `hooks/demo.sh`.\n' > "$r/plugins/harness/rules/behavior.md"
+printf 'Registered in `hooks/demo.sh`.\n' > "$r/plugins/pd-bot/rules/behavior.md"
 run_lint "$r"
 assert_rc 0
 
 t "placeholder paths in rules/*.md are skipped, not flagged"
 r=$(lint_repo)
-printf 'Write `tests/services/test_<entity>.py` next to it.\n' > "$r/plugins/harness/rules/local-rule.md"
+printf 'Write `tests/services/test_<entity>.py` next to it.\n' > "$r/plugins/pd-bot/rules/local-rule.md"
 run_lint "$r"
 assert_rc 0
 
 t "empty agents/ and rules/ produce no 'core doc missing' (nullglob guard)"
 r=$(lint_repo)
-rmdir "$r/plugins/harness/agents" "$r/plugins/harness/rules"
+rmdir "$r/plugins/pd-bot/agents" "$r/plugins/pd-bot/rules"
 run_lint "$r"
 if [ "$RC" -eq 0 ] && ! echo "$OUT" | grep -q 'core doc missing'; then pass
 else fail "rc=$RC out: $(echo "$OUT" | head -3 | tr '\n' ' ')"; fi
 
 t "an unknown root in a backticked token is still out of scope (no false positive)"
 r=$(lint_repo)
-printf 'Upstream lives at `someorg/somerepo`.\n' > "$r/plugins/harness/rules/behavior.md"
+printf 'Upstream lives at `someorg/somerepo`.\n' > "$r/plugins/pd-bot/rules/behavior.md"
 run_lint "$r"
 assert_rc 0
 

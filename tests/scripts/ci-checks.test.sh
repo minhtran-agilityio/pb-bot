@@ -12,9 +12,9 @@ BASH_BIN=$(command -v bash)
 # ── check-plugin-version.sh ───────────────────────────────────────────────────
 mk_ver() { # <VERSION> <manifest version>
   local d; d=$(mktemp -d); _CLEANUP_DIRS+=("$d")
-  mkdir -p "$d/plugins/harness/.claude-plugin"
+  mkdir -p "$d/plugins/pd-bot/.claude-plugin"
   printf '%s\n' "$1" > "$d/VERSION"
-  printf '{\n  "name": "harness",\n  "version": "%s"\n}\n' "$2" > "$d/plugins/harness/.claude-plugin/plugin.json"
+  printf '{\n  "name": "harness",\n  "version": "%s"\n}\n' "$2" > "$d/plugins/pd-bot/.claude-plugin/plugin.json"
   echo "$d"
 }
 t "check-plugin-version passes when plugin.json matches VERSION"
@@ -26,7 +26,7 @@ d=$(mk_ver 5.0.1 5.0.0)
 if bash "$ROOT/scripts/check-plugin-version.sh" --root "$d" >/dev/null 2>&1; then fail "accepted a mismatch"; else pass; fi
 
 t "check-plugin-version fails when the manifest has no version line"
-d=$(mk_ver 5.0.0 5.0.0); printf '{ "name": "harness" }\n' > "$d/plugins/harness/.claude-plugin/plugin.json"
+d=$(mk_ver 5.0.0 5.0.0); printf '{ "name": "harness" }\n' > "$d/plugins/pd-bot/.claude-plugin/plugin.json"
 if bash "$ROOT/scripts/check-plugin-version.sh" --root "$d" >/dev/null 2>&1; then fail "accepted a missing version"; else pass; fi
 
 t "the real repo has plugin.json version == VERSION"

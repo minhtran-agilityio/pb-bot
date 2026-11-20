@@ -20,7 +20,7 @@ Verdict: known risk
 
 **Possibly stale.**
 - `docs/solutions/harness/verify-row-must-be-pipe-free-and-under-60s.md` and `docs/solutions/harness/committed-diff-scoped-lint-skips-uncommitted-work.md` are both more than 30 days old (2026-08-17 and 2026-08-12, today is 2026-11-02).
-- Both records list `affects` paths that I could not find. A Glob for `verify_summary.py`, `ci-strict-gate.sh` and `check_verify_rows.py` returned nothing in this worktree. Only `scripts/run-tests.sh` exists. No `specs/*/SUMMARY.md` exists either. A Grep found them only in `tests/scripts/finishing-branch-contract.test.sh`, `docs/research/ste-terminology-evidence/DECISION.md`, `CHANGELOG.md` and the eval run files. I did not find a `plugins/harness/` copy.
+- Both records list `affects` paths that I could not find. A Glob for `verify_summary.py`, `ci-strict-gate.sh` and `check_verify_rows.py` returned nothing in this worktree. Only `scripts/run-tests.sh` exists. No `specs/*/SUMMARY.md` exists either. A Grep found them only in `tests/scripts/finishing-branch-contract.test.sh`, `docs/research/ste-terminology-evidence/DECISION.md`, `CHANGELOG.md` and the eval run files. I did not find a `plugins/pd-bot/` copy.
 - The premise (a pipe splits the row, and the cap is 60s) may still hold. The commands in the records may have moved or been removed, so check where the gate now lives before you run them.
 
 **Search surface:** `docs/solutions/INDEX.md`, `docs/solutions/critical-patterns.md`, `docs/solutions/harness/verify-row-must-be-pipe-free-and-under-60s.md`, `docs/solutions/harness/committed-diff-scoped-lint-skips-uncommitted-work.md`. Glob and Grep over the worktree for the `affects` paths and `specs/*/SUMMARY.md`.

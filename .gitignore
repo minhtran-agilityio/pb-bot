@@ -19,7 +19,7 @@ CLAUDE.local.md
 # Git worktrees (project-local, isolated feature workspaces)
 .worktrees/
 
-# Claude Code local folder (user-specific rules and settings; the plugin itself lives in plugins/harness/)
+# Claude Code local folder (user-specific rules and settings; the plugin itself lives in plugins/pd-bot/)
 .claude/
 
 # Playwright plugin output: screenshots, snapshots and GIF evidence from verify runs (local only)
@@ -32,7 +32,7 @@ CLAUDE.local.md
 docs/memory/
 
 # specs/ at the repo root is local scratch: one specs/<slug>/ per ticket (intent, design, decision, plan, summary).
-# Anchored, so plugins/harness/templates/specs/ stays tracked.
+# Anchored, so plugins/pd-bot/templates/specs/ stays tracked.
 /specs/
 
 .vercel
@@ -43,3 +43,7 @@ docs/memory/
 # local research notes and generated reports
 /research_notes/
 /reports/
+
+# Project docs and research notes are kept local only
+/docs/
+research/

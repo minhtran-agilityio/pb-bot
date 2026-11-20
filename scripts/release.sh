@@ -37,7 +37,7 @@ esac
 
 cd "$ROOT"
 CHANGELOG="CHANGELOG.md"
-MANIFEST="plugins/harness/.claude-plugin/plugin.json"
+MANIFEST="plugins/pd-bot/.claude-plugin/plugin.json"
 
 [ -f VERSION ] || { echo "release: VERSION not found" >&2; exit 1; }
 [ -f "$CHANGELOG" ] || { echo "release: $CHANGELOG not found" >&2; exit 1; }

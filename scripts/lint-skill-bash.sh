@@ -61,7 +61,7 @@ READ = re.compile(r"\bread\s+(?:-\w+\s+)*([A-Za-z_][A-Za-z0-9_]*)")
 
 failed = 0
 checked = 0
-for p in sorted(pathlib.Path("plugins/harness/skills").rglob("*.md")):
+for p in sorted(pathlib.Path("plugins/pd-bot/skills").rglob("*.md")):
     blocks = FENCE.findall(p.read_text(encoding="utf-8"))
     if not blocks:
         continue
@@ -89,7 +89,7 @@ PLACEHOLDER = re.compile(r"<[a-z][a-z0-9_.\- ]*>|\[[a-z][a-z0-9_.\-]*\]")
 HAS_SHELLCHECK = shutil.which("shellcheck") is not None
 
 runnable = skipped = 0
-for p in sorted(pathlib.Path("plugins/harness/skills").rglob("*.md")):
+for p in sorted(pathlib.Path("plugins/pd-bot/skills").rglob("*.md")):
     for idx, block in enumerate(FENCE.findall(p.read_text(encoding="utf-8")), 1):
         # strip comment-only lines before deciding: `# see <type>/<slug>` is prose, not a placeholder
         code = "\n".join(l for l in block.splitlines() if not l.strip().startswith("#"))

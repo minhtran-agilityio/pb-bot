@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 'use strict';
-// Tests for plugins/harness/board/board.js: label parsing, the stage -> box map, tailing a run dir, and the
+// Tests for plugins/pd-bot/board/board.js: label parsing, the stage -> box map, tailing a run dir, and the
 // SSE server. No dependencies. Prints one PASS/FAIL line per case and exits 1 on any failure.
 const assert = require('assert');
 const fs = require('fs');
@@ -8,8 +8,8 @@ const os = require('os');
 const path = require('path');
 const http = require('http');
 const root = path.join(__dirname, '..', '..');
-const B = require(path.join(root, 'plugins', 'harness', 'board', 'board.js'));
-const FLOW = JSON.parse(fs.readFileSync(path.join(root, 'plugins', 'harness', 'board', 'flow.json'), 'utf8'));
+const B = require(path.join(root, 'plugins', 'pd-bot', 'board', 'board.js'));
+const FLOW = JSON.parse(fs.readFileSync(path.join(root, 'plugins', 'pd-bot', 'board', 'flow.json'), 'utf8'));
 
 const cases = [];
 const test = (name, fn) => cases.push([name, fn]);
@@ -76,7 +76,7 @@ test('qb2: every agent label ship.js builds lands on the right box, or on none b
   };
   for (const [stage, node] of Object.entries(want)) assert.strictEqual(B.nodeFor(FLOW, stage), node, `stage "${stage}"`);
   // Drift guard: the fixed labels in ship.js must still be ones this map knows.
-  const ship = fs.readFileSync(path.join(root, 'plugins', 'harness', 'workflows', 'ship.js'), 'utf8');
+  const ship = fs.readFileSync(path.join(root, 'plugins', 'pd-bot', 'workflows', 'ship.js'), 'utf8');
   const fixed = [...ship.matchAll(/label: '([^']+)'/g)].map(m => B.parseLabel(m[1]).stage);
   const known = new Set([...Object.keys(want), 'write specs/ early']);
   for (const s of fixed) assert.ok(known.has(s), `ship.js label stage "${s}" is not in the board map; add it to flow.json or to this list`);
@@ -210,7 +210,7 @@ test('qb10: flow.json is consistent and the page has no external resources', () 
   assert.strictEqual(ids.size, FLOW.nodes.length, 'duplicate node id');
   for (const e of FLOW.edges) assert.ok(ids.has(e[0]) && ids.has(e[1]), `edge ${e[0]} -> ${e[1]}`);
   for (const n of FLOW.nodes) { assert.ok(n.match && n.match.length, `${n.id} has no match`); n.match.forEach(re => new RegExp(re)); }
-  const html = fs.readFileSync(path.join(root, 'plugins', 'harness', 'board', 'board.html'), 'utf8');
+  const html = fs.readFileSync(path.join(root, 'plugins', 'pd-bot', 'board', 'board.html'), 'utf8');
   assert.ok(!/(src|href)=["']https?:/i.test(html) && !/@import|fonts\.googleapis/.test(html), 'the page loads something from the network');
   assert.throws(() => B.parseArgs(['--port', '70000']), /--port/);
 });
@@ -244,7 +244,7 @@ test('qb16: --idle-exit keeps the board up while a fleet run has an open ticket'
 });
 
 test('qb12: the page works under a path prefix and has an embed mode', () => {
-  const html = fs.readFileSync(path.join(root, 'plugins', 'harness', 'board', 'board.html'), 'utf8');
+  const html = fs.readFileSync(path.join(root, 'plugins', 'pd-bot', 'board', 'board.html'), 'utf8');
   // A proxy can serve the board at /board/<project>/: every URL the page loads is relative.
   assert.ok(!/(fetch|EventSource)\(\s*['"]\//.test(html), 'the page requests an absolute path');
   assert.ok(/EventSource\('events'\)/.test(html) && /fetch\('flow\.json'\)/.test(html));
@@ -260,7 +260,7 @@ test('qb15: /fleet.json answers without a project option, and fleet.html request
     assert.ok(r.status === 404 || r.status === 503 || r.status === 200, `status ${r.status}`);
     assert.ok(JSON.parse(r.body), 'JSON body');
   } finally { server.close(); }
-  const html = fs.readFileSync(path.join(root, 'plugins', 'harness', 'board', 'fleet.html'), 'utf8');
+  const html = fs.readFileSync(path.join(root, 'plugins', 'pd-bot', 'board', 'fleet.html'), 'utf8');
   assert.ok(!/(fetch|EventSource)\(\s*['"]\//.test(html), 'fleet.html requests an absolute path');
   assert.ok(/fetch\('fleet\.json'/.test(html));
 });

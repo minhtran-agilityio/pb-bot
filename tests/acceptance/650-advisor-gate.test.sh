@@ -28,11 +28,11 @@ REF=""
 for r in origin/main github/main main; do git -C "$ROOT" rev-parse --verify -q "$r" >/dev/null && { REF=$r; break; }; done
 if [ -z "$REF" ]; then fail "no main ref found to compare merge-guard.sh against"
 else
-  d=$(git -C "$ROOT" diff --stat "$REF" -- plugins/harness/hooks/merge-guard.sh)
+  d=$(git -C "$ROOT" diff --stat "$REF" -- plugins/pd-bot/hooks/merge-guard.sh)
   [ -z "$d" ] && pass || fail "merge-guard.sh differs from $REF: $d"
 fi
 
-SHIP="$ROOT/plugins/harness/workflows/ship.js"
+SHIP="$ROOT/plugins/pd-bot/workflows/ship.js"
 
 t "AC10: a gate-statement comment names feat/* and says what it does not verify"
 grep -qiE '^\s*//.*does not verify' "$SHIP" && grep -qE '^\s*//.*feat/' "$SHIP" && pass || fail "no gate-statement comment with 'does not verify' in ship.js"

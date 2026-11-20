@@ -1,7 +1,7 @@
 #!/bin/bash
 # Check that the plugin manifest version equals the root VERSION file.
 #
-# Verifies:        plugins/harness/.claude-plugin/plugin.json "version" == VERSION (trimmed).
+# Verifies:        plugins/pd-bot/.claude-plugin/plugin.json "version" == VERSION (trimmed).
 # Does not verify: that either value is the right release number.
 # scripts/release.sh bumps both together; this catches a hand edit that moves only one.
 # Usage: bash scripts/check-plugin-version.sh [--root DIR]
@@ -9,7 +9,7 @@ set -u
 ROOT="."
 [ "${1:-}" = "--root" ] && ROOT="${2:?--root needs a dir}"
 cd "$ROOT" || exit 1
-MANIFEST="plugins/harness/.claude-plugin/plugin.json"
+MANIFEST="plugins/pd-bot/.claude-plugin/plugin.json"
 [ -f VERSION ] || { echo "  ✗ plugin version: VERSION not found" >&2; exit 1; }
 [ -f "$MANIFEST" ] || { echo "  ✗ plugin version: $MANIFEST not found" >&2; exit 1; }
 want=$(tr -d '[:space:]' < VERSION)

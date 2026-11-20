@@ -1,12 +1,12 @@
-"""Tests for plugins/harness/scripts/write_adrs.py."""
+"""Tests for plugins/pd-bot/scripts/write_adrs.py."""
 
 import json
 import subprocess
 import sys
 from pathlib import Path
 
-SCRIPT = Path(__file__).resolve().parent.parent / "plugins/harness/scripts/write_adrs.py"
-TEMPLATE = Path(__file__).resolve().parent.parent / "docs/adr/TEMPLATE.md"
+SCRIPT = Path(__file__).resolve().parent.parent / "plugins/pd-bot/scripts/write_adrs.py"
+TEMPLATE = Path(__file__).resolve().parent.parent / "tests/fixtures/adr/TEMPLATE.md"
 
 
 def dec(**kw):
@@ -158,9 +158,9 @@ def test_artifact_option_is_gone(tmp_path):
 
 
 def test_default_template_matches_the_repo_template():
-    """The built-in fallback is the same text as docs/adr/TEMPLATE.md."""
+    """The built-in fallback is the same text as tests/fixtures/adr/TEMPLATE.md."""
     import write_adrs
-    repo_template = (Path(__file__).resolve().parent.parent / "docs/adr/TEMPLATE.md").read_text()
+    repo_template = (Path(__file__).resolve().parent.parent / "tests/fixtures/adr/TEMPLATE.md").read_text()
     assert write_adrs.DEFAULT_TEMPLATE == repo_template
 
 
@@ -509,8 +509,7 @@ def test_template_warning_goes_to_stderr_only_and_dry_run_writes_nothing(tmp_pat
 
 
 def test_no_needs_review_status_in_docs_or_script():
-    root = SCRIPT.parent.parent.parent.parent
-    for p in (root / "docs/adr/README.md", root / "docs/adr/TEMPLATE.md", SCRIPT):
+    for p in (TEMPLATE, SCRIPT):
         assert "needs-review" not in p.read_text(), p
 
 

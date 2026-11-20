@@ -25,7 +25,7 @@ is skipped.
 Path note: a pattern is matched against both the literal command and its `.claude/`-stripped
 form. The plugin variables `${CLAUDE_SKILL_DIR}` and `${CLAUDE_PLUGIN_ROOT}` stay literal on
 both sides, so a grant that spells the same variable as the command matches. The default root
-is the plugin directory, plugins/harness.
+is the plugin directory, plugins/pd-bot.
 
 Stdlib only. Exit 0 = every instructed command is permitted; exit 1 = ran and found gaps;
 exit 2 = could not run (no skills found). Under --json the payload is
@@ -353,7 +353,7 @@ def check(root: Path, as_json: bool = False) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--root", default=Path(__file__).resolve().parent.parent / "plugins" / "harness", type=Path
+        "--root", default=Path(__file__).resolve().parent.parent / "plugins" / "pd-bot", type=Path
     )
     parser.add_argument(
         "--json",

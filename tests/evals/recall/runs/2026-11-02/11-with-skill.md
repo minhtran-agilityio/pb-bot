@@ -22,7 +22,7 @@ Verdict: known risk
 **Possibly stale**
 - All three records carry the note "Superseded by specs/simplify-hook-surface (2026-09-29): risk-corroboration.sh merged into hooks/commit-gate.sh".
 - The `affects` paths are missing. Searching the worktree found no `hooks/risk-corroboration.sh`, `hooks/commit-gate.sh`, `hooks/lib/gate-modes.default.sh`, `scripts/check_gate_modes_smoke.py` or `scripts/check_manifest.py`.
-- `harness-manifest.json` is also missing from the repo root and from `plugins/harness/`. `plugins/harness/hooks/` holds only `clean-worktrees.sh`, `hooks.json`, `merge-guard.sh`, `pr-opened.sh`, `secrets-scan.sh` and `session-rules.sh`.
+- `harness-manifest.json` is also missing from the repo root and from `plugins/pd-bot/`. `plugins/pd-bot/hooks/` holds only `clean-worktrees.sh`, `hooks.json`, `merge-guard.sh`, `pr-opened.sh`, `secrets-scan.sh` and `session-rules.sh`.
 - I did not find the regression test file `tests/hooks/risk-corroboration.test.sh`. I did not search `tests/` for it by name.
 - Commit `880eb15` and the test name "Codex PR#160" cannot be checked from the files I read.
 - The CI drift guard for the embedded defaults (`check_gate_modes_smoke.py`) no longer exists, so that safeguard is not in the repo.
@@ -30,4 +30,4 @@ Verdict: known risk
 - All three records are over 30 days old. At today's date, 2026-11-04, they are 103 days (2026-07-23, two records) and 90 days (2026-08-06).
 - The detail that "2 warn / 7 block parity" is the embedded default may have changed with the hook merge.
 
-**Search surface:** docs/solutions/INDEX.md, docs/solutions/critical-patterns.md, docs/solutions/harness/gate-config-must-read-index.md, docs/solutions/harness/consumer-risk-modes-index-safe.md, docs/solutions/harness/gate-mode-as-data-decisions.md. Also searched for the `affects` paths with `ls` and `find` under the repo root and `plugins/harness/hooks`.
+**Search surface:** docs/solutions/INDEX.md, docs/solutions/critical-patterns.md, docs/solutions/harness/gate-config-must-read-index.md, docs/solutions/harness/consumer-risk-modes-index-safe.md, docs/solutions/harness/gate-mode-as-data-decisions.md. Also searched for the `affects` paths with `ls` and `find` under the repo root and `plugins/pd-bot/hooks`.

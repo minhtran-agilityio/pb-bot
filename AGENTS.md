@@ -1,27 +1,27 @@
 # Repository Guidelines
 
 This repository is a Claude Code skills framework with a thin workflow harness. Root `CLAUDE.md`,
-`HARNESS.md` and `plugins/harness/skills/README.md` describe the workflow and the component inventory; treat them
+`HARNESS.md` and `plugins/pd-bot/skills/README.md` describe the workflow and the component inventory; treat them
 as contracts when you change a hook, a skill or a script.
 
 ## Layout
 
-- `plugins/harness/` - the plugin (name `harness`). `.claude-plugin/marketplace.json` at the repo root lists it.
-- `plugins/harness/skills/<name>/SKILL.md` - the skills, with their prompts, templates and scripts.
-- `plugins/harness/agents/` - the subagent role files (model, effort and tools are in their frontmatter).
-- `plugins/harness/hooks/` - `hooks.json` plus the Bash hooks listed in the `CLAUDE.md` Hooks table.
-- `plugins/harness/rules/behavior.md` - the one behavioral rule.
-- `plugins/harness/workflows/ship.js` - the autonomous Workflow script that `/harness:pd-autopilot` launches.
-- `plugins/harness/templates/structure/` - scaffold files that `plugins/harness/scripts/init-structure.sh` copies into a consumer repo.
-- `plugins/harness/scripts/` - the runtime scripts (`init-structure.sh`, `write_adrs.py`, `rebuild_solution_index.py`).
+- `plugins/pd-bot/` - the plugin (name `harness`). `.claude-plugin/marketplace.json` at the repo root lists it.
+- `plugins/pd-bot/skills/<name>/SKILL.md` - the skills, with their prompts, templates and scripts.
+- `plugins/pd-bot/agents/` - the subagent role files (model, effort and tools are in their frontmatter).
+- `plugins/pd-bot/hooks/` - `hooks.json` plus the Bash hooks listed in the `CLAUDE.md` Hooks table.
+- `plugins/pd-bot/rules/behavior.md` - the one behavioral rule.
+- `plugins/pd-bot/workflows/ship.js` - the autonomous Workflow script that `/pd-bot:pd-autopilot` launches.
+- `plugins/pd-bot/templates/structure/` - scaffold files that `plugins/pd-bot/scripts/init-structure.sh` copies into a consumer repo.
+- `plugins/pd-bot/scripts/` - the runtime scripts (`init-structure.sh`, `write_adrs.py`, `rebuild_solution_index.py`).
 - `scripts/` - lint and validation utilities for this repo, plus their `test_*.py` unit tests.
 - `tests/hooks/`, `tests/scripts/`, `tests/workflows/` - contract and integration tests.
 - `docs/` - solutions, ADRs and research. `specs/` is local scratch and gitignored: one `specs/<slug>/` per ticket with `intent.md`, `design.md`, `decision.md`, `plan.md` and `summary.md`.
 
 ## Commands
 
-- `bash scripts/run-tests.sh` - the CI-equivalent suite. Run it before you change `plugins/harness/hooks/` or `scripts/`.
-- `claude --plugin-dir plugins/harness` - load the plugin from the checkout (no copy step).
+- `bash scripts/run-tests.sh` - the CI-equivalent suite. Run it before you change `plugins/pd-bot/hooks/` or `scripts/`.
+- `claude --plugin-dir plugins/pd-bot` - load the plugin from the checkout (no copy step).
 - `bash scripts/lint-doc-truth.sh` and `bash scripts/check-md-links.sh` - check documented paths and links.
 
 ## Style and tests

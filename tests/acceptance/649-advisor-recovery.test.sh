@@ -19,7 +19,7 @@ t "AC7: harness.js prints PASS for rc1-rc5 (grep -c prints 5)"
 n=$(echo "$OUT" | grep -cE '^PASS rc[1-5]:')
 [ "$n" = 5 ] && pass || fail "grep -c printed: $n"
 
-SHIP="$ROOT/plugins/harness/workflows/ship.js"
+SHIP="$ROOT/plugins/pd-bot/workflows/ship.js"
 
 t "AC8: ship.js has a gate-statement comment above the recovery code"
 grep -qiE '^\s*//\s*Gate: blocked-stage recovery' "$SHIP" && pass || fail "no 'Gate: blocked-stage recovery' comment"

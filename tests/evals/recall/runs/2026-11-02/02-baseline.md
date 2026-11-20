@@ -1,4 +1,4 @@
-The cause is a known bug in this repo, and I haven't changed anything because **your script isn't in this checkout**. I searched `plugins/harness` and `scripts/` for self-locating code. Nothing the plugin ships uses its own location to find the project.
+The cause is a known bug in this repo, and I haven't changed anything because **your script isn't in this checkout**. I searched `plugins/pd-bot` and `scripts/` for self-locating code. Nothing the plugin ships uses its own location to find the project.
 
 Don't ask git for the root from the script's own directory. `claude plugin marketplace add` clones, so the installed copy sits inside a git repo. `git -C "$SCRIPT_DIR" rev-parse --show-toplevel` therefore exits 0 and returns that clone, not your project, so nothing fails. This is recorded in `docs/solutions/harness/hook-root-must-not-come-from-install-location.md`.
 
@@ -11,8 +11,8 @@ ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)}"
 - **Order:** `CLAUDE_PROJECT_DIR` comes first and still works if a compound command changed the working directory. Git run from the working directory is the fallback.
 - **No fallback to the script's location:** don't keep `dirname "$0"`, `BASH_SOURCE` or `__file__` as a source for the root, even as the last option. A plausible wrong answer is worse than a failure.
 - **Keep self-location for the plugin's own files only:** templates and libraries are fine. `init-structure.sh:14` and `old-install.sh:27` do this correctly.
-- **Python:** `plugins/harness/scripts/rebuild_solution_index.py:63` shows a similar approach, using `--root` with the working directory as the default. Its comment gives the same reason. It doesn't read `CLAUDE_PROJECT_DIR`, so copy the order above if your script might not start in the project.
-- **Skills:** pass the root in explicitly, as `setup` does with `--root ${CLAUDE_PROJECT_DIR}` (`plugins/harness/skills/setup/SKILL.md:13`).
+- **Python:** `plugins/pd-bot/scripts/rebuild_solution_index.py:63` shows a similar approach, using `--root` with the working directory as the default. Its comment gives the same reason. It doesn't read `CLAUDE_PROJECT_DIR`, so copy the order above if your script might not start in the project.
+- **Skills:** pass the root in explicitly, as `setup` does with `--root ${CLAUDE_PROJECT_DIR}` (`plugins/pd-bot/skills/setup/SKILL.md:13`).
 - **Non-blocking scripts:** if your script is a hook that shouldn't block work, warn and exit 0 instead of `exit 2`.
 
 ## Check the fix

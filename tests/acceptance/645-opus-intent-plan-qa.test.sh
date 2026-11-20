@@ -3,7 +3,7 @@
 # The ship.js stage cases (mo1-mo4) live in tests/workflows/harness.js.
 source "$(dirname "$0")/../lib.sh"
 
-AGENT=plugins/harness/agents/qa-writer.md
+AGENT=plugins/pd-bot/agents/qa-writer.md
 
 t "AC5: qa-writer frontmatter has exactly one model: claude-opus-5-5 line"
 n=$(cd "$ROOT" && grep -c '^model: claude-opus-5-5' "$AGENT")

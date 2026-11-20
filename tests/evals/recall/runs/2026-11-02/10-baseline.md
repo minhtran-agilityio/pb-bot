@@ -1,4 +1,4 @@
-The harness already has both things you're asking about, and the decision was **pilot first, and a warn-only ratchet that never blocks a build**. The linter is in `plugins/harness/skills/asd-ste100/`, vendored with its skill. I read your request as extending these checks or vendoring another skill, and the rules below cover both. I changed nothing.
+The harness already has both things you're asking about, and the decision was **pilot first, and a warn-only ratchet that never blocks a build**. The linter is in `plugins/pd-bot/skills/asd-ste100/`, vendored with its skill. I read your request as extending these checks or vendoring another skill, and the rules below cover both. I changed nothing.
 
 ## Ratchet
 - **Warn-only:** `scripts/check_ste_baseline.py` compares each file's hard count with `scripts/ste-baseline.json`. `run-tests.sh` calls it, and the default run always exits 0.
@@ -13,13 +13,13 @@ The harness already has both things you're asking about, and the decision was **
 - **Rollout condition:** any bulk rewrite plan must ask for a per-file meaning-equivalence review. The pilot caught two dropped conditions only because its brief asked for that, while tests passed and lint counts fell.
 
 ## Vendoring a third-party skill
-- **Vendor into the skill directory:** don't commit an `npx skills` install or vendor just the linter. The record's reason is that `deploy-harness.sh` syncs only `skills/`, so consumers didn't get the install; that path has since moved under `plugins/harness/`.
+- **Vendor into the skill directory:** don't commit an `npx skills` install or vendor just the linter. The record's reason is that `deploy-harness.sh` syncs only `skills/`, so consumers didn't get the install; that path has since moved under `plugins/pd-bot/`.
 - **Add `UPSTREAM.md`:** record the commit, the sha256 prefixes and every delta. Updates are manual re-vendors.
 - **Word ceiling:** that file also exempts the skill from the 600-word ceiling. Any skill can claim this by adding the marker, and the review scored that as advisory.
 
 ## Where the records no longer match the tree
 - **`review_package.py` is gone:** a repo-wide search doesn't find it, so the per-file review check in Decision 3 and "keep the two `DISABLED_RULES` constants equal" look obsolete. Only `check_ste_baseline.py` still has the constant.
-- **Old paths:** the records use `skills/...`, but the code now lives in `plugins/harness/skills/...`. The re-vendor steps in `UPSTREAM.md` still say `skills/asd-ste100/`.
+- **Old paths:** the records use `skills/...`, but the code now lives in `plugins/pd-bot/skills/...`. The re-vendor steps in `UPSTREAM.md` still say `skills/asd-ste100/`.
 - **Counts differ by route:** a manual `ste-lint.py` run still includes `synonym-rotation`, so it shows higher counts than the ratchet.
 - **Scope qualifier check was never built:** `check_scope_qualifiers.py` was proposed but doesn't exist, and I found no sign the task-reviewer instruction was added (I didn't check that prompt directly).
 

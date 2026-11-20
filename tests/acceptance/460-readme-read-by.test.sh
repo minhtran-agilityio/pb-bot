@@ -4,13 +4,13 @@
 source "$(dirname "$0")/../lib.sh"
 
 DOC=docs/solutions/README.md
-TPL=plugins/harness/templates/structure/docs-solutions-README.md
+TPL=plugins/pd-bot/templates/structure/docs-solutions-README.md
 
 # bullet <file-content-on-stdin>: the "Read by" bullet, up to the next blank line
 bullet() { awk '/^- \*\*Read by:\*\*/{p=1} p&&/^[[:space:]]*$/{exit} p'; }
 
 t "AC1: no session-knowledge mention in README or templates"
-out=$(cd "$ROOT" && git grep -n session-knowledge -- "$DOC" plugins/harness/templates 2>&1)
+out=$(cd "$ROOT" && git grep -n session-knowledge -- "$DOC" plugins/pd-bot/templates 2>&1)
 [ -z "$out" ] && pass || fail "still mentioned: $out"
 
 for f in "$DOC" "$TPL"; do

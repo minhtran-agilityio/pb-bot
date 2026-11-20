@@ -3,9 +3,9 @@
 # give the scriptPath workaround, and tell the report to name the script that ran.
 source "$(dirname "$0")/../lib.sh"
 
-LA="$ROOT/plugins/harness/skills/pd-autopilot/references/launch-args.md"
+LA="$ROOT/plugins/pd-bot/skills/pd-autopilot/references/launch-args.md"
 RD="$ROOT/README.md"
-SHIPPATH='plugins/harness/workflows/ship.js'
+SHIPPATH='plugins/pd-bot/workflows/ship.js'
 
 for f in "$LA" "$RD"; do
   n=$(basename "$f")

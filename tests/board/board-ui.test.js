@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 'use strict';
-// Browser tests for the Workflow panel of plugins/harness/board/board.html (the crew-style cards).
+// Browser tests for the Workflow panel of plugins/pd-bot/board/board.html (the crew-style cards).
 // They need Playwright with a Chromium; without it the file prints "skip" and exits 0 (CI installs neither on purpose).
 // BOARD_PERF=1 also runs the slow-CPU smoothness case, which depends on the machine and is not run by default.
 const assert = require('assert');
@@ -8,8 +8,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const root = path.join(__dirname, '..', '..');
-const B = require(path.join(root, 'plugins', 'harness', 'board', 'board.js'));
-const FLOW = JSON.parse(fs.readFileSync(path.join(root, 'plugins', 'harness', 'board', 'flow.json'), 'utf8'));
+const B = require(path.join(root, 'plugins', 'pd-bot', 'board', 'board.js'));
+const FLOW = JSON.parse(fs.readFileSync(path.join(root, 'plugins', 'pd-bot', 'board', 'flow.json'), 'utf8'));
 
 let chromium;
 try { ({ chromium } = require('playwright')); } catch (e) { console.log('board-ui: skip — no playwright'); process.exit(0); }
@@ -209,7 +209,7 @@ test('ui7: the page and the event stream carry no prompt, answer or tool input',
 });
 
 test('ui8: no colour literal in the board CSS outside the :root token blocks', () => {
-  const html = fs.readFileSync(path.join(root, 'plugins', 'harness', 'board', 'board.html'), 'utf8');
+  const html = fs.readFileSync(path.join(root, 'plugins', 'pd-bot', 'board', 'board.html'), 'utf8');
   const css = html.slice(html.indexOf('<style>'), html.indexOf('</style>'))
     .replace(/:root\{[^}]*\}/g, '').replace(/@media \(prefers-color-scheme: dark\)\{:root:not\(\[data-theme="light"\]\)\{[^}]*\}\}/g, '')
     .replace(/:root\[data-theme="dark"\]\{[^}]*\}/g, '');

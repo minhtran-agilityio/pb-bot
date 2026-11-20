@@ -1,9 +1,9 @@
 #!/bin/bash
-# Offline install smoke test for the harness plugin, driven through the real Claude Code CLI.
+# Offline install smoke test for the pd-bot plugin, driven through the real Claude Code CLI.
 #
 # Verifies:        in an ISOLATED config dir, `claude plugin marketplace add <repo>` and
-#                  `claude plugin install harness@agent-harness` succeed; `claude plugin details
-#                  harness` reports the skills, agents and hook events the source tree holds; and
+#                  `claude plugin install pd-bot@agent-harness` succeed; `claude plugin details
+#                  pd-bot` reports the skills, agents and hook events the source tree holds; and
 #                  the installed cache copy keeps the executable bit on hooks/*.sh and scripts/*.sh
 #                  and holds the same skill and agent files as the source.
 # Does not verify: that hooks fire in a live session, or anything that needs a model call or login.
@@ -52,16 +52,16 @@ run() { # run <label> <cmd...>: show output only on failure
 }
 
 run "marketplace add" claude plugin marketplace add "$REPO" || exit 1
-run "install harness@agent-harness" claude plugin install harness@agent-harness || exit 1
+run "install pd-bot@agent-harness" claude plugin install pd-bot@agent-harness || exit 1
 
 # Expected counts come from the source tree, never hardcoded.
 count() { find "$1" -maxdepth "$2" -type f -name "$3" 2>/dev/null | wc -l | tr -d ' '; }
-want_skills=$(count plugins/harness/skills 2 SKILL.md)
-want_agents=$(count plugins/harness/agents 1 '*.md')
-events=$(python3 -c 'import json,sys;print("\n".join(sorted(json.load(open(sys.argv[1]))["hooks"])))' plugins/harness/hooks/hooks.json)
-[ -n "$events" ] || { bad "could not read hook events from plugins/harness/hooks/hooks.json"; exit 1; }
+want_skills=$(count plugins/pd-bot/skills 2 SKILL.md)
+want_agents=$(count plugins/pd-bot/agents 1 '*.md')
+events=$(python3 -c 'import json,sys;print("\n".join(sorted(json.load(open(sys.argv[1]))["hooks"])))' plugins/pd-bot/hooks/hooks.json)
+[ -n "$events" ] || { bad "could not read hook events from plugins/pd-bot/hooks/hooks.json"; exit 1; }
 
-details=$(claude plugin details harness 2>&1) || { bad "plugin details harness"; printf '%s\n' "$details" | sed 's/^/      /' >&2; exit 1; }
+details=$(claude plugin details pd-bot 2>&1) || { bad "plugin details pd-bot"; printf '%s\n' "$details" | sed 's/^/      /' >&2; exit 1; }
 printf '%s\n' "$details" | sed 's/^/      /'
 
 # The details layout ("Skills (16)  a, b", "Hooks (3)  SessionStart, ...") is observed on
@@ -74,8 +74,8 @@ for e in $events; do
 done
 
 # Installed cache copy.
-cache=$(find "$CLAUDE_CONFIG_DIR/plugins" -type d -path '*/agent-harness/harness/*' -name hooks -prune 2>/dev/null | head -1)
-[ -n "$cache" ] || { bad "installed copy of harness not found under $CLAUDE_CONFIG_DIR/plugins"; exit 1; }
+cache=$(find "$CLAUDE_CONFIG_DIR/plugins" -type d -path '*/agent-harness/pd-bot/*' -name hooks -prune 2>/dev/null | head -1)
+[ -n "$cache" ] || { bad "installed copy of pd-bot not found under $CLAUDE_CONFIG_DIR/plugins"; exit 1; }
 inst=$(dirname "$cache")
 got_skills=$(count "$inst/skills" 2 SKILL.md)
 got_agents=$(count "$inst/agents" 1 '*.md')

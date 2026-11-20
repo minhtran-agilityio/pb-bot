@@ -2,7 +2,7 @@
 'use strict';
 // Acceptance tests for #688 "board: show a Pod Bay fleet run": the JSON, discovery and route criteria.
 // Plain node, no browser. Each case starts its own board through the CLI
-//   node plugins/harness/board/board.js --port <free port> [--ledger <file>] [--project <dir>]
+//   node plugins/pd-bot/board/board.js --port <free port> [--ledger <file>] [--project <dir>]
 // on a free port, with HOME set to a fresh temp dir (so no real ~/.claude run leaks in), and stops it afterwards.
 // Prints one PASS/FAIL line per case and exits 1 on any failure.
 // Run: node tests/acceptance/688/fleet-json.test.js
@@ -15,7 +15,7 @@ const http = require('http');
 const { spawn } = require('child_process');
 
 const root = path.join(__dirname, '..', '..', '..');
-const BOARD = path.join(root, 'plugins', 'harness', 'board', 'board.js');
+const BOARD = path.join(root, 'plugins', 'pd-bot', 'board', 'board.js');
 
 const cases = [];
 const test = (name, fn) => cases.push([name, fn]);
@@ -55,7 +55,7 @@ async function withBoard(args, cwd, fn) {
   try { return await fn(b.port, b); } finally { b.stop(); }
 }
 
-// A ledger in the format of plugins/harness/skills/pd-orchestrate/references/protocol.md, section "Ledger".
+// A ledger in the format of plugins/pd-bot/skills/pd-orchestrate/references/protocol.md, section "Ledger".
 const LEDGER = {
   v: 1, run: 'r688', base: 'feat/fleet', repo: 'owner/name',
   tickets: {
@@ -76,7 +76,7 @@ const fleet = async port => { const r = await get(port, '/fleet.json'); return {
 const ids = j => j.tickets.map(t => t.id);
 
 // ---------- AC1 ----------
-// "`node plugins/harness/board/board.js --ledger <path to ledger.json>` serves the fleet view of that ledger."
+// "`node plugins/pd-bot/board/board.js --ledger <path to ledger.json>` serves the fleet view of that ledger."
 test('AC1: --ledger <file> serves the fleet view of that ledger', () => withBoard(['--ledger', ledgerFile()], null, async port => {
   const { r, j } = await fleet(port);
   assert.strictEqual(r.status, 200, `GET /fleet.json status ${r.status}: ${r.body.slice(0, 200)}`);
@@ -219,7 +219,7 @@ test('AC5: GET /fleet returns 200 and an HTML page', () => withBoard(['--ledger'
 
 // ---------- AC6 ----------
 // "The existing routes and the ship.js view do not change. The board README documents the fleet view."
-const FLOW = JSON.parse(fs.readFileSync(path.join(root, 'plugins', 'harness', 'board', 'flow.json'), 'utf8'));
+const FLOW = JSON.parse(fs.readFileSync(path.join(root, 'plugins', 'pd-bot', 'board', 'flow.json'), 'utf8'));
 async function existingRoutes(port) {
   const h = await get(port, '/healthz');
   assert.strictEqual(h.status, 200); assert.ok(h.type.startsWith('application/json'));
@@ -241,7 +241,7 @@ async function existingRoutes(port) {
 test('AC6: existing routes answer as before with no fleet run', () => withBoard(['--project', tmp('plain')], null, existingRoutes));
 test('AC6: existing routes answer as before when --ledger is given', () => withBoard(['--ledger', ledgerFile()], null, existingRoutes));
 test('AC6: the board README documents the fleet view (--ledger, /fleet, /fleet.json)', () => {
-  const readme = fs.readFileSync(path.join(root, 'plugins', 'harness', 'board', 'README.md'), 'utf8');
+  const readme = fs.readFileSync(path.join(root, 'plugins', 'pd-bot', 'board', 'README.md'), 'utf8');
   assert.ok(readme.includes('--ledger'), 'README does not mention --ledger');
   assert.ok(readme.includes('/fleet.json'), 'README does not mention /fleet.json');
   assert.ok(/\/fleet(?!\.json)\b/.test(readme), 'README does not mention the /fleet page');

@@ -1,10 +1,10 @@
 #!/bin/bash
-# plugins/harness/scripts/fleet-check.sh checks the end state of one ticket: receipt, report,
+# plugins/pd-bot/scripts/fleet-check.sh checks the end state of one ticket: receipt, report,
 # acceptance-test commits, security receipt, repro (red on base, green on head) and suite. Every case
 # builds its own throwaway git repo and evidence dir and uses tiny fake commands, so it is hermetic.
 # shellcheck source=../lib.sh
 source "$(dirname "$0")/../lib.sh"
-FC="$ROOT/plugins/harness/scripts/fleet-check.sh"
+FC="$ROOT/plugins/pd-bot/scripts/fleet-check.sh"
 
 if ! command -v jq >/dev/null 2>&1; then
   t "fleet-check needs jq"; skip "jq not installed"; finish
