@@ -7,6 +7,7 @@ file. Versions change only in the release PR (see the release section of `AGENTS
 
 ## [Unreleased]
 
+- `merge-guard.sh` now denies spellings that bash turns into `gh` or `merge`: brace expansion, a backslash line break, octal or hex escapes, a glob in the gh words, `GH`/`Gh`, and any merge-like payload when jq is missing (P5).
 - `merge-guard.sh`: the wrapper denial names the workaround (put the command in a script file and run it by a path without the word). Prose that mentions merge next to `bash x.sh` stays denied: two security reviews broke both fixes tried; the bypasses they found are now regression tests (P1).
 - A PR that changes the FE/UI (ticket kind FE or FE+BE, or a diff touching `.tsx .jsx .vue .svelte .css .scss .html`) needs a screenshot. Without one the PR still opens and the merge becomes `Merge: human (no UI screenshot attached)`: in `ship.js` (the final merge reason; a ticket is never blocked), `pd-finishing-a-development-branch` the fleet outcome contract and the `pd-work` toolbox (P2).
 
