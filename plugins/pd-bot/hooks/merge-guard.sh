@@ -300,13 +300,16 @@ while IFS= read -r seg; do
     cw=${seg%%[[:space:]]*}
     case "$cw" in
       # No exemption for a shell that runs a script file (#671): four security reviews of such an exemption
-      # each found a way to run a merge built at run time. A harmless command that trips this (a $ before a
-      # file name like post-merge-hooks.test.sh) is a known false positive: put the command in a script file
-      # with the Write tool and run that file by a path without the word.
+      # each found a way to run a merge built at run time, and a fifth (P1, 2026-11-20) found eight more
+      # (BASH_ENV, an interpreter that builds the script name, sed w/-i, ./ spellings). Narrowing the pre-filter
+      # instead (gh as a word of its own) lets a renamed gh through a wrapper (bash -c "/tmp/ghx pr merge 7").
+      # A harmless command that trips this (prose that mentions merge next to `bash x.sh`, or a $ before a file
+      # name like post-merge-hooks.test.sh) is a known false positive: put the command in a script file with the
+      # Write tool and run that file by a path without the word.
       # This is a best-effort list of common shells and wrappers, not a complete one (interpreters such as
       # python or awk, find -exec and git -c alias are not on it; see the follow-up issue).
       bash|sh|zsh|dash|ksh|rbash|eval|xargs|env|exec|nohup|time|command|sudo|doas|builtin|source|.|nice|timeout|stdbuf|setsid|ionice|taskset|chronic|unbuffer|repeat|coproc|busybox|flock|script|setpriv|prlimit|chrt|strace|fakeroot|runuser|su|watch|unshare)
-        deny "a merge inside a shell string or wrapper ($cw) cannot be judged." ;;
+        deny "a merge inside a shell string or wrapper ($cw) cannot be judged. If the command only mentions merge in text, put it in a script file with the Write tool and run that file by a path without the word." ;;
     esac
   fi
 done <<SEGS
