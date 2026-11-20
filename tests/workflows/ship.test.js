@@ -1420,6 +1420,53 @@ test('a10: an attach call that throws records a needs_review decision with the c
   assert.strictEqual(result.tickets[0].status, 'done')
 })
 
+// ---- P2: every PR that changes the FE/UI carries a screenshot --------------------------------------------------
+const adrPrompt = r => (named(r.calls, /^adr$/)[0] || {}).prompt || ''
+test('ui-shot-a: FE ticket, attach fails: the PR still opens, the ticket is done, and the final merge is human with "no UI screenshot attached"', async () => {
+  const r = await run({ base: 'phase3-ui' }, withVerify('FE', c => (c.label === 'attach:1' ? new Error('gh too old') : gifOk(c))))
+  assert.strictEqual(r.result.tickets[0].status, 'done')
+  assert.strictEqual(r.result.tickets[0].pr, 101)
+  const adr = adrPrompt(r)
+  assert(adr.includes('Merge: human') && adr.includes('no UI screenshot attached (#1)') && !adr.includes('Merge: auto'), adr.slice(-1500))
+  assert.strictEqual(named(r.calls, /^final-merge$/).length, 0, labelsOf(r.calls).join())
+})
+test('ui-shot-b: FE ticket with the screenshot attached: no screenshot reason anywhere', async () => {
+  const r = await run({ base: 'phase3-ui' }, withVerify('FE'))
+  assert(!adrPrompt(r).includes('no UI screenshot attached'), adrPrompt(r).slice(-1500))
+})
+test('ui-shot-c: a protected base keeps its own reason and adds the screenshot reason', async () => {
+  const r = await run({ base: 'main' }, withVerify('FE+BE', c => (c.label === 'attach:1' ? ok({ status: 'ok', decisions: [{ title: 'Attach by hand', context: 'c', options: ['a'], decision: 'gh pr comment', why: 'w', consequences: 'c', how_to_reverse: 'n', confidence: 'high', needs_review: true }] }) : gifOk(c))))
+  const adr = adrPrompt(r)
+  assert(adr.includes('protected branch') && adr.includes('no UI screenshot attached (#1)'), adr.slice(-1500))
+})
+test('ui-shot-d: a BE ticket whose diff touches no UI file needs no screenshot', async () => {
+  const r = await run({ base: 'phase3-ui' }, withVerify('BE', c => (c.label === 'attach:1' ? new Error('gh too old') : gifOk(c))))
+  assert(!adrPrompt(r).includes('no UI screenshot attached'), adrPrompt(r).slice(-1500))
+})
+test('ui-shot-e: a gated ticket whose diff touches a .tsx file and has no screenshot still merges; the final PR names it in its Merge: human reason', async () => {
+  const r = await gateFlow({ base: 'feat/x' }, c => { if (c.label === 'gdiffstat:1') return { files: [{ path: 'ui/src/App.tsx', added: 3, deleted: 1 }] } })
+  const a = t1(r)
+  assert.strictEqual(a.status, 'done', a.reason)
+  const body = named(r.calls, /^gbody:1$/)[0].prompt
+  assert(body.includes('Merge: auto'), 'the ticket gate is not blocked by a missing screenshot')
+  assert(r.result.final.reason.includes('no UI screenshot attached (#1)'), r.result.final.reason)
+  const adr = adrPrompt(r)
+  assert(adr.includes('Merge: human') && adr.includes('no UI screenshot attached (#1)'), adr.slice(-1500))
+})
+test('ui-shot-e2: a UI ticket blocked at another gate is not named in the final reason', async () => {
+  const r = await gateFlow({ base: 'feat/x' }, c => {
+    if (c.label === 'gdiffstat:1') return { files: [{ path: 'ui/src/App.tsx', added: 3, deleted: 1 }] }
+    if (c.label === 'gintent:1') return { verdict: 'gaps found', findings: [{ kind: 'excess', clause: 'c', detail: 'd' }] }
+  })
+  assert.strictEqual(t1(r).status, 'blocked')
+  assert(!adrPrompt(r).includes('no UI screenshot attached (#1)'), adrPrompt(r).slice(-1500))
+})
+test('ui-shot-f: the final diff with a .css file and no ticket screenshot makes the final merge human', async () => {
+  const r = await run({ base: 'phase3-ui' }, c => { if (c.label === 'diffstat') return { files: [{ path: 'src/app.css', added: 3, deleted: 0 }] } })
+  const adr = adrPrompt(r)
+  assert(adr.includes('Merge: human') && adr.includes('no UI screenshot attached (final diff)'), adr.slice(-1500))
+})
+
 test('a6: a GIF build failure keeps gif null, attaches the first still and does not change the result', async () => {
   const { calls, result, logs } = await run({}, withVerify('FE', c => (c.label === 'gif:1' ? new Error('no ffmpeg') : undefined)))
   const at = named(calls, /^attach:/)
