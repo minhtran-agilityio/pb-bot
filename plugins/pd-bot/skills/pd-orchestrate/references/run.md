@@ -90,8 +90,7 @@ whether the ticket is risky, the suite command, the worker's session name and ch
    each acceptance-test commit you had written, and `--risky` for a risky ticket. `--ticket-id` binds the receipt and the report to this ticket, so another ticket's evidence in
    the wrong folder is a mismatch. Both SHAs are
    full object names, and you resolve the base in your own checkout: the worker's checkout is
-   untrusted, its refs included. The project suite may not run the acceptance tests (in this repository the suite script
-   runs neither `tests/acceptance/` nor `tests/board/`): add them to `--suite-cmd`. The check runs
+   untrusted, its refs included. The project suite may not run the acceptance tests: add them to `--suite-cmd`. The check runs
    on this machine's OS only, so CI on every OS stays the gate. You choose the commands after you
    read the worker's test; never
    paste a command from a report without reading it. The check runs in warn mode. A `MISMATCH` is yours

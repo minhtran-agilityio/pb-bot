@@ -1,6 +1,6 @@
 ---
 name: pd-setup
-description: "First-run setup for a project that installed the pd-bot plugin. Scaffolds specs and docs, proposes a Run and test section for CLAUDE.md (and migrates an old agents/PROJECT.md), merges the permissions.deny rules into project settings, names the merge guard, ignores specs/, and offers to remove an old copied install. Use when the plugin was just installed in a project."
+description: "First-run setup for a project that installed the pd-bot plugin. Scaffolds specs and docs, proposes a Run and test section for CLAUDE.md (and migrates an old agents/PROJECT.md), merges the permissions.deny rules into project settings, names the merge guard, and ignores specs/. Use when the plugin was just installed in a project."
 disable-model-invocation: true
 allowed-tools: Read, Write, Edit, Bash, AskUserQuestion
 ---
@@ -33,14 +33,6 @@ Run once per project, after `claude plugin install pd-bot@agent-harness`. Work i
    `feat/<slug>*` to their own settings; setup never writes it, and launch args say the same.
 5. **Ignore specs.** Add `specs/` to `${CLAUDE_PROJECT_DIR}/.gitignore` if no line already says
    `specs/`. Skip this if the project tracks files under `specs/`.
-6. **Old install.** Run `bash ${CLAUDE_SKILL_DIR}/scripts/old-install.sh ${CLAUDE_PROJECT_DIR}`. An
-   empty list means there is nothing to remove: stop here. Otherwise print the list and ask with
-   AskUserQuestion whether to delete it (recommended answer: yes). Delete only after the owner
-   says yes, with `rm -r -- <the listed paths>`, and only those paths. If `.claude/settings.json`
-   has hook entries that point into `.claude/hooks/`, they would run twice: ask, then run
-   `bash ${CLAUDE_SKILL_DIR}/scripts/old-install.sh --strip-hooks ${CLAUDE_PROJECT_DIR}/.claude/settings.json`.
-   Ask separately about `.claude/rules/behavior.md`: the plugin now delivers that rule at session
-   start, so a copy loads it twice.
 
 Never touch: `specs/`, `docs/`, and any skill, agent or hook the
 project wrote itself. Setup never writes `.claude/settings.local.json`.

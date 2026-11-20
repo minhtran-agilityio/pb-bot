@@ -95,7 +95,7 @@ compound  (when the root cause is a reusable learning — the bug track takes it
 
 | Skill | Trigger | Output |
 |---|---|---|
-| `pd-setup` | **User-invoked** (`/pd-bot:pd-setup`), once per project after installing the plugin | `specs/` and `docs/solutions/` scaffold files, a proposed `## Run and test` section in `CLAUDE.md`, the merged `permissions.deny` rules, a `specs/` line in `.gitignore`, and an approved removal of an old copied install |
+| `pd-setup` | **User-invoked** (`/pd-bot:pd-setup`), once per project after installing the plugin | `specs/` and `docs/solutions/` scaffold files, a proposed `## Run and test` section in `CLAUDE.md`, the merged `permissions.deny` rules, and a `specs/` line in `.gitignore` |
 
 ### Discovery & Design
 
@@ -276,6 +276,6 @@ graph LR
 > **One-liner:** research before building. No depth classifier: look locally first, and outside the repo only when the change has an external surface.
 
 - **Portable by design.** Copy `skills/pd-xia2/`; there is no per-project config.
-- **Fork to another project:** copy the folder, then run `/pd-bot:pd-setup` in the new repo. Keep `skills/pd-xia2/tests/behavioural/pressure-scenarios.md`: most scenarios are universal.
+- **Fork to another project:** copy the folder, then run `/pd-bot:pd-setup` in the new repo.
 
 <!-- harness-only:end -->

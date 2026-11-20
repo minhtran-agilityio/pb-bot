@@ -4,7 +4,7 @@
 // They need Playwright with a Chromium; without it the file prints "skip" and exits 0, like tests/board/board-ui.test.js.
 // Each case starts its own board through the CLI (`--port <free port> --ledger <file>`) with HOME set to a fresh
 // temp dir, and stops it afterwards. Prints one PASS/FAIL line per case and exits 1 on any failure.
-// Run: NODE_PATH=<dir with playwright> node tests/acceptance/688/fleet-page.test.js
+// Run: NODE_PATH=<dir with playwright> node tests/board/fleet-page.test.js
 //
 // Selectors: the page's markup is not known yet, so the tests never use CSS classes. A ticket "row" is found by
 // its text: every fixture ticket has a unique worker session name; the row is the smallest element that holds
@@ -22,7 +22,7 @@ const { spawn } = require('child_process');
 let chromium;
 try { ({ chromium } = require('playwright')); } catch (e) { console.log('acceptance 688 (page): skip — no playwright'); process.exit(0); }
 
-const root = path.join(__dirname, '..', '..', '..');
+const root = path.join(__dirname, '..', '..');
 const BOARD = path.join(root, 'plugins', 'pd-bot', 'board', 'board.js');
 const cases = [];
 const test = (name, fn) => cases.push([name, fn]);

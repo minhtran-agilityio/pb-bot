@@ -5,7 +5,7 @@
 //   node plugins/pd-bot/board/board.js --port <free port> [--ledger <file>] [--project <dir>]
 // on a free port, with HOME set to a fresh temp dir (so no real ~/.claude run leaks in), and stops it afterwards.
 // Prints one PASS/FAIL line per case and exits 1 on any failure.
-// Run: node tests/acceptance/688/fleet-json.test.js
+// Run: node tests/board/fleet-json.test.js
 const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
@@ -14,7 +14,7 @@ const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
 
-const root = path.join(__dirname, '..', '..', '..');
+const root = path.join(__dirname, '..', '..');
 const BOARD = path.join(root, 'plugins', 'pd-bot', 'board', 'board.js');
 
 const cases = [];
