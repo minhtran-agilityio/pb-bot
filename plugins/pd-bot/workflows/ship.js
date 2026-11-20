@@ -39,6 +39,11 @@ const MAX_QA_FIX_ROUNDS = 3   // hard cap on fix rounds after a failed UAT or QA
 const CI_WAIT_MS = 600000  // the ticket gate waits at most this long for CI (one Bash call)
 const CI_INTERVAL = 30     // seconds between gh pr checks polls
 // Paths whose change makes the review level 'high'.
+// P2: a PR that changes the FE/UI must carry a screenshot. A ticket of kind FE or FE+BE, or a diff that touches one of
+// these files, counts as a UI change. A missing screenshot never blocks the PR and never decides pass or fail: it
+// makes the merge a human one with UI_SHOT_REASON.
+const UI_PATH = /\.(tsx|jsx|vue|svelte|css|scss|html)$/i
+const UI_SHOT_REASON = 'no UI screenshot attached'
 const RISKY_PATH = /(^|\/)(hooks|migrations?|auth|security|secrets?|\.github\/workflows)(\/|$)|settings\.json$|\.sql$|\.env/i
 // A ticket is risky for the security gate when its text names one of these areas, or the implementer touched a RISKY_PATH file.
 const RISK_TEXT = /\b(log ?in|log ?out|sign[- ]?in|sign[- ]?up|password|passwd|auth\w*|session|cookie|jwt|oauth|permission|privilege|role|admin|payment|billing|invoice|checkout|stripe|secret|api[- ]?key|token|credential|personal data|pii|gdpr|bulk delete|delete all|purge)\b/i
@@ -388,6 +393,8 @@ async function callInner(prompt, opts, roleFile) {
 }
 
 const decisions = []   // the only place decisions live; agents never write ADR files
+const shotAttached = new Set()   // P2: tickets whose PR got the verify screenshot or GIF
+const shotMissing = new Set()    // P2: UI tickets whose PR has no screenshot
 const str = v => (typeof v === 'string' && v.trim() ? v : 'n/a')
 function takeDecisions(ticket, stage, res) {
   for (const d of (res && res.decisions) || []) {
@@ -1150,6 +1157,8 @@ async function stageGate(t, fin, impl, branch) {
   const nrOf = nr => ({ ok: nr.length === 0, text: nr.length ? `${nr.length} (${nr.map(d => d.title).join('; ')})` : 'none' })
   let nrG = nrOf(openNr())
   if (!nrG.ok) failed.push({ gate: 'needs_review', detail: nrG.text })
+  if (!LOCAL && !shotAttached.has(t.n) && (review.uiFiles || []).length) shotMissing.add(t.n)
+  if (shotMissing.has(t.n)) failed.push({ gate: 'screenshot', detail: `${UI_SHOT_REASON} (UI change: ${(review.uiFiles || []).slice(0, 5).join(', ') || 'ticket kind FE'})` })
 
   // Gate: advisor judges a failed ticket gate.
   // Verifies: the run's base matches feat/*, and every failed gate reason is review (a not-fixed finding, or a leftover
@@ -1379,6 +1388,8 @@ async function runTicket(t) {
     }
     const fin = spec.fin = await stageFinish(t, impl, verifyResult)
     const attached = await stageAttach(t, fin, verifyResult)
+    if (attached) shotAttached.add(t.n)
+    else if (!LOCAL && fin && fin.pr > 0 && verifyResult && (verifyResult.kind === 'FE' || verifyResult.kind === 'FE+BE')) shotMissing.add(t.n)
     const result = { n: t.n, status: 'done', pr: fin.pr || null, url: fin.url || '', branch: impl.branch || branch, summary: capSummary(impl.summary || fin.summary), reason: '', body_file: fin.body_file, ...(verifyResult ? { verify: { ...verifyResult, attached } } : {}) }
     if (!single && !LOCAL) {
       let gate
@@ -1472,15 +1483,20 @@ async function stageDefaultBranch() {
 // Returns { mode, why }: 'auto' only when the base is not protected and no gate failed; else 'human' with the reason.
 function decideFinalMerge(defaultBranch, review, intent, suite) {
   if (LOCAL) return { mode: 'human', why: 'local mode opens no PR' }
-  if (PROTECTED_BASE.test(base)) return { mode: 'human', why: `the PR targets ${base}, a protected branch; a human merges it` }
-  if (!defaultBranch) return { mode: 'human', why: `the default branch could not be read, so ${base} counts as protected` }
-  if (defaultBranch === base) return { mode: 'human', why: `the PR targets ${base}, the default branch; a human merges it` }
+  // P2: a UI change with no screenshot on its PR makes the final merge a human one, named in every reason below.
+  if (!shotAttached.size && ((review && review.uiFiles) || []).length) shotMissing.add('run')
+  const shot = shotMissing.size ? `${UI_SHOT_REASON} (${[...shotMissing].map(n => (n === 'run' ? 'final diff' : `#${n}`)).join(', ')})` : ''
+  const human = why => ({ mode: 'human', why: shot ? `${why}; ${shot}` : why })
+  if (PROTECTED_BASE.test(base)) return human(`the PR targets ${base}, a protected branch; a human merges it`)
+  if (!defaultBranch) return human(`the default branch could not be read, so ${base} counts as protected`)
+  if (defaultBranch === base) return human(`the PR targets ${base}, the default branch; a human merges it`)
   const bad = []
   if (failures.length) bad.push(`failures (${failures.join('; ')})`)
   if (review.status === 'not run' || review.notFixed.length || review.leftover.some(f => f.score >= FIX_THRESHOLD)) bad.push('review')
   if (intent.verdict !== 'match') bad.push('intent')
   if (suite.failed !== 0) bad.push('suite')
   if (decisions.some(d => d.needs_review)) bad.push('open decisions')
+  if (shot) return { mode: 'human', why: bad.length ? `gate ${bad.join(', ')} failed; ${shot}` : shot }
   return bad.length ? { mode: 'human', why: `gate ${bad.join(', ')} failed` } : { mode: 'auto', why: '' }
 }
 
@@ -1595,7 +1611,8 @@ async function reviewLoop(ctx, target) {
   const { level, lines, risky } = pickLevel((stat && stat.files) || [])
   log(`review level ${level} (${lines} changed lines${risky.length ? `, risky paths: ${risky.join(', ')}` : ''})${ctx.ticket === 'run' ? '' : ` for #${ctx.ticket}`}`)
 
-  const out = { rounds: 0, fixed: [], notFixed: [], leftover: [], preExisting: [], level, status: 'ran', reason: '' }
+  const out = { rounds: 0, fixed: [], notFixed: [], leftover: [], preExisting: [], level, status: 'ran', reason: '',
+    uiFiles: ((stat && stat.files) || []).map(f => f.path).filter(x => UI_PATH.test(x || '')) }
   const skipped = (reason, what) => {
     addDecision(ctx.ticket, 'review', { title: `Review skipped: code-review did not run (${reason})`, context: `The review stage must invoke the code-review skill; it did not run${what ? ` for ${what}` : ''}.`,
       decision: 'Continue the pipeline without that review and say so in the PR body.', why: 'A review that did not run must not read as a pass; the owner decides.',
