@@ -7,19 +7,24 @@
 source "$(dirname "$0")/../lib.sh"
 
 HOOK="$ROOT/plugins/pd-bot/hooks/session-role.sh"
-SEP=$'\037'
-
 BIN=$(mktemp -d); _CLEANUP_DIRS+=("$BIN")
 cat > "$BIN/tmux" <<'EOF'
 #!/bin/bash
-# Fake tmux: prints FAKE_TMUX_OUT and exits FAKE_TMUX_RC, whatever the arguments.
+# Fake tmux: answers `display-message -p -t <pane> <format>` from FAKE_* and exits FAKE_TMUX_RC.
 [ "${FAKE_TMUX_RC:-0}" -eq 0 ] || exit "$FAKE_TMUX_RC"
-printf '%s\n' "${FAKE_TMUX_OUT:-}"
+for last in "$@"; do :; done
+case "$last" in
+  '#{@tn_kind}') printf '%s\n' "${FAKE_KIND:-}" ;;
+  '#{@tn_context}') printf '%s\n' "${FAKE_CONTEXT:-}" ;;
+  '#{@claude_dir}') printf '%s\n' "${FAKE_DIR:-}" ;;
+  '#{pane_start_command}') printf '%s\n' "${FAKE_START:-}" ;;
+  *) exit 1 ;;
+esac
 EOF
 chmod +x "$BIN/tmux"
 # A PATH with the tools the hook needs but no tmux, for the "tmux is not installed" case.
 NOTMUX=$(mktemp -d); _CLEANUP_DIRS+=("$NOTMUX")
-for tool in bash sed awk grep cat dirname printf python3 jq tr; do
+for tool in bash sed awk grep cat dirname printf python3 jq tr pwd; do
   p=$(command -v "$tool" 2>/dev/null) && [ -x "$p" ] && ln -s "$p" "$NOTMUX/$tool"
 done
 
@@ -29,18 +34,19 @@ SID="claude --session-id 6ba55c9b-0000-4000-8000-000000000000 --remote-control \
 # Defaults of one case; each test overrides what it needs.
 reset() {
   ROLE_ENV="-"; ENTRY="cli"; PANE="%3"; KIND="claude"; CONTEXT="pb-bot/pb-bot"; CDIR="$PROJ"; START="$SID"
-  TMUX_RC=0; USE_PATH="$BIN:$PATH"; MODE=""; SOURCE="startup"
+  TMUX_RC=0; USE_PATH="$BIN:$PATH"; MODE=""; SOURCE="startup"; EXTRA=""
   rm -rf "$PROJ/.claude"
 }
 
 # run: sets OUT (stdout and stderr) and RC.
 run() {
-  local args=(-u PD_BOT_ROLE -u TMUX_PANE -u CLAUDE_CODE_ENTRYPOINT -u CLAUDE_PLUGIN_ROOT
+  local args=(-u PD_BOT_ROLE -u TMUX_PANE -u CLAUDE_CODE_ENTRYPOINT -u CLAUDE_PLUGIN_ROOT -u STOP_EVIDENCE_GUARD
     "PATH=$USE_PATH" "CLAUDE_PROJECT_DIR=$PROJ" "FAKE_TMUX_RC=$TMUX_RC"
-    "FAKE_TMUX_OUT=$KIND$SEP$CONTEXT$SEP$CDIR$SEP$START")
+    "FAKE_KIND=$KIND" "FAKE_CONTEXT=$CONTEXT" "FAKE_DIR=$CDIR" "FAKE_START=$START")
   [ "$ROLE_ENV" = "-" ] || args+=("PD_BOT_ROLE=$ROLE_ENV")
   [ "$ENTRY" = "-" ] || args+=("CLAUDE_CODE_ENTRYPOINT=$ENTRY")
   [ "$PANE" = "-" ] || args+=("TMUX_PANE=$PANE")
+  [ -z "$EXTRA" ] || args+=("$EXTRA")
   # shellcheck disable=SC2086
   OUT=$(cd "$PROJ" && printf '{"session_id":"s","cwd":"%s","hook_event_name":"SessionStart","source":"%s"}' "$PROJ" "$SOURCE" \
     | env "${args[@]}" bash "$HOOK" $MODE 2>&1); RC=$?
@@ -123,7 +129,7 @@ else
   printf 'say "hi" \\ back\ttab for {{context}}\nline two\n' > "$d/hooks/orchestrator-role.md"
   reset
   OUT=$(cd "$PROJ" && env -u PD_BOT_ROLE "PATH=$BIN:$PATH" "CLAUDE_PROJECT_DIR=$PROJ" CLAUDE_CODE_ENTRYPOINT=cli TMUX_PANE=%3 \
-    "FAKE_TMUX_OUT=$KIND$SEP$CONTEXT$SEP$CDIR$SEP$START" bash "$d/hooks/session-role.sh" 2>&1 </dev/null)
+    "FAKE_KIND=$KIND" "FAKE_CONTEXT=$CONTEXT" "FAKE_DIR=$CDIR" "FAKE_START=$START" bash "$d/hooks/session-role.sh" 2>&1 </dev/null)
   if printf '%s' "$OUT" | python3 -c '
 import json, sys
 c = json.load(sys.stdin)["hookSpecificOutput"]["additionalContext"]
@@ -136,14 +142,38 @@ reset; run
 if printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext | test("pb-bot/pb-bot")' >/dev/null 2>&1; then pass
 else fail "out: $(printf '%s' "$OUT" | head -c 200)"; fi
 
-t "a context with characters outside the expected set gets nothing"
-reset; CONTEXT='pb-bot/pb"bot; rm'; run; is_none
+t "a context with other characters still gets the role, and the text does not repeat it"
+reset; CONTEXT='my app/web+"api'; run
+if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext | (test("orchestrator") and test("this repository") and (test("web") | not))' >/dev/null 2>&1; then pass
+else fail "rc=$RC out: $(printf '%s' "$OUT" | head -c 200)"; fi
+
+t "PD_BOT_ROLE=orchestrator does not reach a nested claude -p (entry point sdk-cli)"
+reset; ROLE_ENV="orchestrator"; ENTRY="sdk-cli"; run; is_none
+
+t "the stop-evidence judge (STOP_EVIDENCE_GUARD set) gets nothing"
+reset; EXTRA="STOP_EVIDENCE_GUARD=1"; run; is_none
+
+t "a symlinked path to the project still matches the directory Pod Bay recorded"
+reset; LD=$(mktemp -d); _CLEANUP_DIRS+=("$LD"); ln -s "$PROJ" "$LD/link"; CDIR="$LD/link"; run; is_orchestrator
+
+t "the config value false switches the role off like the value off"
+reset; mkdir -p "$PROJ/.claude"; printf '{"orchestrator": false}\n' > "$PROJ/.claude/pd-bot.json"; run; is_none
+
+t "a python3 that cannot run falls through to the next tool and keeps the default"
+reset; mkdir -p "$PROJ/.claude"; printf '{"other": 1}\n' > "$PROJ/.claude/pd-bot.json"
+BROKEN=$(mktemp -d); _CLEANUP_DIRS+=("$BROKEN"); printf '#!/bin/bash\nexit 1\n' > "$BROKEN/python3"; chmod +x "$BROKEN/python3"
+USE_PATH="$BROKEN:$BIN:$PATH"; run; is_orchestrator
+
+t "a role text line that ends in the letter r keeps that letter"
+reset; run
+if printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext | test("in this session: orchestrator\n")' >/dev/null 2>&1; then pass
+else fail "out: $(printf '%s' "$OUT" | head -c 120)"; fi
 
 t "the role text is missing: nothing, exit 0"
 d=$(mktemp -d); _CLEANUP_DIRS+=("$d"); mkdir -p "$d/hooks"; cp "$HOOK" "$d/hooks/"
 reset
 OUT=$(cd "$PROJ" && env -u PD_BOT_ROLE "PATH=$BIN:$PATH" "CLAUDE_PROJECT_DIR=$PROJ" CLAUDE_CODE_ENTRYPOINT=cli TMUX_PANE=%3 \
-  "FAKE_TMUX_OUT=$KIND$SEP$CONTEXT$SEP$CDIR$SEP$START" bash "$d/hooks/session-role.sh" 2>&1 </dev/null); RC=$?
+  "FAKE_KIND=$KIND" "FAKE_CONTEXT=$CONTEXT" "FAKE_DIR=$CDIR" "FAKE_START=$START" bash "$d/hooks/session-role.sh" 2>&1 </dev/null); RC=$?
 is_none
 
 t "--role prints the word orchestrator for the orchestrator session"
