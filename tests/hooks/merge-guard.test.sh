@@ -399,6 +399,25 @@ s=$SECONDS; g "$M"; e=$((SECONDS - s))
 if [ "$RC" = 2 ] && [ "$e" -lt 20 ]; then pass; else fail "rc=$RC took ${e}s out=$OUT"; fi
 rm -f "$D/slow"
 
+# P5 (skill-coach): spellings that bash turns into gh or merge but the pre-filter did not see. Found by the
+# security review of P1 (2026-11-20); each one passed main with exit 0, so a merge into main ran with no prompt.
+reset; setbase main
+NL=$'\n'
+for c in '{g..g}h pr merge 7 --repo o/r --admin' 'g{h..h} pr merge 7 --repo o/r --admin' \
+         "g\\${NL}h pr merge 7 --repo o/r --admin" "gh pr mer\\${NL}ge 7 --repo o/r --admin" \
+         "printf '\\147h pr merge 7 --repo o/r' | bash" "printf '\\x67h pr m\\x65rge 7 --repo o/r' | bash" \
+         "\$'\\147h' pr \$'m\\145rge' 7 --repo o/r" \
+         'gh pr merg? 7 --repo o/r --admin' 'gh pr mer[g]e 7 --repo o/r --admin' '/usr/bin/g? pr merge 7 --repo o/r' \
+         'GH pr merge 7 --repo o/r --admin' 'Gh pr merge 7 --repo o/r'; do
+  t "P5: a spelling that bash turns into a gh merge is denied: ${c//$NL/<NL>}"; g "$c"; assert_rc 2
+done
+t "P5: no jq and a folded spelling of a merge (g\"\"h) is denied"; g 'g""h pr merge 7 --repo o/r --admin' "$NOJQ"; assert_rc 2
+t "P5: no jq and an upper-case GH merge is denied"; g 'GH pr merge 7 --repo o/r' "$NOJQ"; assert_rc 2
+# ...and ordinary commands with braces, globs, escapes or a line break, and no merge, still run.
+for c in 'echo {a,b}.txt; ls *.md' "printf '\\x41\\n'" "git log --oneline \\${NL}  -3" 'echo Ghost'; do
+  t "P5: a command without a merge is allowed: ${c//$NL/<NL>}"; g "$c"; assert_rc 0
+done
+
 # Probe (opt-in: it starts real `claude -p` sessions, needs a login and costs tokens): what Claude Code does
 # with permissionDecision "ask" under default, auto and bypassPermissions. Run with RUN_ASK_PROBE=1.
 # Result (ADR 0008, 0009): in each mode the Bash call is NOT run; headless, nobody can answer the prompt.

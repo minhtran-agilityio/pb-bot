@@ -25,14 +25,32 @@
 set -u
 payload=$(cat)
 # Pre-filter on a folded copy (lowercase, quotes and backslashes removed) so "g""h", GH-case or
-# me\rge spellings do not skip the guard.
-fold() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d "\"'\\\\"; }
+# me\rge spellings do not skip the guard. P5: a backslash line break (real, or \\\n inside the JSON payload)
+# is removed first, because bash joins the two halves; braces and glob brackets are removed in a second copy,
+# so {g..g}h and mer[g]e read as gh and merge.
+fold() {
+  local s=$1
+  s=${s//$'\\\n'/}; s=${s//'\\\n'/}
+  printf '%s' "$s" | tr '[:upper:]' '[:lower:]' | tr -d "\"'\\\\"
+}
 is_merge_like() {
-  case "$(fold "$1")" in
+  local f g
+  f=$(fold "$1"); g=$(printf '%s' "$f" | tr -d '{}[]')
+  case "$g" in
     *gh*merge*|*pulls/*merge*|*mergepullrequest*|*enablepullrequestautomerge*|*repos/*/merges*|*gh*pr*[\$\`]*|*[\$\`]*merge*) return 0 ;;
   esac
+  # P5: a glob in the gh words (gh pr merg?, /usr/bin/g? pr merge) can expand to them.
+  case "$f" in
+    *gh*pr*[?*]*|*[?*]*pr*merg*) return 0 ;;
+  esac
+  # P5: an octal, hex or unicode escape ($'\147h', printf '\x67h' | bash) can spell gh or merge.
+  if printf '%s' "$1" | grep -qE '\\([0-7]{3}|x[0-9A-Fa-f]{1,2}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})'; then
+    case "$g" in *merge*|*pr*|*pulls*|*graphql*|*bash*|*sh*|*eval*|*source*|*xargs*) return 0 ;; esac
+  fi
   return 1
 }
+# P5: the same escape test for one segment, used where a command name is built from $'..' or a variable.
+has_escape() { printf '%s' "$1" | grep -qE '\\([0-7]{3}|x[0-9A-Fa-f]{1,2}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})'; }
 is_merge_like "$payload" || exit 0
 
 TMPF=""
@@ -43,10 +61,8 @@ deny() {
 }
 
 if ! command -v jq >/dev/null 2>&1; then
-  if printf '%s' "$payload" | grep -qE 'gh[[:space:]]+(pr[[:space:]]+merge|api)'; then
-    deny "jq is not installed, so the merge command cannot be parsed."
-  fi
-  exit 0
+  # P5: the payload already looks like a merge (the loose check above), and without jq it cannot be read.
+  deny "jq is not installed, so the merge command cannot be parsed."
 fi
 cmd=$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null) || deny "the command could not be parsed."
 [ -n "$cmd" ] || deny "the command is empty or could not be parsed."
@@ -186,6 +202,8 @@ judge_api_merge() {  # judge_api_merge <segment>
 # mentions a merge never matches; then split on separators and standalone braces.
 # Redirections that hold & or | (2>&1, >&f, <&3, >|f) would be cut at that character and leave their
 # target as a command word; turn them into a plain > or < first.
+# P5: bash joins a backslash line break (g\<newline>h is gh); join it here before the split.
+cmd=${cmd//$'\\\n'/}
 segs=$(printf '%s\n' "$cmd" | sed -E 's/[0-9]*([<>])&[0-9-]+/ \1 \/dev\/null /g; s/([<>])&/\1 /g; s/>\|/> /g' | awk '
     { L[NR] = $0 }
     END {
@@ -252,9 +270,15 @@ while IFS= read -r seg; do
   case "$w0" in
     '['|'[['|'{'|'}') ;;
     *'*'*|*'?'*|*'['*) deny "a command name with glob characters next to the word merge cannot be judged." ;;
-    '{'*,*|'{'*..*) deny "a command name built by brace expansion next to the word merge cannot be judged." ;;
+    *'{'*,*'}'*|*'{'*..*'}'*) deny "a command name built by brace expansion next to the word merge cannot be judged." ;;
   esac
   b=${w0//\\/}; b=${b#=}; b=${b##*/}  # drop every backslash, zsh's leading =, and any path
+  # P5: GH or Gh runs gh on a case-insensitive file system (macOS default).
+  case "$b" in [Gg][Hh]) [ "$b" = gh ] || deny "a gh command name in another case ($b) cannot be judged." ;; esac
+  # P5: a glob in the gh subcommand words (gh pr merg?, gh pr mer[g]e) can expand to merge.
+  if printf '%s' "$seg" | grep -qE '^([^[:space:]]*/)?gh[[:space:]]+([^[:space:]]*[]?*[][^[:space:]]*|pr[[:space:]]+[^[:space:]]*[]?*[][^[:space:]]*)([[:space:]]|$)'; then
+    deny "a gh subcommand with glob characters cannot be judged."
+  fi
   case "$b" in
     bash|sh|zsh|dash|ksh|rbash|eval|xargs|env|exec|nohup|time|command|sudo|doas|builtin|source|nice|timeout|stdbuf|setsid|ionice|taskset|chronic|unbuffer|repeat|coproc|busybox|flock|script|setpriv|prlimit|chrt|strace|fakeroot|runuser|su|watch|unshare)
       seg="$b${seg#"$w0"}" ;;
@@ -286,7 +310,7 @@ while IFS= read -r seg; do
       deny "'gh api repos/.../merges' merges a branch and is not allowed; a human merges."
     fi
     if printf '%s' "$seg" | grep -qE 'pulls/[^[:space:]]*/merge'; then judge_api_merge "$seg"; fi
-  elif case "${seg%%[[:space:]]*}" in *[\$\`]*) printf '%s' "$(fold "$cmd")" | grep -q 'merge' ;; *) false ;; esac; then
+  elif case "${seg%%[[:space:]]*}" in *[\$\`]*) printf '%s' "$(fold "$cmd")" | grep -q 'merge' || has_escape "$cmd" ;; *) false ;; esac; then
     deny "a command name built from a variable or substitution next to the word merge cannot be judged."
   elif printf '%s' "$seg" | grep -qE '^gh[[:space:]]+(pr[[:space:]]+)?[^[:space:]]*[$`]'; then
     deny "a gh pr subcommand built from a variable or substitution cannot be judged."
