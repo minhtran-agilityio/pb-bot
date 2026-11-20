@@ -53,7 +53,7 @@ run() {
 }
 
 is_orchestrator() {
-  if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | jq -e '
+  if [ "$RC" -eq 0 ] && [ -n "$OUT" ] && printf '%s' "$OUT" | jq -e '
       .hookSpecificOutput.hookEventName == "SessionStart"
       and (.hookSpecificOutput.additionalContext | test("orchestrator"))' >/dev/null 2>&1; then pass
   else fail "want the role text — rc=$RC out: $(printf '%s' "$OUT" | head -c 200)"; fi
@@ -139,12 +139,12 @@ fi
 
 t "the role text names the context of the session"
 reset; run
-if printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext | test("pb-bot/pb-bot")' >/dev/null 2>&1; then pass
+if [ -n "$OUT" ] && printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext | test("pb-bot/pb-bot")' >/dev/null 2>&1; then pass
 else fail "out: $(printf '%s' "$OUT" | head -c 200)"; fi
 
 t "a context with other characters still gets the role, and the text does not repeat it"
 reset; CONTEXT='my app/web+"api'; run
-if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext | (test("orchestrator") and test("this repository") and (test("web") | not))' >/dev/null 2>&1; then pass
+if [ "$RC" -eq 0 ] && [ -n "$OUT" ] && printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext | (test("orchestrator") and test("this repository") and (test("web") | not))' >/dev/null 2>&1; then pass
 else fail "rc=$RC out: $(printf '%s' "$OUT" | head -c 200)"; fi
 
 t "PD_BOT_ROLE=orchestrator does not reach a nested claude -p (entry point sdk-cli)"
@@ -166,7 +166,7 @@ USE_PATH="$BROKEN:$BIN:$PATH"; run; is_orchestrator
 
 t "a role text line that ends in the letter r keeps that letter"
 reset; run
-if printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext | test("in this session: orchestrator\n")' >/dev/null 2>&1; then pass
+if [ -n "$OUT" ] && printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext | test("in this session: orchestrator\n")' >/dev/null 2>&1; then pass
 else fail "out: $(printf '%s' "$OUT" | head -c 120)"; fi
 
 t "the role text is missing: nothing, exit 0"

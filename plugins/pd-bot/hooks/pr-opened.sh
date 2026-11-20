@@ -5,12 +5,15 @@ payload=$(cat)
 cmd=$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null) || exit 0
 # `gh pr create` must be a command, not text inside an argument: split the command at && || ; |
 # and at line ends, and take a part only when it starts with `gh pr create` (after an opening
-# parenthesis and VAR=value assignments). So `grep "gh pr create" ...` and
+# parenthesis and VAR=value assignments; also `url=$(gh pr create ...)`, `command gh ...` and a
+# full path to gh). So `grep "gh pr create" ...` and
 # `gh pr review --body "... gh pr create ..."` do not count.
 # Known gaps: a script that runs `gh pr create` inside it gets no reminder; a quoted string or a
 # heredoc with a separator or a line right before the words still counts.
+# shellcheck disable=SC2016  # the $( and the backtick are regex text, not shell
+CREATE_RE='^[[:space:]({]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*([A-Za-z_][A-Za-z0-9_]*=)?["$(`{[:space:]]*(command[[:space:]]+)?([^[:space:]"=]*/)?gh[[:space:]]+pr[[:space:]]+create([[:space:])]|$)'
 printf '%s\n' "$cmd" | awk '{ gsub(/&&|\|\||;|\|/, "\n"); print }' \
-  | grep -qE '^[[:space:]({]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*gh[[:space:]]+pr[[:space:]]+create([[:space:])]|$)' || exit 0
+  | grep -qE "$CREATE_RE" || exit 0
 pr=$(printf '%s' "$payload" | jq -r '.tool_response | tostring' 2>/dev/null | grep -oE 'github\.com/[^ "\\]+/pull/[0-9]+' | head -1 | grep -oE '[0-9]+$')
 # A `gh pr create` that failed opened no PR: the output must also hold a PR URL. A PR URL alone
 # is not enough either (`gh pr edit` prints one).
