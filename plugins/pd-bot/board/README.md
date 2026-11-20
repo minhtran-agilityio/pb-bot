@@ -28,7 +28,7 @@ before it launches the workflow. The script:
   4317 is taken by a non-board server or by the board of another project, it uses a free port;
 - opens the page in your browser only when a desktop is there: macOS, or Linux with a display and no SSH session. In an
   SSH session it prints an `ssh -L` line. Without a display it prints the URL;
-- keeps a pid, url and log file per project under `${TMPDIR:-/tmp}` (`harness-board-<project>.*`);
+- keeps a pid, url and log file per project under `${TMPDIR:-/tmp}` (`pd-bot-board-<project>.*`);
 - never blocks a run: with no `node` or a start error it prints one line and exits 0.
 
 The board keeps running after the run ends. Stop it with `bash plugins/pd-bot/skills/pd-autopilot/scripts/board-start.sh --stop`

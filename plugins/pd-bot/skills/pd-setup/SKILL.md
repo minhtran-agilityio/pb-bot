@@ -7,7 +7,7 @@ allowed-tools: Read, Write, Edit, Bash, AskUserQuestion
 
 # Setup
 
-Run once per project, after `claude plugin install pd-bot@agent-harness`. Work in the project root
+Run once per project, after `claude plugin install pd-bot@pd-bot`. Work in the project root
 (`${CLAUDE_PROJECT_DIR}`). Say what each step did. Every step is safe to run twice.
 
 1. **Scaffold.** Run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/init-structure.sh --root ${CLAUDE_PROJECT_DIR}`.

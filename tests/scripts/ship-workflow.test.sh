@@ -1,5 +1,5 @@
 #!/bin/bash
-# Deterministic tests for workflows/ship.js. A Node harness (tests/workflows/harness.js) loads the
+# Deterministic tests for workflows/ship.js. A Node test runner (tests/workflows/ship.test.js) loads the
 # script with stubbed agent()/parallel()/phase()/log()/args, records every agent call and answers
 # from a scripted table. No real agent runs. Each harness line "PASS <case>" / "FAIL <case>: why"
 # becomes one case here.
@@ -11,14 +11,14 @@ if ! command -v node >/dev/null 2>&1; then
   finish
 fi
 
-OUT=$(node "$ROOT/tests/workflows/harness.js" 2>&1); RC=$?
+OUT=$(node "$ROOT/tests/workflows/ship.test.js" 2>&1); RC=$?
 if [ -z "$OUT" ]; then
   fail "harness printed nothing (rc=$RC)"
 fi
 while IFS= read -r line; do
   case "$line" in
     "PASS "*) t "${line#PASS }"; pass ;;
-    "FAIL "*) t "${line#FAIL }"; fail "see: node tests/workflows/harness.js" ;;
+    "FAIL "*) t "${line#FAIL }"; fail "see: node tests/workflows/ship.test.js" ;;
     "") ;;
     *) t "harness output"; fail "$line" ;;
   esac

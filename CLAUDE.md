@@ -1,10 +1,10 @@
-# claude-skills
+# pd-bot
 
 Skill framework for Claude Code (the only supported runtime): reusable prompt-based workflows from ticket to merged PR.
 
 ## Run and test
 
-`bash scripts/run-tests.sh` runs the whole suite. CI (`harness-ci`) runs the same suite on ubuntu and macOS. Run it before you change `plugins/pd-bot/hooks/` or `scripts/`.
+`bash scripts/run-tests.sh` runs the whole suite. CI (`pd-bot-ci`) runs the same suite on ubuntu and macOS. Run it before you change `plugins/pd-bot/hooks/` or `scripts/`.
 
 `bash scripts/check-shellcheck.sh` runs shellcheck over the harness shell scripts. Run it before the PR; CI runs the same script with `REQUIRE_SHELLCHECK=1`, which fails instead of skipping when shellcheck is missing.
 
@@ -87,7 +87,7 @@ Decisions made on the way are recorded as ADRs in `docs/adr/`. The skills above 
 
 ## Hooks
 
-Wired (✅) means registered in `plugins/pd-bot/hooks/hooks.json`. `docs/hooks.md` has the detail; all hooks fail open except `merge-guard.sh`, which fails closed, and `stop-evidence.sh` on its risk floor. The plugin cannot ship `permissions.deny`: the repo's `settings.json` carries it (`.env`, force-push, push to `main`/`master`), and `/pd-bot:pd-setup` merges it into a consuming project.
+Wired (✅) means registered in `plugins/pd-bot/hooks/hooks.json`. All hooks fail open except `merge-guard.sh`, which fails closed, and `stop-evidence.sh` on its risk floor. The plugin cannot ship `permissions.deny`: the repo's `settings.json` carries it (`.env`, force-push, push to `main`/`master`), and `/pd-bot:pd-setup` merges it into a consuming project.
 
 | Hook | Trigger | Action | Wired |
 |---|---|---|---|

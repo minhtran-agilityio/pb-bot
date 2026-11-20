@@ -156,9 +156,9 @@ for bad in 1.2 1.2.3.4 v1.2.3 1.0.0-x 01.2.3; do
   if [ "$RC" -ne 0 ] && echo "$OUT" | grep -q 'VERSION is not x.y.z'; then pass; else fail "rc=$RC out=$OUT"; fi
 done
 
-t "a VERSION of 5.10.0 is accepted"
-d=$(make_fixture 5.10.0); merge_pr "$d" 1 "seed change"; run patch --root "$d"
-if [ "$RC" -eq 0 ] && [ "$(cat "$d/VERSION")" = "5.10.1" ]; then pass; else fail "rc=$RC out=$OUT"; fi
+t "a VERSION of 0.10.0 is accepted"
+d=$(make_fixture 0.10.0); merge_pr "$d" 1 "seed change"; run patch --root "$d"
+if [ "$RC" -eq 0 ] && [ "$(cat "$d/VERSION")" = "0.10.1" ]; then pass; else fail "rc=$RC out=$OUT"; fi
 
 # snap <repo> → a checksum of the three files a release would write.
 snap() { (cd "$1" && cat VERSION plugins/pd-bot/.claude-plugin/plugin.json CHANGELOG.md | cksum); }

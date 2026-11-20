@@ -15,8 +15,8 @@ network; without it the command runs here.
 
 | Field in `ls` | Example | Use it for |
 |---|---|---|
-| `title` | `Harness Agent Harness #U0-04` | `SendMessage` (`to`), and when you name a session to the owner |
-| `name` | `claude-harness-agent-harness-04` | `detail`, `stop`, `queue add`, and the tmux target `=<name>:` |
+| `title` | `Pb Bot #UA-04` | `SendMessage` (`to`), and when you name a session to the owner |
+| `name` | `claude-pb-bot-04` | `detail`, `stop`, `queue add`, and the tmux target `=<name>:` |
 | `uuid` | `b1d2918a-…` | `describe`, and `start --resume <uuid>` |
 
 Other `ls` fields: `status` (`busy` or `idle`), `asks` (true: a dialog waits for a human),
@@ -42,8 +42,8 @@ Other `ls` fields: `status` (`busy` or `idle`), `asks` (true: a dialog waits for
 | Tokens used: `last_5h`, `last_24h`, `last_7d`, `by_model` | `podbay-dev usage` |
 | The machines of the network and whether each is online | `podbay-dev machines` |
 
-`<project>` and `<repo>` are the `project` and `repo` fields of `checkouts` (for example `harness`
-and `agent-harness`). `--root` is `projects` by default; pass `--root rfp` only for a checkout
+`<project>` and `<repo>` are the `project` and `repo` fields of `checkouts` (for example `pb-bot`
+and `pb-bot`). `--root` is `projects` by default; pass `--root rfp` only for a checkout
 whose `root` field says so. `--trust` lets the checkout's hooks and settings run; use it for
 workspaces of the owner's own repository.
 

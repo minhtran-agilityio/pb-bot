@@ -74,7 +74,7 @@ for b in main master develop staging production release/1 release-2; do
 done
 reset; setbase trunk; printf 'trunk\n' > "$D/default"
 t "base that is the default branch: ask"; g "$MA"; assert_ask "into trunk at $SHA"
-for b in v5.0.0 hotfix/x phase3-ui; do
+for b in integration hotfix/x phase3-ui; do
   reset; setbase "$b"; t "base $b (not protected) is allowed without ask or deny"; g "$M"
   if [ "$RC" = 0 ] && [ -z "$OUT" ]; then pass; else fail "rc=$RC out=$OUT"; fi
 done
@@ -163,7 +163,7 @@ t "gh alias set with merge is denied"; g "gh alias set mm 'pr merge'"; assert_rc
 
 # Issue #671: the word merge in a file name is not a merge when the command is not merge-like (no $ or
 # backtick before it) or has no wrapper. The known false positive (a $ before such a name, with a shell)
-# stays denied on purpose: an exemption for it was dropped after four security reviews (docs/hooks.md).
+# stays denied on purpose: an exemption for it was dropped after four security reviews.
 reset; setbase main
 for c in 'bash tests/hooks/post-merge-hooks.test.sh' 'echo $HOME; grep -n merge_pr tests/scripts/release.test.sh' \
          'bash tests/hooks/post-merge-hooks.test.sh > /tmp/out.log; echo done'; do

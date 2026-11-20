@@ -137,8 +137,8 @@ test('qb6: the run summary ends the run; an agent with no result stays open unti
 });
 
 test('qb7: runsOf finds runs newest first; projectKey matches the Claude Code dir name', async () => {
-  assert.strictEqual(B.projectKey('/home/minhtran/Documents/minh.tran/projects/agent-harness'),
-    '-home-minhtran-Documents-minh-tran-projects-agent-harness');
+  assert.strictEqual(B.projectKey('/home/dev/projects/my.app'),
+    '-home-dev-projects-my-app');
   const base = tmp();
   makeRun(base, 'wf_old', [{ type: 'launched' }]);
   await sleep(20);

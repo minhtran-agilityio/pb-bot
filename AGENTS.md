@@ -7,7 +7,7 @@ and handoff map. Read both before you change a skill, an agent, a hook or a scri
 
 ## Layout
 
-- `.claude-plugin/marketplace.json` - the marketplace (`agent-harness`) that lists the plugin.
+- `.claude-plugin/marketplace.json` - the marketplace (`pd-bot`) that lists the plugin.
 - `plugins/pd-bot/.claude-plugin/plugin.json` - the plugin manifest (name `pd-bot`, version).
 - `plugins/pd-bot/skills/<name>/SKILL.md` - the skills, invoked as `/pd-bot:<name>`, with their references and scripts.
 - `plugins/pd-bot/agents/` - the subagent role files (`pd-bot:<role>`); model, effort and tools are in their frontmatter.

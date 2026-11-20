@@ -2,7 +2,7 @@
 
 All notable changes to this harness are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions are tracked in the root `VERSION`
-file. Versions change only in the release PR (see `docs/releasing.md`); the bump (**patch** for fixes and docs,
+file. Versions change only in the release PR (see the release section of `AGENTS.md`); the bump (**patch** for fixes and docs,
 **minor** for a new skill or hook or a changed contract, **major** for a breaking change) is chosen when releasing.
 
 ## [Unreleased]

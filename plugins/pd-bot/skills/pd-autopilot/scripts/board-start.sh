@@ -46,9 +46,9 @@ if [ -z "$key" ]; then
 fi
 tmp=${TMPDIR:-/tmp}
 tmp=${tmp%/}
-pidf="$tmp/harness-board-$key.pid"
-urlf="$tmp/harness-board-$key.url"
-logf="$tmp/harness-board-$key.log"
+pidf="$tmp/pd-bot-board-$key.pid"
+urlf="$tmp/pd-bot-board-$key.url"
+logf="$tmp/pd-bot-board-$key.log"
 
 # project_dir that the board at <url> follows, or nothing when nothing answers or the answer is not a board.
 probe() {

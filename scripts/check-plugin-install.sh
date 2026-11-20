@@ -2,7 +2,7 @@
 # Offline install smoke test for the pd-bot plugin, driven through the real Claude Code CLI.
 #
 # Verifies:        in an ISOLATED config dir, `claude plugin marketplace add <repo>` and
-#                  `claude plugin install pd-bot@agent-harness` succeed; `claude plugin details
+#                  `claude plugin install pd-bot@pd-bot` succeed; `claude plugin details
 #                  pd-bot` reports the skills, agents and hook events the source tree holds; and
 #                  the installed cache copy keeps the executable bit on hooks/*.sh and scripts/*.sh
 #                  and holds the same skill and agent files as the source.
@@ -52,7 +52,7 @@ run() { # run <label> <cmd...>: show output only on failure
 }
 
 run "marketplace add" claude plugin marketplace add "$REPO" || exit 1
-run "install pd-bot@agent-harness" claude plugin install pd-bot@agent-harness || exit 1
+run "install pd-bot@pd-bot" claude plugin install pd-bot@pd-bot || exit 1
 
 # Expected counts come from the source tree, never hardcoded.
 count() { find "$1" -maxdepth "$2" -type f -name "$3" 2>/dev/null | wc -l | tr -d ' '; }
@@ -74,7 +74,7 @@ for e in $events; do
 done
 
 # Installed cache copy.
-cache=$(find "$CLAUDE_CONFIG_DIR/plugins" -type d -path '*/agent-harness/pd-bot/*' -name hooks -prune 2>/dev/null | head -1)
+cache=$(find "$CLAUDE_CONFIG_DIR/plugins" -type d -path '*/pd-bot/pd-bot/*' -name hooks -prune 2>/dev/null | head -1)
 [ -n "$cache" ] || { bad "installed copy of pd-bot not found under $CLAUDE_CONFIG_DIR/plugins"; exit 1; }
 inst=$(dirname "$cache")
 got_skills=$(count "$inst/skills" 2 SKILL.md)

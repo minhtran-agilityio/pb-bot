@@ -25,8 +25,6 @@ CLAUDE.local.md
 # Playwright plugin output: screenshots, snapshots and GIF evidence from verify runs (local only)
 .playwright-mcp/
 
-# Timestamped harness backups (created by deploy/install scripts; not tracked)
-.harness-backup-*/
 
 # Local-only research notes (kept out of the tracked tree by request)
 docs/memory/

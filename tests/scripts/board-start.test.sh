@@ -15,7 +15,7 @@ other_pid=''
 free_port() { node -e "const s=require('net').createServer().listen(0,'127.0.0.1',()=>{console.log(s.address().port);s.close()})"; }
 cleanup() {
   [ -n "$other_pid" ] && kill "$other_pid" 2>/dev/null
-  for f in "$work"/tmp/harness-board-*.pid; do [ -f "$f" ] && kill "$(cat "$f")" 2>/dev/null; done
+  for f in "$work"/tmp/pd-bot-board-*.pid; do [ -f "$f" ] && kill "$(cat "$f")" 2>/dev/null; done
   rm -rf "$work"
 }
 trap cleanup EXIT
@@ -48,14 +48,14 @@ echo "$out" | grep -q "board: http://127.0.0.1:$port" && ok "first call prints t
 state=$(curl -s -m 3 "http://127.0.0.1:$port/state.json")
 echo "$state" | grep -q 'proj1' && ok "the board follows the directory the script ran in (proj1)" || bad "the board follows the directory the script ran in" "$state"
 [ "$(opens)" = "1" ] && grep -q "http://127.0.0.1:$port" "$work/opened.log" && ok "the opener was called once with the URL" || bad "the opener was called once with the URL" "$(cat "$work/opened.log" 2>/dev/null)"
-pid1=$(cat "$work"/tmp/harness-board-*proj1*.pid 2>/dev/null)
+pid1=$(cat "$work"/tmp/pd-bot-board-*proj1*.pid 2>/dev/null)
 [ -n "$pid1" ] && ok "a pid file for the project is written under TMPDIR" || bad "a pid file for the project is written under TMPDIR" "$(ls "$work/tmp")"
 
 # 2. Second call, same project.
 out=$(run_in "$work/proj1" --port "$port"); rc=$?
 [ "$rc" -eq 0 ] && echo "$out" | grep -q 'already running' && ok "second call reports 'already running' and exits 0" || bad "second call reports 'already running' and exits 0" "rc=$rc out=$out"
 [ "$(opens)" = "1" ] && ok "second call opens no browser" || bad "second call opens no browser" "opens=$(opens)"
-[ "$(cat "$work"/tmp/harness-board-*proj1*.pid)" = "$pid1" ] && ok "second call starts no second server" || bad "second call starts no second server"
+[ "$(cat "$work"/tmp/pd-bot-board-*proj1*.pid)" = "$pid1" ] && ok "second call starts no second server" || bad "second call starts no second server"
 
 # 3. The default port is held by the board of ANOTHER project: a second board starts on another port.
 out=$(run_in "$work/proj2" --port "$port"); rc=$?

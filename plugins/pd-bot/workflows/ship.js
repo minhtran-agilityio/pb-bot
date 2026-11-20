@@ -281,9 +281,9 @@ for (const [stage, cfg] of Object.entries((args.profile && args.profile.stages) 
 
 const { repo, repoDir, pluginDir, remote, base, slug, testCmd, lintCmd, fullTestCmd, advisorModel } = args
 // The harness files (skills, agents, scripts) live in the plugin directory, not in the target repo.
-const RULES = `${rulesCommon(repoDir)}\n- Harness files (skills/, agents/, scripts/) live in the plugin directory ${pluginDir}. Read them there by absolute path.`
+const RULES = `${rulesCommon(repoDir)}\n- Plugin files (skills/, agents/, scripts/) live in the plugin directory ${pluginDir}. Read them there by absolute path.`
 // Stages that only run a gh or git command: the core rules, with no project-rules reading and no decision rules.
-const RULES_LITE = `Core rules (all of them apply):\n${rulesCore(repoDir)}\n- Harness files (skills/, agents/, scripts/) live in the plugin directory ${pluginDir}. Read them there by absolute path.`
+const RULES_LITE = `Core rules (all of them apply):\n${rulesCore(repoDir)}\n- Plugin files (skills/, agents/, scripts/) live in the plugin directory ${pluginDir}. Read them there by absolute path.`
 const LOCAL = args.local === true
 const NO_ASK = args.noAsk === true
 // Commands a stage runs once in its worktree, right after git worktree add (profile key worktreeSetup). A retry that

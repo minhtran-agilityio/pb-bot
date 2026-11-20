@@ -211,12 +211,12 @@ Schema reference: `docs/solutions/README.md` (scaffolded by `/pd-bot:pd-setup`).
 `hooks/secrets-scan.sh` runs before every `git commit`: it blocks a staged secret pattern or a staged `.env` file.
 `hooks/merge-guard.sh` blocks `gh pr merge` and `gh api .../pulls/<n>/merge` unless the PR base is `feat/*`; unlike the other hooks it fails closed.
 `hooks/pr-opened.sh` reminds the main session to review a PR after `gh pr create`, and `hooks/clean-worktrees.sh`
-removes merged worktrees and branches after a merge and at session start (it fetches first; `git branch -D` only when a merged PR head equals the local tip; it skips protected branch names (`develop`, `staging`, `release/*`, ...) and the session-start sweep also skips a worktree another live process uses and stops after a 20 s budget (`CLEAN_BUDGET`); `CLEAN_KEEP`, `CLEAN_STRICT`, `CLEAN_RECREATE` and `CLEAN_REMOTE` set it per project). The old commit gate is gone; its lane and escalation checks are judgment calls now. `docs/hooks.md` has the detail.
+removes merged worktrees and branches after a merge and at session start (it fetches first; `git branch -D` only when a merged PR head equals the local tip; it skips protected branch names (`develop`, `staging`, `release/*`, ...) and the session-start sweep also skips a worktree another live process uses and stops after a 20 s budget (`CLEAN_BUDGET`); `CLEAN_KEEP`, `CLEAN_STRICT`, `CLEAN_RECREATE` and `CLEAN_REMOTE` set it per project). The old commit gate is gone; its lane and escalation checks are judgment calls now.
 
 This is one of several wired hooks — see the full table in the root `CLAUDE.md`.
 
 
-<!-- harness-only:begin -->
+<!-- pd-bot-only:begin -->
 ---
 
 > **Maintainer notes.** Everything below explains how the harness is built and how to fork it.
@@ -278,4 +278,4 @@ graph LR
 - **Portable by design.** Copy `skills/pd-xia2/`; there is no per-project config.
 - **Fork to another project:** copy the folder, then run `/pd-bot:pd-setup` in the new repo.
 
-<!-- harness-only:end -->
+<!-- pd-bot-only:end -->
