@@ -40,7 +40,7 @@ See [HARNESS.md](HARNESS.md) for the model, [plugins/harness/skills/README.md](p
 ### Add to a project
 
 ```bash
-claude plugin marketplace add minhtran3124/agent-harness
+claude plugin marketplace add minhtran-agilityio/pb-bot
 claude plugin install harness@agent-harness
 ```
 
