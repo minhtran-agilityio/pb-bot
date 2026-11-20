@@ -1,5 +1,5 @@
 #!/bin/bash
-# Harness test entry point — run everything CI runs:
+# Test entry point — run everything CI runs:
 #   L1  syntax (bash -n) + doc-truth and adr-paths lints
 #   L2  hook contract tests          (tests/hooks/*.test.sh)
 #   L3  script integration tests     (tests/scripts/*.test.sh)
@@ -13,7 +13,7 @@ FAILED_STEPS=()
 fail() { FAILED=1; FAILED_STEPS+=("$1"); }
 STEP_LOG="$(mktemp)"
 # Suites and pytest run through tee, so their stdout is a pipe; keep colour on a terminal.
-if [ -t 1 ]; then export HARNESS_TEST_COLOR=1; PYTEST_COLOR=--color=yes; else PYTEST_COLOR=--color=no; fi
+if [ -t 1 ]; then export PD_BOT_TEST_COLOR=1; PYTEST_COLOR=--color=yes; else PYTEST_COLOR=--color=no; fi
 ESC="$(printf '\033')"
 # record_details <ERE>: add each STEP_LOG line matching the marker <ERE>, minus the marker, to
 # the summary. Colour codes are removed first so they cannot hide a marker.
@@ -83,14 +83,14 @@ fi
 
 # Suites are hermetic (each works in its own mktemp repo — see tests/lib.sh), so they run
 # in parallel. Each writes its own log, replayed below in glob order so output reads as if
-# serial. HARNESS_TEST_JOBS=1 restores a serial run; HARNESS_SKIP_SUITES (space-separated
+# serial. PD_BOT_TEST_JOBS=1 restores a serial run; PD_BOT_SKIP_SUITES (space-separated
 # paths) skips suites the caller already ran.
-SUITE_JOBS="${HARNESS_TEST_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}"
+SUITE_JOBS="${PD_BOT_TEST_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}"
 SUITE_OUT="$(mktemp -d)"; trap 'rm -rf "$STEP_LOG" "$SUITE_OUT"' EXIT
 SUITES=()
 for suite in tests/hooks/*.test.sh tests/scripts/*.test.sh; do
-  case " ${HARNESS_SKIP_SUITES:-} " in
-    *" $suite "*) echo ""; echo "== $suite =="; echo "  skip — listed in HARNESS_SKIP_SUITES" ;;
+  case " ${PD_BOT_SKIP_SUITES:-} " in
+    *" $suite "*) echo ""; echo "== $suite =="; echo "  skip — listed in PD_BOT_SKIP_SUITES" ;;
     *) SUITES+=("$suite") ;;
   esac
 done
@@ -114,7 +114,7 @@ done
 echo ""
 echo "== L2: python unit tests =="
 # Prefer the shared venv lib.sh builds; else system python3; skip if pytest is unavailable.
-PYBIN="${TMPDIR:-/tmp}/harness-tests-venv/bin/python"
+PYBIN="${TMPDIR:-/tmp}/pd-bot-tests-venv/bin/python"
 [ -x "$PYBIN" ] || PYBIN="$(command -v python3 || true)"
 if [ -n "$PYBIN" ] && "$PYBIN" -c 'import pytest' >/dev/null 2>&1; then
   # Every unit test under scripts/ and plugins/pd-bot/ — collected, not hand-listed: the

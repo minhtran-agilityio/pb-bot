@@ -1,4 +1,4 @@
-name: harness-ci
+name: pd-bot-ci
 
 # Claude Code CLI used by the plugin validator and the install smoke test. Package and Node
 # requirement from https://code.claude.com/docs/en/setup ("Install with npm": package
@@ -10,7 +10,7 @@ env:
 
 on:
   push:
-    branches: [main, podbay]
+    branches: [main]
   pull_request:
 
 jobs:

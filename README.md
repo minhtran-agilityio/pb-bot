@@ -1,16 +1,14 @@
 <p align="center">
-  <img src="assets/skill-harness-hero.jpg" alt="A miniature papercraft workshop moving coding tasks through discovery, design, planning, execution, review, and shipping gates" width="100%">
+  <img src="assets/pd-bot-hero.jpg" alt="A miniature papercraft workshop moving coding tasks through discovery, design, planning, execution, review, and shipping gates" width="100%">
 </p>
 
 <div align="center">
 
-# Skill Harness
+# pd-bot
 
 **A ready-to-use toolkit of skills, agents, and hooks for the [Claude Code](https://claude.com/claude-code) CLI**
 
 *Prompt-powered workflows that carry a change from brainstorm to ship.*
-
-📖 **[Read the Guide →](https://skill-harness-guide.vercel.app)**
 
 </div>
 
@@ -40,7 +38,7 @@ See [plugins/pd-bot/skills/README.md](plugins/pd-bot/skills/README.md) for every
 
 ```bash
 claude plugin marketplace add minhtran-agilityio/pb-bot
-claude plugin install pd-bot@agent-harness
+claude plugin install pd-bot@pd-bot
 ```
 
 Then, in the project, run `/pd-bot:pd-setup`. It scaffolds `specs/` and `docs/solutions/`, proposes a `## Run and test` section for your `CLAUDE.md` if it has none, merges the `permissions.deny` rules into `.claude/settings.json` (needs [jq](https://jqlang.github.io/jq/)), and adds `specs/` to `.gitignore`. Every step is safe to run twice. A plugin cannot ship `permissions.deny`, which is why setup does it. Restart Claude Code after installing so it loads the skills, agents and hooks.
@@ -67,7 +65,7 @@ Check it with `claude plugin validate plugins/pd-bot --strict` and `claude plugi
 
 ### Test
 
-`bash scripts/run-tests.sh` runs what CI runs: syntax checks, the doc-truth and markdown-link lints, the frontmatter and tool-conformance checks, hermetic hook and script tests, and the Python unit tests when `pytest` is available. The `harness-ci` workflow runs it on ubuntu and macOS.
+`bash scripts/run-tests.sh` runs what CI runs: syntax checks, the doc-truth and markdown-link lints, the frontmatter and tool-conformance checks, hermetic hook and script tests, and the Python unit tests when `pytest` is available. The `pd-bot-ci` workflow runs it on ubuntu and macOS.
 
 ## Author
 

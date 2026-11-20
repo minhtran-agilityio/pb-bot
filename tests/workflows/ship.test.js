@@ -1,7 +1,7 @@
 // Deterministic test harness for workflows/ship.js. No real agents run: agent() is a stub that
 // records every call and answers from a scripted table. Output: one line per case,
 // "PASS <name>" or "FAIL <name>: <why>"; exit 1 if any case failed.
-//   node tests/workflows/harness.js
+//   node tests/workflows/ship.test.js
 'use strict'
 const fs = require('fs')
 const path = require('path')
@@ -110,9 +110,9 @@ function defaults(c, st) {
   if (l.startsWith('greview:')) return ok({ findings: [], skill_invoked: true, skill_error: '' })
   if (l.startsWith('gfix:') || l.startsWith('gintent-fix:')) { st.fix++; st.tip = `gc${st.fix}`; return ok({ fix_status: 'fixed', base_sha: `gbase${st.fix}`, commit: `gc${st.fix}` }) }
   if (l.startsWith('gintent:')) return { verdict: 'match', findings: [] }
-  if (l.startsWith('gci:')) return { checks: [{ name: 'harness-ci', bucket: 'pass' }], headRefOid: st.tip || `sha${n}abcdef` }
+  if (l.startsWith('gci:')) return { checks: [{ name: 'pd-bot-ci', bucket: 'pass' }], headRefOid: st.tip || `sha${n}abcdef` }
   if (l.startsWith('gbody:')) return ok()
-  if (l === 'ci-snapshot') return { checks: [{ name: 'harness-ci', bucket: 'pass' }], headRefOid: 'finalsha' }
+  if (l === 'ci-snapshot') return { checks: [{ name: 'pd-bot-ci', bucket: 'pass' }], headRefOid: 'finalsha' }
   if (l === 'diffstat') return { files: [{ path: 'src/a.js', added: 10, deleted: 2 }] }
   if (l.startsWith('review:')) return ok({ findings: [], skill_invoked: true, skill_error: '' })
   if (/^fix:r\d+:all$/.test(l)) {   // one agent for every finding of the round: it reports each finding by id
@@ -136,7 +136,7 @@ function defaults(c, st) {
 let args0
 function baseArgs(over) {
   return {
-    repo: 'o/r', repoDir: '/repo', pluginDir: '/plug', remote: 'origin', base: 'v5.0.0', slug: 'ms',
+    repo: 'o/r', repoDir: '/repo', pluginDir: '/plug', remote: 'origin', base: 'integration', slug: 'ms',
     tickets: [{ n: 1, title: 'Add the thing', depth: 'S', group: 1, deps: [], confirmed: '' }],
     testCmd: 'run-related', lintCmd: 'lint-it', fullTestCmd: 'run-all', advisorModel: 'opus', noAsk: false, local: false, ...over,
   }
@@ -182,10 +182,10 @@ test('meta is a pure literal', async () => {
 
 test('i1: the first log line names the tickets and the base', async () => {
   const multi = await run({ tickets: [T(1, 1), T(2, 1), T(3, 2, [1])] }, null)
-  assert(multi.logs[0].startsWith('ship #1 #2 #3 -> v5.0.0:'), multi.logs[0])
+  assert(multi.logs[0].startsWith('ship #1 #2 #3 -> integration:'), multi.logs[0])
   assert(multi.logs[0].includes('3 ticket(s)'), multi.logs[0])
   const one = await run({}, null)
-  assert(one.logs[0].startsWith('ship #1 -> v5.0.0:'), one.logs[0])
+  assert(one.logs[0].startsWith('ship #1 -> integration:'), one.logs[0])
 })
 
 test('a: one ticket has no integration or merge agent and a feat/<n>- branch', async () => {
@@ -193,11 +193,11 @@ test('a: one ticket has no integration or merge agent and a feat/<n>- branch', a
   const ls = labelsOf(calls)
   assert(!ls.includes('setup-integration') && !ls.some(l => l.startsWith('merge:')) && !ls.includes('final-pr'), ls.join())
   const impl = named(calls, /^implement:1$/)[0]
-  assert(impl.prompt.includes('git -C /repo worktree add -b feat/1-add-the-thing /.ship-repo/ms/t1 origin/v5.0.0'), impl.prompt.slice(0, 300))
+  assert(impl.prompt.includes('git -C /repo worktree add -b feat/1-add-the-thing /.ship-repo/ms/t1 origin/integration'), impl.prompt.slice(0, 300))
   assert.strictEqual(result.single, true)
   assert.strictEqual(result.final.branch, 'feat/1-add-the-thing')
   assert.strictEqual(result.final.pr, 101)
-  assert(named(calls, /^finish:1$/)[0].prompt.includes('base v5.0.0'))
+  assert(named(calls, /^finish:1$/)[0].prompt.includes('base integration'))
 })
 
 test('p1: the result counts every agent call by stage, with model and effort', async () => {
@@ -261,7 +261,7 @@ test('d3: review stage prompts require the Skill tool and forbid a self-made rev
 test('rv1: the review prompt reads REVIEW.md from the diff base with git show', async () => {
   const { calls } = await run({}, null)
   const p = named(calls, /^review:r0$/)[0].prompt
-  assert(p.includes('show origin/v5.0.0:REVIEW.md'), p)
+  assert(p.includes('show origin/integration:REVIEW.md'), p)
 })
 
 test('rv2: the review prompt never points at REVIEW.md inside the worktree', async () => {
@@ -275,7 +275,7 @@ test('rv3: the per-ticket gate review reads REVIEW.md from the run base, never f
   // An earlier ticket merged into feat/<slug> must not change the rules for a later ticket's gate.
   const r = await gateFlow({})
   const p = named(r.calls, /^greview:1:r0$/)[0].prompt
-  assert(p.includes('show origin/v5.0.0:REVIEW.md'), p)
+  assert(p.includes('show origin/integration:REVIEW.md'), p)
   assert(!p.includes('show origin/feat/ms:REVIEW.md'), p)
   assert(p.includes('origin/feat/ms...'), 'the gate diff range still starts at the integration branch')
 })
@@ -283,12 +283,12 @@ test('rv3: the per-ticket gate review reads REVIEW.md from the run base, never f
 test('rv4: the fix-range re-review carries the same instruction', async () => {
   const { calls } = await run({}, c => (c.label === 'review:r0' ? ok({ findings: [{ id: 'f', path: 'a.js', summary: 'S-f', score: 80 }], skill_invoked: true }) : undefined))
   const p = named(calls, /^review:r1$/)[0].prompt
-  assert(p.includes('show origin/v5.0.0:REVIEW.md'), p)
+  assert(p.includes('show origin/integration:REVIEW.md'), p)
 })
 
 test('rv9: a review that reports review_md missing makes the workflow log "review: no REVIEW.md on <base>"', async () => {
   const miss = await run({}, c => (c.label === 'review:r0' ? ok({ findings: [], skill_invoked: true, review_md: 'missing' }) : undefined))
-  assert(miss.logs.includes('review: no REVIEW.md on origin/v5.0.0'), miss.logs.join('\n'))
+  assert(miss.logs.includes('review: no REVIEW.md on origin/integration'), miss.logs.join('\n'))
   const read = await run({}, c => (c.label === 'review:r0' ? ok({ findings: [], skill_invoked: true, review_md: 'read' }) : undefined))
   assert(!read.logs.some(l => l.startsWith('review: no REVIEW.md')), read.logs.join('\n'))
   assert(named(read.calls, /^review:r0$/)[0].prompt.includes('return review_md: missing'))
@@ -297,9 +297,9 @@ test('rv9: a review that reports review_md missing makes the workflow log "revie
 test('rv10: a missing REVIEW.md is logged once per base; a git show error is logged as such', async () => {
   const miss = await run({}, c => (/^review:r\d$/.test(c.label) ? ok({ findings: c.label === 'review:r0' ? [{ id: 'f', path: 'a.js', summary: 'S-f', score: 80 }] : [], skill_invoked: true, review_md: 'missing' }) : undefined))
   assert(named(miss.calls, /^review:r1$/).length === 1, labelsOf(miss.calls).join())
-  assert.strictEqual(miss.logs.filter(l => l === 'review: no REVIEW.md on origin/v5.0.0').length, 1, miss.logs.join('\n'))
+  assert.strictEqual(miss.logs.filter(l => l === 'review: no REVIEW.md on origin/integration').length, 1, miss.logs.join('\n'))
   const err = await run({}, c => (c.label === 'review:r0' ? ok({ findings: [], skill_invoked: true, review_md: 'error', skill_error: 'invalid object name' }) : undefined))
-  assert(err.logs.some(l => l.startsWith('review: could not read REVIEW.md on origin/v5.0.0') && l.includes('invalid object name')), err.logs.join('\n'))
+  assert(err.logs.some(l => l.startsWith('review: could not read REVIEW.md on origin/integration') && l.includes('invalid object name')), err.logs.join('\n'))
   assert(named(err.calls, /^review:r0$/)[0].prompt.includes('Return every finding the REVIEW.md rules above leave in'))
 })
 
@@ -478,7 +478,7 @@ test('g3: intent review schema has no unknown kind; its prompt names the role fi
   const c = named(calls, /^intent-review$/)[0]
   assert.deepStrictEqual(c.schema.properties.findings.items.properties.kind.enum, ['gap', 'drift', 'excess'])
   assert(c.prompt.includes('/plug/agents/intent-reviewer.md') && !/\.claude\/(?!rules\/)/.test(c.prompt))
-  assert(c.prompt.includes('git -C /.ship-repo/ms/intent-review diff origin/v5.0.0..origin/feat/1-add-the-thing'))
+  assert(c.prompt.includes('git -C /.ship-repo/ms/intent-review diff origin/integration..origin/feat/1-add-the-thing'))
   assert(c.prompt.includes('Do not report anything else'))
   assert(c.prompt.includes('worktree add --detach /.ship-repo/ms/intent-review'))
 })
@@ -506,7 +506,7 @@ test('b: three tickets, groups 1,1,2: setup, parallel, merge, group 2, merge, on
   assert.strictEqual(named(calls, /^final-pr$/).length, 1)
   assert(named(calls, /^implement:3$/)[0].prompt.startsWith('git -C /repo fetch origin\ngit -C /repo worktree add -b feat/ms-3 /.ship-repo/ms/t3 origin/feat/ms'))
   assert(named(calls, /^finish:1$/)[0].prompt.includes('base feat/ms'))
-  assert(named(calls, /^final-pr$/)[0].prompt.includes('--base v5.0.0 --head feat/ms'))
+  assert(named(calls, /^final-pr$/)[0].prompt.includes('--base integration --head feat/ms'))
   assert.deepStrictEqual(result.tickets.map(t => t.status), ['done', 'done', 'done'])
   assert.strictEqual(result.final.branch, 'feat/ms')
   const body = named(calls, /^adr$/)[0].prompt
@@ -818,7 +818,7 @@ test('e: review loop fixes findings >= threshold, re-reviews the fix diff only, 
   assert(!batch.includes('f3') && !batch.includes('S-f4'), 'below the threshold and pre-existing findings are not in the batch')
   assert(named(calls, /^review:r1$/)[0].prompt.includes('base1..c1'), 're-review range is the fix commits')
   assert(named(calls, /^review:r2$/)[0].prompt.includes('base2..c2'))
-  assert(!named(calls, /^review:r1$/)[0].prompt.includes('origin/v5.0.0...') )
+  assert(!named(calls, /^review:r1$/)[0].prompt.includes('origin/integration...') )
   assert(named(calls, /^review:r0$/)[0].prompt.includes("args 'low 101'") || named(calls, /^review:r0$/)[0].prompt.includes("'low 101'"))
   assert.strictEqual(result.review.rounds, 2)
   assert.strictEqual(result.review.fixed.length, 3)
@@ -870,7 +870,7 @@ test('f: intent review sees the request and not the plan or decisions', async ()
   })
   const p = named(calls, /^intent-review$/)[0]
   assert.strictEqual(p.opts.agentType, 'pd-bot:intent-reviewer')
-  assert(p.prompt.includes('REQUEST-BODY-1') && p.prompt.includes('origin/v5.0.0..origin/feat/1-ticket-1'))
+  assert(p.prompt.includes('REQUEST-BODY-1') && p.prompt.includes('origin/integration..origin/feat/1-ticket-1'))
   for (const bad of ['PLANSTEP-ABC', 'DECISION-TITLE-XYZ', 'GOAL-SECRET', 'SUMMARY-SECRET', 'did it']) assert(!p.prompt.includes(bad), `leaked ${bad}`)
   assert.strictEqual(named(calls, /^request:1$/)[0].prompt.includes('gh issue view 1 --repo o/r --json body -q .body'), true)
   assert.strictEqual(named(calls, /^intent-fix$/).length, 1, 'a gap gets one fix round')
@@ -995,11 +995,11 @@ test('i4: a blocked final spec write fails the run; a blocked early spec write d
 
 test('i5: local mode reports the branch, the commit range and that the base did not change; a remote run has no delivery', async () => {
   const single = await run({ local: true }, null)
-  assert.deepStrictEqual(single.result.delivery, { mode: 'local', branch: 'feat/1-add-the-thing', base: 'v5.0.0', range: 'v5.0.0..feat/1-add-the-thing', baseChanged: false })
-  assert(single.logs.some(l => l.includes('local mode: no PR was opened') && l.includes('feat/1-add-the-thing') && l.includes('v5.0.0 has not changed')), single.logs.join('\n'))
+  assert.deepStrictEqual(single.result.delivery, { mode: 'local', branch: 'feat/1-add-the-thing', base: 'integration', range: 'integration..feat/1-add-the-thing', baseChanged: false })
+  assert(single.logs.some(l => l.includes('local mode: no PR was opened') && l.includes('feat/1-add-the-thing') && l.includes('integration has not changed')), single.logs.join('\n'))
   const multi = await run({ local: true, tickets: [T(1, 1), T(2, 2, [1])] }, null)
   assert.strictEqual(multi.result.delivery.branch, 'feat/ms')
-  assert.strictEqual(multi.result.delivery.range, 'v5.0.0..feat/ms')
+  assert.strictEqual(multi.result.delivery.range, 'integration..feat/ms')
   const remote = await run({}, null)
   assert.strictEqual(remote.result.delivery, undefined)
   assert.strictEqual(remote.result.final.pr, 101)
@@ -1261,7 +1261,7 @@ test('v1: an FE ticket runs implement, verify, base check, finish in that order,
   assert(!('agentType' in v.opts) && v.opts.model === 'sonnet' && v.opts.effort === 'medium' && v.opts.phase === 'Tickets')
   assert(v.schema.properties.passed && v.schema.properties.stills && v.schema.required.includes('kind'))
   const b = named(calls, /^verify-base:1$/)[0]
-  assert(b.prompt.includes('worktree add --detach /.ship-repo/ms/verify-base-1 origin/v5.0.0') && b.prompt.includes('Mode: base') && b.prompt.includes('/wt/1/verify.config.json') && b.prompt.includes('Commit nothing'), b.prompt)
+  assert(b.prompt.includes('worktree add --detach /.ship-repo/ms/verify-base-1 origin/integration') && b.prompt.includes('Mode: base') && b.prompt.includes('/wt/1/verify.config.json') && b.prompt.includes('Commit nothing'), b.prompt)
   const f = named(calls, /^finish:1$/)[0].prompt
   assert(f.includes('Verify result: pass') && f.includes('/wt/1/.playwright-mcp/1/step-1.png') && f.includes('Evidence stays uncommitted') && !f.includes('Nothing is attached'), f)
   const g = named(calls, /^gif:1$/)[0]
@@ -2779,7 +2779,7 @@ test('gav10: an intent fix after the advisor fix is code-reviewed, and CI expect
   let n = 0, ci = 0
   const gaps = { verdict: 'gaps found', findings: [{ kind: 'gap', clause: 'c', detail: 'd' }] }
   const r = await gateFlow({ base: 'feat/x' }, gaOver(gaVerdict('fix'), c => {
-    if (c.label === 'gci:1' && ++ci === 2) return { checks: [{ name: 'harness-ci', bucket: 'pass' }], headRefOid: 'intentfixtip' }
+    if (c.label === 'gci:1' && ++ci === 2) return { checks: [{ name: 'pd-bot-ci', bucket: 'pass' }], headRefOid: 'intentfixtip' }
     if (c.label === 'gintent:1') { n++; return n === 2 ? gaps : { verdict: 'match', findings: [] } }
     if (c.label === 'gintent-fix:1') return ok({ fix_status: 'fixed', base_sha: 'ib1', commit: 'intentfixtip' })
   }))
@@ -2860,7 +2860,7 @@ test('ad2: a late restatement of an early adr decision does not send it to the o
 
 test('g1b: CI that ran on a head other than the branch tip fails the gate even with no fix commit', async () => {
   const r = await gateFlow({}, c => {
-    if (c.label === 'gci:1') return { checks: [{ name: 'harness-ci', bucket: 'pass' }], headRefOid: 'oldheadsha1', branchTip: 'newtipsha22' }
+    if (c.label === 'gci:1') return { checks: [{ name: 'pd-bot-ci', bucket: 'pass' }], headRefOid: 'oldheadsha1', branchTip: 'newtipsha22' }
   })
   assert.notStrictEqual(t1(r).status, 'done')
   const body = named(r.calls, /^gbody:1$/)[0].prompt
@@ -2870,7 +2870,7 @@ test('g1b: CI that ran on a head other than the branch tip fails the gate even w
 test('g1: CI that ran on a head older than the last pushed fix commit fails the gate', async () => {
   const r = await gateFlow({}, c => {
     if (c.label === 'greview:1:r0') return { findings: [{ id: 'F1', file: 'a.js', line: 1, score: 90, summary: 's', pre_existing: false }], skill_invoked: true, skill_error: '' }
-    if (c.label === 'gci:1') return { checks: [{ name: 'harness-ci', bucket: 'pass' }], headRefOid: 'staleoldsha' }
+    if (c.label === 'gci:1') return { checks: [{ name: 'pd-bot-ci', bucket: 'pass' }], headRefOid: 'staleoldsha' }
   })
   assert.notStrictEqual(t1(r).status, 'done')
   const body = named(r.calls, /^gbody:1$/)[0].prompt

@@ -16,8 +16,8 @@ PASS=0; FAIL=0; SKIP=0
 CURRENT=""
 _CLEANUP_DIRS=()
 
-# HARNESS_TEST_COLOR=1 keeps colour when stdout is a pipe (scripts/run-tests.sh tees each suite).
-if [ -t 1 ] || [ "${HARNESS_TEST_COLOR:-}" = 1 ]; then _G=$'\033[32m'; _R=$'\033[31m'; _Y=$'\033[33m'; _D=$'\033[2m'; _X=$'\033[0m'; else _G=; _R=; _Y=; _D=; _X=; fi
+# PD_BOT_TEST_COLOR=1 keeps colour when stdout is a pipe (scripts/run-tests.sh tees each suite).
+if [ -t 1 ] || [ "${PD_BOT_TEST_COLOR:-}" = 1 ]; then _G=$'\033[32m'; _R=$'\033[31m'; _Y=$'\033[33m'; _D=$'\033[2m'; _X=$'\033[0m'; else _G=; _R=; _Y=; _D=; _X=; fi
 
 t()     { CURRENT="$1"; }
 pass()  { PASS=$((PASS+1)); printf '  %sok%s    %s\n' "$_G" "$_X" "$CURRENT"; }
@@ -71,7 +71,7 @@ assert_rc_not_contains() { # assert_rc_not_contains <rc> <substring>
 # Shared pytest venv (created once per machine, reused across runs) + a `python` shim dir
 # to prepend to PATH — hooks prefer `python`, macOS/CI often only have `python3`.
 ensure_pyenv() {
-  PYENV_DIR="${TMPDIR:-/tmp}/harness-tests-venv"
+  PYENV_DIR="${TMPDIR:-/tmp}/pd-bot-tests-venv"
   if [ ! -x "$PYENV_DIR/bin/python" ]; then
     python3 -m venv "$PYENV_DIR" >/dev/null 2>&1 || return 1
   fi

@@ -44,7 +44,7 @@ ENV_OK = {
     # display detection (writing-plans auto-view)
     "DISPLAY", "WAYLAND_DISPLAY",
     # harness-provided
-    "CLAUDE_PROJECT_DIR", "CLAUDE_PLUGIN_ROOT", "CLAUDE_SKILL_DIR", "ARGUMENTS", "HARNESS_SHARED_BRANCHES", "BRANCH_ISOLATION_REASON",
+    "CLAUDE_PROJECT_DIR", "CLAUDE_PLUGIN_ROOT", "CLAUDE_SKILL_DIR", "ARGUMENTS", "PD_BOT_SHARED_BRANCHES", "BRANCH_ISOLATION_REASON",
     "SESSION_KNOWLEDGE_DIR", "AUTO_TEST_CMD", "AUTO_TEST_PATTERN",
     "FULL_ARTIFACTS",
     # login variables the owner sets for the verify stage (read by name, never assigned in a skill)
