@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 // Acceptance tests for #16 "board /fleet page: show the milestone fields of the ledger": the page criteria
-// (AC2, AC4, AC5, AC7), in a real browser. They need Playwright; without it the file prints "skip" and exits 0, like
+// (AC4, AC5, AC6, AC7), in a real browser. They need Playwright; without it the file prints "skip" and exits 0, like
 // tests/board/fleet-page.test.js. When Playwright's own Chromium is missing, the installed Google Chrome is used
 // (channel "chrome"); with neither, the file prints "skip" and exits 0.
 // Each case starts its own board through the CLI (`--port <free port> --ledger <file>`) with HOME set to a fresh
@@ -156,7 +156,7 @@ for (const plain of ['specs/m16ui/scenarios.md', 'javascript:alert(16)', 'ftp://
   });
 }
 
-// Ticket #16, criterion 2: "The `/fleet` page shows the feature PR number, the scenario link and one line per test
+// AC6, ticket #16 criterion: "The `/fleet` page shows the feature PR number, the scenario link and one line per test
 // round (round, failed count, ticket numbers) when present, and nothing extra when absent."
 // The same ledger is shown on two fresh boards: once with the three fields, once without them. The milestone section
 // is the smallest element that holds the feature PR number, the scenarios value and every round's tickets, and no
@@ -172,7 +172,7 @@ function milestoneSection({ want, rowText }) {
   }
   return best ? best.innerText : null;
 }
-test('AC2: with all three fields absent the page shows nothing extra (no milestone lines, no empty labels)', async browser => {
+test('AC6: with all three fields absent the page shows nothing extra', async browser => {
   const present = await openFleet(browser, ledgerFile(ledger(MILESTONE)));
   let section, presentText;
   try {
