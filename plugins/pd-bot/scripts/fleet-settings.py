@@ -211,7 +211,7 @@ def main(argv):
     p.add_argument("--run")
     a = p.parse_args(argv)
     if a.show:
-        if a.restore or a.role or a.model or a.mode or a.ticket or a.run:
+        if a.restore or any(v is not None for v in (a.role, a.model, a.mode, a.ticket, a.run)):
             p.error("--show takes only --checkout")
         show(a.checkout)
         return

@@ -196,6 +196,9 @@ def test_refuses_a_non_object_env(checkout):
     ["--show", "--mode", "auto"],
     ["--show", "--ticket", "1"],
     ["--show", "--run", "r1"],
+    ["--show", "--ticket="],
+    ["--show", "--run="],
+    ["--show", "--model="],
 ])
 def test_usage_errors_exit_2(checkout, args):
     assert run("--checkout", str(checkout), *args).returncode == 2
