@@ -8,7 +8,9 @@
 #             its suite check ran and passed (a skipped suite is not enough to go in unattended)
 #   ci        every check of the pull request passed (skipped checks do not count as a pass)
 #   pr        the pull request is open, not a draft, targets exactly --base (a feat/* branch), its
-#             head is --head, and it has no label pd-bot:owner-merge
+#             head is --head, it has no label pd-bot:owner-merge, and the base fleet-check ran from
+#             is in the history of the feature branch, so the check covered every commit the pull
+#             request brings in
 # The orchestrator puts the label pd-bot:owner-merge on a pull request the owner must merge, for
 # example a fix for a requirement that was not clear; the gate then never passes it.
 #
@@ -102,6 +104,7 @@ record() { # record <name> <ok|mismatch> <detail>
 have_jq=1; command -v jq >/dev/null 2>&1 || have_jq=0
 have_gh=1; command -v gh >/dev/null 2>&1 || have_gh=0
 
+FC_BASE=""   # the --base fleet-check ran from; check_pr compares it with the feature branch
 # --- 1. evidence --------------------------------------------------------------------------------
 check_evidence() {
   local f="$evid/fleet-check.json" out
@@ -109,14 +112,14 @@ check_evidence() {
   if [ ! -f "$f" ]; then record evidence mismatch "fleet-check.json is missing: run fleet-check.sh --mode block first"; return; fi
   if [ "$have_jq" = 0 ]; then record evidence mismatch "jq is not installed, cannot read fleet-check.json"; return; fi
   # One line: <head> <mode> <mismatches> <checks> <checks that are a mismatch or have no known result>
-  # <suite checks with result ok>
+  # <suite checks with result ok> <base>
   out=$(jq -r -s 'if length == 1 and (.[0] | type) == "object" and (.[0].checks | type) == "array" then .[0]
-      | "\(.head | if type == "string" then . else "-" end) \(.mode | if type == "string" then . else "-" end) \(.mismatches | if type == "number" then . else "-" end) \(.checks | length) \([.checks[] | select((type != "object") or ((.result == "ok" or .result == "skip") | not))] | length) \([.checks[] | objects | select(.name == "suite" and .result == "ok")] | length)"
+      | "\(.head | if type == "string" then . else "-" end) \(.mode | if type == "string" then . else "-" end) \(.mismatches | if type == "number" then . else "-" end) \(.checks | length) \([.checks[] | select((type != "object") or ((.result == "ok" or .result == "skip") | not))] | length) \([.checks[] | objects | select(.name == "suite" and .result == "ok")] | length) \(.base | if type == "string" and length > 0 then . else "-" end)"
     else "bad" end' "$f" 2>/dev/null) || out=bad
   case "$out" in bad|''|*$'\n'*) record evidence mismatch "fleet-check.json does not parse as one result object"; return ;; esac
-  # shellcheck disable=SC2086  # six space-separated words
+  # shellcheck disable=SC2086  # seven space-separated words
   set -- $out
-  [ $# -eq 6 ] || { record evidence mismatch "fleet-check.json has an unexpected shape"; return; }
+  [ $# -eq 7 ] || { record evidence mismatch "fleet-check.json has an unexpected shape"; return; }
   local probs=""
   [ "$(lower "$1")" = "$head" ] || probs="$probs head '$(san "$1")' is not --head;"
   [ "$2" = block ] || probs="$probs mode is '$(san "$2")', not block;"
@@ -124,6 +127,7 @@ check_evidence() {
   case "$4" in ''|*[!0-9]*|0) probs="$probs no check was recorded;" ;; esac
   [ "$5" = 0 ] || probs="$probs $(san "$5") check(s) are not ok or skip;"
   [ "$6" = 1 ] || probs="$probs the suite did not run and pass (suite ok $(san "$6") time(s), want 1);"
+  if is_full_hex "$7"; then FC_BASE=$(lower "$7"); else probs="$probs base '$(san "$7")' is not a full commit name;"; fi
   if [ -n "$probs" ]; then record evidence mismatch "${probs# }"; else record evidence ok "block mode, head matches, $4 check(s), no mismatch"; fi
 }
 
@@ -137,6 +141,10 @@ ci_look() {
   # A pull request with no checks yet: gh prints nothing and says so on stderr, or prints [].
   if [ -z "$out" ] && [ "$errf" != /dev/null ] && grep -qi 'no checks reported' "$errf" 2>/dev/null; then
     rm -f -- "$errf"; CI_STATE=none; CI_TEXT="no checks reported yet"; return
+  fi
+  # An error that a retry cannot fix (wrong repository, no login, an old gh) ends the wait at once.
+  if [ -z "$out" ] && [ "$errf" != /dev/null ] && grep -qiE 'could not resolve|not found|HTTP 40[134]|auth login|authentication|unknown flag|unknown command' "$errf" 2>/dev/null; then
+    CI_TEXT="gh pr checks failed: $(san "$(head -1 "$errf")")"; rm -f -- "$errf"; CI_STATE=fatal; return
   fi
   [ "$errf" != /dev/null ] && rm -f -- "$errf"
   # gh exits 8 while a check is pending and 1 when one failed; both still print the list.
@@ -170,6 +178,7 @@ check_ci() {
   case "$CI_STATE" in
     green) record ci ok "$CI_TEXT" ;;
     pending) record ci mismatch "still pending after ${waited}s: $CI_TEXT" ;;
+    fatal) record ci mismatch "$CI_TEXT" ;;
     none) record ci mismatch "no check passed: $CI_TEXT" ;;
     *) record ci mismatch "$CI_TEXT" ;;
   esac
@@ -181,13 +190,13 @@ check_pr() {
   if [ "$have_gh" = 0 ]; then record pr mismatch "gh is not installed"; return; fi
   if [ "$have_jq" = 0 ]; then record pr mismatch "jq is not installed, cannot read the pull request"; return; fi
   local out line probs=""
-  out=$(gh pr view "$pr" --repo "$gh_repo" --json state,isDraft,baseRefName,headRefOid,labels 2>/dev/null) || { record pr mismatch "gh pr view failed"; return; }
+  out=$(gh pr view "$pr" --repo "$gh_repo" --json state,isDraft,baseRefName,baseRefOid,headRefOid,labels 2>/dev/null) || { record pr mismatch "gh pr view failed"; return; }
   line=$(printf '%s' "$out" | jq -r 'if type == "object" then
-      "\(.state | if type == "string" then . else "-" end)\t\(.isDraft | if type == "boolean" then . else "-" end)\t\(.baseRefName | if type == "string" then . else "-" end)\t\(.headRefOid | if type == "string" then . else "-" end)\t\(if (.labels | type) == "array" then ([.labels[] | objects | select(.name == "pd-bot:owner-merge")] | length) else "-" end)"
+      "\(.state | if type == "string" then . else "-" end)\t\(.isDraft | if type == "boolean" then . else "-" end)\t\(.baseRefName | if type == "string" then . else "-" end)\t\(.baseRefOid | if type == "string" then . else "-" end)\t\(.headRefOid | if type == "string" then . else "-" end)\t\(if (.labels | type) == "array" then ([.labels[] | objects | select(.name == "pd-bot:owner-merge")] | length) else "-" end)"
     else "bad" end' 2>/dev/null) || line=bad
   case "$line" in bad|''|*$'\n'*) record pr mismatch "gh pr view gave no readable object"; return ;; esac
-  local state draft base_ref head_oid owner_label
-  IFS=$'\t' read -r state draft base_ref head_oid owner_label <<EOF
+  local state draft base_ref base_oid head_oid owner_label
+  IFS=$'\t' read -r state draft base_ref base_oid head_oid owner_label <<EOF
 $line
 EOF
   [ "$state" = OPEN ] || probs="$probs state is '$(san "$state")', not OPEN;"
@@ -198,6 +207,18 @@ EOF
     ''|*[!0-9]*) probs="$probs the labels could not be read;" ;;
     *) probs="$probs it has the label pd-bot:owner-merge: the owner merges it;" ;;
   esac
+  # The commits fleet-check covered are FC_BASE..head. The pull request brings in every commit of head
+  # that the feature branch lacks. Both sets are the same only when FC_BASE is in the feature branch.
+  if [ -z "$FC_BASE" ]; then probs="$probs the evidence names no base commit;"
+  elif ! is_full_hex "$base_oid"; then probs="$probs the feature branch commit could not be read;"
+  else
+    local rel
+    rel=$(gh api "repos/$gh_repo/compare/$FC_BASE...$(lower "$base_oid")" --jq .status 2>/dev/null) || rel="error"
+    case "$rel" in
+      identical|ahead) ;;
+      *) probs="$probs the checked base $(san "${FC_BASE:0:12}") is not in the history of $(san "$base_ref") (compare: $(san "$rel")): commits outside the checked range would go in;" ;;
+    esac
+  fi
   [ "$(lower "$head_oid")" = "$head" ] || probs="$probs head '$(san "$head_oid")' is not --head;"
   if [ -n "$probs" ]; then record pr mismatch "${probs# }"; else record pr ok "open, base $(san "$base_ref"), head matches"; fi
 }

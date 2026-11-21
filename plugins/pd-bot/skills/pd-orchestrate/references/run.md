@@ -123,8 +123,8 @@ whether the ticket is risky, the suite command, the worker's session name and ch
    to judge: send it to the worker as `findings`, or record in the ledger why it is a false alarm
    (those records decide later whether the check may block).
    When the base is a `feat/*` branch, run the check again with `--mode block` before step 5, and
-   add `--decisions-seen` only after the owner has seen every `needs_review` decision of the
-   report. Block mode exits 1 on any mismatch; fix it first, never pass a flag to hide it.
+   add `--decisions-seen <file>` only with a JSON array of the titles of the `needs_review`
+   decisions the owner has seen; a decision whose title is not in it stays a mismatch. Block mode exits 1 on any mismatch; fix it first, never pass a flag to hide it.
 4. Deliver, unless the mode is `local`. Push from the worker's checkout
    (`git -C <worker checkout> push -u origin <branch>`, never force) and open the pull request with
    `gh pr create --head <branch> --base <base>`. Use the body sections of

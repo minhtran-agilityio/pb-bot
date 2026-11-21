@@ -23,16 +23,17 @@
 #   fleet-check.sh --repo <checkout> --base <40|64 hex> --head <40|64 hex> --kind bug|feature|docs
 #                  --evidence <dir> [--repro-cmd '<cmd>' --repro-files 'path path']
 #                  [--suite-cmd '<cmd>' | --no-suite] [--qa-dir <path> --qa-commit <sha> ...]
-#                  [--ticket-id <id>] [--risky] [--decisions-seen] [--mode warn|block]
-# --decisions-seen: the owner has seen every needs_review decision of the report. Only the trusted
-# caller can say so; nothing inside report.json can.
+#                  [--ticket-id <id>] [--risky] [--decisions-seen <file>] [--mode warn|block]
+# --decisions-seen <file>: a JSON array with the title of every needs_review decision the owner has
+# seen. Only the trusted caller can say so; nothing inside report.json can. A needs_review decision
+# whose title is not in the file stays a mismatch, so a decision added later is never set aside.
 # Output: one line per check (`ok|MISMATCH|skip <name>: <detail>`), <evidence>/fleet-check.json, and
 # the last line `fleet-check: <n> mismatch(es), mode <mode>`.
 # Exit: 2 on a usage error; 0 in warn mode; in block mode 1 when there is a mismatch.
 # Needs git and jq; without jq the JSON-reading checks report a MISMATCH.
 set -u
 
-usage() { echo "fleet-check: $*" >&2; echo "usage: fleet-check.sh --repo <dir> --base <sha> --head <sha> --kind bug|feature|docs --evidence <dir> [--repro-cmd C --repro-files 'p ...'] [--suite-cmd C | --no-suite] [--qa-dir P --qa-commit SHA ...] [--ticket-id ID] [--risky] [--decisions-seen] [--mode warn|block]" >&2; exit 2; }
+usage() { echo "fleet-check: $*" >&2; echo "usage: fleet-check.sh --repo <dir> --base <sha> --head <sha> --kind bug|feature|docs --evidence <dir> [--repro-cmd C --repro-files 'p ...'] [--suite-cmd C | --no-suite] [--qa-dir P --qa-commit SHA ...] [--ticket-id ID] [--risky] [--decisions-seen FILE] [--mode warn|block]" >&2; exit 2; }
 
 lower() { printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]'; }
 is_full_hex() { # 40 or 64 hex characters
@@ -44,13 +45,12 @@ san() { printf '%s' "$1" | LC_ALL=C tr -cd '\040-\176' | cut -c1-200; }
 
 repo=""; base=""; head=""; kind=""; evid=""; repro_cmd=""; repro_files=""
 suite_cmd="bash scripts/run-tests.sh"; no_suite=0; suite_set=0; qa_dir=""; ticket_id=""; mode="warn"
-risky_flag=0; decisions_seen=0; qa_n=0; QA_COMMITS=()
+risky_flag=0; seen_file=""; qa_n=0; QA_COMMITS=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --no-suite) no_suite=1; shift; continue ;;
     --risky) risky_flag=1; shift; continue ;;
-    --decisions-seen) decisions_seen=1; shift; continue ;;
-    --repo|--base|--head|--kind|--evidence|--repro-cmd|--repro-files|--suite-cmd|--qa-dir|--qa-commit|--ticket-id|--mode)
+    --repo|--base|--head|--kind|--evidence|--repro-cmd|--repro-files|--suite-cmd|--qa-dir|--qa-commit|--ticket-id|--decisions-seen|--mode)
       [ $# -ge 2 ] || usage "$1 needs a value" ;;
     *) usage "unknown argument: $1" ;;
   esac
@@ -68,6 +68,7 @@ while [ $# -gt 0 ]; do
       is_full_hex "$2" || usage "--qa-commit must be a full 40 or 64 hex object name"
       QA_COMMITS[qa_n]=$(lower "$2"); qa_n=$((qa_n + 1)) ;;
     --ticket-id) ticket_id=$2 ;;
+    --decisions-seen) seen_file=$2 ;;
     --mode) mode=$2 ;;
   esac
   shift 2
@@ -173,6 +174,10 @@ mk_wt() { # mk_wt <name> <sha>: sets WT_DIR or WT_ERR
 }
 
 # --- evidence snapshot: the checks read only these copies ---------------------------------------
+if [ -n "$seen_file" ]; then
+  if [ -L "$seen_file" ] || [ ! -f "$seen_file" ]; then usage "--decisions-seen must name a regular file"; fi
+  cat -- "$seen_file" > "$tmp/seen.json" 2>/dev/null || usage "--decisions-seen file cannot be read"
+fi
 for n in receipt.json report.json security-receipt.json; do
   s="$evid/$n"
   if [ -L "$s" ]; then st=symlink
@@ -265,9 +270,19 @@ check_intent() {
   local f="$tmp/ev/receipt.json"
   if [ "$(ev_state receipt.json)" != ok ]; then record intent mismatch "receipt.json is $(ev_state receipt.json)"; return; fi
   if [ "$have_jq" = 0 ]; then record intent mismatch "jq is not installed, cannot read receipt.json"; return; fi
-  if ! jqs "$f" '.intent | objects | .verdict | strings'; then record intent mismatch "intent.verdict could not be read"; return; fi
-  if [ "$JV" = match ]; then record intent ok "verdict match"
-  else record intent mismatch "intent.verdict is '$(san "$JV")', not match"; fi
+  if ! jqs "$f" 'if (.intent | type) != "object" then "noobject" elif (.intent.verdict | type) != "string" then "noverdict"
+      elif ((.intent.gaps // []) | type) != "array" then "badgaps" else "\((.intent.gaps // []) | length) \(.intent.verdict)" end'; then
+    record intent mismatch "receipt.json could not be read"; return
+  fi
+  case "$JV" in
+    noobject) record intent mismatch "the receipt has no intent object"; return ;;
+    noverdict) record intent mismatch "intent.verdict is missing or not a string"; return ;;
+    badgaps) record intent mismatch "intent.gaps is not an array"; return ;;
+  esac
+  local gaps=${JV%% *} verdict=${JV#* }
+  if [ "$verdict" != match ]; then record intent mismatch "intent.verdict is '$(san "$verdict")', not match"
+  elif [ "$gaps" != 0 ]; then record intent mismatch "intent.verdict is match but intent.gaps lists $(san "$gaps") gap(s)"
+  else record intent ok "verdict match"; fi
 }
 
 # --- 2. report ----------------------------------------------------------------------------------
@@ -291,21 +306,35 @@ check_report() {
 }
 
 # --- 2b. decisions ------------------------------------------------------------------------------
-# A needs_review decision is the owner's to see. The check counts them; only --decisions-seen (from
-# the trusted caller) sets them aside. needs_review counts when it is anything but false or null.
+# A needs_review decision is the owner's to see. Only a title in the --decisions-seen file (from the
+# trusted caller) sets one aside. needs_review counts when it is anything but false or null. A report
+# with no decisions key, or a null one, has no decisions.
+# shellcheck disable=SC2016  # $d, $seen and $t are jq variables
 check_decisions() {
-  local f="$tmp/ev/report.json" n
+  local f="$tmp/ev/report.json" n seen_n unseen
   if [ "$(ev_state report.json)" != ok ]; then record decisions mismatch "report.json is $(ev_state report.json)"; return; fi
   if [ "$have_jq" = 0 ]; then record decisions mismatch "jq is not installed, cannot read report.json"; return; fi
-  if ! jqs "$f" 'if (.decisions | type) == "array" and ([.decisions[] | select(type != "object")] | length) == 0 then ([.decisions[] | select(.needs_review != false and .needs_review != null)] | length) else empty end' \
+  if ! jqs "$f" '(.decisions // []) as $d | if ($d | type) == "array" and ([$d[] | select(type != "object")] | length) == 0 then ([$d[] | select(.needs_review != false and .needs_review != null)] | length) else empty end' \
     || [ -z "$JV" ]; then
     record decisions mismatch "decisions is not an array of objects"; return
   fi
   n=$JV
   case "$n" in ''|*[!0-9]*) record decisions mismatch "the needs_review count is not numeric"; return ;; esac
-  if [ "$n" = 0 ]; then record decisions ok "no needs_review decision"
-  elif [ "$decisions_seen" = 1 ]; then record decisions ok "$n needs_review decision(s), seen by the owner (--decisions-seen)"
-  else record decisions mismatch "$n needs_review decision(s) the owner has not seen"; fi
+  if [ "$n" = 0 ]; then record decisions ok "no needs_review decision"; return; fi
+  if [ -z "$seen_file" ]; then record decisions mismatch "$n needs_review decision(s) the owner has not seen"; return; fi
+  # The titles the owner saw must be an array of strings; a needs_review decision without a string
+  # title can never match one.
+  if ! seen_n=$(jq -r 'if type == "array" and ([.[] | select(type != "string")] | length) == 0 then length else "bad" end' "$tmp/seen.json" 2>/dev/null) \
+    || [ "$seen_n" = bad ]; then
+    record decisions mismatch "the --decisions-seen file is not a JSON array of titles"; return
+  fi
+  unseen=$(jq -r --slurpfile seen "$tmp/seen.json" '[(.decisions // [])[] | select(.needs_review != false and .needs_review != null)
+      | select((.title | type) != "string" or ((.title as $t | $seen[0] | index([$t])) == null))] | length' "$f" 2>/dev/null) || unseen=x
+  case "$unseen" in
+    0) record decisions ok "$n needs_review decision(s), each seen by the owner (--decisions-seen)" ;;
+    ''|*[!0-9]*) record decisions mismatch "the decisions could not be compared with the --decisions-seen file" ;;
+    *) record decisions mismatch "$unseen of $n needs_review decision(s) the owner has not seen" ;;
+  esac
 }
 
 # --- 3. acceptance ------------------------------------------------------------------------------
@@ -461,8 +490,8 @@ if [ -L "$target" ] || [ -d "$target" ]; then
   echo "fleet-check: refusing to write $target (it is a symlink or a directory)" >&2
   write_failed=1
 elif tmpout=$(mktemp "$evid/.fleet-check.XXXXXX" 2>/dev/null) \
-  && printf '{"v":1,"head":%s,"mode":"%s","checks":[%s],"mismatches":%d}\n' \
-    "$(json_str "$head")" "$mode" "$checks_json" "$mismatches" > "$tmpout" \
+  && printf '{"v":1,"head":%s,"base":%s,"mode":"%s","checks":[%s],"mismatches":%d}\n' \
+    "$(json_str "$head")" "$(json_str "$base")" "$mode" "$checks_json" "$mismatches" > "$tmpout" \
   && chmod 644 "$tmpout" && mv -f -- "$tmpout" "$target"; then
   tmpout=""
 else

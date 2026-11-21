@@ -13,6 +13,8 @@ fi
 
 HEAD=0123456789abcdef0123456789abcdef01234567
 OTHER=89abcdef0123456789abcdef0123456789abcdef
+FBASE=fedcba9876543210fedcba9876543210fedcba98
+TIP=1111111111111111111111111111111111111111
 
 # The fake gh answers `pr view` from $FAKE/view.json and `pr checks` from $FAKE/checks.<n>.json,
 # where <n> is the number of the call (the last file is used again), and logs every call.
@@ -24,6 +26,7 @@ new_case() {
 printf '%s\n' "$*" >> "$FAKE/calls"
 case "$1 $2" in
   "pr view") [ -f "$FAKE/view.json" ] || exit 1; cat "$FAKE/view.json" ;;
+  "api repos/o/r/compare/"*) cat "$FAKE/compare.txt" 2>/dev/null || echo ahead ;;
   "pr checks")
     n=$(( $(cat "$FAKE/n" 2>/dev/null || echo 0) + 1 )); printf '%s' "$n" > "$FAKE/n"
     f="$FAKE/checks.$n.json"
@@ -31,6 +34,7 @@ case "$1 $2" in
     [ -f "$f" ] || exit 1
     if grep -q NOCHECKS "$f"; then echo "no checks reported on the 'x' branch" >&2; exit 1; fi
     if grep -q NETERR "$f"; then echo "connection refused" >&2; exit 1; fi
+    if grep -q NOREPO "$f"; then echo "GraphQL: Could not resolve to a Repository with the name 'o/r'." >&2; exit 1; fi
     cat "$f"
     if grep -q '"pending"' "$f"; then exit 8; fi
     if grep -q '"fail"' "$f"; then exit 1; fi ;;
@@ -38,14 +42,16 @@ case "$1 $2" in
 esac
 EOF
   chmod +x "$BIN/gh"
+  # sleep only logs its argument, so the --wait cases run fast and the interval is visible.
+  printf '#!/bin/bash\nprintf "%%s\\n" "$1" >> "$FAKE/sleeps"\n' > "$BIN/sleep"; chmod +x "$BIN/sleep"
   write_check "$HEAD"; write_view; write_checks 1 pass pass
 }
 TWO_CHECKS='[{"name":"receipt","result":"ok","detail":"x"},{"name":"acceptance","result":"skip","detail":"x"},{"name":"suite","result":"ok","detail":"exit 0"}]'
 write_check() { # write_check <head> [mode] [mismatches] [checks-json]
-  printf '{"v":1,"head":"%s","mode":"%s","checks":%s,"mismatches":%s}\n' "$1" "${2:-block}" "${4:-$TWO_CHECKS}" "${3:-0}" > "$EV/fleet-check.json"
+  printf '{"v":1,"head":"%s","base":"%s","mode":"%s","checks":%s,"mismatches":%s}\n' "$1" "${5-$FBASE}" "${2:-block}" "${4:-$TWO_CHECKS}" "${3:-0}" > "$EV/fleet-check.json"
 }
 write_view() { # write_view [state] [base] [head] [isDraft] [labels-json]
-  printf '{"state":"%s","isDraft":%s,"baseRefName":"%s","headRefOid":"%s","labels":%s}\n' "${1:-OPEN}" "${4:-false}" "${2:-feat/big-thing}" "${3:-$HEAD}" "${5:-[]}" > "$FAKE/view.json"
+  printf '{"state":"%s","isDraft":%s,"baseRefName":"%s","baseRefOid":"%s","headRefOid":"%s","labels":%s}\n' "${1:-OPEN}" "${4:-false}" "${2:-feat/big-thing}" "$TIP" "${3:-$HEAD}" "${5:-[]}" > "$FAKE/view.json"
 }
 write_checks() { # write_checks <call number> <bucket>...
   local n=$1 out="" b; shift
@@ -90,7 +96,7 @@ has 'MISMATCH evidence: fleet-check.json is missing'
 t "... and no command is printed"; hasnt 'run: gh'
 t "... and the exit code is 1"; rc_is 1
 t "... and the last line counts the mismatches"
-if [ "$(printf '%s\n' "$OUT" | tail -1)" = 'fleet-gate: 1 mismatch(es)' ]; then pass; else fail "$(printf '%s\n' "$OUT" | tail -1)"; fi
+if [ "$(printf '%s\n' "$OUT" | tail -1)" = 'fleet-gate: 2 mismatch(es)' ]; then pass; else fail "$(printf '%s\n' "$OUT" | tail -1)"; fi
 t "a warn-mode result is a MISMATCH"; write_check "$HEAD" warn; fg; has "MISMATCH evidence: mode is 'warn', not block"
 t "a result for another head is a MISMATCH"; write_check "$OTHER"; fg; has "is not --head"
 t "a result with mismatches is a MISMATCH"; write_check "$HEAD" block 2; fg; has "mismatches is '2', not 0"
@@ -98,6 +104,15 @@ t "a mismatch check with a mismatches count of 0 is still a MISMATCH"
 write_check "$HEAD" block 0 '[{"name":"suite","result":"mismatch","detail":"x"}]'; fg; has '1 check(s) are not ok or skip'
 t "a check with an unknown result is a MISMATCH"
 write_check "$HEAD" block 0 '[{"name":"suite","result":"fine","detail":"x"}]'; fg; has '1 check(s) are not ok or skip'
+t "a result with no base is a MISMATCH"; write_check "$HEAD" block 0 "$TWO_CHECKS" ""; fg; has "base '-' is not a full commit name"
+t "... and the pr check names the missing base"; has 'the evidence names no base commit'
+t "a checked base outside the feature branch is a MISMATCH"; write_check "$HEAD"; printf 'diverged\n' > "$FAKE/compare.txt"; fg
+has "the checked base fedcba987654 is not in the history of feat/big-thing (compare: diverged)"
+t "... with no command"; hasnt 'run: gh'
+t "the gate asks GitHub to compare the checked base with the feature branch tip"
+if grep -qFx "api repos/o/r/compare/$FBASE...$TIP --jq .status" "$FAKE/calls"; then pass; else fail "calls: $(tr '\n' '|' < "$FAKE/calls")"; fi
+t "a checked base equal to the feature branch tip passes"; printf 'identical\n' > "$FAKE/compare.txt"; fg; rc_is 0
+rm -f "$FAKE/compare.txt"
 t "an empty checks list is a MISMATCH"; write_check "$HEAD" block 0 '[]'; fg; has 'no check was recorded'
 t "a skipped suite is a MISMATCH"
 write_check "$HEAD" block 0 '[{"name":"receipt","result":"ok","detail":"x"},{"name":"suite","result":"skip","detail":"--no-suite"}]'; fg
@@ -138,7 +153,11 @@ t "a gh error with no time left is a MISMATCH"; printf 'NETERR\n' > "$FAKE/check
 new_case
 t "FLEET_GATE_INTERVAL=0 falls back to 30s instead of a tight loop"; write_checks 1 pending
 OUT=$(FAKE="$FAKE" PATH="$BIN:$PATH" FLEET_GATE_INTERVAL=0 bash "$FG" --evidence "$EV" --head "$HEAD" --pr 12 --gh-repo o/r --base feat/big-thing --wait 1 2>&1); RC=$?
-if [ "$RC" = 1 ] && [ "$(cat "$FAKE/n")" = 2 ]; then pass; else fail "rc=$RC calls=$(cat "$FAKE/n")"; fi
+if [ "$RC" = 1 ] && [ "$(cat "$FAKE/n")" = 2 ] && [ "$(cat "$FAKE/sleeps")" = 30 ]; then pass; else fail "rc=$RC calls=$(cat "$FAKE/n") sleeps=$(cat "$FAKE/sleeps" 2>&1)"; fi
+new_case
+t "an error a retry cannot fix ends the wait at once"; printf 'NOREPO\n' > "$FAKE/checks.1.json"; fg --wait 600
+if [ "$RC" = 1 ] && [ "$(cat "$FAKE/n")" = 1 ] && printf '%s' "$OUT" | grep -qF 'MISMATCH ci: gh pr checks failed: GraphQL: Could not resolve'; then pass
+else fail "rc=$RC calls=$(cat "$FAKE/n") out: $(printf '%s' "$OUT" | tr '\n' '|')"; fi
 new_case
 t "--wait stops at once when a check failed"; write_checks 1 pending fail; fg --wait 10
 if [ "$RC" = 1 ] && [ "$(cat "$FAKE/n")" = 1 ]; then pass; else fail "rc=$RC calls=$(cat "$FAKE/n")"; fi
@@ -176,16 +195,17 @@ t "... and the last line names the write failure"
 if [ "$(printf '%s\n' "$OUT" | tail -1)" = 'fleet-gate: cannot write the result file, so the gate does not pass' ]; then pass; else fail "$(printf '%s\n' "$OUT" | tail -1)"; fi
 new_case
 u() { OUT=$(FAKE="$FAKE" PATH="$BIN:$PATH" bash "$FG" "$@" 2>&1); RC=$?; }
+why() { if [ "$RC" = 2 ] && printf '%s' "$OUT" | grep -qF -- "$1"; then pass; else fail "rc=$RC, want 2 with '$1' — $(printf '%s' "$OUT" | tr '\n' '|')"; fi; }
 t "no arguments exits 2"; u; rc_is 2
 t "a missing --pr exits 2 and names it"; u --evidence "$EV" --head "$HEAD" --gh-repo o/r --base feat/x
 if [ "$RC" = 2 ] && printf '%s' "$OUT" | grep -qF -- '--pr is required'; then pass; else fail "rc=$RC $OUT"; fi
-t "a short --head exits 2"; u --evidence "$EV" --head abc123 --pr 1 --gh-repo o/r; rc_is 2
-t "a --pr that is not a number exits 2"; u --evidence "$EV" --head "$HEAD" --pr '1;x' --gh-repo o/r; rc_is 2
-t "a --gh-repo with no slash exits 2"; u --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo name; rc_is 2
-t "a --gh-repo with a shell character exits 2"; u --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo 'o/r;x'; rc_is 2
-t "a --gh-repo that starts with a dash exits 2"; u --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo '-o/r'; rc_is 2
-t "a --wait that is not a number exits 2"; u --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo o/r --wait soon; rc_is 2
-t "an --evidence that is not a directory exits 2"; u --evidence "$EV/nope" --head "$HEAD" --pr 1 --gh-repo o/r; rc_is 2
+t "a short --head exits 2"; u --evidence "$EV" --head abc123 --pr 1 --gh-repo o/r --base feat/x; why '--head must be a full'
+t "a --pr that is not a number exits 2"; u --evidence "$EV" --head "$HEAD" --pr '1;x' --gh-repo o/r --base feat/x; why '--pr must be a positive number'
+t "a --gh-repo with no slash exits 2"; u --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo name --base feat/x; why '--gh-repo must be owner/name'
+t "a --gh-repo with a shell character exits 2"; u --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo 'o/r;x' --base feat/x; why '--gh-repo must be owner/name'
+t "a --gh-repo that starts with a dash exits 2"; u --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo '-o/r' --base feat/x; why '--gh-repo must be owner/name'
+t "a --wait that is not a number exits 2"; u --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo o/r --base feat/x --wait soon; why '--wait must be a number'
+t "an --evidence that is not a directory exits 2"; u --evidence "$EV/nope" --head "$HEAD" --pr 1 --gh-repo o/r --base feat/x; why '--evidence is not a directory'
 t "a missing --base exits 2"; u --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo o/r; rc_is 2
 t "a --base of main exits 2"; u --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo o/r --base main; rc_is 2
 t "a --base of bare feat/ exits 2"; u --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo o/r --base feat/; rc_is 2

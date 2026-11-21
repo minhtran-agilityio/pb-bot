@@ -80,7 +80,7 @@ t "happy path: last line and fleet-check.json"
 last=$(printf '%s\n' "$OUT" | tail -1)
 if [ "$last" = 'fleet-check: 0 mismatch(es), mode warn' ] \
   && [ "$(jq -r '.mismatches' "$EV/fleet-check.json")" = 0 ] && [ "$(jq -r '.v' "$EV/fleet-check.json")" = 1 ] \
-  && [ "$(jq -r '.head' "$EV/fleet-check.json")" = "$HEAD" ] && [ "$(jq -r '.mode' "$EV/fleet-check.json")" = warn ] \
+  && [ "$(jq -r '.head' "$EV/fleet-check.json")" = "$HEAD" ] && [ "$(jq -r '.base' "$EV/fleet-check.json")" = "$BASE" ] && [ "$(jq -r '.mode' "$EV/fleet-check.json")" = warn ] \
   && [ "$(jq -r '.checks | length' "$EV/fleet-check.json")" = 8 ] \
   && [ "$(jq -r '.checks[] | select(.name=="repro") | .result' "$EV/fleet-check.json")" = ok ] \
   && [ "$(jq -r '.checks[] | select(.name=="acceptance") | .result' "$EV/fleet-check.json")" = skip ] \
@@ -91,21 +91,42 @@ else fail "last='$last' json: $(cat "$EV/fleet-check.json" 2>&1)"; fi
 t "an intent verdict other than match is a MISMATCH"
 write_receipt "$HEAD" '[]' gaps; fc "${BUG[@]}"; has "MISMATCH intent: intent.verdict is 'gaps', not match"
 t "a receipt with no intent object is a MISMATCH"
-printf '{"v":1,"ticket":"1","head":"%s","verdict":"pass","findings":[]}\n' "$HEAD" > "$EV/receipt.json"; fc "${BUG[@]}"; has 'MISMATCH intent:'
+printf '{"v":1,"ticket":"1","head":"%s","verdict":"pass","findings":[]}\n' "$HEAD" > "$EV/receipt.json"; fc "${BUG[@]}"; has 'MISMATCH intent: the receipt has no intent object'
+t "a match verdict that still lists gaps is a MISMATCH"
+printf '{"v":1,"ticket":"1","head":"%s","verdict":"pass","findings":[],"intent":{"verdict":"match","gaps":["criterion 3"]}}\n' "$HEAD" > "$EV/receipt.json"; fc "${BUG[@]}"
+has 'MISMATCH intent: intent.verdict is match but intent.gaps lists 1 gap(s)'
+t "a match verdict with an empty gaps list is ok"
+printf '{"v":1,"ticket":"1","head":"%s","verdict":"pass","findings":[],"intent":{"verdict":"match","gaps":[]}}\n' "$HEAD" > "$EV/receipt.json"; fc "${BUG[@]}"; has 'ok intent: verdict match'
+t "an intent with no verdict is a MISMATCH"
+printf '{"v":1,"ticket":"1","head":"%s","verdict":"pass","findings":[],"intent":{}}\n' "$HEAD" > "$EV/receipt.json"; fc "${BUG[@]}"; has 'MISMATCH intent: intent.verdict is missing or not a string'
 t "an intent that is a bare string is a MISMATCH"
-printf '{"v":1,"ticket":"1","head":"%s","verdict":"pass","findings":[],"intent":"match"}\n' "$HEAD" > "$EV/receipt.json"; fc "${BUG[@]}"; has 'MISMATCH intent:'
+printf '{"v":1,"ticket":"1","head":"%s","verdict":"pass","findings":[],"intent":"match"}\n' "$HEAD" > "$EV/receipt.json"; fc "${BUG[@]}"; has 'MISMATCH intent: the receipt has no intent object'
 write_receipt "$HEAD"
 t "a needs_review decision is a MISMATCH"
 write_report "$HEAD" done '[{"title":"a","needs_review":false},{"title":"b","needs_review":true}]'; fc "${BUG[@]}"
 has 'MISMATCH decisions: 1 needs_review decision(s) the owner has not seen'
-t "--decisions-seen sets the needs_review decisions aside"
-fc "${BUG[@]}" --decisions-seen; has 'ok decisions: 1 needs_review decision(s), seen by the owner'
+SEEN=$(mktemp -d); _CLEANUP_DIRS+=("$SEEN")
+t "--decisions-seen sets aside a needs_review decision whose title the owner saw"
+printf '["b"]\n' > "$SEEN/s.json"; fc "${BUG[@]}" --decisions-seen "$SEEN/s.json"; has 'ok decisions: 1 needs_review decision(s), each seen by the owner'
+t "a needs_review decision added after the owner looked stays a MISMATCH"
+write_report "$HEAD" done '[{"title":"b","needs_review":true},{"title":"c","needs_review":true}]'; fc "${BUG[@]}" --decisions-seen "$SEEN/s.json"
+has 'MISMATCH decisions: 1 of 2 needs_review decision(s) the owner has not seen'
+t "a needs_review decision with no title is never seen"
+write_report "$HEAD" done '[{"needs_review":true}]'; fc "${BUG[@]}" --decisions-seen "$SEEN/s.json"; has 'MISMATCH decisions: 1 of 1'
+t "a --decisions-seen file that is not an array of strings is a MISMATCH"
+write_report "$HEAD" done '[{"title":"b","needs_review":true}]'; printf '{"b":1}\n' > "$SEEN/bad.json"; fc "${BUG[@]}" --decisions-seen "$SEEN/bad.json"
+has 'MISMATCH decisions: the --decisions-seen file is not a JSON array of titles'
+t "a missing --decisions-seen file exits 2"; fc "${BUG[@]}" --decisions-seen "$SEEN/none.json"; rc_is 2
+t "a symlinked --decisions-seen file exits 2"; ln -s "$SEEN/s.json" "$SEEN/link.json"; fc "${BUG[@]}" --decisions-seen "$SEEN/link.json"; rc_is 2
+write_report "$HEAD" done '[{"title":"a","needs_review":false},{"title":"b","needs_review":true}]'
 t "a needs_review that is not a boolean still counts"
 write_report "$HEAD" done '[{"title":"b","needs_review":"yes"}]'; fc "${BUG[@]}"; has 'MISMATCH decisions: 1 needs_review'
 t "an accepted_by inside the report does not set a needs_review decision aside"
 write_report "$HEAD" done '[{"title":"b","needs_review":true,"accepted_by":"owner"}]'; fc "${BUG[@]}"; has 'MISMATCH decisions: 1 needs_review'
-t "a report with no decisions array is a MISMATCH"
-printf '{"v":2,"run":"r","ticket":"1","status":"done","head":"%s"}\n' "$HEAD" > "$EV/report.json"; fc "${BUG[@]}"; has 'MISMATCH decisions: decisions is not an array of objects'
+t "a report with no decisions key has no decisions"
+printf '{"v":2,"run":"r","ticket":"1","status":"done","head":"%s"}\n' "$HEAD" > "$EV/report.json"; fc "${BUG[@]}"; has 'ok decisions: no needs_review decision'
+t "a decisions value that is a string is a MISMATCH"
+write_report "$HEAD" done '"none"'; fc "${BUG[@]}"; has 'MISMATCH decisions: decisions is not an array of objects'
 t "a decisions entry that is not an object is a MISMATCH"
 write_report "$HEAD" done '["x"]'; fc "${BUG[@]}"; has 'MISMATCH decisions: decisions is not an array of objects'
 t "block mode exits 1 on an intent mismatch"
