@@ -7,6 +7,19 @@ use std::collections::{BTreeMap, HashMap};
 
 const WHAT_CHARS: usize = 160;
 const NAME_CHARS: usize = 80;
+/// At most this many links of one session reach the page (pull requests first, then issues, then artifacts).
+const MAX_LINKS: usize = 8;
+const URL_CHARS: usize = 400;
+
+/// A page a session made or works on, as Pod Bay lists it under `links`: a pull request, an issue or an artifact.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct Link {
+    /// "pr", "issue" or "artifact"
+    pub kind: &'static str,
+    pub title: String,
+    /// Always an `https://` address (see `safe_url`).
+    pub url: String,
+}
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct Session {
@@ -28,6 +41,11 @@ pub struct Session {
     /// Pod Bay's name for the session (`name`, for example `claude-pb-bot-00`), the argument of `podbay-dev detail`.
     /// Empty when it is not a safe name (see `safe_name`).
     pub name: String,
+    /// The session's pull requests, issues and artifacts, each with its address.
+    pub links: Vec<Link>,
+    /// When the session finished a long run and went idle (ms since the epoch), until the owner looks at it; else 0.
+    /// `build` leaves it 0: `Alerts::mark` sets it, because it depends on what earlier reads showed.
+    pub finished: u64,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -52,6 +70,8 @@ pub struct Counts {
     pub busy: usize,
     pub idle: usize,
     pub stopped: usize,
+    /// Idle sessions that finished a run the owner has not looked at yet (they also count in `idle`).
+    pub finished: usize,
 }
 
 #[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]
@@ -158,12 +178,46 @@ pub fn safe_name(raw: &str) -> String {
     if ok { raw.to_string() } else { String::new() }
 }
 
+/// A link that is safe to hand to the system's `open`: `https://` only, printable ASCII with no quote, bracket or
+/// backslash, and not too long. Anything else is empty.
+pub fn safe_url(raw: &str) -> String {
+    let ok = raw.len() <= URL_CHARS
+        && raw.strip_prefix("https://").map_or(false, |rest| rest.chars().next().map_or(false, |c| c.is_ascii_alphanumeric()))
+        && raw.chars().all(|c| c.is_ascii_graphic() && !matches!(c, '"' | '\'' | '<' | '>' | '\\' | '^' | '`' | '{' | '|' | '}'));
+    if ok { raw.to_string() } else { String::new() }
+}
+
+/// The links of one session, pull requests first. A link with no safe address is left out.
+fn links_of(s: &Value) -> Vec<Link> {
+    let mut out = Vec::new();
+    for (field, kind) in [("prs", "pr"), ("issues", "issue"), ("artifacts", "artifact")] {
+        for l in s["links"][field].as_array().map(Vec::as_slice).unwrap_or(&[]) {
+            let url = safe_url(l["url"].as_str().unwrap_or(""));
+            if !url.is_empty() && out.len() < MAX_LINKS {
+                out.push(Link { kind, title: cut(l["title"].as_str().unwrap_or("").trim(), NAME_CHARS), url });
+            }
+        }
+    }
+    out
+}
+
 fn rank(state: &str) -> u8 {
     match state {
         "needs" => 0,
         "busy" => 1,
         _ => 2,
     }
+}
+
+/// Needs-you and busy: the longest wait first. Idle: the finished ones first (the latest on top), then the most recent.
+pub fn order(sessions: &mut [Session]) {
+    sessions.sort_by(|a, b| {
+        rank(a.state)
+            .cmp(&rank(b.state))
+            .then_with(|| b.finished.cmp(&a.finished))
+            .then_with(|| if a.state == "idle" { b.since.cmp(&a.since) } else { a.since.cmp(&b.since) })
+            .then_with(|| a.title.cmp(&b.title))
+    });
 }
 
 pub fn build(raw: &Raw) -> Model {
@@ -213,6 +267,8 @@ pub fn build(raw: &Raw) -> Model {
                 name: safe_name(&text(&s["name"])),
                 waiting: cut(s["waiting_for"].as_str().unwrap_or("").trim(), 40),
                 prs: s["links"]["prs"].as_array().map(Vec::len).unwrap_or(0),
+                links: links_of(s),
+                finished: 0,
                 state: state_of(s),
                 since: s["since"].as_i64().unwrap_or(0),
                 what: cut(&text(&s["description"]), WHAT_CHARS),
@@ -223,13 +279,7 @@ pub fn build(raw: &Raw) -> Model {
             });
         }
     }
-    // Needs-you and busy: the longest wait first. Idle: the most recent first.
-    sessions.sort_by(|a, b| {
-        rank(a.state)
-            .cmp(&rank(b.state))
-            .then_with(|| if a.state == "idle" { b.since.cmp(&a.since) } else { a.since.cmp(&b.since) })
-            .then_with(|| a.title.cmp(&b.title))
-    });
+    order(&mut sessions);
 
     let stopped: Vec<Stopped> = seen
         .into_iter()
@@ -368,7 +418,7 @@ mod tests {
             ("Asks early", "needs"), ("Starting", "needs"), ("Asks late", "needs"),
             ("Busy", "busy"), ("Idle new", "idle"), ("Idle old", "idle"),
         ]);
-        assert_eq!(m.counts, Counts { needs: 3, busy: 1, idle: 2, stopped: 2 });
+        assert_eq!(m.counts, Counts { needs: 3, busy: 1, idle: 2, stopped: 2, finished: 0 });
     }
 
     #[test]
@@ -382,6 +432,40 @@ mod tests {
         assert_eq!(by("Busy").what, "board work");
         assert_eq!(by("Idle old").queued, 1);
         assert_eq!(by("Idle new").queued, 0);
+    }
+
+    #[test]
+    fn links_keep_their_kind_title_and_https_address() {
+        let r = Raw { ls: json!([{"machine": "UA", "result": [sess(json!({"links": {
+            "prs": [{"title": "o/r#266", "url": "https://github.com/o/r/pull/266"}, {"title": "bad", "url": "file:///etc/passwd"}],
+            "issues": [{"title": "o/r#7", "url": "https://github.com/o/r/issues/7"}],
+            "artifacts": [{"title": "Cost by version", "url": "https://claude.ai/artifact/3VE25w"}, {"url": "https://x.example/a b"}]
+        }}))]}]), ..Raw::default() };
+        let s = &build(&r).sessions[0];
+        let got: Vec<(&str, &str, &str)> = s.links.iter().map(|l| (l.kind, l.title.as_str(), l.url.as_str())).collect();
+        assert_eq!(got, vec![
+            ("pr", "o/r#266", "https://github.com/o/r/pull/266"),
+            ("issue", "o/r#7", "https://github.com/o/r/issues/7"),
+            ("artifact", "Cost by version", "https://claude.ai/artifact/3VE25w"),
+        ]);
+        assert_eq!(s.prs, 2, "the count still says what Pod Bay lists");
+    }
+
+    #[test]
+    fn only_a_plain_https_address_is_a_link() {
+        for ok in ["https://github.com/o/r/pull/1", "https://claude.ai/artifact/aB3_-x?y=1&z=2#top"] { assert_eq!(safe_url(ok), ok); }
+        for bad in ["", "http://github.com/o/r", "https://", "https:///x", "https://-x", "javascript:alert(1)", "file:///etc/passwd", "claude://code/x",
+                    "https://a.example/a b", "https://a.example/\"x", "https://a.example/\n", "https://a.example/é", "-a https://a.example"] {
+            assert_eq!(safe_url(bad), "", "{bad:?} was kept");
+        }
+        assert_eq!(safe_url(&format!("https://a.example/{}", "x".repeat(URL_CHARS))), "");
+    }
+
+    #[test]
+    fn at_most_eight_links_reach_the_page() {
+        let many: Vec<Value> = (0..20).map(|i| json!({"title": format!("o/r#{i}"), "url": format!("https://github.com/o/r/pull/{i}")})).collect();
+        let r = Raw { ls: json!([{"machine": "UA", "result": [sess(json!({"links": {"prs": many}}))]}]), ..Raw::default() };
+        assert_eq!(build(&r).sessions[0].links.len(), MAX_LINKS);
     }
 
     #[test]

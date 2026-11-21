@@ -34,6 +34,10 @@ The app is not signed, so the first start on a new Mac asks for confirmation (ri
   what is working; right-click for settings (sound, do not disturb, start at login, always on top).
 - **Alerts:** a notification, a short sound and a Dock badge when a session starts to need you, with a reminder
   every 10 minutes while it still waits (at most 3). **Do not disturb** mutes them for 30 minutes to 2 hours.
+  Click a notification to open its session.
+- **Finished:** a session that worked for 2 minutes or more and went idle gets a quiet notification and a green
+  `finished` tag at the top of the Idle lane, until you open or peek at it.
+- **Links:** the small buttons on a card (`PR #266`, an artifact's title) open that page in the browser.
 - **Closing the window** keeps the app running in the menu bar; click the Dock icon to bring it back.
 
 More detail on what it reads and its limits: [`README.md`](README.md).

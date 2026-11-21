@@ -7,6 +7,10 @@ file. Versions change only in the release PR (see the release section of `AGENTS
 
 ## [Unreleased]
 
+- Added: Pod Board marks a session that finished. A session that worked for at least 2 minutes and then stays idle for 8 seconds gets one notification with no sound, a green `finished` tag at the top of the Idle lane, a line in the summary row, a group in the menu bar popover and `✓n` beside the menu bar icon. The mark goes when the owner opens the session, peeks at it or clicks its notification, when it works again, or after 12 hours.
+- Added: Pod Board cards show a session's pull requests, issues and artifacts as buttons that open the page in the browser. The app opens only an `https://` address that the current Pod Bay read holds.
+- Added: a click on a Pod Board notification opens its session in the Claude app. Checked with real clicks on macOS.
+
 ## [0.5.0] — 2026-11-21
 
 - Added: the board's `/fleet` page and `/fleet.json` show a milestone ledger's `scenarios`, `feature_pr` and `test_rounds` (`null`, `null` and `[]` when absent) (#16). The `pd-orchestrate` line of the skills map shows the reviewer's `check-request`/`check-result` path and the milestone flow (#15). The `session-role.sh` row of the CLAUDE.md hooks table says that `PD_BOT_ROLE=orchestrator` gives the role and any other non-empty value gives none (#18). These come from the ship.js comparison round (#30).
