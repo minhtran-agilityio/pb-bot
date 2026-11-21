@@ -170,6 +170,7 @@
   .what.fallback { font-style: italic; color: hsl(var(--muted-fg)); }
   .meta { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
   .tag { padding: 1px 8px; border-radius: 999px; background: hsl(var(--butter)); color: hsl(var(--cocoa)); font: 700 11px 'Pod Sans', system-ui, sans-serif; }
+  .tag.wait { background: hsl(var(--terracotta)); color: hsl(var(--on-accent)); }
   .compact .row { padding: 7px 12px; }
   .row .mono { font-size: 11px; }
   .pill { display: inline-flex; align-items: center; gap: 7px; padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; }
@@ -296,6 +297,7 @@ function row(s, big) {
   if (s.state !== 'idle' || big) li.append(s.what ? el('p', 'what', s.what) : el('p', 'what fallback', s.branch ? `branch ${s.branch}` : 'no description'));
   const meta = el('p', 'meta mono'); meta.append(el('span', null, `${s.project}/${s.ws} · ${s.machine}`));
   if (big && s.prs) meta.append(el('span', null, `· ${s.prs} PR`));
+  if (s.waiting) meta.append(el('span', 'tag wait', s.waiting));
   if (s.queued) meta.append(el('span', 'tag', `${s.queued} queued`));
   li.append(meta);
   return linkable(li, s);
@@ -365,6 +367,7 @@ function listRow(s) {
   const ti = el('span', 'lt'); const si = el('span', `sic ${s.state}`); si.append(ic(STATES[s.state][1])); ti.append(si, el('span', null, s.title));
   const what = s.what ? el('span', 'lw', s.what) : el('span', 'lw fallback', s.branch ? `branch ${s.branch}` : 'no description');
   const where = el('span', 'lp mono', `${s.project}/${s.ws} · ${s.machine}`);
+  if (s.waiting) where.append(' ', el('span', 'tag wait', s.waiting));
   if (s.queued) where.append(' ', el('span', 'tag', `${s.queued} queued`));
   const when = s.state === 'idle' ? el('span', 'lc tab', ago(s.since)) : el('span', 'lc wait tab', dur(s.since));
   if (s.state === 'idle') when.dataset.ago = s.since || ''; else when.dataset.since = s.since || '';

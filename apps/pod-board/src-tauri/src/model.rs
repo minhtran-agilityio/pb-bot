@@ -21,6 +21,8 @@ pub struct Session {
     pub branch: String,
     pub prs: usize,
     pub queued: usize,
+    /// What the session waits for, as Pod Bay words it (`waiting_for`, for example "input needed"); else empty.
+    pub waiting: String,
     /// The session's Remote Control id: the last part of `remote_url` (`https://claude.ai/code/<id>`), else empty.
     pub rc_id: String,
 }
@@ -114,12 +116,17 @@ fn truthy(v: &Value) -> bool {
     }
 }
 
-/// `asks` (a dialog waits for a human) wins over `status`. A session with no status yet has not reached its
-/// prompt (seen on a session stopped at a startup dialog), so it needs a human too.
+/// A session needs a human when Pod Bay says so in any of its ways:
+/// - `waiting_for` names what it waits for (seen: "input needed", with `status: "waiting"` and `asks: false`);
+/// - `status` is anything other than "busy" or "idle" (seen: "waiting");
+/// - `asks` is true (Pod Bay's guess that the last reply ends with a question);
+/// - no `status` yet: a session stopped before its prompt, for example at a startup dialog.
 fn state_of(s: &Value) -> &'static str {
-    if truthy(&s["asks"]) || s["status"].is_null() {
+    let status = s["status"].as_str();
+    let waits = s["waiting_for"].as_str().map_or(false, |w| !w.trim().is_empty());
+    if waits || truthy(&s["asks"]) || !matches!(status, Some("busy") | Some("idle")) {
         "needs"
-    } else if s["status"] == "busy" {
+    } else if status == Some("busy") {
         "busy"
     } else {
         "idle"
@@ -186,6 +193,7 @@ pub fn build(raw: &Raw) -> Model {
                 branch: cut(branch.get(&format!("{machine}|{project}|{}|{ws}", text(&s["repo"]))).map(String::as_str).unwrap_or(""), NAME_CHARS),
                 queued: queued.get(&format!("{machine}|{}", text(&s["dir"]))).copied().unwrap_or(0),
                 rc_id: session_id(&text(&s["remote_url"])),
+                waiting: cut(s["waiting_for"].as_str().unwrap_or("").trim(), 40),
                 prs: s["links"]["prs"].as_array().map(Vec::len).unwrap_or(0),
                 state: state_of(s),
                 since: s["since"].as_i64().unwrap_or(0),
@@ -305,6 +313,28 @@ mod tests {
             assert_eq!(session_id(bad), "", "{bad} was kept");
         }
         assert_eq!(build(&raw()).sessions[0].rc_id, "session_01AbC");
+    }
+
+    #[test]
+    fn a_waiting_session_needs_you_even_without_asks() {
+        let r = Raw {
+            ls: json!([{"machine": "UA", "result": [
+                sess(json!({"title": "Waiting", "status": "waiting", "asks": false, "waiting_for": "input needed"})),
+                sess(json!({"title": "Odd status", "status": "paused", "asks": false})),
+                sess(json!({"title": "Blank wait", "status": "busy", "asks": false, "waiting_for": "  "})),
+                sess(json!({"title": "Plain idle", "status": "idle", "asks": false, "waiting_for": null})),
+            ]}]),
+            ..Raw::default()
+        };
+        let m = build(&r);
+        let got: Vec<(&str, &str, &str)> = m.sessions.iter().map(|s| (s.title.as_str(), s.state, s.waiting.as_str())).collect();
+        assert_eq!(got, vec![
+            ("Odd status", "needs", ""), ("Waiting", "needs", "input needed"),
+            ("Blank wait", "busy", ""), ("Plain idle", "idle", ""),
+        ]);
+        let before: HashMap<String, &'static str> = [("UA|Waiting".to_string(), "idle"), ("UA|Odd status".to_string(), "needs")].into();
+        let told: Vec<&str> = newly_needs(&before, &m).iter().map(|s| s.title.as_str()).collect();
+        assert_eq!(told, vec!["Waiting"], "a session that starts to wait is announced once");
     }
 
     #[test]
