@@ -28,6 +28,7 @@ command or a `file:line`:
 
 1. **Does it do what the owner asked?** Compare the diff with the verbatim request: what is
    missing, what drifted, what is extra. The `pd-bot:intent-reviewer` agent does this well.
+   Record `match` or `gaps` in the receipt's `intent` object.
 2. **Is the evidence real?** For a bug, run the new test on the base with the old code: it must
    fail there for the ticket's reason, and pass on the head. For a feature with acceptance tests,
    check that only the commit `Add acceptance tests for #<n>` touches their directory and that it

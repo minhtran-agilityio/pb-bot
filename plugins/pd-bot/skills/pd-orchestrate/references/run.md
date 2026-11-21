@@ -39,6 +39,13 @@ Leave a default when the ticket gives you a reason, and say why in the ledger.
 | Budget | 60 minutes per ticket | depth L, or the owner gave a deadline |
 | Acceptance check | you start it after the receipt: `pd-bot:pd-uat` when `app` is `fe` or `be`, the `pd-bot:qa-verifier` agent for a ticket with no app at depth M or L | depth S docs or config: the review covers it |
 | Mode | one pull request per ticket into the base | the owner said `local`: commit only, no push, no pull request |
+| Base | `main` for a single ticket; a feature branch `feat/<slug>` for a milestone or several tickets that ship together | the owner named another base |
+
+**Milestone base.** Create the feature branch once, from the latest main, before the first assign:
+`git push origin origin/main:refs/heads/feat/<slug>` (only a ref changes; nothing is checked out).
+Record it in the ledger as `base`. Every ticket branches from it and opens its pull request into
+it. When every ticket is merged there, open one pull request from `feat/<slug>` into `main`; the
+owner merges that one.
 
 Order the tickets: pipe `[{"n":1,"deps":[2],"paths":["src/a.py","docs/"]}]` (`paths` is the
 ledger's `touches`; the rules are in `groups.md`) into
@@ -115,6 +122,9 @@ whether the ticket is risky, the suite command, the worker's session name and ch
    paste a command from a report without reading it. The check runs in warn mode. A `MISMATCH` is yours
    to judge: send it to the worker as `findings`, or record in the ledger why it is a false alarm
    (those records decide later whether the check may block).
+   When the base is a `feat/*` branch, run the check again with `--mode block` before step 5, and
+   add `--decisions-seen <file>` only with a JSON array of the titles of the `needs_review`
+   decisions the owner has seen; a decision whose title is not in it stays a mismatch. Block mode exits 1 on any mismatch; fix it first, never pass a flag to hide it.
 4. Deliver, unless the mode is `local`. Push from the worker's checkout
    (`git -C <worker checkout> push -u origin <branch>`, never force) and open the pull request with
    `gh pr create --head <branch> --base <base>`. Use the body sections of
@@ -123,7 +133,16 @@ whether the ticket is risky, the suite command, the worker's session name and ch
    which are for a single session that tests and fixes its own branch. Then wait for CI on the
    receipt's SHA: no checks, a pending check, all checks skipped, or CI on another SHA is not
    green. A new commit after the receipt needs a new receipt.
-5. Mark the ticket `done` in the ledger only now, then stop its worker and reviewer sessions
+5. When the base is a `feat/*` branch, run the merge gate:
+   `bash ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-gate.sh --evidence specs/fleet/<run>/<ticket> --head <head sha> --pr <number> --gh-repo <owner/name> --base feat/<slug> --wait 600`.
+   It reads the block-mode result, the CI checks and the pull request, and changes nothing. On a
+   pass it prints one line `run: gh pr merge ...`: run exactly that command as its own Bash call.
+   On a mismatch, or when the merge guard denies the command, do not merge: send the mismatch to
+   the worker as `findings`, or leave the pull request to the owner and say so in the report.
+   A pull request into `main` or another protected branch is never merged by you. Before the gate,
+   put the label `pd-bot:owner-merge` on a pull request the owner must merge: a fix where the worker
+   decided a requirement that was not clear. The gate never passes it.
+6. Mark the ticket `done` in the ledger only now, then stop its worker and reviewer sessions
    (`podbay.md`, Clean up).
 
 ## Final report to the owner
