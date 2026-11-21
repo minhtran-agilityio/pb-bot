@@ -197,3 +197,48 @@ def test_usage_errors_exit_2(checkout, args):
 
 def test_missing_checkout_exits_2(tmp_path):
     assert run("--checkout", str(tmp_path / "none"), "--restore").returncode == 2
+
+
+def show(d):
+    return run("--checkout", str(d), "--show")
+
+
+def test_show_fresh_checkout_is_all_absent_and_creates_nothing(checkout):
+    r = show(checkout)
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.splitlines() == [
+        "model=absent", "permissions.defaultMode=absent", "env.PD_BOT_ROLE=absent",
+        "env.PD_BOT_TICKET=absent", "env.PD_BOT_RUN=absent", "restore-state=absent"]
+    assert not (checkout / ".claude").exists()
+
+
+def test_show_after_apply_and_after_restore(checkout):
+    assert apply(checkout, "--ticket", "12").returncode == 0
+    lines = show(checkout).stdout.splitlines()
+    assert lines == [
+        'model="claude-haiku-5-5"', 'permissions.defaultMode="auto"', 'env.PD_BOT_ROLE="worker"',
+        'env.PD_BOT_TICKET="12"', "env.PD_BOT_RUN=absent", "restore-state=present"]
+    assert run("--checkout", str(checkout), "--restore").returncode == 0
+    assert show(checkout).stdout.splitlines()[-1] == "restore-state=absent"
+
+
+def test_show_leaves_the_settings_file_unchanged(checkout):
+    assert apply(checkout).returncode == 0
+    f = settings(checkout)
+    os.utime(f, (1000000000, 1000000000))
+    before = (f.read_bytes(), f.stat().st_mtime_ns)
+    assert show(checkout).returncode == 0
+    assert (f.read_bytes(), f.stat().st_mtime_ns) == before
+
+
+@pytest.mark.parametrize("extra", [["--restore"], ["--role", "worker"], ["--model", "m"],
+                                   ["--mode", "auto"], ["--ticket", "1"], ["--run", "r"]])
+def test_show_cannot_combine_with_other_options(checkout, extra):
+    r = run("--checkout", str(checkout), "--show", *extra)
+    assert r.returncode == 2
+
+
+def test_show_refuses_invalid_json(checkout):
+    settings(checkout).parent.mkdir()
+    settings(checkout).write_text("{not json")
+    assert show(checkout).returncode == 1
