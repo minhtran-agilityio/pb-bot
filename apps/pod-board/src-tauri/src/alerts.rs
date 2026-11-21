@@ -141,7 +141,7 @@ mod tests {
     fn s(title: &str, state: &'static str) -> Session {
         Session {
             machine: "UA".into(), project: "pb-bot".into(), ws: "src-05".into(), title: title.into(), state,
-            since: 0, what: String::new(), branch: String::new(), prs: 0, queued: 0, rc_id: String::new(),
+            since: 0, what: String::new(), branch: String::new(), prs: 0, queued: 0, rc_id: String::new(), name: String::new(),
             waiting: if state == "needs" { "input needed".into() } else { String::new() },
         }
     }

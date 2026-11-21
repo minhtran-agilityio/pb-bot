@@ -1,6 +1,7 @@
 // Pod Board: a small desktop window with every Pod Bay session by state (needs you, busy, idle).
-// It only observes. It runs the read-only commands `podbay-dev ls --all`, `checkouts --all`, `machines` and
-// `queue ls --all`; it never calls `podbay-dev detail` and never sends anything anywhere.
+// It only observes. It polls the read-only commands `podbay-dev ls --all`, `checkouts --all`, `machines` and
+// `queue ls --all`. It runs `podbay-dev detail` only when the owner opens a session's peek, for that one session,
+// and keeps only its last prompt and reply (never the screen). It never sends anything anywhere.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod alerts;
@@ -17,7 +18,7 @@ use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
 use std::sync::Mutex;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::tray::TrayIconBuilder;
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent, Wry};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_notification::NotificationExt;
@@ -25,6 +26,10 @@ use tauri_plugin_notification::NotificationExt;
 const POLL_PAUSE: Duration = Duration::from_secs(3); // one `ls --all` takes about 1.3 s
 const SLOW_EVERY: u32 = 10; // checkouts, machines and the queue change slowly
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(10);
+/// `detail` on another machine took 10.5 s on 2026-11-21, so the peek waits longer than the poll does.
+const PEEK_TIMEOUT: Duration = Duration::from_secs(25);
+/// The popover under the menu bar icon, in logical pixels (keep in step with `popover` in tauri.conf.json).
+const POPOVER_W: f64 = 340.0;
 const MAX_OUTPUT: u64 = 16 << 20;
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -114,6 +119,92 @@ fn open_session(id: String) -> Result<(), String> {
     spawn_reaped(Command::new(opener).arg(&url)).map_err(|_| "could not open the session".to_string())
 }
 
+/// What the peek shows of one session: its last prompt and its last reply, both plain text and cut short.
+#[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]
+struct Peek {
+    prompt: String,
+    reply: String,
+    /// When the reply was written (ms since the epoch), when Pod Bay says.
+    at: Option<u64>,
+    /// False when that machine does not share its sessions' text.
+    shared: bool,
+}
+
+const PEEK_PROMPT_CHARS: usize = 1200;
+const PEEK_REPLY_CHARS: usize = 4000;
+
+/// Keep the tail of a long text: the end of a reply holds the question.
+fn tail(s: &str, n: usize) -> String {
+    let count = s.chars().count();
+    if count <= n { return s.to_string(); }
+    let mut out = String::from("…");
+    out.extend(s.chars().skip(count - (n - 1)));
+    out
+}
+
+/// Pod Bay sends a long reply in two cut pieces: `activity[].full` is its head ("…" at the end) and `reply` is its
+/// tail ("…" at the start). Join them where they overlap, else with a "…" line between; the tail holds the question.
+fn join_reply(head: &str, tail_part: &str) -> String {
+    let (head, tail_part) = (head.trim(), tail_part.trim());
+    let Some(h) = head.strip_suffix('…') else { return head.to_string() };
+    let Some(t) = tail_part.strip_prefix('…') else { return if tail_part.is_empty() { head.to_string() } else { tail_part.to_string() } };
+    // The head is the start of the reply and the tail its end, so where they overlap the end of the head equals the
+    // start of the tail. Take the longest such overlap of at least 12 characters.
+    let cuts: Vec<usize> = t.char_indices().map(|(i, _)| i).chain(std::iter::once(t.len())).collect();
+    for &k in cuts.iter().rev() {
+        if t[..k].chars().count() < 12 { break; }
+        if h.ends_with(&t[..k]) {
+            return format!("{}{}", h, &t[k..]);
+        }
+    }
+    format!("{}\n\n…\n\n{}", h.trim_end(), t.trim_start())
+}
+
+/// Pick the prompt and reply out of `podbay-dev detail` JSON: the newest reply in `activity`, joined with `reply`.
+/// The screen (`peek`) is dropped: it can show the account and anything else on the terminal.
+fn peek_of(v: &Value) -> Peek {
+    let newest = v["activity"].as_array().and_then(|a| {
+        a.iter().filter(|e| e["kind"] == "reply").max_by_key(|e| e["at"].as_u64().unwrap_or(0))
+    });
+    let tail_part = v["reply"].as_str().unwrap_or("");
+    let reply = match newest.and_then(|e| e["full"].as_str()) {
+        Some(head) => join_reply(head, tail_part),
+        None => tail_part.trim().to_string(),
+    };
+    Peek {
+        prompt: tail(v["prompt"].as_str().unwrap_or("").trim(), PEEK_PROMPT_CHARS),
+        reply: tail(&reply, PEEK_REPLY_CHARS),
+        at: newest.and_then(|e| e["at"].as_u64()),
+        shared: v["shared"].as_bool().unwrap_or(true),
+    }
+}
+
+/// The last prompt and reply of one session, read on demand with `podbay-dev --on <machine> detail <name>`.
+/// It runs off the main thread: another machine can take ten seconds or more to answer.
+#[tauri::command]
+async fn peek(machine: String, name: String) -> Result<Peek, String> {
+    let (machine, name) = (model::safe_name(&machine), model::safe_name(&name));
+    if machine.is_empty() || name.is_empty() {
+        return Err("not a Pod Bay session".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        read_for(&find_podbay(), &["--on", &machine, "detail", &name], PEEK_TIMEOUT).map(|v| peek_of(&v))
+    })
+    .await
+    .map_err(|_| "podbay-dev detail failed".to_string())?
+}
+
+#[tauri::command]
+fn show_board(app: AppHandle) {
+    hide_popover(&app);
+    show_main(&app);
+}
+
+#[tauri::command]
+fn close_popover(app: AppHandle) {
+    hide_popover(&app);
+}
+
 #[tauri::command]
 fn snapshot(state: tauri::State<'_, Shared>) -> Snapshot {
     state.0.lock().map(|s| s.clone()).unwrap_or_default()
@@ -132,14 +223,20 @@ fn find_podbay() -> PathBuf {
 
 /// Run one read-only Pod Bay command and parse its JSON. The error text names the subcommand, never stderr.
 fn read(cmd: &PathBuf, args: &[&str]) -> Result<Value, String> {
+    read_for(cmd, args, COMMAND_TIMEOUT)
+}
+
+/// `read` with its own time limit. The subcommand in errors is the first argument that is not a flag or its value.
+fn read_for(cmd: &PathBuf, args: &[&str], timeout: Duration) -> Result<Value, String> {
+    let sub = if args.first() == Some(&"--on") { args.get(2).copied().unwrap_or("") } else { args[0] };
     let mut child = Command::new(cmd)
         .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
-        .map_err(|e| if e.kind() == std::io::ErrorKind::NotFound { "podbay-dev not found".to_string() } else { format!("podbay-dev {} did not start", args[0]) })?;
-    let mut out = child.stdout.take().ok_or_else(|| format!("podbay-dev {} gave no output", args[0]))?;
+        .map_err(|e| if e.kind() == std::io::ErrorKind::NotFound { "podbay-dev not found".to_string() } else { format!("podbay-dev {} did not start", sub) })?;
+    let mut out = child.stdout.take().ok_or_else(|| format!("podbay-dev {} gave no output", sub))?;
     // The reader hands its text over a channel, so a helper that keeps the pipe open after the command exits
     // cannot hang the poll loop. The output is capped (Pod Bay's JSON is tens of KB).
     let (tx, rx) = channel::<String>();
@@ -152,21 +249,21 @@ fn read(cmd: &PathBuf, args: &[&str]) -> Result<Value, String> {
     let status = loop {
         match child.try_wait() {
             Ok(Some(status)) => break status,
-            Ok(None) if started.elapsed() > COMMAND_TIMEOUT => {
+            Ok(None) if started.elapsed() > timeout => {
                 let _ = child.kill();
                 let _ = child.wait();
-                return Err(format!("podbay-dev {} timed out", args[0]));
+                return Err(format!("podbay-dev {} timed out", sub));
             }
             Ok(None) => std::thread::sleep(Duration::from_millis(40)),
-            Err(_) => return Err(format!("podbay-dev {} failed", args[0])),
+            Err(_) => return Err(format!("podbay-dev {} failed", sub)),
         }
     };
-    let left = COMMAND_TIMEOUT.saturating_sub(started.elapsed()).max(Duration::from_secs(1));
-    let text = rx.recv_timeout(left).map_err(|_| format!("podbay-dev {} kept its output open", args[0]))?;
+    let left = timeout.saturating_sub(started.elapsed()).max(Duration::from_secs(1));
+    let text = rx.recv_timeout(left).map_err(|_| format!("podbay-dev {} kept its output open", sub))?;
     if !status.success() {
-        return Err(format!("podbay-dev {} failed", args[0]));
+        return Err(format!("podbay-dev {} failed", sub));
     }
-    serde_json::from_str(&text).map_err(|_| format!("podbay-dev {} did not return JSON", args[0]))
+    serde_json::from_str(&text).map_err(|_| format!("podbay-dev {} did not return JSON", sub))
 }
 
 /// Start a short-lived helper (`open`, `afplay`) and reap it in the background, so it leaves no zombie.
@@ -311,6 +408,37 @@ fn show_main(app: &AppHandle) {
     }
 }
 
+fn hide_popover(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("popover") { let _ = w.hide(); }
+}
+
+/// Where the popover goes: centred under the menu bar icon, 6 px below it, and inside the icon's screen.
+/// All values are physical pixels; `screen` is (left, width) of the monitor the icon is on.
+fn popover_x(icon_x: f64, icon_w: f64, pop_w: f64, screen: (f64, f64)) -> f64 {
+    let x = icon_x + icon_w / 2.0 - pop_w / 2.0;
+    let (left, width) = screen;
+    x.min(left + width - pop_w - 8.0).max(left + 8.0)
+}
+
+/// A left click on the menu bar icon opens the popover under it, or closes it when it is open.
+fn toggle_popover(app: &AppHandle, rect: tauri::Rect) {
+    let Some(w) = app.get_webview_window("popover") else { return };
+    if w.is_visible().unwrap_or(false) { let _ = w.hide(); return; }
+    let scale = w.scale_factor().unwrap_or(1.0);
+    let pos: tauri::PhysicalPosition<f64> = rect.position.to_physical(scale);
+    let size: tauri::PhysicalSize<f64> = rect.size.to_physical(scale);
+    let screen = w
+        .monitor_from_point(pos.x, pos.y)
+        .ok()
+        .flatten()
+        .map(|m| (m.position().x as f64, m.size().width as f64))
+        .unwrap_or((0.0, f64::MAX / 4.0));
+    let x = popover_x(pos.x, size.width, POPOVER_W * scale, screen);
+    let _ = w.set_position(tauri::PhysicalPosition::new(x, pos.y + size.height + 6.0 * scale));
+    let _ = w.show();
+    let _ = w.set_focus();
+}
+
 fn main() {
     let (wake_tx, wake_rx) = channel::<()>();
     let app = tauri::Builder::default()
@@ -320,7 +448,7 @@ fn main() {
         .manage(Wake(Mutex::new(wake_tx)))
         .manage(AlertState(Mutex::new(Alerts::new(true))))
         .manage(DndMenu(Mutex::new(None)))
-        .invoke_handler(tauri::generate_handler![snapshot, refresh, open_session, set_dnd])
+        .invoke_handler(tauri::generate_handler![snapshot, refresh, open_session, set_dnd, peek, show_board, close_popover])
         .setup(move |app| {
             let handle = app.handle().clone();
             let saved = load_settings(app.handle());
@@ -353,7 +481,13 @@ fn main() {
                 .icon_as_template(true)
                 .tooltip("Pod Board")
                 .menu(&menu)
-                .show_menu_on_left_click(true)
+                // Left click: the popover with the sessions. Right click (or Control-click): this menu.
+                .show_menu_on_left_click(false)
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, rect, .. } = event {
+                        toggle_popover(tray.app_handle(), rect);
+                    }
+                })
                 .on_menu_event(move |app, event| match event.id().as_ref() {
                     "open" => show_main(app),
                     "autostart" => {
@@ -391,12 +525,17 @@ fn main() {
             std::thread::spawn(move || poll_loop(handle, wake_rx));
             Ok(())
         })
-        .on_window_event(|window, event| {
+        .on_window_event(|window, event| match event {
             // Closing the window hides it: the app keeps watching and the Dock icon opens it again.
-            if let WindowEvent::CloseRequested { api, .. } = event {
+            WindowEvent::CloseRequested { api, .. } => {
                 api.prevent_close();
                 let _ = window.hide();
             }
+            // The popover closes as soon as the owner clicks anywhere else, like a system menu.
+            WindowEvent::Focused(false) if window.label() == "popover" => {
+                let _ = window.hide();
+            }
+            _ => {}
         })
         .build(tauri::generate_context!())
         .expect("error while building Pod Board");
@@ -426,6 +565,72 @@ mod tests {
             std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
         }
         path
+    }
+
+    #[test]
+    fn peek_keeps_the_newest_reply_and_the_prompt_but_never_the_screen() {
+        let v = serde_json::json!({
+            "prompt": "  fix the build  ",
+            "reply": "older reply",
+            "peek": "👤 someone@example.com │ the terminal screen",
+            "shared": true,
+            "activity": [
+                {"kind": "reply", "at": 10, "full": "first", "line": "first"},
+                {"kind": "prompt", "at": 30, "full": "a prompt", "line": "a prompt"},
+                {"kind": "reply", "at": 20, "full": "Shall I push the branch?", "line": "Shall I…"}
+            ]
+        });
+        let p = peek_of(&v);
+        assert_eq!(p, Peek { prompt: "fix the build".into(), reply: "Shall I push the branch?".into(), at: Some(20), shared: true });
+        assert!(!serde_json::to_string(&p).unwrap().contains("example.com"));
+        // No activity: the plain `reply` field, and a machine that does not share its text says so.
+        let q = peek_of(&serde_json::json!({"reply": "done", "prompt": null, "shared": false}));
+        assert_eq!((q.reply.as_str(), q.prompt.as_str(), q.at, q.shared), ("done", "", None, false));
+    }
+
+    #[test]
+    fn the_head_and_tail_of_a_long_reply_are_joined() {
+        // Overlap, as Pod Bay sends a 700-character reply: 600 head characters, 600 tail characters.
+        let whole = format!("Start. {} The middle part. {} Shall I push?", "a".repeat(300), "b".repeat(300));
+        let head = format!("{}…", whole.chars().take(600).collect::<String>());
+        let tail_part = format!("…{}", whole.chars().skip(whole.chars().count() - 600).collect::<String>());
+        assert_eq!(join_reply(&head, &tail_part), whole);
+        // No overlap: both pieces with a "…" line between, the end kept.
+        assert_eq!(join_reply("Start here and…", "…far later. Shall I push?"), "Start here and\n\n…\n\nfar later. Shall I push?");
+        // A short reply is whole in `full`.
+        assert_eq!(join_reply("Done.", "Done."), "Done.");
+        let v = serde_json::json!({"reply": tail_part, "activity": [{"kind": "reply", "at": 5, "full": head}]});
+        assert!(peek_of(&v).reply.ends_with("Shall I push?"));
+    }
+
+    #[test]
+    fn a_long_reply_keeps_its_end_where_the_question_is() {
+        let long = format!("{}Shall I go on?", "x".repeat(5000));
+        let cut = tail(&long, PEEK_REPLY_CHARS);
+        assert_eq!(cut.chars().count(), PEEK_REPLY_CHARS);
+        assert!(cut.starts_with('…') && cut.ends_with("Shall I go on?"));
+        assert_eq!(tail("short", 10), "short");
+    }
+
+    #[test]
+    fn the_popover_sits_under_its_icon_and_stays_on_the_screen() {
+        // Icon at x 1000, 40 wide, on a 1440-wide screen: centred under it.
+        assert_eq!(popover_x(1000.0, 40.0, 340.0, (0.0, 1440.0)), 850.0);
+        // Icon near the right edge: pushed left so the popover keeps 8 px from the edge.
+        assert_eq!(popover_x(1420.0, 20.0, 340.0, (0.0, 1440.0)), 1092.0);
+        // Icon near the left edge of a second screen that starts at x 1440.
+        assert_eq!(popover_x(1450.0, 20.0, 340.0, (1440.0, 1920.0)), 1448.0);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn a_remote_read_names_its_subcommand_and_has_its_own_time_limit() {
+        let cmd = script("on", "exit 4");
+        assert_eq!(read_for(&cmd, &["--on", "U0", "detail", "claude-x-00"], PEEK_TIMEOUT).unwrap_err(), "podbay-dev detail failed");
+        let slow = script("slow", "sleep 3; printf '{}'");
+        let started = Instant::now();
+        assert_eq!(read_for(&slow, &["--on", "U0", "detail", "n"], Duration::from_secs(1)).unwrap_err(), "podbay-dev detail timed out");
+        assert!(started.elapsed() < Duration::from_secs(3), "took {:?}", started.elapsed());
     }
 
     #[test]
