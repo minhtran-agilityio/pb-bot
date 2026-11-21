@@ -151,6 +151,8 @@ def restore(checkout):
             saved = json.load(f)
         except ValueError:
             refuse(f"{state} is not valid JSON; check {path} by hand and delete it")
+    if not isinstance(saved, dict):
+        refuse(f"{state} is not a JSON object; check {path} by hand and delete it")
     data = read_settings(path) or {}
     for key in KEYS:
         put(data, key, saved.get("keys", {}).get(".".join(key), ABSENT))
@@ -174,9 +176,12 @@ def show(checkout):
     if os.path.exists(state):
         label = "present"
         try:
+            if not os.path.isfile(state):
+                raise ValueError("not a regular file")
             with open(state) as f:
-                json.load(f)
-        except ValueError:
+                if not isinstance(json.load(f), dict):
+                    raise ValueError("not a JSON object")
+        except (OSError, ValueError, RecursionError):
             label = "present (invalid)"
     print("restore state: " + label)
 
