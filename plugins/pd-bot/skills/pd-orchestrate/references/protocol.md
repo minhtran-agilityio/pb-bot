@@ -11,7 +11,7 @@ Transport: `SendMessage` to the session name that the brief gives. The first lin
 [pd-msg v1] <type> <run>/<ticket> <from-role>
 ```
 
-`<from-role>` is `orchestrator`, `worker`, `reviewer` or `advisor`. A body follows; where the table
+`<from-role>` is `orchestrator`, `worker`, `reviewer`, `tester` or `advisor`. A body follows; where the table
 says JSON, the body is one JSON object and nothing else.
 
 | Type | From → to | Body |
@@ -22,6 +22,10 @@ says JSON, the body is one JSON object and nothing else.
 | `review-request` | worker → reviewer | checkout path, branch, base ref, head SHA. No ticket text, no summary of the change |
 | `review-result` | reviewer → worker, and the same text → orchestrator | receipt JSON |
 | `fix-pushed` | worker → reviewer | the new head SHA, and one line per finding: fixed, or why not |
+| `check-request` | orchestrator → reviewer | after a `pass`: what the checks need (`pd-review/references/checks.md`) |
+| `check-result` | reviewer → orchestrator | result JSON: the acceptance check and the evidence check, short |
+| `feature-test-request` | orchestrator → tester | the scenario page, the ticket texts, the owner's answers, the checkout of the feature branch tip |
+| `feature-test-result` | tester → orchestrator | result JSON: pass or fail per scenario, one line of evidence per failure |
 | `findings` | orchestrator → worker | what a check found after the report (acceptance check, evidence check, CI); it reopens the ticket |
 | `advise-request` | orchestrator → advisor | the problem brief (see `pd-bot:pd-advise`) and the session to answer |
 | `advise-result` | advisor → orchestrator | the solution |
@@ -101,6 +105,9 @@ writes it. It is the orchestrator's memory: after a context summary, read it fir
    "branch": "fix/123", "base_sha": "<sha>", "head": "<sha>", "qa_commits": [], "pr": null, "started": "<ISO time>", "budget_min": 60,
    "last": "review-result round 1: changes"}}}
 ```
+
+A milestone run adds `scenarios` (the link of the scenario page), `feature_pr` and `test_rounds`
+(`milestone.md`).
 
 States: `queued`, `assigned`, `in_review`, `fixing`, `escalated`, `verified`, `pr_open`, `done`,
 `blocked`, `skipped`.

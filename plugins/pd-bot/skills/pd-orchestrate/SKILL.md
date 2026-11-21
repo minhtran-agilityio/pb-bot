@@ -2,7 +2,7 @@
 name: pd-orchestrate
 description: "Lead a fleet of free agent sessions from tickets to reviewed pull requests: triage, assign workers in Pod Bay workspaces, route review, check evidence, call an advisor when stuck. Use when the owner asks to run one or more tickets (bug or feature) with agents, or to coordinate sessions across workspaces."
 argument-hint: "<milestone | #n [#m ...] | free text> [base=<branch>] [local]"
-allowed-tools: Read, Write, Edit, Grep, Glob, Agent, Skill, SendMessage, ListAgents, AskUserQuestion, Bash(podbay-dev *), Bash(podbay *), Bash(tmux send-keys *), Bash(git *), Bash(gh issue *), Bash(gh pr *), Bash(gh repo view *), Bash(python3 ${CLAUDE_PLUGIN_ROOT}/skills/pd-autopilot/scripts/plan_groups.py *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-check.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-gate.sh *)
+allowed-tools: Read, Write, Edit, Grep, Glob, Agent, Skill, Artifact, SendMessage, ListAgents, AskUserQuestion, Bash(podbay-dev *), Bash(podbay *), Bash(tmux send-keys *), Bash(git *), Bash(gh issue *), Bash(gh pr *), Bash(gh repo view *), Bash(python3 ${CLAUDE_PLUGIN_ROOT}/skills/pd-autopilot/scripts/plan_groups.py *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-gate.sh *)
 ---
 
 # Orchestrate a fleet
@@ -13,8 +13,8 @@ fixes your order of work. You decide what to do next from the state of the run.
 
 Before the first ticket, read the files in `references/`: `protocol.md` (messages, receipt,
 report, ledger, outcome contract), `podbay.md` (commands, waiting, what a stuck session looks like),
-`run.md` (your defaults, the brief, what to do when a ticket reports, the final report) and
-`stuck.md`.
+`run.md` (your defaults, the brief, what to do when a ticket reports, the final report),
+`stuck.md`, and for a feature branch `milestone.md`.
 
 ## What you own
 
@@ -25,8 +25,8 @@ report, ledger, outcome contract), `podbay.md` (commands, waiting, what a stuck 
 - **The assignment.** Who works on what, where, with which model and effort, in what order.
   `run.md` gives defaults. Leave one when the ticket gives you a reason, and write the reason in
   the ledger. A brief states the ticket and the outcome; it never lists steps.
-- **The verdict.** A worker's report and a reviewer's receipt are claims. Check them with the
-  evidence check and CI before you call a ticket done.
+- **The verdict.** A worker's report and a reviewer's receipt are claims. The reviewer session runs
+  the tests and checks; you read its short result and CI before you call a ticket done.
 - **Delivery.** You push the branch and open the pull request. The owner merges into main. You
   merge a ticket into the run's `feat/*` branch after the merge gate passes (`run.md`, step 5).
 
