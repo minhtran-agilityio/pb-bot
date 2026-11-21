@@ -20,6 +20,9 @@ It is a Tauri 2 app (Rust and one HTML page). It needs no server, no port and no
   it goes out when it ends. The sound switch and the end time survive a restart (`settings.json` in the app's
   config folder).
 - **Window:** a sidebar that filters by state and machine, one summary row and three lanes. Closing the window hides it; the app keeps watching.
+- **Cat:** a small cat drawn for this app sits in the window's bottom-right corner, beside the Stopped strip. It
+  shows the heaviest state of the whole board: it waves when a session needs you, types when one is working, and
+  sleeps otherwise. It is decorative (hidden from screen readers) and does nothing when clicked.
 
 ## Build and run
 
