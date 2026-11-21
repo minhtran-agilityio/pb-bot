@@ -1,0 +1,44 @@
+/* Shared by the board (index.html) and the menu bar popover (popover.html). */
+/* Cozy UI: warm cream page, paper cards, a sage sidebar, one terracotta accent, soft clay shadows. */
+:root {
+  --cream: 33 70% 94%; --paper: 34 100% 98%; --cocoa: 24 32% 17%;
+  --sage: 100 20% 82%; --sage-deep: 145 20% 45%; --peach: 22 85% 86%; --peach-deep: 17 74% 62%;
+  --butter: 44 82% 83%; --butter-deep: 42 85% 60%; --sky: 212 28% 86%; --sky-deep: 212 26% 62%;
+  --rose: 10 70% 85%; --rose-deep: 6 68% 64%; --terracotta: 17 74% 62%; --success: 145 35% 36%;
+  --muted: 33 45% 90%; --muted-fg: 25 16% 44%; --border: 30 40% 87%; --on-accent: 34 100% 98%;
+  --edge: #ffffff99;
+  --sil: #26232a; --sil2: #4a4652; --glow: #e2e86a; --glow-soft: rgba(226, 232, 106, .28); --cat-rim: none; --spark: #8f9416;
+  --seg-on: hsl(var(--paper)); --seg-ring: transparent; --seg-hover: hsl(var(--paper) / .7);
+  --shadow-xs: 0 1px 2px #6b462e0f;
+  --shadow-soft: 0 1px 2px #6b462e0d, 0 12px 32px -14px #73452638;
+  --shadow-clay: inset 0 2px 1px #ffffff8c, inset 0 -4px 8px #6b462e0f, 0 14px 30px -16px #7345264d;
+  --shadow-lift: 0 2px 4px #6b462e0d, 0 22px 44px -18px #73452657;
+  --shadow-pressed: inset 0 2px 6px #6b462e1f;
+  --grain: .08; --grain-blend: multiply;
+}
+:root[data-theme="dark"] {
+  --cream: 24 18% 11%; --paper: 24 16% 15%; --cocoa: 33 55% 92%;
+  --sage: 110 12% 22%; --sage-deep: 140 22% 52%; --peach: 20 30% 24%; --peach-deep: 17 70% 64%;
+  --butter: 40 28% 23%; --butter-deep: 42 75% 62%; --sky: 212 16% 24%; --sky-deep: 212 30% 66%;
+  --rose: 10 26% 24%; --rose-deep: 6 65% 66%; --terracotta: 17 72% 62%; --success: 140 40% 62%;
+  --muted: 24 14% 19%; --muted-fg: 30 14% 66%; --border: 24 12% 23%; --on-accent: 24 18% 11%;
+  --edge: #ffffff0d;
+  --sil: #0c0b0e; --sil2: #3c3844; --spark: #e2e86a;
+  /* On dark the paper colour is darker than the track, so a pressed segment needs its own lighter fill and a rim. */
+  --seg-on: hsl(24 12% 32%); --seg-ring: hsl(33 40% 80% / .28); --seg-hover: hsl(24 12% 25%);
+  /* A thin light rim and a faint glow, so the black cat does not sink into the dark cushion. */
+  --cat-rim: drop-shadow(0 0 .6px #9d96a8) drop-shadow(0 0 .6px #9d96a8) drop-shadow(0 0 5px rgba(226, 232, 106, .18));
+  --shadow-xs: 0 1px 2px #00000040;
+  --shadow-soft: 0 1px 2px #0003, 0 12px 32px -14px #00000080;
+  --shadow-clay: inset 0 1px 0 #ffffff0f, 0 14px 30px -16px #0000008c;
+  --shadow-lift: 0 2px 4px #0003, 0 22px 44px -18px #0009;
+  --shadow-pressed: inset 0 2px 6px #00000059;
+  --grain: .05; --grain-blend: soft-light;
+}
+/* The board's fonts ship inside the app, so macOS draws the same letters as the design preview:
+   Ubuntu (Ubuntu Font Licence 1.0) for text and DejaVu Sans Mono (Bitstream Vera licence) for code. See THIRD-PARTY.md. */
+@font-face { font-family: 'Pod Sans'; font-weight: 400; font-display: block; src: url('fonts/Ubuntu-R.woff') format('woff'); }
+@font-face { font-family: 'Pod Sans'; font-weight: 500; font-display: block; src: url('fonts/Ubuntu-M.woff') format('woff'); }
+@font-face { font-family: 'Pod Sans'; font-weight: 700; font-display: block; src: url('fonts/Ubuntu-B.woff') format('woff'); }
+@font-face { font-family: 'Pod Mono'; font-weight: 400; font-display: block; src: url('fonts/DejaVuSansMono.woff') format('woff'); }
+@font-face { font-family: 'Pod Mono'; font-weight: 700; font-display: block; src: url('fonts/DejaVuSansMono-Bold.woff') format('woff'); }

@@ -25,6 +25,9 @@ pub struct Session {
     pub waiting: String,
     /// The session's Remote Control id: the last part of `remote_url` (`https://claude.ai/code/<id>`), else empty.
     pub rc_id: String,
+    /// Pod Bay's name for the session (`name`, for example `claude-pb-bot-00`), the argument of `podbay-dev detail`.
+    /// Empty when it is not a safe name (see `safe_name`).
+    pub name: String,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -145,6 +148,16 @@ pub fn session_id(raw: &str) -> String {
     if ok { id.to_string() } else { String::new() }
 }
 
+/// A Pod Bay session or machine name that is safe to pass to `podbay-dev` as one argument: letters, digits, `-`,
+/// `_` and `.`, not starting with `-` (so it cannot read as a flag), at most 128 characters. Anything else is empty.
+pub fn safe_name(raw: &str) -> String {
+    let ok = !raw.is_empty()
+        && raw.len() <= 128
+        && !raw.starts_with('-')
+        && raw.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'));
+    if ok { raw.to_string() } else { String::new() }
+}
+
 fn rank(state: &str) -> u8 {
     match state {
         "needs" => 0,
@@ -197,6 +210,7 @@ pub fn build(raw: &Raw) -> Model {
                 branch: cut(branch.get(&format!("{machine}|{project}|{}|{ws}", text(&s["repo"]))).map(String::as_str).unwrap_or(""), NAME_CHARS),
                 queued: queued.get(&format!("{machine}|{}", text(&s["dir"]))).copied().unwrap_or(0),
                 rc_id: session_id(&text(&s["remote_url"])),
+                name: safe_name(&text(&s["name"])),
                 waiting: cut(s["waiting_for"].as_str().unwrap_or("").trim(), 40),
                 prs: s["links"]["prs"].as_array().map(Vec::len).unwrap_or(0),
                 state: state_of(s),
@@ -256,6 +270,13 @@ pub fn key(s: &Session) -> String {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn only_a_plain_name_passes_to_podbay_dev() {
+        for ok in ["claude-pb-bot-00", "M0", "U0", "mnemo_fd.2"] { assert_eq!(safe_name(ok), ok); }
+        for bad in ["", "-rf", "--on", "a b", "a;b", "a/b", "../x", "x\n"] { assert_eq!(safe_name(bad), "", "{bad:?}"); }
+        assert_eq!(safe_name(&"a".repeat(129)), "");
+    }
 
     fn sess(over: Value) -> Value {
         let mut base = json!({
