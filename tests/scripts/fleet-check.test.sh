@@ -481,6 +481,9 @@ for h in --help -h; do
   OUT=$(bash "$FC" "$h" 2>"$EV/help.err"); RC=$?
   if [ "$RC" = 0 ] && printf '%s' "$OUT" | grep -qF 'usage: fleet-check.sh' && [ ! -s "$EV/help.err" ] && ! printf '%s' "$OUT" | grep -qE '^(ok|MISMATCH|skip) '; then pass; else fail "$h rc=$RC out: $OUT err: $(cat "$EV/help.err")"; fi
 done
+t "--help or -h with other arguments still exits 2"
+OUT=$(bash "$FC" --repo "$R" --base "$BASE" --head "$HEAD" --evidence "$EV" --kind bug -h 2>&1); RC=$?; rc_is 2
+OUT=$(bash "$FC" --help --kind bug 2>&1); RC=$?; rc_is 2
 t "a usage error still prints the usage to stderr, nothing to stdout, and exits 2"
 OUT=$(bash "$FC" --bogus 2>/dev/null); RC=$?
 ERR=$(bash "$FC" --bogus 2>&1 >/dev/null)

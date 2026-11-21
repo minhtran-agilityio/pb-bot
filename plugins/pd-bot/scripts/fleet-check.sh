@@ -47,9 +47,9 @@ san() { printf '%s' "$1" | LC_ALL=C tr -cd '\040-\176' | cut -c1-200; }
 repo=""; base=""; head=""; kind=""; evid=""; repro_cmd=""; repro_files=""
 suite_cmd="bash scripts/run-tests.sh"; no_suite=0; suite_set=0; qa_dir=""; ticket_id=""; mode="warn"
 risky_flag=0; seen_file=""; qa_n=0; QA_COMMITS=()
+if [ $# -eq 1 ]; then case "$1" in --help|-h) usage_text; exit 0 ;; esac; fi
 while [ $# -gt 0 ]; do
   case "$1" in
-    --help|-h) usage_text; exit 0 ;;
     --no-suite) no_suite=1; shift; continue ;;
     --risky) risky_flag=1; shift; continue ;;
     --repo|--base|--head|--kind|--evidence|--repro-cmd|--repro-files|--suite-cmd|--qa-dir|--qa-commit|--ticket-id|--decisions-seen|--mode)

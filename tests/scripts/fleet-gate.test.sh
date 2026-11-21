@@ -214,9 +214,13 @@ t "an unknown option exits 2"; u --evidence "$EV" --head "$HEAD" --pr 1 --gh-rep
 t "a usage error calls gh zero times"; if [ -f "$FAKE/calls" ]; then fail "calls: $(cat "$FAKE/calls")"; else pass; fi
 t "--help and -h print the usage to stdout, exit 0, call gh zero times and run no check"
 for h in --help -h; do
-  OUT=$(bash "$FG" "$h" 2>"$EV/help.err"); RC=$?
+  OUT=$(FAKE="$FAKE" PATH="$BIN:$PATH" bash "$FG" "$h" 2>"$EV/help.err"); RC=$?
   if [ "$RC" = 0 ] && printf '%s' "$OUT" | grep -qF 'usage: fleet-gate.sh' && [ ! -s "$EV/help.err" ] && ! printf '%s' "$OUT" | grep -qE '^(ok|MISMATCH) ' && [ ! -f "$FAKE/calls" ]; then pass; else fail "$h rc=$RC out: $OUT err: $(cat "$EV/help.err")"; fi
 done
+t "--help or -h with other arguments still exits 2 and calls gh zero times"
+u --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo o/r --base feat/x -h; rc_is 2
+u --help --evidence "$EV"; rc_is 2
+if [ -f "$FAKE/calls" ]; then fail "calls: $(cat "$FAKE/calls")"; else pass; fi
 t "a usage error still prints the usage to stderr, nothing to stdout, and exits 2"
 OUT=$(bash "$FG" --bogus 2>/dev/null); RC=$?
 ERR=$(bash "$FG" --bogus 2>&1 >/dev/null)

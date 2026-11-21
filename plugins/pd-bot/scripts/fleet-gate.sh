@@ -41,9 +41,9 @@ is_full_hex() {
 san() { printf '%s' "$1" | LC_ALL=C tr -cd '\040-\176' | cut -c1-200; }
 
 evid=""; head=""; pr=""; gh_repo=""; base_ref_want=""; wait_s=0
+if [ $# -eq 1 ]; then case "$1" in --help|-h) usage_text; exit 0 ;; esac; fi
 while [ $# -gt 0 ]; do
   case "$1" in
-    --help|-h) usage_text; exit 0 ;;
     --evidence|--head|--pr|--gh-repo|--base|--wait) [ $# -ge 2 ] || usage "$1 needs a value" ;;
     *) usage "unknown argument: $1" ;;
   esac
