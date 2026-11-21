@@ -14,6 +14,7 @@
     --muted: 33 45% 90%; --muted-fg: 25 16% 44%; --border: 30 40% 87%; --on-accent: 34 100% 98%;
     --edge: #ffffff99;
     --sil: #26232a; --sil2: #4a4652; --glow: #e2e86a; --glow-soft: rgba(226, 232, 106, .28); --cat-rim: none; --spark: #8f9416;
+    --seg-on: hsl(var(--paper)); --seg-ring: transparent; --seg-hover: hsl(var(--paper) / .7);
     --shadow-xs: 0 1px 2px #6b462e0f;
     --shadow-soft: 0 1px 2px #6b462e0d, 0 12px 32px -14px #73452638;
     --shadow-clay: inset 0 2px 1px #ffffff8c, inset 0 -4px 8px #6b462e0f, 0 14px 30px -16px #7345264d;
@@ -29,6 +30,8 @@
     --muted: 24 14% 19%; --muted-fg: 30 14% 66%; --border: 24 12% 23%; --on-accent: 24 18% 11%;
     --edge: #ffffff0d;
     --sil: #0c0b0e; --sil2: #3c3844; --spark: #e2e86a;
+    /* On dark the paper colour is darker than the track, so a pressed segment needs its own lighter fill and a rim. */
+    --seg-on: hsl(24 12% 32%); --seg-ring: hsl(33 40% 80% / .28); --seg-hover: hsl(24 12% 25%);
     /* A thin light rim and a faint glow, so the black cat does not sink into the dark cushion. */
     --cat-rim: drop-shadow(0 0 .6px #9d96a8) drop-shadow(0 0 .6px #9d96a8) drop-shadow(0 0 5px rgba(226, 232, 106, .18));
     --shadow-xs: 0 1px 2px #00000040;
@@ -125,14 +128,14 @@
   /* Header controls are one family: each group is a .seg track (42 px, muted, inset); Refresh is a track of one. */
   .seg.solo { margin-left: auto; }
   .seg.icons button, .seg.solo button { padding: 0 10px; min-width: 34px; justify-content: center; }
-  .seg.solo button:hover, .seg button[aria-pressed="false"]:hover { background: hsl(var(--paper) / .7); color: hsl(var(--cocoa)); }
+  .seg.solo button:hover, .seg button[aria-pressed="false"]:hover { background: var(--seg-hover); color: hsl(var(--cocoa)); }
   .seg button:focus-visible { outline: 2px solid hsl(var(--terracotta)); outline-offset: 1px; }
   #refresh.spin .ic { animation: spin .8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .seg { flex: none; display: inline-flex; gap: 2px; padding: 4px; border-radius: 999px; background: hsl(var(--muted) / .8); box-shadow: var(--shadow-pressed); }
   .seg button { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 14px; border-radius: 999px; font-size: 13px; font-weight: 700; color: hsl(var(--muted-fg)); transition: background .2s, color .2s; }
   .seg button .ic { font-size: 17px; }
-  .seg button[aria-pressed="true"] { background: hsl(var(--paper)); color: hsl(var(--cocoa)); box-shadow: var(--shadow-soft); }
+  .seg button[aria-pressed="true"] { background: var(--seg-on); color: hsl(var(--cocoa)); box-shadow: var(--shadow-soft), inset 0 0 0 1px var(--seg-ring); }
   @media (max-width: 620px) { .seg button span { display: none; } .seg button { padding: 0 10px; } }
   #banner { display: none; margin: 0 0 14px; padding: 10px 16px; border-radius: 20px; background: hsl(var(--rose)); font-weight: 600; }
   #banner.on { display: block; }
