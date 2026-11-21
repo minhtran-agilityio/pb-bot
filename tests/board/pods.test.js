@@ -87,6 +87,16 @@ test('podsOf: a session with no status yet (stopped before its prompt) needs a h
   assert.deepStrictEqual(m.sessions.map(s => [s.title, s.state]), [['Starting', 'needs'], ['Ready', 'idle']]);
 });
 
+test('podsOf: a session waiting for input needs you even when asks is false', () => {
+  const m = podsOf({ ls: [{ machine: 'UA', result: [
+    sess({ title: 'Waiting', status: 'waiting', asks: false, waiting_for: 'input needed' }),
+    sess({ title: 'Odd', status: 'paused' }),
+    sess({ title: 'Blank wait', status: 'busy', waiting_for: '  ' }),
+    sess({ title: 'Plain', status: 'idle', waiting_for: null }),
+  ] }] });
+  assert.deepStrictEqual(m.sessions.map(s => [s.title, s.state]), [['Odd', 'needs'], ['Waiting', 'needs'], ['Blank wait', 'busy'], ['Plain', 'idle']]);
+});
+
 test('podsOf: workspace, description, branch fallback, PR count and queue count', () => {
   const by = Object.fromEntries(podsOf(RAW).sessions.map(s => [s.title, s]));
   assert.strictEqual(by['Asks late'].ws, 'src-01');

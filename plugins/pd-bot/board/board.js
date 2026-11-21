@@ -354,9 +354,14 @@ const POD_RANK = { needs: 0, busy: 1, idle: 2 };
 const wsOf = context => { const m = /@(\d+)$/.exec(String(context || '')); return m ? `src-${m[1]}` : 'src'; };
 const perMachine = list => (Array.isArray(list) ? list : []).filter(m => m && Array.isArray(m.result));
 
-// `asks` (a dialog waits for a human) wins over `status`. A session with no status yet is one Pod Bay started
-// that has not reached its prompt: seen on a session stopped at a startup dialog, so it needs a human too.
-const podState = s => (s.asks || s.status == null) ? 'needs' : s.status === 'busy' ? 'busy' : 'idle';
+// A session needs a human when Pod Bay says so in any of its ways: `waiting_for` names something (seen: "input
+// needed" with status "waiting" and asks false), `asks` is true, or `status` is anything but busy or idle (seen:
+// "waiting"; a session with no status yet has stopped before its prompt, for example at a startup dialog).
+const podState = s => {
+  const waits = typeof s.waiting_for === 'string' && s.waiting_for.trim() !== '';
+  if (waits || s.asks || (s.status !== 'busy' && s.status !== 'idle')) return 'needs';
+  return s.status === 'busy' ? 'busy' : 'idle';
+};
 
 // Build the page model from raw `podbay-dev` JSON. It copies named fields only (an allow list), so account,
 // uuid, dir, path and remote_url never reach the page.
