@@ -242,7 +242,7 @@ def test_show_refuses_invalid_json_and_leaves_it(checkout):
 
 @pytest.mark.parametrize("extra", [
     ["--restore"], ["--role", "worker"], ["--model", "m"], ["--mode", "auto"],
-    ["--ticket", "1"], ["--run", "r"],
+    ["--ticket", "1"], ["--run", "r"], ["--ticket", ""], ["--run", ""], ["--model", ""],
     ["--role", "worker", "--model", "m", "--mode", "auto"]])
 def test_show_cannot_be_combined(checkout, extra):
     assert apply(checkout).returncode == 0
