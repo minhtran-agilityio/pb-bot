@@ -27,6 +27,7 @@ li.s-escalated .state{color:var(--warn)}
 li.s-done .state,li.s-verified .state,li.s-pr_open .state{color:var(--ok)}
 li.s-in_review .state,li.s-assigned .state,li.s-fixing .state{color:var(--run)}
 a{color:var(--run)}
+.ms{margin:0 0 12px;font-size:13px;display:flex;flex-direction:column;gap:2px;overflow-wrap:anywhere}
 @media (max-width:640px){li.row{grid-template-columns:1fr 1fr}.id,.state{grid-column:auto}.lbl{display:block}.pr,.worker,.reviewer{grid-column:1/-1}}
 </style>
 </head>
@@ -34,12 +35,14 @@ a{color:var(--run)}
 <div class="page">
 <h1>Fleet Board</h1>
 <p class="sub" id="meta">loading…</p>
+<div class="ms" id="ms" hidden></div>
 <p class="msg err" id="err" hidden></p>
 <ul id="rows"></ul>
 </div>
 <script>
 (function(){
 var ORDER={blocked:0,escalated:1};
+var ms=document.getElementById('ms');
 var rows=document.getElementById('rows'),meta=document.getElementById('meta'),err=document.getElementById('err');
 function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e}
 function cell(cls,label,value){var d=el('div',cls);d.appendChild(el('span','lbl',label));
@@ -49,11 +52,22 @@ function prNode(pr){
   var s=String(pr);
   if(/^https?:\/\//i.test(s)){var a=el('a','',s);a.href=s;a.target='_blank';a.rel='noopener noreferrer';return a}
   return s}
+function milestone(d){
+  ms.textContent='';
+  if(d.feature_pr!=null)ms.appendChild(el('div','','Feature PR #'+d.feature_pr));
+  if(d.scenarios){var s=String(d.scenarios),line=el('div','','Scenarios: ');
+    if(/^https?:\/\//i.test(s)){var a=el('a','',s);a.href=s;a.target='_blank';a.rel='noopener noreferrer';line.appendChild(a)}
+    else line.appendChild(document.createTextNode(s));
+    ms.appendChild(line)}
+  (d.test_rounds||[]).forEach(function(r){
+    ms.appendChild(el('div','','Test round '+r.round+': '+r.failed.length+' failed · tickets '+(r.tickets.length?r.tickets.join(', '):'–')))});
+  ms.hidden=!ms.firstChild}
 function render(d){
   err.hidden=true;
   meta.textContent='run '+d.run+' · base '+d.base+' · '+d.tickets.length+' ticket'+(d.tickets.length===1?'':'s');
   var list=d.tickets.map(function(t,i){return {t:t,i:i}}).sort(function(a,b){
     var x=ORDER[a.t.state],y=ORDER[b.t.state];x=x===undefined?9:x;y=y===undefined?9:y;return x-y||a.i-b.i}).map(function(o){return o.t});
+  milestone(d);
   rows.textContent='';
   list.forEach(function(t){
     var li=el('li','row s-'+String(t.state).replace(/[^a-z_]/gi,''));
@@ -63,7 +77,7 @@ function render(d){
     li.appendChild(cell('reviewer','reviewer',t.reviewer));
     li.appendChild(cell('pr','pull request',prNode(t.pr)));
     rows.appendChild(li)})}
-function fail(msg){rows.textContent='';meta.textContent='';err.textContent=msg;err.hidden=false}
+function fail(msg){rows.textContent='';ms.hidden=true;meta.textContent='';err.textContent=msg;err.hidden=false}
 function poll(){
   fetch('fleet.json',{cache:'no-store'}).then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j}})})
    .then(function(x){if(x.ok)render(x.j);else fail(x.j&&x.j.error||'error')})

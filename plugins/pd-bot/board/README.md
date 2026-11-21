@@ -126,8 +126,8 @@ node plugins/pd-bot/board/board.js --project <dir>     # newest specs/fleet/*/le
 
 Without `--ledger`, the board picks the newest `specs/fleet/*/ledger.json` (by modification time) under `--project` (default: the current directory). The ledger is read again on every request, so a change shows without a restart.
 
-- `GET /fleet`: HTML page, one row per ticket (id, state, worker, reviewer, pull request). `blocked` and `escalated` rows are marked and listed first; a pull request that is an http(s) URL is a link. The page refreshes itself every 3 seconds and fits a 390 px screen.
-- `GET /fleet.json`: `{"run","base","tickets":[{"id","state","kind","depth","worker","reviewer","head","pr"}]}`, sorted by id (all-digit ids numerically, others as strings). `worker` and `reviewer` are the session names; missing fields are `null`; `pr` is passed through unchanged.
+- `GET /fleet`: HTML page, one row per ticket (id, state, worker, reviewer, pull request). `blocked` and `escalated` rows are marked and listed first; a pull request that is an http(s) URL is a link. A milestone ledger also shows above the rows the feature PR number, the scenario link and one line per test round (round, failed count, ticket numbers); nothing shows when the field is absent. The page refreshes itself every 3 seconds and fits a 390 px screen.
+- `GET /fleet.json`: `{"run","base","scenarios","feature_pr","test_rounds":[{"round","failed","tickets"}],"tickets":[{"id","state","kind","depth","worker","reviewer","head","pr"}]}`, sorted by id (all-digit ids numerically, others as strings). `worker` and `reviewer` are the session names; missing fields are `null`; `pr` is passed through unchanged. `scenarios` (string) and `feature_pr` (number) are `null` and `test_rounds` is `[]` when absent or of the wrong type; a malformed `test_rounds` entry is dropped.
 - No fleet run: `404 {"error":"no fleet run"}`. A ledger that does not parse: `503 {"error":"<reason>"}`; the board keeps running.
 
 The existing routes and the ship.js view are unchanged.
