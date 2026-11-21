@@ -38,6 +38,7 @@ pub struct Outcome {
 
 #[derive(Debug, Clone)]
 struct Wait {
+    machine: String,
     since: u64,
     reminders: u32,
     last_told: u64,
@@ -110,10 +111,14 @@ impl Alerts {
                     if !first && !quiet {
                         out.alerts.push(Alert { kind: Kind::New, title: format!("{} needs you", s.title), body: body(s) });
                     }
-                    Wait { since: now, reminders: 0, last_told: now }
+                    Wait { machine: s.machine.clone(), since: now, reminders: 0, last_told: now }
                 }
             };
             waiting.insert(k, wait);
+        }
+        // A machine that could not be read this time keeps its waits, so its return is not announced as new.
+        for (k, w) in before {
+            if model.unread.contains(&w.machine) { waiting.entry(k).or_insert(w); }
         }
         self.waiting = Some(waiting);
 
@@ -141,7 +146,7 @@ mod tests {
         }
     }
     fn m(list: Vec<Session>) -> Model {
-        Model { machines: vec![], sessions: list, stopped: vec![], counts: Counts::default() }
+        Model { machines: vec![], sessions: list, stopped: vec![], counts: Counts::default(), unread: vec![] }
     }
     const MIN: u64 = 60_000;
 
@@ -194,6 +199,32 @@ mod tests {
         assert!(a.on_read(&m(vec![s("A", "needs"), s("B", "needs"), s("C", "needs")]), 12_000).sound);
         a.sound_on = false;
         assert!(!a.on_read(&m(vec![s("A", "needs"), s("B", "needs"), s("C", "needs"), s("D", "needs")]), 60_000).sound);
+    }
+
+    #[test]
+    fn a_machine_that_drops_out_for_a_read_is_not_announced_again() {
+        let mut a = Alerts::new(true);
+        a.on_read(&m(vec![]), 0);
+        assert_eq!(a.on_read(&m(vec![s("X", "needs")]), MIN).alerts.len(), 1);
+        let mut gone = m(vec![]); gone.unread = vec!["UA".into()];
+        assert!(a.on_read(&gone, 2 * MIN).alerts.is_empty());
+        assert!(a.on_read(&m(vec![s("X", "needs")]), 3 * MIN).alerts.is_empty(), "back after a blip: no new alert");
+        let o = a.on_read(&m(vec![s("X", "needs")]), 11 * MIN);
+        assert_eq!(o.alerts[0].kind, Kind::Reminder(1), "the reminder clock kept running");
+    }
+
+    #[test]
+    fn sessions_are_told_apart_by_link_or_workspace_and_survive_a_rename() {
+        let mut a = Alerts::new(false);
+        a.on_read(&m(vec![]), 0);
+        let mut one = s("Untitled", "needs"); one.ws = "src-01".into();
+        let mut two = s("Untitled", "needs"); two.ws = "src-02".into();
+        assert_eq!(a.on_read(&m(vec![one.clone()]), MIN).alerts.len(), 1);
+        assert_eq!(a.on_read(&m(vec![one.clone(), two]), 2 * MIN).alerts.len(), 1, "a second same-named session is its own wait");
+        let mut linked = s("Draft", "needs"); linked.rc_id = "session_01X".into();
+        assert_eq!(a.on_read(&m(vec![linked.clone()]), 3 * MIN).alerts.len(), 1);
+        linked.title = "Fix the login bug".into();
+        assert!(a.on_read(&m(vec![linked]), 4 * MIN).alerts.is_empty(), "a renamed session keeps its wait");
     }
 
     #[test]

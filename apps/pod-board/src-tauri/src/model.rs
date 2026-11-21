@@ -57,6 +57,10 @@ pub struct Model {
     pub sessions: Vec<Session>,
     pub stopped: Vec<Stopped>,
     pub counts: Counts,
+    /// Machines `ls --all` named but could not read this time (their `result` is not a list). Their sessions are
+    /// missing from `sessions` only for now, so alerts keep what they knew about them.
+    #[serde(skip)]
+    pub unread: Vec<String>,
 }
 
 /// Raw output of the read-only commands. A value that was never read is `Value::Null`.
@@ -236,11 +240,16 @@ pub fn build(raw: &Raw) -> Model {
             _ => counts.idle += 1,
         }
     }
-    Model { machines, sessions, stopped, counts }
+    let unread = raw.ls.as_array().map(|list| {
+        list.iter().filter(|m| !m["result"].is_array() && truthy(&m["machine"])).map(|m| text(&m["machine"])).collect()
+    }).unwrap_or_default();
+    Model { machines, sessions, stopped, counts, unread }
 }
 
+/// One session's identity across reads: its Remote Control id when it has one (stable when the title changes),
+/// else machine, workspace and title together.
 pub fn key(s: &Session) -> String {
-    format!("{}|{}", s.machine, s.title)
+    if s.rc_id.is_empty() { format!("{}|{}/{}|{}", s.machine, s.project, s.ws, s.title) } else { s.rc_id.clone() }
 }
 
 #[cfg(test)]

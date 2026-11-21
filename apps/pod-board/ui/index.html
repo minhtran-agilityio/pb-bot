@@ -459,7 +459,7 @@ function summary(list) {
 }
 
 function stoppedStrip() {
-  const list = stoppedShown(), off = snap.machines.filter(m => !m.online);
+  const list = stoppedShown(), off = snap.machines.filter(m => !m.online && (!machine || m.name === machine));
   if (!list.length && !off.length) return null;
   const box = el('section', 'card strip chips');
   box.append(pill('stopped'), el('b', 'tab', String(list.length)));
@@ -642,6 +642,7 @@ function connect() {
 
 // Theme: light, dark, or follow the system (no stored choice). The pressed segment shows the current choice.
 let stored = null; try { stored = localStorage.getItem('pod-board-theme'); } catch (e) { /* no storage */ }
+if (stored !== 'light' && stored !== 'dark') stored = null; // anything else means: follow the system
 const media = window.matchMedia('(prefers-color-scheme: dark)');
 function applyTheme() {
   const dark = stored ? stored === 'dark' : media.matches;

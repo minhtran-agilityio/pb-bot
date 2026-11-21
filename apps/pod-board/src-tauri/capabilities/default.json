@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "The board window listens to events and reads the snapshot",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:event:allow-listen", "core:event:allow-unlisten"]
 }

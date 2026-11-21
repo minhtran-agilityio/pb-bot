@@ -25,6 +25,7 @@ use tauri_plugin_notification::NotificationExt;
 const POLL_PAUSE: Duration = Duration::from_secs(3); // one `ls --all` takes about 1.3 s
 const SLOW_EVERY: u32 = 10; // checkouts, machines and the queue change slowly
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(10);
+const MAX_OUTPUT: u64 = 16 << 20;
 
 #[derive(Debug, Clone, Default, Serialize)]
 struct Snapshot {
@@ -64,11 +65,18 @@ fn load_settings(app: &AppHandle) -> Settings {
     settings_path(app).and_then(|p| std::fs::read_to_string(p).ok()).and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
 }
 
+/// One save at a time, written to a temporary file and renamed over the old one, so a crash or two saves at once
+/// never leave a half-written file.
+static SAVE: Mutex<()> = Mutex::new(());
+
 fn save_settings(app: &AppHandle) {
     let Some(path) = settings_path(app) else { return };
+    let _one = SAVE.lock();
     let (sound, dnd_until) = match app.state::<AlertState>().0.lock() { Ok(a) => (a.sound_on, a.dnd_until), Err(_) => return };
     if let Some(dir) = path.parent() { let _ = std::fs::create_dir_all(dir); }
-    if let Ok(text) = serde_json::to_string(&Settings { sound: Some(sound), dnd_until }) { let _ = std::fs::write(path, text); }
+    let Ok(text) = serde_json::to_string(&Settings { sound: Some(sound), dnd_until }) else { return };
+    let tmp = path.with_extension("json.tmp");
+    if std::fs::write(&tmp, text).is_ok() { let _ = std::fs::rename(&tmp, &path); }
 }
 
 /// Turn Do Not Disturb on for `minutes`, or off with 0. Used by the menu and by the window's "End" button.
@@ -103,8 +111,7 @@ fn open_session(id: String) -> Result<(), String> {
     let (opener, url) = ("open", format!("claude://code/{id}"));
     #[cfg(not(target_os = "macos"))]
     let (opener, url) = ("xdg-open", format!("https://claude.ai/code/{id}"));
-    Command::new(opener).arg(&url).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn()
-        .map(|_| ()).map_err(|_| "could not open the session".to_string())
+    spawn_reaped(Command::new(opener).arg(&url)).map_err(|_| "could not open the session".to_string())
 }
 
 #[tauri::command]
@@ -133,10 +140,13 @@ fn read(cmd: &PathBuf, args: &[&str]) -> Result<Value, String> {
         .spawn()
         .map_err(|e| if e.kind() == std::io::ErrorKind::NotFound { "podbay-dev not found".to_string() } else { format!("podbay-dev {} did not start", args[0]) })?;
     let mut out = child.stdout.take().ok_or_else(|| format!("podbay-dev {} gave no output", args[0]))?;
-    let reader = std::thread::spawn(move || {
+    // The reader hands its text over a channel, so a helper that keeps the pipe open after the command exits
+    // cannot hang the poll loop. The output is capped (Pod Bay's JSON is tens of KB).
+    let (tx, rx) = channel::<String>();
+    std::thread::spawn(move || {
         let mut text = String::new();
-        let _ = out.read_to_string(&mut text);
-        text
+        let _ = (&mut out).take(MAX_OUTPUT).read_to_string(&mut text);
+        let _ = tx.send(text);
     });
     let started = Instant::now();
     let status = loop {
@@ -151,11 +161,19 @@ fn read(cmd: &PathBuf, args: &[&str]) -> Result<Value, String> {
             Err(_) => return Err(format!("podbay-dev {} failed", args[0])),
         }
     };
-    let text = reader.join().unwrap_or_default();
+    let left = COMMAND_TIMEOUT.saturating_sub(started.elapsed()).max(Duration::from_secs(1));
+    let text = rx.recv_timeout(left).map_err(|_| format!("podbay-dev {} kept its output open", args[0]))?;
     if !status.success() {
         return Err(format!("podbay-dev {} failed", args[0]));
     }
     serde_json::from_str(&text).map_err(|_| format!("podbay-dev {} did not return JSON", args[0]))
+}
+
+/// Start a short-lived helper (`open`, `afplay`) and reap it in the background, so it leaves no zombie.
+fn spawn_reaped(cmd: &mut Command) -> std::io::Result<()> {
+    let mut child = cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn()?;
+    std::thread::spawn(move || { let _ = child.wait(); });
+    Ok(())
 }
 
 fn now_ms() -> u64 {
@@ -205,7 +223,7 @@ fn notify(app: &AppHandle, title: &str, body: &str) {
 /// A short system sound. macOS only; elsewhere the notification is the only signal.
 fn play_sound() {
     #[cfg(target_os = "macos")]
-    let _ = Command::new("afplay").arg("/System/Library/Sounds/Glass.aiff").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn();
+    let _ = spawn_reaped(Command::new("afplay").arg("/System/Library/Sounds/Glass.aiff"));
 }
 
 /// Blink the menu bar icon a few times, then put back the icon of the current state.
@@ -246,6 +264,7 @@ fn poll_loop(app: AppHandle, wake: Receiver<()>) {
             Err(e) => error = Some(e),
         }
 
+        let mut outcome = alerts::Outcome::default();
         let snap = {
             let state = app.state::<Shared>();
             let mut held = match state.0.lock() { Ok(g) => g, Err(p) => p.into_inner() };
@@ -255,10 +274,7 @@ fn poll_loop(app: AppHandle, wake: Receiver<()>) {
                 None => {
                     let model = build(&raw);
                     let now = now_ms();
-                    let outcome = match app.state::<AlertState>().0.lock() { Ok(mut a) => a.on_read(&model, now), Err(_) => Default::default() };
-                    for alert in &outcome.alerts { notify(&app, &alert.title, &alert.body); }
-                    if outcome.sound { play_sound(); }
-                    if outcome.flash { flash_tray(app.clone()); }
+                    if let Ok(mut a) = app.state::<AlertState>().0.lock() { outcome = a.on_read(&model, now); }
                     *held = Snapshot { ok: true, error: None, read_at: Some(now), dnd_until: None, model };
                 }
             }
@@ -270,6 +286,10 @@ fn poll_loop(app: AppHandle, wake: Receiver<()>) {
             held.dnd_until = dnd;
             held.clone()
         };
+        // Notifications, sound and flash run after the snapshot lock is released: a slow system call cannot hold it.
+        for alert in &outcome.alerts { notify(&app, &alert.title, &alert.body); }
+        if outcome.sound { play_sound(); }
+        if outcome.flash { flash_tray(app.clone()); }
         if let Ok(menu) = app.state::<DndMenu>().0.lock() {
             if let Some(sub) = menu.as_ref() { let _ = sub.set_text(if snap.dnd_until.is_some() { "Do not disturb: on" } else { "Do not disturb" }); }
         }
@@ -389,4 +409,41 @@ fn main() {
         #[cfg(not(target_os = "macos"))]
         let _ = (app, &event, RunEvent::Ready);
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn script(name: &str, body: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("pod-board-test-{}-{name}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("podbay-dev");
+        std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        path
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn read_parses_json_and_names_the_subcommand_on_failure() {
+        assert_eq!(read(&script("ok", "printf '[1,2]'"), &["ls", "--all"]).unwrap(), serde_json::json!([1, 2]));
+        assert_eq!(read(&script("bad", "echo secret-stderr >&2; exit 3"), &["ls"]).unwrap_err(), "podbay-dev ls failed");
+        assert_eq!(read(&script("junk", "echo not json"), &["machines"]).unwrap_err(), "podbay-dev machines did not return JSON");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn a_helper_that_keeps_the_pipe_open_cannot_hang_the_read() {
+        // The command prints its JSON and exits, but leaves a child that holds stdout open for 30 s.
+        let cmd = script("held", "printf '[]'; (sleep 30) & exit 0");
+        let started = Instant::now();
+        let got = read(&cmd, &["ls", "--all"]);
+        assert!(started.elapsed() < COMMAND_TIMEOUT + Duration::from_secs(2), "took {:?}", started.elapsed());
+        assert_eq!(got.unwrap_err(), "podbay-dev ls kept its output open");
+    }
 }
