@@ -12,7 +12,7 @@ Typing `/pd-bot:pd-autopilot` authorizes the launch in step 8, after the owner s
 skill runs in the main session; `${CLAUDE_PLUGIN_ROOT}/workflows/ship.js` is the autonomous half.
 
 1. **Scope.** Get the checkout dir (`git rev-parse --show-toplevel`) and run
-   `bash ${CLAUDE_SKILL_DIR}/scripts/preflight.sh --repo-dir <checkout dir>`; handle its result as `references/preflight.md` says.
+   `bash ${CLAUDE_SKILL_DIR}/scripts/preflight.sh --repo-dir <checkout dir>` alone, nothing appended; handle its result as `references/preflight.md` says.
    Parse `$ARGUMENTS`: a milestone, issue numbers, or free text (one ticket, no number).
    Get `<repo>` (`gh repo view --json nameWithOwner -q .nameWithOwner`) and the remote name
    (`git remote -v`). For a milestone run
