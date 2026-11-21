@@ -97,6 +97,7 @@
   #conn[data-s="error"] i { background: hsl(var(--rose-deep)); }
   #read { font-size: 12px; color: hsl(var(--muted-fg)); }
   .dnd { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-radius: 14px; background: hsl(var(--butter)); font-size: 12px; font-weight: 700; }
+  .dnd[hidden] { display: none; } /* the flex rule above would otherwise show it while off */
   .dnd button { font-size: 12px; font-weight: 700; color: hsl(var(--terracotta)); text-decoration: underline; text-underline-offset: 3px; }
   .pill-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 0 16px; border-radius: 999px; font-size: 13px; font-weight: 700; background: hsl(var(--terracotta)); color: hsl(var(--on-accent));
     box-shadow: var(--shadow-soft); transition: transform .15s; }
