@@ -41,7 +41,7 @@ reading it. Run:
 `--risky` for a risky ticket, and `--decisions-seen <evidence dir>/decisions-seen.json` when that
 file exists. Use the base SHA from the request, never a ref from the worker's checkout. Never add
 or drop a flag to make a mismatch go away. `${CLAUDE_PLUGIN_ROOT}` is the plugin directory; when
-your shell has no such variable, use the directory two levels above this skill's `SKILL.md`.
+your shell has no such variable, send the orchestrator a `question` instead of guessing a path.
 
 ## 3. Result
 
