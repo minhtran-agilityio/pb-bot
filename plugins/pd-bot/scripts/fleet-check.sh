@@ -20,6 +20,7 @@
 # that is acceptable.
 #
 # Usage:
+#   fleet-check.sh -h | --help
 #   fleet-check.sh --repo <checkout> --base <40|64 hex> --head <40|64 hex> --kind bug|feature|docs
 #                  --evidence <dir> [--repro-cmd '<cmd>' --repro-files 'path path']
 #                  [--suite-cmd '<cmd>' | --no-suite] [--qa-dir <path> --qa-commit <sha> ...]
@@ -29,11 +30,13 @@
 # whose title is not in the file stays a mismatch, so a decision added later is never set aside.
 # Output: one line per check (`ok|MISMATCH|skip <name>: <detail>`), <evidence>/fleet-check.json, and
 # the last line `fleet-check: <n> mismatch(es), mode <mode>`.
+# -h, --help: print the usage to stdout, run no check, exit 0.
 # Exit: 2 on a usage error; 0 in warn mode; in block mode 1 when there is a mismatch.
 # Needs git and jq; without jq the JSON-reading checks report a MISMATCH.
 set -u
 
-usage() { echo "fleet-check: $*" >&2; echo "usage: fleet-check.sh --repo <dir> --base <sha> --head <sha> --kind bug|feature|docs --evidence <dir> [--repro-cmd C --repro-files 'p ...'] [--suite-cmd C | --no-suite] [--qa-dir P --qa-commit SHA ...] [--ticket-id ID] [--risky] [--decisions-seen FILE] [--mode warn|block]" >&2; exit 2; }
+usage_text() { echo "usage: fleet-check.sh --repo <dir> --base <sha> --head <sha> --kind bug|feature|docs --evidence <dir> [--repro-cmd C --repro-files 'p ...'] [--suite-cmd C | --no-suite] [--qa-dir P --qa-commit SHA ...] [--ticket-id ID] [--risky] [--decisions-seen FILE] [--mode warn|block]"; }
+usage() { echo "fleet-check: $*" >&2; usage_text >&2; exit 2; }
 
 lower() { printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]'; }
 is_full_hex() { # 40 or 64 hex characters
@@ -48,6 +51,7 @@ suite_cmd="bash scripts/run-tests.sh"; no_suite=0; suite_set=0; qa_dir=""; ticke
 risky_flag=0; seen_file=""; qa_n=0; QA_COMMITS=()
 while [ $# -gt 0 ]; do
   case "$1" in
+    -h|--help) usage_text; exit 0 ;;
     --no-suite) no_suite=1; shift; continue ;;
     --risky) risky_flag=1; shift; continue ;;
     --repo|--base|--head|--kind|--evidence|--repro-cmd|--repro-files|--suite-cmd|--qa-dir|--qa-commit|--ticket-id|--decisions-seen|--mode)

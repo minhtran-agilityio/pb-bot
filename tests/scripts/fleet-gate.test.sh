@@ -211,6 +211,12 @@ t "a --base of main exits 2"; u --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo
 t "a --base of bare feat/ exits 2"; u --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo o/r --base feat/; rc_is 2
 t "a --base with a shell character exits 2"; u --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo o/r --base 'feat/x;y'; rc_is 2
 t "an unknown option exits 2"; u --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo o/r --force; rc_is 2
+t "an unknown option prints the usage on stderr only"; OUT=$(FAKE="$FAKE" PATH="$BIN:$PATH" bash "$FG" --force 2>"$FAKE/err"); RC=$?
+if [ "$RC" = 2 ] && [ -z "$OUT" ] && grep -q 'usage: fleet-gate.sh' "$FAKE/err"; then pass; else fail "rc=$RC out=$OUT"; fi
+for h in --help -h; do
+  t "$h prints the usage on stdout, nothing on stderr, exits 0"; OUT=$(FAKE="$FAKE" PATH="$BIN:$PATH" bash "$FG" "$h" 2>"$FAKE/err"); RC=$?
+  if [ "$RC" = 0 ] && printf '%s' "$OUT" | grep -q 'usage: fleet-gate.sh' && [ ! -s "$FAKE/err" ]; then pass; else fail "rc=$RC out=$OUT err=$(cat "$FAKE/err")"; fi
+done
 t "a usage error calls gh zero times"; if [ -f "$FAKE/calls" ]; then fail "calls: $(cat "$FAKE/calls")"; else pass; fi
 
 finish
