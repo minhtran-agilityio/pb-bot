@@ -21,6 +21,7 @@ It is a Tauri 2 app (Rust and one HTML page). It needs no server, no port and no
   it goes out when it ends. The sound switch and the end time survive a restart (`settings.json` in the app's
   config folder).
 - **Window:** a sidebar that filters by state and machine, one summary row and three lanes. Closing the window hides it; the app keeps watching.
+  The button at the top left (or ⌘B) collapses the sidebar to its icons and expands it again; the choice is remembered.
 - **Open a session:** click a card (or press Enter on it). On macOS this opens `claude://code/<id>`, so the Claude
   desktop app switches to that session; elsewhere it opens `https://claude.ai/code/<id>` in the browser.
 - **Peek:** a speech-bubble button on each card (always shown on a card that needs you, on hover for the others)
