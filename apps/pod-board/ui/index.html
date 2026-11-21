@@ -69,7 +69,10 @@
   .item:hover, .item[aria-current="page"] { color: hsl(var(--cocoa)); }
   /* Project and machine rows are filters, not pages: smaller, so the whole list fits a short window. */
   .item.sub { min-height: 30px; font-size: 13px; font-weight: 500; }
-  .item.sub[data-on="1"] { color: hsl(var(--terracotta)); font-weight: 700; }
+  /* A chosen filter reads like the chosen page: a paper pill, plus a terracotta edge and text so it differs from the page pill. */
+  .item.sub[data-on="1"] { color: hsl(var(--terracotta)); font-weight: 800; background: hsl(var(--paper)); box-shadow: inset 0 0 0 1.5px hsl(var(--terracotta)), var(--shadow-xs); }
+  .item.sub[data-on="1"] .n { background: hsl(var(--terracotta)); color: hsl(var(--on-accent)); }
+  .item .dot.warn { background: hsl(var(--butter-deep)); }
   /* The icon sprite holds no visible drawing. The app's content policy drops inline style attributes, so hide it here. */
   .sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
   .ic { width: 1em; height: 1em; display: block; fill: currentColor; }
@@ -324,7 +327,11 @@ function stoppedStrip() {
   const box = el('section', 'card strip chips');
   box.append(pill('stopped'), el('b', 'tab', String(list.length)));
   for (const w of list) box.append(el('span', 'chip mono', `${w.project}/${w.ws}·${w.machine}${w.dirty ? ' ✎' : ''}`));
-  for (const m of off) box.append(el('span', 'chip off mono', `${m.name} offline`));
+  for (const m of off) {
+    const c = el('span', 'chip off mono', m.key_stale ? `${m.name} offline · password out of date` : `${m.name} offline`);
+    if (m.key_stale) c.title = `Pod Bay on this computer holds an old password for ${m.name}, so it cannot reach it. Sign in to Pod Bay again on one of the two machines.`;
+    box.append(c);
+  }
   return box;
 }
 
@@ -420,7 +427,8 @@ function nav() {
     if (snap.machines.length > 1) {
       box.append(el('p', 'group', 'Machines'));
       for (const m of snap.machines) {
-        box.append(item('', m.name, snap.sessions.filter(s => s.machine === m.name).length, false, false, () => { machine = machine === m.name ? null : m.name; render(); bar(); }, m.online ? 'on' : 'off'));
+        box.append(item('', m.name, snap.sessions.filter(s => s.machine === m.name).length, false, false, () => { machine = machine === m.name ? null : m.name; render(); bar(); }, m.online ? 'on' : m.key_stale ? 'off warn' : 'off'));
+        if (!m.online) box.lastChild.title = m.key_stale ? `${m.name}: offline, password out of date` : `${m.name}: offline`;
         box.lastChild.classList.add('sub'); if (machine === m.name) box.lastChild.dataset.on = '1';
       }
     }

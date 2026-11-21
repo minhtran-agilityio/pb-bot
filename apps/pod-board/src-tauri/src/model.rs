@@ -35,6 +35,8 @@ pub struct Stopped {
 pub struct Machine {
     pub name: String,
     pub online: bool,
+    /// This machine's Pod Bay holds an out-of-date password for it (`password_current: false`): the two cannot link.
+    pub key_stale: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, PartialEq, Eq)]
@@ -202,7 +204,7 @@ pub fn build(raw: &Raw) -> Model {
         .map(|list| {
             list.iter()
                 .filter(|m| truthy(&m["machine"]))
-                .map(|m| Machine { name: text(&m["machine"]), online: truthy(&m["online"]) })
+                .map(|m| Machine { name: text(&m["machine"]), online: truthy(&m["online"]), key_stale: m["password_current"] == Value::Bool(false) })
                 .collect()
         })
         .unwrap_or_default();
@@ -275,7 +277,7 @@ mod tests {
                 ]},
                 {"machine": "U0", "result": [{"project": "harness", "repo": "agent-harness", "ws": "src", "branch": "main", "dirty": 0}]}
             ]),
-            machines: json!([{"machine": "UA", "online": true, "id": "ID-SECRET", "addr": "10.0.0.1:7880"}, {"machine": "Old", "online": false}]),
+            machines: json!([{"machine": "UA", "online": true, "id": "ID-SECRET", "addr": "10.0.0.1:7880", "password_current": true}, {"machine": "Old", "online": false, "password_current": false}]),
             queue: json!([{"machine": "UA", "result": [
                 {"dir": "/d/02", "finished": null}, {"dir": "/d/02", "finished": 123},
                 {"dir": "/d/02", "state": "unknown", "finished": null}, {"dir": "/d/02", "state": "delivered", "finished": 5}
@@ -322,7 +324,10 @@ mod tests {
             Stopped { machine: "U0".into(), project: "harness".into(), ws: "src".into(), dirty: false },
             Stopped { machine: "UA".into(), project: "mnemo".into(), ws: "src-07".into(), dirty: true },
         ]);
-        assert_eq!(m.machines, vec![Machine { name: "UA".into(), online: true }, Machine { name: "Old".into(), online: false }]);
+        assert_eq!(m.machines, vec![
+            Machine { name: "UA".into(), online: true, key_stale: false },
+            Machine { name: "Old".into(), online: false, key_stale: true },
+        ]);
     }
 
     #[test]
