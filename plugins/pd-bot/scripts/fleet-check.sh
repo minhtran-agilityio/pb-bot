@@ -33,7 +33,8 @@
 # Needs git and jq; without jq the JSON-reading checks report a MISMATCH.
 set -u
 
-usage() { echo "fleet-check: $*" >&2; echo "usage: fleet-check.sh --repo <dir> --base <sha> --head <sha> --kind bug|feature|docs --evidence <dir> [--repro-cmd C --repro-files 'p ...'] [--suite-cmd C | --no-suite] [--qa-dir P --qa-commit SHA ...] [--ticket-id ID] [--risky] [--decisions-seen FILE] [--mode warn|block]" >&2; exit 2; }
+usage_text() { echo "usage: fleet-check.sh --repo <dir> --base <sha> --head <sha> --kind bug|feature|docs --evidence <dir> [--repro-cmd C --repro-files 'p ...'] [--suite-cmd C | --no-suite] [--qa-dir P --qa-commit SHA ...] [--ticket-id ID] [--risky] [--decisions-seen FILE] [--mode warn|block]"; }
+usage() { echo "fleet-check: $*" >&2; usage_text >&2; exit 2; }
 
 lower() { printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]'; }
 is_full_hex() { # 40 or 64 hex characters
@@ -48,6 +49,7 @@ suite_cmd="bash scripts/run-tests.sh"; no_suite=0; suite_set=0; qa_dir=""; ticke
 risky_flag=0; seen_file=""; qa_n=0; QA_COMMITS=()
 while [ $# -gt 0 ]; do
   case "$1" in
+    --help|-h) usage_text; exit 0 ;;
     --no-suite) no_suite=1; shift; continue ;;
     --risky) risky_flag=1; shift; continue ;;
     --repo|--base|--head|--kind|--evidence|--repro-cmd|--repro-files|--suite-cmd|--qa-dir|--qa-commit|--ticket-id|--decisions-seen|--mode)
