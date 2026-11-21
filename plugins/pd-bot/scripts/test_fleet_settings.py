@@ -197,3 +197,56 @@ def test_usage_errors_exit_2(checkout, args):
 
 def test_missing_checkout_exits_2(tmp_path):
     assert run("--checkout", str(tmp_path / "none"), "--restore").returncode == 2
+
+
+def show(d):
+    return run("--checkout", str(d), "--show")
+
+
+def test_show_prints_absent_keys_and_no_restore_state(checkout):
+    r = show(checkout)
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.splitlines() == [
+        "model: absent", "permissions.defaultMode: absent", "env.PD_BOT_ROLE: absent",
+        "env.PD_BOT_TICKET: absent", "env.PD_BOT_RUN: absent", "restore state: none"]
+    assert not settings(checkout).parent.exists() and not state(checkout).exists()
+
+
+def test_show_prints_values_and_pending_restore_and_writes_nothing(checkout):
+    assert apply(checkout, "--ticket", "12", "--run", "r1").returncode == 0
+    before = (settings(checkout).read_text(), state(checkout).read_text())
+    r = show(checkout)
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.splitlines() == [
+        'model: "claude-haiku-5-5"', 'permissions.defaultMode: "auto"',
+        'env.PD_BOT_ROLE: "worker"', 'env.PD_BOT_TICKET: "12"', 'env.PD_BOT_RUN: "r1"',
+        "restore state: present"]
+    assert (settings(checkout).read_text(), state(checkout).read_text()) == before
+
+
+def test_show_reports_a_partial_file_without_restore_state(checkout):
+    settings(checkout).parent.mkdir()
+    settings(checkout).write_text('{"model": "m", "env": {"FOO": "1"}}')
+    out = show(checkout).stdout.splitlines()
+    assert out[0] == 'model: "m"' and out[2] == "env.PD_BOT_ROLE: absent"
+    assert out[-1] == "restore state: none"
+
+
+def test_show_refuses_invalid_json_and_leaves_it(checkout):
+    settings(checkout).parent.mkdir()
+    settings(checkout).write_text("{nope")
+    r = show(checkout)
+    assert r.returncode == 1 and "not valid JSON" in r.stderr
+    assert settings(checkout).read_text() == "{nope"
+
+
+@pytest.mark.parametrize("extra", [
+    ["--restore"], ["--role", "worker"], ["--model", "m"], ["--mode", "auto"],
+    ["--ticket", "1"], ["--run", "r"],
+    ["--role", "worker", "--model", "m", "--mode", "auto"]])
+def test_show_cannot_be_combined(checkout, extra):
+    assert apply(checkout).returncode == 0
+    before = settings(checkout).read_text()
+    r = run("--checkout", str(checkout), "--show", *extra)
+    assert r.returncode == 2 and "--show takes only --checkout" in r.stderr
+    assert settings(checkout).read_text() == before and state(checkout).exists()
