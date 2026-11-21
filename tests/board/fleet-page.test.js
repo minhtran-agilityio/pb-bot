@@ -184,6 +184,51 @@ test('AC5: no horizontal page scroll at 390x844', async browser => {
   } finally { await f.stop(); }
 });
 
+// ---------- #16 milestone block ----------
+const msLedger = extra => ({ ...ledger(TICKETS), ...extra });
+const bodyText = page => page.evaluate(() => document.body.innerText);
+test('#16: the milestone block shows feature PR, scenarios link and a line per round', async browser => {
+  const url = 'https://example.com/s.md';
+  const f = await openFleet(browser, ledgerFile(msLedger({ scenarios: url, feature_pr: 12, test_rounds: [{ round: 1, failed: ['S1', 'S3'], tickets: [2, 9] }] })));
+  try {
+    await f.page.waitForFunction(() => document.body.innerText.includes('#12'), null, { timeout: 5000 });
+    const a = await f.page.evaluate(u => { const x = [...document.querySelectorAll('a')].find(e => e.getAttribute('href') === u); return x && { t: x.target, r: x.rel }; }, url);
+    assert.ok(a, 'no scenarios link'); assert.strictEqual(a.t, '_blank'); assert.strictEqual(a.r, 'noopener noreferrer');
+    assert.ok(/round 1 · 2 failed · tickets 2, 9/.test(await bodyText(f.page)), 'no round line');
+  } finally { await f.stop(); }
+});
+test('#16: a non-http scenarios value is plain text', async browser => {
+  const f = await openFleet(browser, ledgerFile(msLedger({ scenarios: 'see specs/s.md' })));
+  try {
+    await f.page.waitForFunction(() => document.body.innerText.includes('see specs/s.md'), null, { timeout: 5000 });
+    assert.strictEqual(await f.page.evaluate(() => [...document.querySelectorAll('a')].filter(a => a.innerText.includes('see specs')).length), 0);
+  } finally { await f.stop(); }
+});
+test('#16: absent fields show no milestone block', async browser => {
+  const f = await openFleet(browser, ledgerFile(msLedger({})));
+  try {
+    const t = (await bodyText(f.page)).toLowerCase();
+    assert.ok(!t.includes('scenarios') && !t.includes('feature pr') && !/round \d/.test(t), t);
+    assert.strictEqual(await f.page.evaluate(() => document.getElementById('milestone').hidden), true);
+  } finally { await f.stop(); }
+});
+test('#16: markup in ledger text shows as text and creates no element', async browser => {
+  const x = '<img src=x onerror="window.__x=1">';
+  const f = await openFleet(browser, ledgerFile(msLedger({ scenarios: x, test_rounds: [{ round: 1, failed: [x], tickets: [1] }] })));
+  try {
+    await f.page.waitForFunction(s => document.body.innerText.includes(s), x, { timeout: 5000 });
+    assert.deepStrictEqual(await f.page.evaluate(() => ({ n: document.querySelectorAll('img').length, x: window.__x })), { n: 0, x: undefined });
+  } finally { await f.stop(); }
+});
+test('#16: no horizontal page scroll at 390x844 with the milestone block', async browser => {
+  const f = await openFleet(browser, ledgerFile(msLedger({ scenarios: 'https://example.com/' + 'a'.repeat(120), feature_pr: 12, test_rounds: [{ round: 1, failed: ['S1'], tickets: [2, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20] }] })), { width: 390, height: 844 });
+  try {
+    await f.page.waitForFunction(() => document.body.innerText.includes('#12'), null, { timeout: 5000 });
+    const w = await f.page.evaluate(() => ({ doc: document.documentElement.scrollWidth, view: document.documentElement.clientWidth }));
+    assert.ok(w.doc <= w.view, JSON.stringify(w));
+  } finally { await f.stop(); }
+});
+
 (async () => {
   const browser = await chromium.launch();
   let failed = 0;
