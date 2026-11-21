@@ -124,11 +124,12 @@ whether the ticket is risky, the suite command, the worker's session name and ch
    receipt's SHA: no checks, a pending check, all checks skipped, or CI on another SHA is not
    green. A new commit after the receipt needs a new receipt.
 5. Mark the ticket `done` in the ledger only now, then stop its worker and reviewer sessions
-   (`podbay.md`, Clean up).
+   (`podbay.md`, Clean up). Remove their workspaces once the PR is merged or closed, as Clean up says.
 
 ## Final report to the owner
 
 Lead with the outcome. One row per ticket: state, pull request, CI, review rounds, mismatches from
 the check and how each ended, accepted findings, open `needs_review` decisions, what nobody
-verified. Then the cost (`podbay-dev usage`), the sessions and workspaces that still exist, and
-what you would change in a brief or a skill next time.
+verified. Then the cost (`podbay-dev usage`), the sessions that still exist, the workspaces you
+removed, and each kept workspace with its reason from the ledger (an open PR, a refused `ws-rm`, a
+session from outside the fleet), and what you would change in a brief or a skill next time.
