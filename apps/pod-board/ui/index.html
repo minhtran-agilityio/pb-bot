@@ -184,7 +184,7 @@
 // Read-only view of Pod Bay sessions. Data: the `pods` event and the `snapshot` command of the app.
 // No prompts, replies or paths. Every value goes through textContent.
 const STALE_MS = 20000, HOLD_MS = 4000;
-const STATES = { needs: ['Needs you', '🙋', 'rose'], busy: ['Working', '🏃', 'sky'], idle: ['Idle', '😴', 'sage'], stopped: ['Stopped', '💤', 'butter'] };
+const STATES = { needs: ['Needs you', '✋', 'rose'], busy: ['Working', '🏃', 'sky'], idle: ['Idle', '😴', 'sage'], stopped: ['Stopped', '💤', 'butter'] };
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 
@@ -250,7 +250,7 @@ function summary(list) {
   if (!snap.ok) { face = '😵'; text = 'Cannot read Pod Bay.'; sub = 'Showing the last data that was read.'; }
   else if (c.needs) {
     const top = list.find(s => s.state === 'needs');
-    face = '🙋'; text = `${c.needs} ${c.needs === 1 ? 'session needs' : 'sessions need'} you`; sub = `Longest wait: ${top.title} · ${dur(top.since)}`;
+    face = '✋'; text = `${c.needs} ${c.needs === 1 ? 'session needs' : 'sessions need'} you`; sub = `Longest wait: ${top.title} · ${dur(top.since)}`;
   } else if (c.busy) { face = '🏃'; }
   $('logo').textContent = face;
   const box = el('section', `card summary${snap.ok && c.needs ? ' hot' : ''}`);

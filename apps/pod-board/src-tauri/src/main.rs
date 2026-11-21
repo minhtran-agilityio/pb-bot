@@ -98,7 +98,7 @@ fn tray_title(snap: &Snapshot) -> String {
         return "😵".to_string();
     }
     if c.needs > 0 {
-        format!("🙋 {}", c.needs)
+        format!("✋ {}", c.needs)
     } else if c.busy > 0 {
         format!("🏃 {}", c.busy)
     } else {
@@ -154,7 +154,7 @@ fn poll_loop(app: AppHandle) {
                     let model = build(&raw);
                     for s in newly_needs(&before, &model) {
                         let what = if s.what.is_empty() { format!("{}/{} · {}", s.project, s.ws, s.machine) } else { s.what.clone() };
-                        notify(&app, &format!("🙋 {} needs you", s.title), &what);
+                        notify(&app, &format!("✋ {} needs you", s.title), &what);
                     }
                     before = model.sessions.iter().map(|s| (key(s), s.state)).collect();
                     if before.is_empty() {
