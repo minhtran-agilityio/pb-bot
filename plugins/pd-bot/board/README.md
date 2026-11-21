@@ -131,3 +131,23 @@ Without `--ledger`, the board picks the newest `specs/fleet/*/ledger.json` (by m
 - No fleet run: `404 {"error":"no fleet run"}`. A ledger that does not parse: `503 {"error":"<reason>"}`; the board keeps running.
 
 The existing routes and the ship.js view are unchanged.
+
+## Sessions view (`/pods`, Pod Bay)
+
+One page with every Pod Bay session on every machine, in three lanes: `Chờ bạn` (a dialog waits for a human),
+`Đang chạy`, `Rảnh`. Workspaces with no session show as small `Đã dừng` chips. It only observes.
+
+```
+node plugins/pd-bot/board/board.js --home pods      # the sessions view at / (and at /pods)
+node plugins/pd-bot/board/board.js                  # the run board at /, the sessions view at /pods
+```
+
+- `GET /pods`: the page. `GET /pods.json`: `{"ok","error","read_at","machines","sessions","stopped","counts"}`. `GET /pods/events`: Server-Sent Events, a `snapshot` when the model changed and a `tick` otherwise.
+- Data: the read-only commands `podbay-dev ls --all` (after each read the board waits 3 s; one read takes about 1.3 s) and, every 10th read, `checkouts --all`, `machines` and `queue ls --all`. The board runs them only while a page is open or `/pods.json` is asked. `--podbay <command>` names another command.
+- State: `needs` when `waiting_for` names something (for example `input needed`), when `asks` is true, or when `status` is anything but `busy` or `idle` (for example `waiting`, or none yet at a startup dialog); else `busy` or `idle` as `status` says. Order: needs and busy by the longest wait, idle by the most recent.
+- Privacy: the model is built from an allow list of fields. It never holds `account`, `uuid`, `dir`, `path`, `remote_url`, machine ids or addresses, and never calls `podbay-dev detail`. A failed read shows `<command> <subcommand> failed`, never stderr.
+- The page holds a new order while the pointer moves over the lanes, has a pause button, dims when the data is older than 20 s, and puts the needs-you count in the tab title.
+- Claude desktop app, tested on macOS on 2026-11-21: in a session on this computer, the Browser pane (Cmd+Shift+B) loads `http://127.0.0.1:4317` with no approval prompt and the page updates there. In a Remote Control session the pane says "Browser isn't available in remote control sessions". The app did not offer the `pod-board` server of `.claude/launch.json` by itself in a new session with no prompt sent.
+- Claude desktop app: a `.claude/launch.json` entry with `runtimeExecutable: "node"`, `runtimeArgs: ["plugins/pd-bot/board/board.js", "--home", "pods", "--port", "4317"]` and `port: 4317` lets the Browser pane start and show it. The board reads `$PORT` when `--port` is absent.
+- Verifies: `tests/board/pods.test.js` (the model, the allow list, the three routes against a fake command).
+- Does not verify: that `asks` means a human is awaited (on 2026-11-21 four sessions had `asks: true` with no dialog on screen, only text in the input box); the page in a browser test; that the desktop app starts the board from `.claude/launch.json`; a machine that stops answering while `machines` still lists it online.

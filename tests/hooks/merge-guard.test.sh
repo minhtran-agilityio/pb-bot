@@ -175,6 +175,23 @@ t "#671: the accepted false positive is denied, as documented"; g 'S=/tmp/x; bas
 # so it stays denied and the denial names the workaround.
 t "P1: the wrapper denial names the script-file workaround"; g 'echo "highlight the merge order"; bash scripts/run-tests.sh'
 assert_rc_contains 2 "put it in a script file with the Write tool"
+# P9 (skill-coach): the pd-autopilot preflight step with `; echo "exit=$?"` appended was denied in four sessions
+# with no merge in the command: gh in "preflight", pr in "myprojects", then the $. It stays denied (no matching
+# change); the denial says what matched instead of "mentions merge in text".
+P9='bash /p/skills/pd-autopilot/scripts/preflight.sh --repo-dir /home/u/myprojects/app; echo "exit=$?"'
+t "P9: the preflight step with an appended echo \$? stays denied"; g "$P9"; assert_rc 2
+t "P9: the denial names the letters, not a merge in text"; g "$P9"
+if [ "$RC" = 2 ] && printf '%s' "$OUT" | grep -qF 'g-h..p-r..$' && printf '%s' "$OUT" | grep -q 'holds no merge' \
+   && printf '%s' "$OUT" | grep -q 'with nothing appended' && ! printf '%s' "$OUT" | grep -q 'mentions merge in text'; then pass; else fail "rc=$RC out=$OUT"; fi
+t "P9: the preflight step run exactly as written is allowed"; g 'bash /p/skills/pd-autopilot/scripts/preflight.sh --repo-dir /home/u/myprojects/app'; assert_rc 0
+t "P9: a wrapper denial with merge in the command keeps the merge-in-text message"; g 'echo "highlight the merge order"; bash scripts/run-tests.sh'
+if [ "$RC" = 2 ] && printf '%s' "$OUT" | grep -q 'mentions merge in text' && ! printf '%s' "$OUT" | grep -q 'holds no merge'; then pass; else fail "rc=$RC out=$OUT"; fi
+# A merge spelled with a glob, brace or escape has no plain "merge" either: it must never be told it holds none.
+for c in 'bash -c "gh pr mer?e 7"' "bash -c \$'gh pr \\155erge 7'" 'bash -c "gh pr mer[g]e 7"' 'bash -c "gh pr mer{g,}e 7"' 'ls *.log | bash' \
+         'bash -c "gh pr $X 7"' 'bash -c "gh pr `cat w` 7"' 'bash -c "gh pr $X 7"; echo $?'; do
+  t "P9: a spelled merge or a glob into a shell keeps the old message: $c"; g "$c"
+  if [ "$RC" = 2 ] && ! printf '%s' "$OUT" | grep -q 'holds no merge'; then pass; else fail "rc=$RC out=$OUT"; fi
+done
 # A plain script run next to real merge-like text stays the documented false positive (the fifth review broke
 # an exemption for it), and every way to run or write code in the same call stays denied.
 for c in "$(printf "python3 - <<'EOF'\nprint('gh: the merge order')\nEOF\nbash scripts/run-tests.sh")" \

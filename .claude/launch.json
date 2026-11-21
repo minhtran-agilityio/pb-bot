@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "autoVerify": false,
+  "configurations": [
+    {
+      "name": "pod-board",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["plugins/pd-bot/board/board.js", "--home", "pods", "--port", "4317"],
+      "port": 4317
+    }
+  ]
+}

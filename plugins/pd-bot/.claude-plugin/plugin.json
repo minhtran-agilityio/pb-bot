@@ -1,6 +1,6 @@
 {
   "name": "pd-bot",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "description": "Skill framework for Claude Code: triage, plan, implement, review, ship.",
   "author": {
     "name": "Minh Tran"

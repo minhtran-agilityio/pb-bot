@@ -72,7 +72,7 @@ test('qb2: every agent label ship.js builds lands on the right box, or on none b
     'intent review': 'irev', 'intent fix': 'irev', 'UAT': 'check', 'QA check': 'check', 'UAT fix': 'fix', 'QA check fix': 'fix',
     'UAT rerun': 'rerun', 'QA check rerun': 'rerun', 'advisor uat-fix': 'adv', 'advisor qa-verify-fix': 'adv', 'test': 'test',
     'write ADRs': 'adr', 'write specs/ flow files': 'adr', 'open final PR': 'final', 'CI snapshot': 'final', 'default branch': 'final', 'merge final PR': 'final',
-    'check plugin and tools': null, 'set up integration branch': null, 'fetch owner request': null,
+    'check plugin and tools': null, 'set up integration branch': null, 'fetch owner request': null, 'clean up worktrees': null,
   };
   for (const [stage, node] of Object.entries(want)) assert.strictEqual(B.nodeFor(FLOW, stage), node, `stage "${stage}"`);
   // Drift guard: the fixed labels in ship.js must still be ones this map knows.

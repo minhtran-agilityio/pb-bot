@@ -12,7 +12,23 @@ file. Versions change only in the release PR (see the release section of `AGENTS
 - Added: `pd-orchestrate/references/milestone.md`, the milestone run on one feature branch: a scenario page (an artifact only the orchestrator edits, with a reason per change), a draft feature pull request into `main` once the first ticket is in, a whole-feature review, a feature test of every scenario in a tester session, all bug tickets of a round created before any fix, at most 2 fix rounds (test, fix, test, fix, test), the label `pd-bot:owner-merge` on a fix for a requirement that was not clear, and the owner merges into `main`. `pd-orchestrate` may use the Artifact tool.
 - Added: `fleet-check.sh` checks the reviewer's intent verdict (`intent.verdict` in the receipt must be `match`) and the report's `needs_review` decisions (a mismatch unless its title is in the `--decisions-seen <file>` list of titles the owner saw). The receipt gains an `intent` object; `match` with a non-empty `gaps` list is a mismatch. `fleet-check.json` now records the `--base` it checked.
 - Added: `fleet-gate.sh` decides whether a fleet ticket pull request may go into its `feat/*` branch without the owner: a block-mode `fleet-check.json` for the head with the suite run and passed, green CI, and an open pull request on exactly the run's `feat/<slug>` (`--base`) at that head with no `pd-bot:owner-merge` label, where the checked base is in the feature branch's history (so no unchecked commit goes in). The orchestrator puts that label on a fix where the worker decided a requirement that was not clear. It changes nothing; on a pass it prints the one `gh pr merge` command, which `merge-guard.sh` still judges. `pd-orchestrate` can now run a milestone on a feature branch.
+
+## [0.4.0] — 2026-11-21
+
+- Fixed: `ship.js` never removed its stage worktrees, so each run left a full checkout and build per stage (about 170 GB across four Mnemo checkouts). At the end of a run that succeeded, the new `scripts/ship-worktree-cleanup.sh` removes the run's detached stage worktrees with `git worktree remove` (never forced). It keeps the ticket-branch worktrees, a worktree with changes or untracked files, and one whose commits are on no branch, then removes the run dir if it is empty. A blocked or failed run keeps everything. The result's new `cleanup` field and a `worktrees:` log line list what was kept, its size and the exact removal command, and the pd-autopilot completion report prints them. `clean-worktrees.sh` is unchanged (P10).
+- feat(pod-board): peek at a session's last reply; a menu bar popover (PR #28)
+- docs(pod-board): a short guide to what it is, how to build and use it (PR #29)
+- feat(pod-board): collapse and expand the sidebar (PR #34)
+- fix(ship): remove a successful run's detached stage worktrees; report what is kept (P10) (PR #33)
+
+## [0.3.0] — 2026-11-21
+
 - Fixed: two tests that failed on a busy machine (P7). The clean-worktrees "item 2" time-budget case now uses a 10s budget, because the scan of every process's working directory alone took over 3s with about 2000 processes. The board-start `--no-open` case now waits up to 10s for the board to answer, because node can start after the 3s that `board-start.sh` waits. Tests only; no hook or script changed.
+- Fixed: the pd-autopilot preflight step was denied by `merge-guard.sh` when an agent appended `; echo "exit=$?"`: the letters gh (in "preflight"), pr (in "myprojects") and the `$` match the guard's pre-filter. `SKILL.md` step 1 and `references/preflight.md` now say to run the command exactly as written, with nothing appended. When the denied command holds no merge, the wrapper denial now says it matched the letters g-h..p-r..$ instead of "mentions merge in text", with the same workaround. What the guard denies is unchanged (P9).
+- test: make the time-budget and board-start --no-open cases hold on a busy machine (P7) (PR #8)
+- feat: Pod Board desktop app for Pod Bay sessions (PR #24)
+- feat(board): Pod Bay sessions view at /pods (PR #9)
+- fix(merge-guard): say what matched when a denied command holds no merge; run preflight as written (P9) (PR #25)
 
 ## [0.2.0] — 2026-11-21
 
