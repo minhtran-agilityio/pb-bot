@@ -28,6 +28,10 @@ const cases = [
     assert.strictEqual(led({ feature_pr: '7' }).feature_pr, null);
     assert.strictEqual(led({ feature_pr: NaN }).feature_pr, null);
   }],
+  ['blank scenarios (only whitespace) is absent', () => {
+    for (const v of ['', ' ', '   ', '\t\n ']) assert.strictEqual(led({ scenarios: v }).scenarios, null);
+    assert.strictEqual(led({ scenarios: ' https://x/y ' }).scenarios, ' https://x/y ');
+  }],
   ['malformed test_rounds entries are dropped, bad members filtered', () => {
     const j = led({ test_rounds: [null, 3, [], { failed: [] }, { round: 7, failed: 'x', tickets: [1, {}, 'a', null] }] });
     assert.deepStrictEqual(j.test_rounds, [{ round: 7, failed: [], tickets: [1, 'a'] }]);
