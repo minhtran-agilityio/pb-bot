@@ -91,25 +91,32 @@ fn now_ms() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
 }
 
-/// The text beside the tray icon: a funny face for the most urgent state, and the counts.
-fn tray_title(snap: &Snapshot) -> String {
+/// The menu bar icon for the most urgent state, and the count beside it (empty when nothing counts).
+/// Icons: Phosphor Icons, duotone, drawn black so macOS can tint them as template images.
+fn tray_look(snap: &Snapshot) -> (&'static [u8], String) {
     let c = snap.model.counts;
     if !snap.ok {
-        return "😵".to_string();
-    }
-    if c.needs > 0 {
-        format!("✋ {}", c.needs)
+        (include_bytes!("../icons/tray-warning-circle.png"), String::new())
+    } else if c.needs > 0 {
+        (include_bytes!("../icons/tray-hand-palm.png"), c.needs.to_string())
     } else if c.busy > 0 {
-        format!("🏃 {}", c.busy)
+        (include_bytes!("../icons/tray-lightning.png"), c.busy.to_string())
+    } else if c.idle > 0 {
+        (include_bytes!("../icons/tray-coffee.png"), String::new())
     } else {
-        "😴".to_string()
+        (include_bytes!("../icons/tray-moon-stars.png"), String::new())
     }
 }
 
 fn publish(app: &AppHandle, snap: &Snapshot) {
     let _ = app.emit("pods", snap);
     if let Some(tray) = app.tray_by_id("pod-board") {
-        let _ = tray.set_title(Some(tray_title(snap)));
+        let (icon, title) = tray_look(snap);
+        if let Ok(image) = tauri::image::Image::from_bytes(icon) {
+            let _ = tray.set_icon(Some(image));
+            let _ = tray.set_icon_as_template(true);
+        }
+        let _ = tray.set_title(if title.is_empty() { None } else { Some(title) });
         let c = snap.model.counts;
         let _ = tray.set_tooltip(Some(format!("{} need you · {} working · {} idle", c.needs, c.busy, c.idle)));
     }
@@ -154,7 +161,7 @@ fn poll_loop(app: AppHandle) {
                     let model = build(&raw);
                     for s in newly_needs(&before, &model) {
                         let what = if s.what.is_empty() { format!("{}/{} · {}", s.project, s.ws, s.machine) } else { s.what.clone() };
-                        notify(&app, &format!("✋ {} needs you", s.title), &what);
+                        notify(&app, &format!("{} needs you", s.title), &what);
                     }
                     before = model.sessions.iter().map(|s| (key(s), s.state)).collect();
                     if before.is_empty() {
@@ -193,10 +200,10 @@ fn main() {
             let on_top = CheckMenuItem::with_id(app, "on_top", "Always on top", true, false, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open, &PredefinedMenuItem::separator(app)?, &autostart, &on_top, &PredefinedMenuItem::separator(app)?, &quit])?;
-            let tray_icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))?;
+            let tray_icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray-coffee.png"))?;
             TrayIconBuilder::with_id("pod-board")
                 .icon(tray_icon)
-                .title("…")
+                .icon_as_template(true)
                 .tooltip("Pod Board")
                 .menu(&menu)
                 .show_menu_on_left_click(true)

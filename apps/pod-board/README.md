@@ -8,7 +8,8 @@ It is a Tauri 2 app (Rust and one HTML page). It needs no server, no port and no
 ## What it does
 
 - **Dock:** one icon; a click opens the window. The badge on the icon is the number of sessions that wait for you.
-- **Menu bar:** a face and a count for the most urgent state (`✋ 3`, `🏃 1`, `😴`, or `😵` when Pod Bay cannot be read).
+- **Menu bar:** an icon for the most urgent state and its count: a hand (needs you), a bolt (working), a cup (idle),
+  a moon (nothing running), or a warning sign when Pod Bay cannot be read. Icons: Phosphor, duotone (`THIRD-PARTY.md`).
   Its menu opens the window, turns "start at login" and "always on top" on and off, and quits.
 - **Notification:** one system notification when a session changes to `Needs you`. The first read announces nothing.
 - **Window:** a sidebar that filters by state, project and machine, one summary row and three lanes. Closing the window hides it; the app keeps watching.
