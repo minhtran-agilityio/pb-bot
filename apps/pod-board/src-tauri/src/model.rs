@@ -368,7 +368,8 @@ mod tests {
             ]),
             ..Raw::default()
         };
-        let got: Vec<(&str, &str)> = build(&r).sessions.iter().map(|s| (s.title.as_str(), s.state)).collect();
+        let m = build(&r);
+        let got: Vec<(&str, &str)> = m.sessions.iter().map(|s| (s.title.as_str(), s.state)).collect();
         assert_eq!(got, vec![("Review PR", "needs"), ("mnemo-fd", "idle")]);
     }
 
