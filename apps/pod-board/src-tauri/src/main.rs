@@ -47,6 +47,21 @@ fn refresh(wake: tauri::State<'_, Wake>) {
     }
 }
 
+/// Open a session's Remote Control link with the system's handler for https links.
+/// Only a link the model let through (claude.ai/code/session_...) is opened.
+#[tauri::command]
+fn open_session(url: String) -> Result<(), String> {
+    if model::session_url(&url) != url || url.is_empty() {
+        return Err("not a Claude session link".into());
+    }
+    #[cfg(target_os = "macos")]
+    let opener = "open";
+    #[cfg(not(target_os = "macos"))]
+    let opener = "xdg-open";
+    Command::new(opener).arg(&url).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn()
+        .map(|_| ()).map_err(|_| "could not open the link".to_string())
+}
+
 #[tauri::command]
 fn snapshot(state: tauri::State<'_, Shared>) -> Snapshot {
     state.0.lock().map(|s| s.clone()).unwrap_or_default()
@@ -209,7 +224,7 @@ fn main() {
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--hidden"])))
         .manage(Shared::default())
         .manage(Wake(Mutex::new(wake_tx)))
-        .invoke_handler(tauri::generate_handler![snapshot, refresh])
+        .invoke_handler(tauri::generate_handler![snapshot, refresh, open_session])
         .setup(move |app| {
             let handle = app.handle().clone();
             let autostart_on = app.autolaunch().is_enabled().unwrap_or(false);

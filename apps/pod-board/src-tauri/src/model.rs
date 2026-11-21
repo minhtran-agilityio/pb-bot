@@ -21,6 +21,8 @@ pub struct Session {
     pub branch: String,
     pub prs: usize,
     pub queued: usize,
+    /// The session's Remote Control link (`remote_url`), kept only when it is a claude.ai/code session link; else empty.
+    pub url: String,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -124,6 +126,14 @@ fn state_of(s: &Value) -> &'static str {
     }
 }
 
+/// A Remote Control link opens the session at claude.ai/code. Anything else is dropped, so a card never opens another site.
+pub fn session_url(raw: &str) -> String {
+    let ok = raw.strip_prefix("https://claude.ai/code/").map_or(false, |rest| {
+        rest.starts_with("session_") && rest.len() > "session_".len() && rest.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+    });
+    if ok { raw.to_string() } else { String::new() }
+}
+
 fn rank(state: &str) -> u8 {
     match state {
         "needs" => 0,
@@ -175,6 +185,7 @@ pub fn build(raw: &Raw) -> Model {
             sessions.push(Session {
                 branch: cut(branch.get(&format!("{machine}|{project}|{}|{ws}", text(&s["repo"]))).map(String::as_str).unwrap_or(""), NAME_CHARS),
                 queued: queued.get(&format!("{machine}|{}", text(&s["dir"]))).copied().unwrap_or(0),
+                url: session_url(&text(&s["remote_url"])),
                 prs: s["links"]["prs"].as_array().map(Vec::len).unwrap_or(0),
                 state: state_of(s),
                 since: s["since"].as_i64().unwrap_or(0),
@@ -246,7 +257,7 @@ mod tests {
             "title": "T", "name": "n", "uuid": "UUID-SECRET", "project": "mnemo", "repo": "mnemo", "context": "mnemo/mnemo",
             "dir": "/home/someone/secret/dir", "status": "idle", "asks": false, "since": 1000, "description": null,
             "links": {"prs": [], "issues": [], "artifacts": []}, "account": "someone@example.com",
-            "remote_url": "git@example.com:owner/secret.git"
+            "remote_url": "https://claude.ai/code/session_01AbC"
         });
         for (k, v) in over.as_object().unwrap() {
             base[k] = v.clone();
@@ -283,6 +294,15 @@ mod tests {
                 {"dir": "/d/02", "state": "unknown", "finished": null}, {"dir": "/d/02", "state": "delivered", "finished": 5}
             ]}]),
         }
+    }
+
+    #[test]
+    fn only_claude_session_links_are_kept() {
+        assert_eq!(session_url("https://claude.ai/code/session_01MjxNHe8J1MMGhFig4bVsHc"), "https://claude.ai/code/session_01MjxNHe8J1MMGhFig4bVsHc");
+        for bad in ["", "git@example.com:o/r.git", "https://evil.example/code/session_1", "https://claude.ai/code/", "https://claude.ai/code/session_", "https://claude.ai/code/session_1?x=y", "http://claude.ai/code/session_1", "https://claude.ai/code/session_1/../x"] {
+            assert_eq!(session_url(bad), "", "{bad} was kept");
+        }
+        assert_eq!(build(&raw()).sessions[0].url, "https://claude.ai/code/session_01AbC");
     }
 
     #[test]
@@ -333,7 +353,7 @@ mod tests {
     #[test]
     fn private_fields_never_reach_the_model() {
         let body = serde_json::to_string(&build(&raw())).unwrap();
-        for secret in ["someone@example.com", "UUID-SECRET", "/home/someone", "secret.git", "ID-SECRET", "10.0.0.1"] {
+        for secret in ["someone@example.com", "UUID-SECRET", "/home/someone", "ID-SECRET", "10.0.0.1"] {
             assert!(!body.contains(secret), "model holds {secret}");
         }
     }

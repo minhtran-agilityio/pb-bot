@@ -156,6 +156,10 @@
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
   ul.wide { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
   .row { min-width: 0; padding: 10px 12px; border-radius: 18px; background: hsl(var(--paper)); border: 1px solid var(--edge); box-shadow: var(--shadow-xs); }
+  .row.link, .lrow.link { cursor: pointer; transition: box-shadow .2s, transform .2s, background .2s; }
+  .row.link:hover { box-shadow: var(--shadow-lift); transform: translateY(-1px); }
+  .lrow.link:hover { background: hsl(var(--muted) / .6); }
+  .row.link:focus-visible, .lrow.link:focus-visible { outline: 2px solid hsl(var(--terracotta)); outline-offset: 2px; }
   .row.flash { animation: flash 1.2s ease-out 1; }
   @keyframes flash { from { box-shadow: 0 0 0 3px hsl(var(--terracotta)); } to { box-shadow: 0 0 0 3px transparent; } }
   .rtop { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
@@ -294,7 +298,7 @@ function row(s, big) {
   if (big && s.prs) meta.append(el('span', null, `· ${s.prs} PR`));
   if (s.queued) meta.append(el('span', 'tag', `${s.queued} queued`));
   li.append(meta);
-  return li;
+  return linkable(li, s);
 }
 
 function lane(state, list, limit) {
@@ -343,6 +347,17 @@ function stoppedStrip() {
   return box;
 }
 
+// A card with a Remote Control link opens that session when clicked or when Enter is pressed on it.
+function linkable(node, s) {
+  if (!s.url) return node;
+  node.classList.add('link'); node.tabIndex = 0; node.setAttribute('role', 'link');
+  node.title = `Open ${s.title} in Claude`;
+  const go = () => { const t = window.__TAURI__; if (t) t.core.invoke('open_session', { url: s.url }).catch(() => {}); };
+  node.addEventListener('click', go);
+  node.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+  return node;
+}
+
 function listRow(s) {
   const key = `${s.machine}|${s.title}`;
   const r = el('div', `lrow ${s.state}`); r.dataset.key = key;
@@ -354,7 +369,7 @@ function listRow(s) {
   const when = s.state === 'idle' ? el('span', 'lc tab', ago(s.since)) : el('span', 'lc wait tab', dur(s.since));
   if (s.state === 'idle') when.dataset.ago = s.since || ''; else when.dataset.since = s.since || '';
   r.append(ti, what, where, when);
-  return r;
+  return linkable(r, s);
 }
 
 // One card holding every session, grouped by state when it shows more than one state.
