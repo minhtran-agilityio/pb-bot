@@ -728,6 +728,7 @@ const CLEANUP_SCHEMA = { type: 'object',
     kept: { type: 'array', items: { type: 'object', properties: { dir: STR, size: STR, reason: STR }, required: ['dir', 'reason'] } },
     run_dir: { type: 'string', enum: ['removed', 'kept'] },
     commands: strList,
+    error: { type: 'string', description: 'the text of an "error" line, when the script printed one; else empty' },
   },
   required: ['removed', 'kept', 'commands'] }
 async function stageWorktreeCleanup(success) {
@@ -736,17 +737,19 @@ async function stageWorktreeCleanup(success) {
   let r = null
   try {
     r = await call(`Run this one command exactly as written, as its own Bash call, with nothing appended:\n${cmd}\n\n${notCwd()}\n` +
-      'It prints one tab-separated line per worktree: "removed <dir>", "kept <dir> <size> <reason>", "command <cmd>" and "run-dir removed|kept <dir>". ' +
-      'Return them as removed (dirs), kept (dir, size, reason), commands and run_dir. Remove, edit or run nothing else.',
+      'It prints one tab-separated line per worktree: "removed <dir>", "kept <dir> <size> <reason>", "command <cmd>" and "run-dir removed|kept <dir>", ' +
+      'or one "error <why>" line when it stopped. Return them as removed (dirs), kept (dir, size, reason), commands, run_dir and error. Remove, edit or run nothing else.',
     { label: 'clean up worktrees', phase: 'Decisions', schema: CLEANUP_SCHEMA, model: MODEL.cheap, effort: EFFORT.cheap })
-  } catch (e) { log(`worktrees: cleanup skipped (${e && e.message ? e.message : String(e)})`) }
-  if (!r) return base
+  } catch (e) { return { ...base, reason: e && e.message ? e.message : String(e) } }
+  if (!r) return { ...base, reason: 'the cleanup agent returned nothing' }
+  if (r.error) return { ...base, reason: r.error }
   const kept = (r.kept || []).map(k => ({ dir: k.dir, size: k.size || '', reason: k.reason }))
   return { ...base, status: success ? 'cleaned' : 'kept-all', removed: r.removed || [], kept, runDir: r.run_dir || 'kept', commands: r.commands || [] }
 }
 function logCleanup(c) {
   if (c.status === 'not run') {
-    log(`worktrees: the cleanup did not run; every worktree under ${wtRoot} stays. To see them: git -C ${repoDir} worktree list`)
+    log(`worktrees: the cleanup did not run (${c.reason}); every worktree this run created stays:\n${[...worktrees].map(d => `  ${d}`).join('\n')}` +
+      `\nto clean them later: ${c.command}`)
     return
   }
   const kept = c.kept.map(k => `  ${k.dir} (${k.size ? `${k.size}, ` : ''}${k.reason})`).join('\n')

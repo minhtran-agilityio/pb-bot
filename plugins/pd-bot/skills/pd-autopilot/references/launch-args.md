@@ -54,8 +54,9 @@ Worktrees: each stage of the run had its own worktree with a full build, which c
 result's `cleanup` field. Say how many worktrees were removed. Then list every kept one with its size and
 reason, and the exact command from `cleanup.commands` that removes it. If `cleanup.status` is `kept-all`,
 say that the run did not succeed, so nothing was removed. If it is `not run`, say that the cleanup did not
-run, and give `cleanup.command` for the owner to run later. If the Workflow ended with an error, there is no
-result: give the kept list from the run's last `worktrees:` log line.
+run, give `cleanup.reason`, and give `cleanup.command` for the owner to run later. If the Workflow ended with an
+error, there is no result: give the kept list from the run's last `worktrees:` log line. A run that stopped
+before its end has no such line: then say that its worktrees are under `.ship-<repo>/<slug>` next to the checkout.
 
 In local mode there is no PR. Print the result's `delivery` field: the branch that holds the code, the commit
 range (`<base>..<branch>`) and the sentence "the base branch has not changed". Never write that the code is on the base.

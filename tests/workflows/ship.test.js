@@ -2975,6 +2975,14 @@ test('P10g: a cleanup agent that fails or returns nothing does not fail the run'
   }
 })
 
+test('P10h: a script error line gives "not run", and the log still lists every worktree the run created', async () => {
+  const { result, logs } = await run({}, c => (c.label === 'worktree-cleanup' ? { removed: [], kept: [], commands: [], error: '--repo-dir /repo is not a git checkout' } : undefined))
+  assert.strictEqual(result.cleanup.status, 'not run', JSON.stringify(result.cleanup))
+  assert.strictEqual(result.cleanup.reason, '--repo-dir /repo is not a git checkout')
+  const line = logs.find(l => l.startsWith('worktrees:'))
+  assert(line && line.includes('/.ship-repo/ms/t1') && line.includes(CLEAN), line)
+})
+
 ;(async () => {
   let failed = 0
   for (const c of cases) {
