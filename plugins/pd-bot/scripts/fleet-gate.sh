@@ -30,7 +30,8 @@
 # Exit: 0 on a pass, 1 on a mismatch, 2 on a usage error. Needs gh and jq.
 set -u
 
-usage() { echo "fleet-gate: $*" >&2; echo "usage: fleet-gate.sh --evidence <dir> --head <sha> --pr <number> --gh-repo <owner/name> --base <feat/...> [--wait <seconds>]" >&2; exit 2; }
+usage_text() { echo "usage: fleet-gate.sh --evidence <dir> --head <sha> --pr <number> --gh-repo <owner/name> --base <feat/...> [--wait <seconds>]"; }
+usage() { echo "fleet-gate: $*" >&2; usage_text >&2; exit 2; }
 
 lower() { printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]'; }
 is_full_hex() {
@@ -42,6 +43,7 @@ san() { printf '%s' "$1" | LC_ALL=C tr -cd '\040-\176' | cut -c1-200; }
 evid=""; head=""; pr=""; gh_repo=""; base_ref_want=""; wait_s=0
 while [ $# -gt 0 ]; do
   case "$1" in
+    -h|--help) usage_text; exit 0 ;;
     --evidence|--head|--pr|--gh-repo|--base|--wait) [ $# -ge 2 ] || usage "$1 needs a value" ;;
     *) usage "unknown argument: $1" ;;
   esac
