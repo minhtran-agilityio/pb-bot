@@ -166,7 +166,6 @@
   .what.fallback { font-style: italic; color: hsl(var(--muted-fg)); }
   .meta { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
   .tag { padding: 1px 8px; border-radius: 999px; background: hsl(var(--butter)); color: hsl(var(--cocoa)); font: 700 11px 'Pod Sans', system-ui, sans-serif; }
-  .tag.src { background: hsl(var(--sky)); }
   .compact .row { padding: 7px 12px; }
   .row .mono { font-size: 11px; }
   .pill { display: inline-flex; align-items: center; gap: 7px; padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; }
@@ -275,12 +274,12 @@ function pill(state) {
 }
 
 let snap = null, pending = null, pendingN = 0, paused = false, lastMsg = 0, lastMove = 0, first = true, saidNeeds = null, lastBody = '';
-let view = 'home', project = null, machine = null, lastView = '', layout = 'board';
+let view = 'home', machine = null, lastView = '', layout = 'board';
 try { if (localStorage.getItem('pod-board-layout') === 'list') layout = 'list'; } catch (e) { /* no storage */ }
 const prev = new Map();
 
-const shown = () => snap.sessions.filter(s => (!project || s.project === project) && (!machine || s.machine === machine));
-const stoppedShown = () => snap.stopped.filter(w => (!project || w.project === project) && (!machine || w.machine === machine));
+const shown = () => snap.sessions.filter(s => !machine || s.machine === machine);
+const stoppedShown = () => snap.stopped.filter(w => !machine || w.machine === machine);
 
 function row(s, big) {
   const key = `${s.machine}|${s.title}`;
@@ -291,8 +290,7 @@ function row(s, big) {
   else { const t = el('span', 'when tab', ago(s.since)); t.dataset.ago = s.since || ''; top.append(t); }
   li.append(top);
   if (s.state !== 'idle' || big) li.append(s.what ? el('p', 'what', s.what) : el('p', 'what fallback', s.branch ? `branch ${s.branch}` : 'no description'));
-  const meta = el('p', 'meta mono'); meta.append(el('span', null, `${place(s)} · ${s.machine}`));
-  if (s.source === 'claude') meta.append(el('span', 'tag src', 'Claude'));
+  const meta = el('p', 'meta mono'); meta.append(el('span', null, `${s.project}/${s.ws} · ${s.machine}`));
   if (big && s.prs) meta.append(el('span', null, `· ${s.prs} PR`));
   if (s.queued) meta.append(el('span', 'tag', `${s.queued} queued`));
   li.append(meta);
@@ -345,17 +343,13 @@ function stoppedStrip() {
   return box;
 }
 
-// Pod Bay sessions name their workspace (project/src-NN); a Claude session outside Pod Bay has only its folder.
-const place = s => (s.ws ? `${s.project}/${s.ws}` : s.project);
-
 function listRow(s) {
   const key = `${s.machine}|${s.title}`;
   const r = el('div', `lrow ${s.state}`); r.dataset.key = key;
   if (!first && prev.has(key) && prev.get(key) !== s.state) r.classList.add('flash');
   const ti = el('span', 'lt'); const si = el('span', `sic ${s.state}`); si.append(ic(STATES[s.state][1])); ti.append(si, el('span', null, s.title));
   const what = s.what ? el('span', 'lw', s.what) : el('span', 'lw fallback', s.branch ? `branch ${s.branch}` : 'no description');
-  const where = el('span', 'lp mono', `${place(s)} · ${s.machine}`);
-  if (s.source === 'claude') where.append(' ', el('span', 'tag src', 'Claude'));
+  const where = el('span', 'lp mono', `${s.project}/${s.ws} · ${s.machine}`);
   if (s.queued) where.append(' ', el('span', 'tag', `${s.queued} queued`));
   const when = s.state === 'idle' ? el('span', 'lc tab', ago(s.since)) : el('span', 'lc wait tab', dur(s.since));
   if (s.state === 'idle') when.dataset.ago = s.since || ''; else when.dataset.since = s.since || '';
@@ -400,7 +394,7 @@ function render() {
     if (these.length && layout === 'list') v.append(listView(these, false));
     else { const ul = el('ul', 'wide'); for (const s of these) ul.append(row(s, true)); v.append(ul); }
   }
-  const key = `${view}|${project}|${machine}|${layout}`;
+  const key = `${view}|${machine}|${layout}`;
   if (key !== lastView) { lastView = key; v.classList.remove('enter'); void v.offsetWidth; v.classList.add('enter'); }
   prev.clear(); for (const s of snap.sessions) prev.set(`${s.machine}|${s.title}`, s.state);
   first = false;
@@ -423,8 +417,7 @@ function item(icon, label, count, active, hot, onClick, dotClass) {
 function nav() {
   const box = $('nav'); const thumb = $('thumb'); const keep = box.scrollTop;
   box.textContent = ''; box.append(thumb);
-  // Every count follows the filters that are on, so a number always matches what the view shows:
-  // the states count within the chosen project and machine; projects count within the chosen machine, and machines within the chosen project.
+  // Every count follows the machine filter, so a number always matches what the view shows.
   const c = { needs: 0, busy: 0, idle: 0, stopped: 0 };
   if (snap) { for (const s of shown()) c[s.state]++; c.stopped = stoppedShown().length; }
   box.append(item('house', 'Overview', null, view === 'home', false, () => go('home')));
@@ -432,27 +425,18 @@ function nav() {
     box.append(item(STATES[state][1], STATES[state][0], c[state], view === state, state === 'needs' && c.needs > 0, () => go(state)));
   }
   if (snap) {
-    const projects = [...new Set([...snap.sessions, ...snap.stopped].map(x => x.project))].sort();
-    if (projects.length > 1) {
-      box.append(el('p', 'group', 'Project'));
-      for (const p of projects) {
-        const n = snap.sessions.filter(s => s.project === p && (!machine || s.machine === machine)).length;
-        box.append(item('folder', p, n, false, false, () => { project = project === p ? null : p; render(); bar(); }));
-        box.lastChild.classList.add('sub'); if (project === p) box.lastChild.dataset.on = '1';
-      }
-    }
     if (snap.machines.length > 1) {
       box.append(el('p', 'group', 'Machines'));
       for (const m of snap.machines) {
-        box.append(item('', m.name, snap.sessions.filter(s => s.machine === m.name && (!project || s.project === project)).length, false, false, () => { machine = machine === m.name ? null : m.name; render(); bar(); }, m.online ? 'on' : m.key_stale ? 'off warn' : 'off'));
+        box.append(item('', m.name, snap.sessions.filter(s => s.machine === m.name).length, false, false, () => { machine = machine === m.name ? null : m.name; render(); bar(); }, m.online ? 'on' : m.key_stale ? 'off warn' : 'off'));
         if (!m.online) box.lastChild.title = m.key_stale ? `${m.name}: offline, password out of date` : `${m.name}: offline`;
         box.lastChild.classList.add('sub'); if (machine === m.name) box.lastChild.dataset.on = '1';
       }
     }
   }
-  if (project || machine) {
-    const clear = el('button', 'item sub clear', 'Clear filters'); clear.type = 'button';
-    clear.addEventListener('click', () => { project = null; machine = null; render(); bar(); });
+  if (machine) {
+    const clear = el('button', 'item sub clear', 'Clear filter'); clear.type = 'button';
+    clear.addEventListener('click', () => { machine = null; render(); bar(); });
     box.append(clear);
   }
   box.scrollTop = keep; // a redraw every few seconds must not jump the list back to the top
@@ -483,7 +467,6 @@ function bar() {
   if (snap && !snap.ok && snap.error) { b.textContent = `${snap.error} · retrying in 3 s`; b.classList.add('on'); } else b.classList.remove('on');
   const crumb = $('crumb'); crumb.textContent = 'Pod Board › ';
   crumb.append(el('b', null, view === 'home' ? 'Overview' : STATES[view][0]));
-  if (project) crumb.append(` · ${project}`);
   if (machine) crumb.append(` · ${machine}`);
 }
 

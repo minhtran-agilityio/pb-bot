@@ -52,19 +52,18 @@ fn snapshot(state: tauri::State<'_, Shared>) -> Snapshot {
     state.0.lock().map(|s| s.clone()).unwrap_or_default()
 }
 
-/// A desktop app starts with a short PATH, so also look where these CLIs install themselves.
-fn find_cli(name: &str) -> PathBuf {
+/// A desktop app starts with a short PATH, so also look where Pod Bay installs its CLI.
+fn find_podbay() -> PathBuf {
     let mut dirs: Vec<PathBuf> = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
     if let Some(home) = std::env::var_os("HOME") {
-        dirs.push(PathBuf::from(&home).join(".local").join("bin"));
-        dirs.push(PathBuf::from(&home).join(".claude").join("local"));
+        dirs.push(PathBuf::from(home).join(".local").join("bin"));
     }
     dirs.push(PathBuf::from("/usr/local/bin"));
     dirs.push(PathBuf::from("/opt/homebrew/bin"));
-    dirs.into_iter().map(|d| d.join(name)).find(|p| p.is_file()).unwrap_or_else(|| PathBuf::from(name))
+    dirs.into_iter().map(|d| d.join("podbay-dev")).find(|p| p.is_file()).unwrap_or_else(|| PathBuf::from("podbay-dev"))
 }
 
-/// Run one read-only command and parse its JSON. The error text names the subcommand, never stderr.
+/// Run one read-only Pod Bay command and parse its JSON. The error text names the subcommand, never stderr.
 fn read(cmd: &PathBuf, args: &[&str]) -> Result<Value, String> {
     let mut child = Command::new(cmd)
         .args(args)
@@ -143,8 +142,7 @@ fn notify(app: &AppHandle, title: &str, body: &str) {
 }
 
 fn poll_loop(app: AppHandle, wake: Receiver<()>) {
-    let cmd = find_cli("podbay-dev");
-    let claude = find_cli("claude");
+    let cmd = find_podbay();
     let mut raw = Raw::default();
     let mut before: HashMap<String, &'static str> = HashMap::new();
     let mut n: u32 = 0;
@@ -163,26 +161,27 @@ fn poll_loop(app: AppHandle, wake: Receiver<()>) {
             }
             Err(e) => error = Some(e),
         }
-        // Claude sessions on this computer; about 0.3 s. A failure (no Claude Code here) just leaves the list empty.
-        raw.local = read(&claude, &["agents", "--json"]).unwrap_or(Value::Null);
 
         let snap = {
             let state = app.state::<Shared>();
             let mut held = match state.0.lock() { Ok(g) => g, Err(p) => p.into_inner() };
-            // A failed Pod Bay read keeps its last sessions and says why; the Claude sessions of this computer still update.
-            let model = build(&raw);
-            for s in newly_needs(&before, &model) {
-                let place = if s.ws.is_empty() { format!("{} · {}", s.project, s.machine) } else { format!("{}/{} · {}", s.project, s.ws, s.machine) };
-                let what = if s.what.is_empty() { place } else { s.what.clone() };
-                notify(&app, &format!("{} needs you", s.title), &what);
+            match error {
+                // A failed read keeps the last sessions and says why.
+                Some(e) => { held.ok = false; held.error = Some(e); }
+                None => {
+                    let model = build(&raw);
+                    for s in newly_needs(&before, &model) {
+                        let what = if s.what.is_empty() { format!("{}/{} · {}", s.project, s.ws, s.machine) } else { s.what.clone() };
+                        notify(&app, &format!("{} needs you", s.title), &what);
+                    }
+                    before = model.sessions.iter().map(|s| (key(s), s.state)).collect();
+                    if before.is_empty() {
+                        // Keep "first read" apart from "no session": a marker stops a later first session from being silent.
+                        before.insert(String::new(), "idle");
+                    }
+                    *held = Snapshot { ok: true, error: None, read_at: Some(now_ms()), model };
+                }
             }
-            before = model.sessions.iter().map(|s| (key(s), s.state)).collect();
-            if before.is_empty() {
-                // Keep "first read" apart from "no session": a marker stops a later first session from being silent.
-                before.insert(String::new(), "idle");
-            }
-            let read_at = if error.is_none() { Some(now_ms()) } else { held.read_at };
-            *held = Snapshot { ok: error.is_none(), error, read_at, model };
             held.clone()
         };
         publish(&app, &snap);
