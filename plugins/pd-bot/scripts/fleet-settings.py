@@ -234,7 +234,7 @@ def main(argv):
         restore(a.checkout)
         return
     if not (a.role and a.model and a.mode):
-        p.error("--role, --model and --mode are required (or --restore)")
+        p.error("--role, --model and --mode are required (or --restore or --show)")
     if not MODEL_RE.match(a.model):
         p.error("--model is not a model id")
     for name in ("ticket", "run"):

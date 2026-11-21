@@ -204,6 +204,13 @@ def test_usage_errors_exit_2(checkout, args):
     assert run("--checkout", str(checkout), *args).returncode == 2
 
 
+def test_missing_options_error_names_show_and_restore(checkout):
+    r = run("--checkout", str(checkout))
+    assert r.returncode == 2
+    err = [l for l in r.stderr.splitlines() if "are required" in l]
+    assert len(err) == 1 and "--restore" in err[0] and "--show" in err[0]
+
+
 def test_missing_checkout_exits_2(tmp_path):
     assert run("--checkout", str(tmp_path / "none"), "--restore").returncode == 2
 
