@@ -226,7 +226,8 @@ pub fn build(raw: &Raw) -> Model {
                 project: folder,
                 ws: String::new(),
                 title: name,
-                state: local_state(&text(&s["status"])),
+                // Claude Code versions differ: some write `status` (busy, idle), others `state` (for example blocked).
+                state: local_state(&text(if s["status"].is_string() { &s["status"] } else { &s["state"] })),
                 since: s["startedAt"].as_i64().unwrap_or(0),
                 what: String::new(),
                 branch: String::new(),
@@ -356,6 +357,19 @@ mod tests {
         let body = serde_json::to_string(&m).unwrap();
         assert!(!body.contains("/home/someone"), "a path reached the model");
         assert!(m.sessions.iter().filter(|s| s.source == "podbay").count() == 6);
+    }
+
+    #[test]
+    fn local_sessions_read_state_when_there_is_no_status() {
+        let r = Raw {
+            local: json!([
+                {"name": "Review PR", "cwd": "/u/x/pb-bot", "state": "blocked", "id": "a"},
+                {"name": "mnemo-fd", "cwd": "/u/x/mnemo", "state": null, "id": "b"}
+            ]),
+            ..Raw::default()
+        };
+        let got: Vec<(&str, &str)> = build(&r).sessions.iter().map(|s| (s.title.as_str(), s.state)).collect();
+        assert_eq!(got, vec![("Review PR", "needs"), ("mnemo-fd", "idle")]);
     }
 
     #[test]
