@@ -247,6 +247,34 @@ test('AC6: the board README documents the fleet view (--ledger, /fleet, /fleet.j
   assert.ok(/\/fleet(?!\.json)\b/.test(readme), 'README does not mention the /fleet page');
 });
 
+// ---------- #16 milestone fields ----------
+const MS = (extra) => ({ ...LEDGER, ...extra });
+test('#16: a milestone ledger serves scenarios, feature_pr and test_rounds', () => withBoard(['--ledger', ledgerFile(MS({ scenarios: 'https://example.com/s.md', feature_pr: 12,
+  test_rounds: [{ round: 1, failed: ['S1', 'S3'], tickets: [2, 9] }, { round: 2, failed: [], tickets: [10] }] }))], null, async port => {
+  const { r, j } = await fleet(port);
+  assert.strictEqual(r.status, 200);
+  assert.strictEqual(j.scenarios, 'https://example.com/s.md'); assert.strictEqual(j.feature_pr, 12);
+  assert.deepStrictEqual(j.test_rounds, [{ round: 1, failed: ['S1', 'S3'], tickets: [2, 9] }, { round: 2, failed: [], tickets: [10] }]);
+}));
+test('#16: without the fields: null, null, [] and run/base/tickets unchanged', () => withBoard(['--ledger', ledgerFile()], null, async port => {
+  const { r, j } = await fleet(port);
+  assert.strictEqual(r.status, 200);
+  assert.strictEqual(j.scenarios, null); assert.strictEqual(j.feature_pr, null); assert.deepStrictEqual(j.test_rounds, []);
+  assert.strictEqual(j.run, 'r688'); assert.strictEqual(j.base, 'feat/fleet'); assert.deepStrictEqual(ids(j), ['2', '9', '10', 'b7', 'x-a']);
+}));
+for (const [name, extra, want] of [
+  ['scenarios 5', { scenarios: 5 }, { scenarios: null }],
+  ['feature_pr "12"', { feature_pr: '12' }, { feature_pr: null }],
+  ['feature_pr 1.5', { feature_pr: 1.5 }, { feature_pr: null }],
+  ['feature_pr {}', { feature_pr: {} }, { feature_pr: null }],
+  ['test_rounds {}', { test_rounds: {} }, { test_rounds: [] }],
+  ['malformed round entries', { test_rounds: [null, 'x', [1], { round: '2' }, { round: 2, failed: 'a', tickets: 7 }] }, { test_rounds: [{ round: 2, failed: [], tickets: [] }] }],
+]) test(`#16: wrong type ${name} is 200 and counts as missing`, () => withBoard(['--ledger', ledgerFile(MS(extra))], null, async port => {
+  const { r, j } = await fleet(port);
+  assert.strictEqual(r.status, 200);
+  for (const k of Object.keys(want)) assert.deepStrictEqual(j[k], want[k], k);
+}));
+
 (async () => {
   let failed = 0;
   for (const [name, fn] of cases) {

@@ -304,6 +304,19 @@ function compareIds(a, b) {
 }
 
 const orNull = v => (v === undefined ? null : v);
+// Milestone fields: a wrong type counts as missing; none of these throws.
+const strOrNull = v => (typeof v === 'string' ? v : null);
+const intOrNull = v => (Number.isInteger(v) ? v : null);
+function roundsOf(v) {
+  if (!Array.isArray(v)) return [];
+  const out = [];
+  for (const r of v) {
+    if (!r || typeof r !== 'object' || Array.isArray(r)) continue;
+    if (typeof r.round !== 'number' || !Number.isFinite(r.round)) continue;
+    out.push({ round: r.round, failed: Array.isArray(r.failed) ? r.failed : [], tickets: Array.isArray(r.tickets) ? r.tickets : [] });
+  }
+  return out;
+}
 
 // ledger object -> the /fleet.json body. Throws Error with a short reason when the shape is wrong.
 function fleetOf(ledger) {
@@ -316,7 +329,8 @@ function fleetOf(ledger) {
     return { id, state: orNull(x.state), kind: orNull(x.kind), depth: orNull(x.depth),
       worker: sess(x.worker), reviewer: sess(x.reviewer), head: orNull(x.head), pr: orNull(x.pr) };
   });
-  return { run: orNull(ledger.run), base: orNull(ledger.base), tickets };
+  return { run: orNull(ledger.run), base: orNull(ledger.base), tickets,
+    scenarios: strOrNull(ledger.scenarios), feature_pr: intOrNull(ledger.feature_pr), test_rounds: roundsOf(ledger.test_rounds) };
 }
 
 // Read the ledger again: { status, body }. 404 when there is none, 503 when it does not parse.

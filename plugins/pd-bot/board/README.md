@@ -126,8 +126,8 @@ node plugins/pd-bot/board/board.js --project <dir>     # newest specs/fleet/*/le
 
 Without `--ledger`, the board picks the newest `specs/fleet/*/ledger.json` (by modification time) under `--project` (default: the current directory). The ledger is read again on every request, so a change shows without a restart.
 
-- `GET /fleet`: HTML page, one row per ticket (id, state, worker, reviewer, pull request). `blocked` and `escalated` rows are marked and listed first; a pull request that is an http(s) URL is a link. The page refreshes itself every 3 seconds and fits a 390 px screen.
-- `GET /fleet.json`: `{"run","base","tickets":[{"id","state","kind","depth","worker","reviewer","head","pr"}]}`, sorted by id (all-digit ids numerically, others as strings). `worker` and `reviewer` are the session names; missing fields are `null`; `pr` is passed through unchanged.
+- `GET /fleet`: HTML page, one row per ticket (id, state, worker, reviewer, pull request). `blocked` and `escalated` rows are marked and listed first; a pull request that is an http(s) URL is a link. For a milestone ledger the page also shows the feature PR (`#n`), the `scenarios` value (a link when it is http(s), else plain text) and one line per test round (round, failed count, ticket numbers); with those fields absent it shows nothing extra. The page refreshes itself every 3 seconds and fits a 390 px screen.
+- `GET /fleet.json`: `{"run","base","tickets":[{"id","state","kind","depth","worker","reviewer","head","pr"}]}`, sorted by id (all-digit ids numerically, others as strings). `worker` and `reviewer` are the session names; missing fields are `null`; `pr` is passed through unchanged. It also carries `"scenarios"` (string), `"feature_pr"` (integer) and `"test_rounds":[{"round","failed","tickets"}]`, defaulting to `null`, `null` and `[]`. A value of the wrong type counts as absent, and a malformed round entry is dropped.
 - No fleet run: `404 {"error":"no fleet run"}`. A ledger that does not parse: `503 {"error":"<reason>"}`; the board keeps running.
 
 The existing routes and the ship.js view are unchanged.

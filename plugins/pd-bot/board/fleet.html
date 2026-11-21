@@ -27,6 +27,9 @@ li.s-escalated .state{color:var(--warn)}
 li.s-done .state,li.s-verified .state,li.s-pr_open .state{color:var(--ok)}
 li.s-in_review .state,li.s-assigned .state,li.s-fixing .state{color:var(--run)}
 a{color:var(--run)}
+#milestone{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:0 0 12px;overflow-wrap:anywhere}
+#milestone p{margin:0 0 4px}
+#milestone ul{gap:2px}
 @media (max-width:640px){li.row{grid-template-columns:1fr 1fr}.id,.state{grid-column:auto}.lbl{display:block}.pr,.worker,.reviewer{grid-column:1/-1}}
 </style>
 </head>
@@ -35,25 +38,40 @@ a{color:var(--run)}
 <h1>Fleet Board</h1>
 <p class="sub" id="meta">loading…</p>
 <p class="msg err" id="err" hidden></p>
+<section id="milestone" hidden></section>
 <ul id="rows"></ul>
 </div>
 <script>
 (function(){
 var ORDER={blocked:0,escalated:1};
-var rows=document.getElementById('rows'),meta=document.getElementById('meta'),err=document.getElementById('err');
+var ms=document.getElementById('milestone'),rows=document.getElementById('rows'),meta=document.getElementById('meta'),err=document.getElementById('err');
 function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e}
 function cell(cls,label,value){var d=el('div',cls);d.appendChild(el('span','lbl',label));
   if(value instanceof Node)d.appendChild(value);else d.appendChild(document.createTextNode(value==null?'–':String(value)));return d}
+function linkNode(s){
+  if(/^https?:\/\//i.test(s)){var a=el('a','',s);a.href=s;a.target='_blank';a.rel='noopener noreferrer';return a}
+  return document.createTextNode(s)}
 function prNode(pr){
   if(pr==null)return '–';
-  var s=String(pr);
-  if(/^https?:\/\//i.test(s)){var a=el('a','',s);a.href=s;a.target='_blank';a.rel='noopener noreferrer';return a}
-  return s}
+  var n=linkNode(String(pr));
+  return n.nodeType===3?n.nodeValue:n}
+function renderMilestone(d){
+  ms.textContent='';
+  var rounds=Array.isArray(d.test_rounds)?d.test_rounds:[];
+  var has=d.feature_pr!=null||typeof d.scenarios==='string'||rounds.length>0;
+  if(!has){ms.hidden=true;return}
+  if(d.feature_pr!=null)ms.appendChild(el('p','','feature PR #'+d.feature_pr));
+  if(typeof d.scenarios==='string'){var p=el('p','','scenarios: ');p.appendChild(linkNode(d.scenarios));ms.appendChild(p)}
+  if(rounds.length){var ul=el('ul');rounds.forEach(function(r){
+    var f=Array.isArray(r.failed)?r.failed:[],t=Array.isArray(r.tickets)?r.tickets:[];
+    ul.appendChild(el('li','','round '+r.round+' · '+f.length+' failed · tickets '+t.join(', ')+(f.length?' · failed: '+f.join(', '):'')))});ms.appendChild(ul)}
+  ms.hidden=false}
 function render(d){
   err.hidden=true;
   meta.textContent='run '+d.run+' · base '+d.base+' · '+d.tickets.length+' ticket'+(d.tickets.length===1?'':'s');
   var list=d.tickets.map(function(t,i){return {t:t,i:i}}).sort(function(a,b){
     var x=ORDER[a.t.state],y=ORDER[b.t.state];x=x===undefined?9:x;y=y===undefined?9:y;return x-y||a.i-b.i}).map(function(o){return o.t});
+  renderMilestone(d);
   rows.textContent='';
   list.forEach(function(t){
     var li=el('li','row s-'+String(t.state).replace(/[^a-z_]/gi,''));
@@ -63,7 +81,7 @@ function render(d){
     li.appendChild(cell('reviewer','reviewer',t.reviewer));
     li.appendChild(cell('pr','pull request',prNode(t.pr)));
     rows.appendChild(li)})}
-function fail(msg){rows.textContent='';meta.textContent='';err.textContent=msg;err.hidden=false}
+function fail(msg){rows.textContent='';ms.textContent='';ms.hidden=true;meta.textContent='';err.textContent=msg;err.hidden=false}
 function poll(){
   fetch('fleet.json',{cache:'no-store'}).then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j}})})
    .then(function(x){if(x.ok)render(x.j);else fail(x.j&&x.j.error||'error')})
