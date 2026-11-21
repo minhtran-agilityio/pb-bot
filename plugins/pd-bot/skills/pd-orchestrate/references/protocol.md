@@ -97,12 +97,16 @@ writes it. It is the orchestrator's memory: after a context summary, read it fir
    "reviewer": {"session": "...", "workspace": "src-03", "model": "..."},
    "branch": "fix/123", "base_sha": "<sha>", "head": "<sha>", "qa_commits": [], "pr": null, "started": "<ISO time>", "budget_min": 60,
    "last": "review-result round 1: changes"}},
- "workspaces": {"src-02": {"ticket": "123", "role": "worker", "state": "removed", "at": "<ISO time>"},
-   "src-03": {"ticket": "123", "role": "reviewer", "state": "kept", "reason": "ws-rm refused: work not pushed"}}}
+ "workspaces": {"src-02": {"uses": [{"ticket": "123", "role": "worker"}, {"ticket": "130", "role": "worker"}],
+     "state": "removed", "at": "<ISO time>"},
+   "src-03": {"uses": [{"ticket": "123", "role": "reviewer"}], "state": "kept", "reason": "ws-rm refused: work not pushed"},
+   "src-04": {"uses": [{"ticket": "123", "role": "advisor"}], "state": "in_use"}}}
 ```
 
-`workspaces` records each workspace of the run once its cleanup was tried (`podbay.md`, Clean up):
-`removed`, or `kept` with the reason (an open PR, a refused `ws-rm`, a session from outside the fleet).
+`workspaces` holds every workspace of the run, from the moment you create or pick it. `uses` lists
+each ticket and role (worker, reviewer, advisor) it served, in order, so a reused workspace keeps its
+whole history. `state` is `in_use`, `removed`, or `kept` with the reason (an open PR, a refused
+`ws-rm`, a session from outside the fleet); see `podbay.md`, Clean up.
 
 States: `queued`, `assigned`, `in_review`, `fixing`, `escalated`, `verified`, `pr_open`, `done`,
 `blocked`, `skipped`.

@@ -132,24 +132,35 @@ Stop each session as soon as its work is finished, without waiting for the end o
 `podbay-dev start ... --resume latest` brings a stopped session back with its conversation if a
 ticket reopens. At the end of the run no session you started is still running.
 
-Then remove the workspaces of a finished ticket yourself; the owner does not have to ask. Each run
-leaves a full checkout per worker, reviewer and advisor, and nobody else removes them. A worker or
-reviewer workspace of a ticket qualifies only when all of these hold:
-- the ticket's pull request is MERGED or CLOSED (`gh pr view <n> --repo <repo> --json state`); an
-  open PR keeps both workspaces, because a review comment can still reopen the ticket;
-- the reviewer's last receipt is saved in `specs/fleet/<run>/<ticket>/`;
-- no other ticket in the ledger is assigned to that workspace;
+Remove the workspaces of finished tickets yourself; the owner does not have to ask. Each run leaves
+a full checkout per worker, reviewer and advisor, and nobody else removes them. Do it whenever a
+ticket's pull request becomes MERGED or CLOSED, during the run or after it: check the open PRs
+before your final report, and again when the owner says a PR was merged or closed. A worker or
+reviewer workspace qualifies only when all of these hold:
+- every ticket in the ledger that used the workspace has a pull request that is MERGED or CLOSED
+  (`gh pr view <n> --repo <repo> --json state`); an open PR keeps the workspace, because a review
+  comment can still reopen the ticket;
+- the reviewer's last receipt of each of those tickets is saved in `specs/fleet/<run>/<ticket>/`;
+- no ticket that is not finished is assigned to it;
 - `podbay-dev ls` shows no session in it that you did not start for this run.
 
-A Fable advisor workspace qualifies when you have checked its `advise-result` and no ticket waits on
-it. For each workspace that qualifies, in this order:
-1. `podbay-dev stop <name>` for its session, if one still runs;
-2. `podbay-dev ws-rm <project> <src-NN>`.
+A Fable advisor workspace qualifies when you have checked its `advise-result` and every ticket whose
+brief points at its prototype or branch qualifies by the rules above (its PR is MERGED or CLOSED,
+or the ticket is `blocked` or `skipped`): a worker may still fetch from it until then.
+
+For each workspace that qualifies, in this order:
+1. Save what `ws-rm` does not protect: a worker's gitignored `specs/` folder of the ticket goes to
+   `specs/fleet/<run>/<ticket>/worker-specs/` in your checkout. `ws-rm` checks for work that is not
+   pushed, not for ignored files.
+2. `podbay-dev stop <name>` for its session, if one still runs.
+3. `podbay-dev ws-rm <project> <src-NN>`.
 
 When `ws-rm` refuses (work that is not pushed), keep the workspace and write the reason in the
-ledger. Never add `--force`, never delete files by hand, and never `ws-rm` a workspace for another
-reason. Never remove `src` (your own workspace) or a workspace that a session from outside this
-fleet uses. Record each removal in the ledger as well (`workspaces`, `protocol.md`).
-
-Check the open PRs again before your final report, and once more when the owner says a PR was
-merged or closed. List every workspace that stays, with its reason, in your final report.
+ledger. After a squash merge with the branch deleted, the local commits are on no remote branch, so
+`ws-rm` can refuse a ticket whose PR is MERGED: keep it, and list it for the owner with the PR link
+as proof that the work landed. Never add `--force`, never delete files by hand, and never `ws-rm` a
+workspace for another reason. Never remove `src` (your own workspace) or a workspace that a session
+from outside this fleet uses. A CLOSED PR that is reopened later gets a new workspace (`ws-new`)
+and the branch from the remote. Record each workspace in the ledger when you create it, and each
+removal or kept reason when you try (`workspaces`, `protocol.md`). List every workspace that stays,
+with its reason, in your final report.
