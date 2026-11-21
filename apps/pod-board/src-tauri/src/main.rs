@@ -47,19 +47,19 @@ fn refresh(wake: tauri::State<'_, Wake>) {
     }
 }
 
-/// Open a session's Remote Control link with the system's handler for https links.
-/// Only a link the model let through (claude.ai/code/session_...) is opened.
+/// Open a session in the Claude desktop app with `claude://code/<id>`, the link Pod Bay's "Open in Claude" uses.
+/// Without the desktop app (Linux) it opens `https://claude.ai/code/<id>` in the browser instead.
 #[tauri::command]
-fn open_session(url: String) -> Result<(), String> {
-    if model::session_url(&url) != url || url.is_empty() {
-        return Err("not a Claude session link".into());
+fn open_session(id: String) -> Result<(), String> {
+    if id.is_empty() || model::session_id(&format!("https://claude.ai/code/{id}")) != id {
+        return Err("not a Claude session id".into());
     }
     #[cfg(target_os = "macos")]
-    let opener = "open";
+    let (opener, url) = ("open", format!("claude://code/{id}"));
     #[cfg(not(target_os = "macos"))]
-    let opener = "xdg-open";
+    let (opener, url) = ("xdg-open", format!("https://claude.ai/code/{id}"));
     Command::new(opener).arg(&url).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn()
-        .map(|_| ()).map_err(|_| "could not open the link".to_string())
+        .map(|_| ()).map_err(|_| "could not open the session".to_string())
 }
 
 #[tauri::command]

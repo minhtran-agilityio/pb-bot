@@ -347,12 +347,12 @@ function stoppedStrip() {
   return box;
 }
 
-// A card with a Remote Control link opens that session when clicked or when Enter is pressed on it.
+// A card with a Remote Control id opens that session in the Claude app when clicked or when Enter is pressed on it.
 function linkable(node, s) {
-  if (!s.url) return node;
+  if (!s.rc_id) return node;
   node.classList.add('link'); node.tabIndex = 0; node.setAttribute('role', 'link');
   node.title = `Open ${s.title} in Claude`;
-  const go = () => { const t = window.__TAURI__; if (t) t.core.invoke('open_session', { url: s.url }).catch(() => {}); };
+  const go = () => { const t = window.__TAURI__; if (t) t.core.invoke('open_session', { id: s.rc_id }).catch(() => {}); };
   node.addEventListener('click', go);
   node.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
   return node;

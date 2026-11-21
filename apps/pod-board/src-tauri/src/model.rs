@@ -21,8 +21,8 @@ pub struct Session {
     pub branch: String,
     pub prs: usize,
     pub queued: usize,
-    /// The session's Remote Control link (`remote_url`), kept only when it is a claude.ai/code session link; else empty.
-    pub url: String,
+    /// The session's Remote Control id: the last part of `remote_url` (`https://claude.ai/code/<id>`), else empty.
+    pub rc_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -126,12 +126,12 @@ fn state_of(s: &Value) -> &'static str {
     }
 }
 
-/// A Remote Control link opens the session at claude.ai/code. Anything else is dropped, so a card never opens another site.
-pub fn session_url(raw: &str) -> String {
-    let ok = raw.strip_prefix("https://claude.ai/code/").map_or(false, |rest| {
-        rest.starts_with("session_") && rest.len() > "session_".len() && rest.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
-    });
-    if ok { raw.to_string() } else { String::new() }
+/// The Remote Control id of a session, from its link `https://claude.ai/code/<id>` (ids look like `session_01…` or
+/// `cshk_01…`). Only letters, digits and `_` pass, so the id is safe to put in a `claude://code/<id>` link.
+pub fn session_id(raw: &str) -> String {
+    let id = raw.strip_prefix("https://claude.ai/code/").unwrap_or("");
+    let ok = !id.is_empty() && id.len() <= 128 && id.contains('_') && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+    if ok { id.to_string() } else { String::new() }
 }
 
 fn rank(state: &str) -> u8 {
@@ -185,7 +185,7 @@ pub fn build(raw: &Raw) -> Model {
             sessions.push(Session {
                 branch: cut(branch.get(&format!("{machine}|{project}|{}|{ws}", text(&s["repo"]))).map(String::as_str).unwrap_or(""), NAME_CHARS),
                 queued: queued.get(&format!("{machine}|{}", text(&s["dir"]))).copied().unwrap_or(0),
-                url: session_url(&text(&s["remote_url"])),
+                rc_id: session_id(&text(&s["remote_url"])),
                 prs: s["links"]["prs"].as_array().map(Vec::len).unwrap_or(0),
                 state: state_of(s),
                 since: s["since"].as_i64().unwrap_or(0),
@@ -297,12 +297,14 @@ mod tests {
     }
 
     #[test]
-    fn only_claude_session_links_are_kept() {
-        assert_eq!(session_url("https://claude.ai/code/session_01MjxNHe8J1MMGhFig4bVsHc"), "https://claude.ai/code/session_01MjxNHe8J1MMGhFig4bVsHc");
-        for bad in ["", "git@example.com:o/r.git", "https://evil.example/code/session_1", "https://claude.ai/code/", "https://claude.ai/code/session_", "https://claude.ai/code/session_1?x=y", "http://claude.ai/code/session_1", "https://claude.ai/code/session_1/../x"] {
-            assert_eq!(session_url(bad), "", "{bad} was kept");
+    fn only_claude_session_ids_are_kept() {
+        assert_eq!(session_id("https://claude.ai/code/session_01MjxNHe8J1MMGhFig4bVsHc"), "session_01MjxNHe8J1MMGhFig4bVsHc");
+        assert_eq!(session_id("https://claude.ai/code/cshk_01MjxNHektRUhVF7rY6wvoZ2YZha6dkw23rTzKhMV3iq7S"), "cshk_01MjxNHektRUhVF7rY6wvoZ2YZha6dkw23rTzKhMV3iq7S");
+        for bad in ["", "git@example.com:o/r.git", "https://evil.example/code/session_1", "https://claude.ai/code/", "https://claude.ai/code/plain",
+                    "https://claude.ai/code/session_1?x=y", "http://claude.ai/code/session_1", "https://claude.ai/code/session_1/../x", "https://claude.ai/code/a_b%20c"] {
+            assert_eq!(session_id(bad), "", "{bad} was kept");
         }
-        assert_eq!(build(&raw()).sessions[0].url, "https://claude.ai/code/session_01AbC");
+        assert_eq!(build(&raw()).sessions[0].rc_id, "session_01AbC");
     }
 
     #[test]
