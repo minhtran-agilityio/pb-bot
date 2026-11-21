@@ -190,6 +190,15 @@ def test_refuses_a_non_object_env(checkout):
     ["--role", "worker", "--model", "m; rm -rf x", "--mode", "auto"],
     ["--role", "worker", "--model", "m", "--mode", "auto", "--ticket", "1 2"],
     ["--restore", "--role", "worker"],
+    ["--show", "--restore"],
+    ["--show", "--role", "worker"],
+    ["--show", "--model", "m"],
+    ["--show", "--mode", "auto"],
+    ["--show", "--ticket", "1"],
+    ["--show", "--run", "r1"],
+    ["--show", "--ticket="],
+    ["--show", "--run="],
+    ["--show", "--model="],
 ])
 def test_usage_errors_exit_2(checkout, args):
     assert run("--checkout", str(checkout), *args).returncode == 2
@@ -197,3 +206,49 @@ def test_usage_errors_exit_2(checkout, args):
 
 def test_missing_checkout_exits_2(tmp_path):
     assert run("--checkout", str(tmp_path / "none"), "--restore").returncode == 2
+
+
+def show(d):
+    return run("--checkout", str(d), "--show")
+
+
+def test_show_prints_absent_keys_and_no_restore_state(checkout):
+    r = show(checkout)
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.splitlines() == [
+        "model: absent", "permissions.defaultMode: absent", "env.PD_BOT_ROLE: absent",
+        "env.PD_BOT_TICKET: absent", "env.PD_BOT_RUN: absent", "restore state: none"]
+    assert not (checkout / ".claude").exists() and not state(checkout).exists()
+
+
+def test_show_prints_values_after_apply_and_writes_nothing(checkout):
+    assert apply(checkout, "--ticket", "12", "--run", "r1").returncode == 0
+    before = (settings(checkout).read_text(), state(checkout).read_text())
+    r = show(checkout)
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.splitlines() == [
+        'model: "claude-haiku-5-5"', 'permissions.defaultMode: "auto"', 'env.PD_BOT_ROLE: "worker"',
+        'env.PD_BOT_TICKET: "12"', 'env.PD_BOT_RUN: "r1"', "restore state: present"]
+    assert (settings(checkout).read_text(), state(checkout).read_text()) == before
+
+
+def test_show_reports_no_restore_state_after_restore(checkout):
+    assert apply(checkout).returncode == 0
+    assert run("--checkout", str(checkout), "--restore").returncode == 0
+    assert show(checkout).stdout.splitlines()[-1] == "restore state: none"
+
+
+def test_show_leaves_other_keys_out_and_refuses_bad_json(checkout):
+    settings(checkout).parent.mkdir()
+    settings(checkout).write_text('{"permissions": {"allow": ["x"]}, "env": {"FOO": "1"}}')
+    out = show(checkout).stdout
+    assert "FOO" not in out and "allow" not in out
+    settings(checkout).write_text("{nope")
+    r = show(checkout)
+    assert r.returncode == 1 and "not valid JSON" in r.stderr
+    assert settings(checkout).read_text() == "{nope"
+
+
+def test_show_works_when_git_does_not_ignore_the_file(checkout):
+    (checkout / ".gitignore").write_text("")
+    assert show(checkout).returncode == 0
