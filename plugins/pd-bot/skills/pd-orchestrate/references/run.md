@@ -134,12 +134,14 @@ whether the ticket is risky, the suite command, the worker's session name and ch
    receipt's SHA: no checks, a pending check, all checks skipped, or CI on another SHA is not
    green. A new commit after the receipt needs a new receipt.
 5. When the base is a `feat/*` branch, run the merge gate:
-   `bash ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-gate.sh --evidence specs/fleet/<run>/<ticket> --head <head sha> --pr <number> --gh-repo <owner/name> --wait 600`.
+   `bash ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-gate.sh --evidence specs/fleet/<run>/<ticket> --head <head sha> --pr <number> --gh-repo <owner/name> --base feat/<slug> --wait 600`.
    It reads the block-mode result, the CI checks and the pull request, and changes nothing. On a
    pass it prints one line `run: gh pr merge ...`: run exactly that command as its own Bash call.
    On a mismatch, or when the merge guard denies the command, do not merge: send the mismatch to
    the worker as `findings`, or leave the pull request to the owner and say so in the report.
-   A pull request into `main` or another protected branch is never merged by you.
+   A pull request into `main` or another protected branch is never merged by you. Before the gate,
+   put the label `pd-bot:owner-merge` on a pull request the owner must merge: a fix where the worker
+   decided a requirement that was not clear. The gate never passes it.
 6. Mark the ticket `done` in the ledger only now, then stop its worker and reviewer sessions
    (`podbay.md`, Clean up).
 

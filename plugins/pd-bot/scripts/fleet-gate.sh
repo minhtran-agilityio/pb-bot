@@ -4,9 +4,13 @@
 # orchestrator then runs as its own Bash call, so hooks/merge-guard.sh still sees and judges it.
 #
 # Three checks, all for the same head commit:
-#   evidence  <evidence>/fleet-check.json is from a block-mode run on --head with no mismatch
+#   evidence  <evidence>/fleet-check.json is from a block-mode run on --head with no mismatch, and
+#             its suite check ran and passed (a skipped suite is not enough to go in unattended)
 #   ci        every check of the pull request passed (skipped checks do not count as a pass)
-#   pr        the pull request is open, not a draft, targets feat/*, and its head is --head
+#   pr        the pull request is open, not a draft, targets exactly --base (a feat/* branch), its
+#             head is --head, and it has no label pd-bot:owner-merge
+# The orchestrator puts the label pd-bot:owner-merge on a pull request the owner must merge, for
+# example a fix for a requirement that was not clear; the gate then never passes it.
 #
 # Trust: --evidence, --head, --pr and --gh-repo come from the orchestrator. fleet-check.json was
 # written by fleet-check.sh into the orchestrator's evidence dir; a symlink there is refused. Text
@@ -15,7 +19,7 @@
 #
 # Usage:
 #   fleet-gate.sh --evidence <dir> --head <40|64 hex> --pr <number> --gh-repo <owner/name>
-#                 [--wait <seconds>]
+#                 --base <feat/...> [--wait <seconds>]
 # --wait: how long to wait for pending CI checks (default 0: one look). The poll interval is 30 s
 # (FLEET_GATE_INTERVAL overrides it, for tests).
 # Output: one line per check (`ok|MISMATCH <name>: <detail>`), <evidence>/fleet-gate.json, on a pass
@@ -24,7 +28,7 @@
 # Exit: 0 on a pass, 1 on a mismatch, 2 on a usage error. Needs gh and jq.
 set -u
 
-usage() { echo "fleet-gate: $*" >&2; echo "usage: fleet-gate.sh --evidence <dir> --head <sha> --pr <number> --gh-repo <owner/name> [--wait <seconds>]" >&2; exit 2; }
+usage() { echo "fleet-gate: $*" >&2; echo "usage: fleet-gate.sh --evidence <dir> --head <sha> --pr <number> --gh-repo <owner/name> --base <feat/...> [--wait <seconds>]" >&2; exit 2; }
 
 lower() { printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]'; }
 is_full_hex() {
@@ -33,10 +37,10 @@ is_full_hex() {
 }
 san() { printf '%s' "$1" | LC_ALL=C tr -cd '\040-\176' | cut -c1-200; }
 
-evid=""; head=""; pr=""; gh_repo=""; wait_s=0
+evid=""; head=""; pr=""; gh_repo=""; base_ref_want=""; wait_s=0
 while [ $# -gt 0 ]; do
   case "$1" in
-    --evidence|--head|--pr|--gh-repo|--wait) [ $# -ge 2 ] || usage "$1 needs a value" ;;
+    --evidence|--head|--pr|--gh-repo|--base|--wait) [ $# -ge 2 ] || usage "$1 needs a value" ;;
     *) usage "unknown argument: $1" ;;
   esac
   case "$1" in
@@ -44,6 +48,7 @@ while [ $# -gt 0 ]; do
     --head) head=$2 ;;
     --pr) pr=$2 ;;
     --gh-repo) gh_repo=$2 ;;
+    --base) base_ref_want=$2 ;;
     --wait) wait_s=$2 ;;
   esac
   shift 2
@@ -53,6 +58,12 @@ done
 [ -n "$head" ] || usage "--head is required"
 [ -n "$pr" ] || usage "--pr is required"
 [ -n "$gh_repo" ] || usage "--gh-repo is required"
+[ -n "$base_ref_want" ] || usage "--base is required"
+case "$base_ref_want" in
+  feat/*[!A-Za-z0-9._/-]*|feat/) usage "--base must be a feat/<name> branch" ;;
+  feat/?*) ;;
+  *) usage "--base must be a feat/<name> branch: the owner merges every other base" ;;
+esac
 is_full_hex "$head" || usage "--head must be a full 40 or 64 hex object name"
 head=$(lower "$head")
 case "$pr" in ''|*[!0-9]*|0*) usage "--pr must be a positive number" ;; esac
@@ -63,7 +74,7 @@ case "$gh_repo" in
   *) usage "--gh-repo must be owner/name" ;;
 esac
 interval=${FLEET_GATE_INTERVAL:-30}
-case "$interval" in ''|*[!0-9]*) interval=30 ;; esac
+case "$interval" in ''|*[!0-9]*|0*) interval=30 ;; esac
 evid=$(CDPATH='' cd -P -- "$evid" 2>/dev/null && pwd -P) || usage "--evidence is not a directory"
 
 tmpout=""
@@ -98,19 +109,21 @@ check_evidence() {
   if [ ! -f "$f" ]; then record evidence mismatch "fleet-check.json is missing: run fleet-check.sh --mode block first"; return; fi
   if [ "$have_jq" = 0 ]; then record evidence mismatch "jq is not installed, cannot read fleet-check.json"; return; fi
   # One line: <head> <mode> <mismatches> <checks> <checks that are a mismatch or have no known result>
+  # <suite checks with result ok>
   out=$(jq -r -s 'if length == 1 and (.[0] | type) == "object" and (.[0].checks | type) == "array" then .[0]
-      | "\(.head | if type == "string" then . else "-" end) \(.mode | if type == "string" then . else "-" end) \(.mismatches | if type == "number" then . else "-" end) \(.checks | length) \([.checks[] | select((type != "object") or ((.result == "ok" or .result == "skip") | not))] | length)"
+      | "\(.head | if type == "string" then . else "-" end) \(.mode | if type == "string" then . else "-" end) \(.mismatches | if type == "number" then . else "-" end) \(.checks | length) \([.checks[] | select((type != "object") or ((.result == "ok" or .result == "skip") | not))] | length) \([.checks[] | objects | select(.name == "suite" and .result == "ok")] | length)"
     else "bad" end' "$f" 2>/dev/null) || out=bad
   case "$out" in bad|''|*$'\n'*) record evidence mismatch "fleet-check.json does not parse as one result object"; return ;; esac
-  # shellcheck disable=SC2086  # five space-separated words
+  # shellcheck disable=SC2086  # six space-separated words
   set -- $out
-  [ $# -eq 5 ] || { record evidence mismatch "fleet-check.json has an unexpected shape"; return; }
+  [ $# -eq 6 ] || { record evidence mismatch "fleet-check.json has an unexpected shape"; return; }
   local probs=""
   [ "$(lower "$1")" = "$head" ] || probs="$probs head '$(san "$1")' is not --head;"
   [ "$2" = block ] || probs="$probs mode is '$(san "$2")', not block;"
   [ "$3" = 0 ] || probs="$probs mismatches is '$(san "$3")', not 0;"
   case "$4" in ''|*[!0-9]*|0) probs="$probs no check was recorded;" ;; esac
   [ "$5" = 0 ] || probs="$probs $(san "$5") check(s) are not ok or skip;"
+  [ "$6" = 1 ] || probs="$probs the suite did not run and pass (suite ok $(san "$6") time(s), want 1);"
   if [ -n "$probs" ]; then record evidence mismatch "${probs# }"; else record evidence ok "block mode, head matches, $4 check(s), no mismatch"; fi
 }
 
@@ -118,8 +131,14 @@ check_evidence() {
 # ci_look: sets CI_STATE to green, pending, red, none or error, and CI_TEXT.
 CI_STATE=""; CI_TEXT=""
 ci_look() {
-  local out rc counts
-  out=$(gh pr checks "$pr" --repo "$gh_repo" --json name,bucket 2>/dev/null); rc=$?
+  local out rc counts errf
+  errf=$(mktemp "${TMPDIR:-/tmp}/fleet-gate.XXXXXX" 2>/dev/null) || errf=/dev/null
+  out=$(gh pr checks "$pr" --repo "$gh_repo" --json name,bucket 2>"$errf"); rc=$?
+  # A pull request with no checks yet: gh prints nothing and says so on stderr, or prints [].
+  if [ -z "$out" ] && [ "$errf" != /dev/null ] && grep -qi 'no checks reported' "$errf" 2>/dev/null; then
+    rm -f -- "$errf"; CI_STATE=none; CI_TEXT="no checks reported yet"; return
+  fi
+  [ "$errf" != /dev/null ] && rm -f -- "$errf"
   # gh exits 8 while a check is pending and 1 when one failed; both still print the list.
   counts=$(printf '%s' "$out" | jq -r 'if type == "array" then
       "\([.[] | select(.bucket == "pass")] | length) \([.[] | select(.bucket == "skipping")] | length) \([.[] | select(.bucket == "pending")] | length) \(length)"
@@ -142,7 +161,8 @@ check_ci() {
   local waited=0
   ci_look
   # No checks yet counts as pending while there is time left: CI may not have started.
-  while { [ "$CI_STATE" = pending ] || [ "$CI_STATE" = none ]; } && [ "$waited" -lt "$wait_s" ]; do
+  # A gh error may be a network blip: it is retried too while time is left. A failed check is final.
+  while { [ "$CI_STATE" = pending ] || [ "$CI_STATE" = none ] || [ "$CI_STATE" = error ]; } && [ "$waited" -lt "$wait_s" ]; do
     sleep "$interval"
     waited=$((waited + interval))
     ci_look
@@ -161,20 +181,22 @@ check_pr() {
   if [ "$have_gh" = 0 ]; then record pr mismatch "gh is not installed"; return; fi
   if [ "$have_jq" = 0 ]; then record pr mismatch "jq is not installed, cannot read the pull request"; return; fi
   local out line probs=""
-  out=$(gh pr view "$pr" --repo "$gh_repo" --json state,isDraft,baseRefName,headRefOid 2>/dev/null) || { record pr mismatch "gh pr view failed"; return; }
+  out=$(gh pr view "$pr" --repo "$gh_repo" --json state,isDraft,baseRefName,headRefOid,labels 2>/dev/null) || { record pr mismatch "gh pr view failed"; return; }
   line=$(printf '%s' "$out" | jq -r 'if type == "object" then
-      "\(.state | if type == "string" then . else "-" end)\t\(.isDraft | if type == "boolean" then . else "-" end)\t\(.baseRefName | if type == "string" then . else "-" end)\t\(.headRefOid | if type == "string" then . else "-" end)"
+      "\(.state | if type == "string" then . else "-" end)\t\(.isDraft | if type == "boolean" then . else "-" end)\t\(.baseRefName | if type == "string" then . else "-" end)\t\(.headRefOid | if type == "string" then . else "-" end)\t\(if (.labels | type) == "array" then ([.labels[] | objects | select(.name == "pd-bot:owner-merge")] | length) else "-" end)"
     else "bad" end' 2>/dev/null) || line=bad
   case "$line" in bad|''|*$'\n'*) record pr mismatch "gh pr view gave no readable object"; return ;; esac
-  local state draft base_ref head_oid
-  IFS=$'\t' read -r state draft base_ref head_oid <<EOF
+  local state draft base_ref head_oid owner_label
+  IFS=$'\t' read -r state draft base_ref head_oid owner_label <<EOF
 $line
 EOF
   [ "$state" = OPEN ] || probs="$probs state is '$(san "$state")', not OPEN;"
   [ "$draft" = false ] || probs="$probs the pull request is a draft;"
-  case "$base_ref" in
-    feat/?*) ;;
-    *) probs="$probs base '$(san "$base_ref")' is not feat/*: the owner merges it;" ;;
+  [ "$base_ref" = "$base_ref_want" ] || probs="$probs base '$(san "$base_ref")' is not $(san "$base_ref_want"): the owner merges it;"
+  case "$owner_label" in
+    0) ;;
+    ''|*[!0-9]*) probs="$probs the labels could not be read;" ;;
+    *) probs="$probs it has the label pd-bot:owner-merge: the owner merges it;" ;;
   esac
   [ "$(lower "$head_oid")" = "$head" ] || probs="$probs head '$(san "$head_oid")' is not --head;"
   if [ -n "$probs" ]; then record pr mismatch "${probs# }"; else record pr ok "open, base $(san "$base_ref"), head matches"; fi
@@ -199,8 +221,12 @@ else
   write_failed=1
 fi
 
-if [ "$mismatches" -gt 0 ] || [ "$write_failed" = 1 ]; then
+if [ "$mismatches" -gt 0 ]; then
   echo "fleet-gate: $mismatches mismatch(es)"
+  exit 1
+fi
+if [ "$write_failed" = 1 ]; then
+  echo "fleet-gate: cannot write the result file, so the gate does not pass"
   exit 1
 fi
 echo "run: gh pr merge $pr --repo $gh_repo --merge --match-head-commit $head"

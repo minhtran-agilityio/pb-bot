@@ -29,6 +29,8 @@ case "$1 $2" in
     f="$FAKE/checks.$n.json"
     while [ ! -f "$f" ] && [ "$n" -gt 1 ]; do n=$((n - 1)); f="$FAKE/checks.$n.json"; done
     [ -f "$f" ] || exit 1
+    if grep -q NOCHECKS "$f"; then echo "no checks reported on the 'x' branch" >&2; exit 1; fi
+    if grep -q NETERR "$f"; then echo "connection refused" >&2; exit 1; fi
     cat "$f"
     if grep -q '"pending"' "$f"; then exit 8; fi
     if grep -q '"fail"' "$f"; then exit 1; fi ;;
@@ -38,12 +40,12 @@ EOF
   chmod +x "$BIN/gh"
   write_check "$HEAD"; write_view; write_checks 1 pass pass
 }
-TWO_CHECKS='[{"name":"receipt","result":"ok","detail":"x"},{"name":"acceptance","result":"skip","detail":"x"}]'
+TWO_CHECKS='[{"name":"receipt","result":"ok","detail":"x"},{"name":"acceptance","result":"skip","detail":"x"},{"name":"suite","result":"ok","detail":"exit 0"}]'
 write_check() { # write_check <head> [mode] [mismatches] [checks-json]
   printf '{"v":1,"head":"%s","mode":"%s","checks":%s,"mismatches":%s}\n' "$1" "${2:-block}" "${4:-$TWO_CHECKS}" "${3:-0}" > "$EV/fleet-check.json"
 }
-write_view() { # write_view [state] [base] [head] [isDraft]
-  printf '{"state":"%s","isDraft":%s,"baseRefName":"%s","headRefOid":"%s"}\n' "${1:-OPEN}" "${4:-false}" "${2:-feat/big-thing}" "${3:-$HEAD}" > "$FAKE/view.json"
+write_view() { # write_view [state] [base] [head] [isDraft] [labels-json]
+  printf '{"state":"%s","isDraft":%s,"baseRefName":"%s","headRefOid":"%s","labels":%s}\n' "${1:-OPEN}" "${4:-false}" "${2:-feat/big-thing}" "${3:-$HEAD}" "${5:-[]}" > "$FAKE/view.json"
 }
 write_checks() { # write_checks <call number> <bucket>...
   local n=$1 out="" b; shift
@@ -52,7 +54,7 @@ write_checks() { # write_checks <call number> <bucket>...
 }
 # fg <extra args...>: run the script; sets OUT and RC.
 fg() {
-  OUT=$(FAKE="$FAKE" PATH="$BIN:$PATH" FLEET_GATE_INTERVAL=1 bash "$FG" --evidence "$EV" --head "$HEAD" --pr 12 --gh-repo o/r "$@" 2>&1); RC=$?
+  OUT=$(FAKE="$FAKE" PATH="$BIN:$PATH" FLEET_GATE_INTERVAL=1 bash "$FG" --evidence "$EV" --head "$HEAD" --pr 12 --gh-repo o/r --base feat/big-thing "$@" 2>&1); RC=$?
 }
 has() { if printf '%s\n' "$OUT" | grep -qF -- "$1"; then pass; else fail "missing '$1' in: $(printf '%s' "$OUT" | tr '\n' '|')"; fi; }
 hasnt() { if printf '%s\n' "$OUT" | grep -qF -- "$1"; then fail "unexpected '$1' in: $(printf '%s' "$OUT" | tr '\n' '|')"; else pass; fi; }
@@ -62,7 +64,7 @@ rc_is() { if [ "$RC" -eq "$1" ]; then pass; else fail "rc=$RC, want $1 — $(pri
 new_case
 t "a pass: exit 0, three ok lines, the command and the last line"; fg
 if [ "$RC" = 0 ] && ! printf '%s\n' "$OUT" | grep -q '^MISMATCH' \
-  && printf '%s\n' "$OUT" | grep -qF 'ok evidence: block mode, head matches, 2 check(s), no mismatch' \
+  && printf '%s\n' "$OUT" | grep -qF 'ok evidence: block mode, head matches, 3 check(s), no mismatch' \
   && printf '%s\n' "$OUT" | grep -qF 'ok ci: 2 pass, 0 skipped, 0 pending, 0 failed or cancelled' \
   && printf '%s\n' "$OUT" | grep -qF 'ok pr: open, base feat/big-thing, head matches' \
   && printf '%s\n' "$OUT" | grep -qFx "run: gh pr merge 12 --repo o/r --merge --match-head-commit $HEAD" \
@@ -76,8 +78,8 @@ else fail "json: $(cat "$EV/fleet-gate.json" 2>&1)"; fi
 t "the script only reads the pull request: it never calls gh pr merge"
 if grep -q 'merge' "$FAKE/calls"; then fail "calls: $(tr '\n' '|' < "$FAKE/calls")"; else pass; fi
 t "an uppercase --head and an uppercase head from gh still match"
-write_view OPEN feat/x "$(printf '%s' "$HEAD" | tr 'a-f' 'A-F')"
-OUT=$(FAKE="$FAKE" PATH="$BIN:$PATH" bash "$FG" --evidence "$EV" --head "$(printf '%s' "$HEAD" | tr 'a-f' 'A-F')" --pr 12 --gh-repo o/r 2>&1); RC=$?; rc_is 0
+write_view OPEN feat/big-thing "$(printf '%s' "$HEAD" | tr 'a-f' 'A-F')"
+OUT=$(FAKE="$FAKE" PATH="$BIN:$PATH" bash "$FG" --evidence "$EV" --head "$(printf '%s' "$HEAD" | tr 'a-f' 'A-F')" --pr 12 --gh-repo o/r --base feat/big-thing 2>&1); RC=$?; rc_is 0
 t "skipped checks next to a pass still pass"
 new_case; write_checks 1 pass skipping; fg; rc_is 0
 
@@ -97,6 +99,12 @@ write_check "$HEAD" block 0 '[{"name":"suite","result":"mismatch","detail":"x"}]
 t "a check with an unknown result is a MISMATCH"
 write_check "$HEAD" block 0 '[{"name":"suite","result":"fine","detail":"x"}]'; fg; has '1 check(s) are not ok or skip'
 t "an empty checks list is a MISMATCH"; write_check "$HEAD" block 0 '[]'; fg; has 'no check was recorded'
+t "a skipped suite is a MISMATCH"
+write_check "$HEAD" block 0 '[{"name":"receipt","result":"ok","detail":"x"},{"name":"suite","result":"skip","detail":"--no-suite"}]'; fg
+has 'the suite did not run and pass'
+t "no suite check at all is a MISMATCH"
+write_check "$HEAD" block 0 '[{"name":"receipt","result":"ok","detail":"x"}]'; fg; has 'the suite did not run and pass'
+t "... and no command is printed for it"; hasnt 'run: gh'
 t "a file that is not JSON is a MISMATCH"; printf 'nope\n' > "$EV/fleet-check.json"; fg; has 'MISMATCH evidence: fleet-check.json does not parse'
 t "two JSON documents in the file are a MISMATCH"
 write_check "$HEAD"; cat "$EV/fleet-check.json" "$EV/fleet-check.json" > "$EV/two"; mv "$EV/two" "$EV/fleet-check.json"; fg
@@ -119,6 +127,19 @@ if [ "$RC" = 0 ] && [ "$(cat "$FAKE/n")" = 3 ]; then pass; else fail "rc=$RC cal
 new_case
 t "--wait also waits while no check has started"; printf '[]\n' > "$FAKE/checks.1.json"; write_checks 2 pass; fg --wait 10; rc_is 0
 new_case
+t "gh saying no checks yet is waited on, not an error"; printf 'NOCHECKS\n' > "$FAKE/checks.1.json"; write_checks 2 pass; fg --wait 10
+if [ "$RC" = 0 ] && [ "$(cat "$FAKE/n")" = 2 ]; then pass; else fail "rc=$RC calls=$(cat "$FAKE/n") out: $(printf '%s' "$OUT" | tr '\n' '|')"; fi
+new_case
+t "with no --wait, no checks yet is a MISMATCH"; printf 'NOCHECKS\n' > "$FAKE/checks.1.json"; fg; has 'MISMATCH ci: no check passed: no checks reported yet'
+new_case
+t "a gh error is retried while time is left"; printf 'NETERR\n' > "$FAKE/checks.1.json"; write_checks 2 pass; fg --wait 10; rc_is 0
+new_case
+t "a gh error with no time left is a MISMATCH"; printf 'NETERR\n' > "$FAKE/checks.1.json"; fg; has 'MISMATCH ci: gh pr checks gave no readable list'
+new_case
+t "FLEET_GATE_INTERVAL=0 falls back to 30s instead of a tight loop"; write_checks 1 pending
+OUT=$(FAKE="$FAKE" PATH="$BIN:$PATH" FLEET_GATE_INTERVAL=0 bash "$FG" --evidence "$EV" --head "$HEAD" --pr 12 --gh-repo o/r --base feat/big-thing --wait 1 2>&1); RC=$?
+if [ "$RC" = 1 ] && [ "$(cat "$FAKE/n")" = 2 ]; then pass; else fail "rc=$RC calls=$(cat "$FAKE/n")"; fi
+new_case
 t "--wait stops at once when a check failed"; write_checks 1 pending fail; fg --wait 10
 if [ "$RC" = 1 ] && [ "$(cat "$FAKE/n")" = 1 ]; then pass; else fail "rc=$RC calls=$(cat "$FAKE/n")"; fi
 new_case
@@ -126,14 +147,20 @@ t "--wait gives up after the time and reports pending"; write_checks 1 pending; 
 
 # --- pr -----------------------------------------------------------------------------------------
 new_case
-t "a pull request into main is a MISMATCH"; write_view OPEN main; fg; has "MISMATCH pr: base 'main' is not feat/*: the owner merges it"
+t "a pull request into main is a MISMATCH"; write_view OPEN main; fg; has "MISMATCH pr: base 'main' is not feat/big-thing: the owner merges it"
 t "... with exit 1 and no command"; if [ "$RC" = 1 ] && ! printf '%s\n' "$OUT" | grep -q '^run:'; then pass; else fail "rc=$RC"; fi
-t "a base named feat/ with nothing after it is a MISMATCH"; write_view OPEN feat/; fg; has "is not feat/*"
-t "a base that only contains feat/ is a MISMATCH"; write_view OPEN release/feat/x; fg; has "is not feat/*"
-t "a head that moved is a MISMATCH"; write_view OPEN feat/x "$OTHER"; fg; has "is not --head"
+t "another feature branch is a MISMATCH"; write_view OPEN feat/other; fg; has "base 'feat/other' is not feat/big-thing"
+t "a base that only contains the name is a MISMATCH"; write_view OPEN release/feat/big-thing; fg; has "is not feat/big-thing"
+t "a head that moved is a MISMATCH"; write_view OPEN feat/big-thing "$OTHER"; fg; has "is not --head"
+t "the label pd-bot:owner-merge is a MISMATCH"
+write_view OPEN feat/big-thing "$HEAD" false '[{"name":"bug"},{"name":"pd-bot:owner-merge"}]'; fg; has 'it has the label pd-bot:owner-merge: the owner merges it'
+t "... with exit 1 and no command"; if [ "$RC" = 1 ] && ! printf '%s\n' "$OUT" | grep -q '^run:'; then pass; else fail "rc=$RC"; fi
+t "other labels do not stop the gate"; write_view OPEN feat/big-thing "$HEAD" false '[{"name":"bug"}]'; fg; rc_is 0
+t "labels that cannot be read are a MISMATCH"; write_view OPEN feat/big-thing "$HEAD" false '"x"'; fg; has 'the labels could not be read'
+
 t "a merged pull request is a MISMATCH"; write_view MERGED; fg; has "state is 'MERGED', not OPEN"
 t "a closed pull request is a MISMATCH"; write_view CLOSED; fg; has "state is 'CLOSED', not OPEN"
-t "a draft is a MISMATCH"; write_view OPEN feat/x "$HEAD" true; fg; has 'the pull request is a draft'
+t "a draft is a MISMATCH"; write_view OPEN feat/big-thing "$HEAD" true; fg; has 'the pull request is a draft'
 t "gh pr view failing is a MISMATCH"; rm -f "$FAKE/view.json"; fg; has 'MISMATCH pr: gh pr view failed'
 t "an unreadable pull request object is a MISMATCH"; printf '[]\n' > "$FAKE/view.json"; fg; has 'MISMATCH pr: gh pr view gave no readable object'
 t "control characters from gh are not printed"
@@ -145,10 +172,12 @@ new_case
 t "a symlinked fleet-gate.json is not followed and the gate fails"
 : > "$FAKE/victim"; ln -s "$FAKE/victim" "$EV/fleet-gate.json"; fg
 if [ "$RC" = 1 ] && [ ! -s "$FAKE/victim" ] && ! printf '%s\n' "$OUT" | grep -q '^run:'; then pass; else fail "rc=$RC victim=$(cat "$FAKE/victim")"; fi
+t "... and the last line names the write failure"
+if [ "$(printf '%s\n' "$OUT" | tail -1)" = 'fleet-gate: cannot write the result file, so the gate does not pass' ]; then pass; else fail "$(printf '%s\n' "$OUT" | tail -1)"; fi
 new_case
 u() { OUT=$(FAKE="$FAKE" PATH="$BIN:$PATH" bash "$FG" "$@" 2>&1); RC=$?; }
 t "no arguments exits 2"; u; rc_is 2
-t "a missing --pr exits 2 and names it"; u --evidence "$EV" --head "$HEAD" --gh-repo o/r
+t "a missing --pr exits 2 and names it"; u --evidence "$EV" --head "$HEAD" --gh-repo o/r --base feat/x
 if [ "$RC" = 2 ] && printf '%s' "$OUT" | grep -qF -- '--pr is required'; then pass; else fail "rc=$RC $OUT"; fi
 t "a short --head exits 2"; u --evidence "$EV" --head abc123 --pr 1 --gh-repo o/r; rc_is 2
 t "a --pr that is not a number exits 2"; u --evidence "$EV" --head "$HEAD" --pr '1;x' --gh-repo o/r; rc_is 2
@@ -157,6 +186,10 @@ t "a --gh-repo with a shell character exits 2"; u --evidence "$EV" --head "$HEAD
 t "a --gh-repo that starts with a dash exits 2"; u --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo '-o/r'; rc_is 2
 t "a --wait that is not a number exits 2"; u --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo o/r --wait soon; rc_is 2
 t "an --evidence that is not a directory exits 2"; u --evidence "$EV/nope" --head "$HEAD" --pr 1 --gh-repo o/r; rc_is 2
+t "a missing --base exits 2"; u --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo o/r; rc_is 2
+t "a --base of main exits 2"; u --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo o/r --base main; rc_is 2
+t "a --base of bare feat/ exits 2"; u --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo o/r --base feat/; rc_is 2
+t "a --base with a shell character exits 2"; u --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo o/r --base 'feat/x;y'; rc_is 2
 t "an unknown option exits 2"; u --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo o/r --force; rc_is 2
 t "a usage error calls gh zero times"; if [ -f "$FAKE/calls" ]; then fail "calls: $(cat "$FAKE/calls")"; else pass; fi
 
