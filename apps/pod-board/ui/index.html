@@ -158,7 +158,10 @@
   .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .chip { padding: 3px 12px; border: 1px dashed hsl(var(--muted-fg) / .7); border-radius: 999px; }
   .chip.off { border-style: solid; background: hsl(var(--muted)); }
-  .strip { margin-top: 16px; padding: 14px 18px; }
+  /* The stopped and offline chips stay pinned to the bottom of the window while the lanes scroll. */
+  .strip { position: sticky; bottom: 16px; z-index: 5; margin-top: 16px; padding: 12px 18px; background: hsl(var(--paper) / .92);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: var(--shadow-lift); }
+  @media (max-width: 860px) { .strip { bottom: 10px; } }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; } }
 </style>
 </head>
