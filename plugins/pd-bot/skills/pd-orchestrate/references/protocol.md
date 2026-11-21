@@ -94,10 +94,15 @@ writes it. It is the orchestrator's memory: after a context summary, read it fir
    "deps": [], "touches": ["src/a.py", "docs/"],
    "text": "<the ticket, verbatim>", "owner_answers": ["<verbatim>"],
    "worker": {"session": "...", "workspace": "src-02", "checkout": "/abs/path", "model": "..."},
-   "reviewer": {"session": "...", "model": "..."},
+   "reviewer": {"session": "...", "workspace": "src-03", "model": "..."},
    "branch": "fix/123", "base_sha": "<sha>", "head": "<sha>", "qa_commits": [], "pr": null, "started": "<ISO time>", "budget_min": 60,
-   "last": "review-result round 1: changes"}}}
+   "last": "review-result round 1: changes"}},
+ "workspaces": {"src-02": {"ticket": "123", "role": "worker", "state": "removed", "at": "<ISO time>"},
+   "src-03": {"ticket": "123", "role": "reviewer", "state": "kept", "reason": "ws-rm refused: work not pushed"}}}
 ```
+
+`workspaces` records each workspace of the run once its cleanup was tried (`podbay.md`, Clean up):
+`removed`, or `kept` with the reason (an open PR, a refused `ws-rm`, a session from outside the fleet).
 
 States: `queued`, `assigned`, `in_review`, `fixing`, `escalated`, `verified`, `pr_open`, `done`,
 `blocked`, `skipped`.

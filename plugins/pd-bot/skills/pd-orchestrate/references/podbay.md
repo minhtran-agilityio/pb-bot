@@ -58,6 +58,7 @@ wins over the repository's off switch, so set it for one session and never in a 
 | Send a queued message even while a human is attached; requeue one of unknown outcome | `podbay-dev queue now <id>`, `podbay-dev queue retry <id>` |
 | Update a checkout from its remote | `podbay-dev pull <project> <repo> --ws <src-NN>`: fast-forwards when no session runs there, asks an idle session to pull, refuses under a busy one |
 | Stop a session; its conversation is kept | `podbay-dev stop <name>` |
+| Delete a workspace; it refuses when work is not pushed. Only as Clean up says | `podbay-dev ws-rm <project> <src-NN>` |
 | Tokens used: `last_5h`, `last_24h`, `last_7d`, `by_model` | `podbay-dev usage` |
 | The machines of the network and whether each is online | `podbay-dev machines` |
 
@@ -74,7 +75,7 @@ it for a slash command, or when a session does not accept cross-session messages
 
 | Command | Why it is the owner's |
 |---|---|
-| `podbay-dev ws-rm <project> <src-NN>` | deletes a workspace (it refuses when work is not pushed) |
+| `ws-rm` of a workspace that Clean up does not cover | deletes a workspace the run did not finish with |
 | `podbay-dev rm <project> <repo> --ws <src-NN>` | deletes one checkout; never add `--force`, which deletes work that is not pushed |
 | `podbay-dev clone <gh \| glab \| url> <owner/repo or URL> <project>` (`--name`), `podbay-dev forges`, `podbay-dev repos <forge> [owner] --search <text>` | brings a new repository onto the machine |
 | `podbay-dev login`, `logout`, `passwd`, `remove <machine>`, `setup`, `service install \| uninstall \| start \| stop \| status`, `update`, `traffic` | the network, its password and the machine's service: never part of a run |
@@ -129,6 +130,26 @@ Stop each session as soon as its work is finished, without waiting for the end o
 - any other session you started when it has reported and nothing waits on it.
 
 `podbay-dev start ... --resume latest` brings a stopped session back with its conversation if a
-ticket reopens. At the end of the run no session you started is still running. Leave workspaces in
-place and list them, and the sessions you stopped, in your final report; the owner decides when the
-workspaces go.
+ticket reopens. At the end of the run no session you started is still running.
+
+Then remove the workspaces of a finished ticket yourself; the owner does not have to ask. Each run
+leaves a full checkout per worker, reviewer and advisor, and nobody else removes them. A worker or
+reviewer workspace of a ticket qualifies only when all of these hold:
+- the ticket's pull request is MERGED or CLOSED (`gh pr view <n> --repo <repo> --json state`); an
+  open PR keeps both workspaces, because a review comment can still reopen the ticket;
+- the reviewer's last receipt is saved in `specs/fleet/<run>/<ticket>/`;
+- no other ticket in the ledger is assigned to that workspace;
+- `podbay-dev ls` shows no session in it that you did not start for this run.
+
+A Fable advisor workspace qualifies when you have checked its `advise-result` and no ticket waits on
+it. For each workspace that qualifies, in this order:
+1. `podbay-dev stop <name>` for its session, if one still runs;
+2. `podbay-dev ws-rm <project> <src-NN>`.
+
+When `ws-rm` refuses (work that is not pushed), keep the workspace and write the reason in the
+ledger. Never add `--force`, never delete files by hand, and never `ws-rm` a workspace for another
+reason. Never remove `src` (your own workspace) or a workspace that a session from outside this
+fleet uses. Record each removal in the ledger as well (`workspaces`, `protocol.md`).
+
+Check the open PRs again before your final report, and once more when the owner says a PR was
+merged or closed. List every workspace that stays, with its reason, in your final report.

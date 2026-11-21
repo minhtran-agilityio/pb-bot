@@ -7,6 +7,8 @@ file. Versions change only in the release PR (see the release section of `AGENTS
 
 ## [Unreleased]
 
+- Changed: the `pd-orchestrate` orchestrator now removes the worker and reviewer workspaces of a finished ticket itself, instead of leaving every workspace for the owner (a fleet run left `src-01`..`src-16`). A workspace qualifies when the ticket's PR is MERGED or CLOSED, the review receipt is saved, no other ticket uses it, and no session from outside the fleet runs there. The orchestrator runs `podbay-dev stop <name>`, then `podbay-dev ws-rm <project> <src-NN>`. A refused `ws-rm` (work not pushed) keeps the workspace with the reason in the ledger; it is never forced or deleted by hand, and `src` is never removed. The ledger records each workspace as removed or kept, and the final report lists each kept one with its reason. New contract test `tests/scripts/orchestrate-cleanup-contract.test.sh` (P11).
+
 ## [0.4.0] — 2026-11-21
 
 - Fixed: `ship.js` never removed its stage worktrees, so each run left a full checkout and build per stage (about 170 GB across four Mnemo checkouts). At the end of a run that succeeded, the new `scripts/ship-worktree-cleanup.sh` removes the run's detached stage worktrees with `git worktree remove` (never forced). It keeps the ticket-branch worktrees, a worktree with changes or untracked files, and one whose commits are on no branch, then removes the run dir if it is empty. A blocked or failed run keeps everything. The result's new `cleanup` field and a `worktrees:` log line list what was kept, its size and the exact removal command, and the pd-autopilot completion report prints them. `clean-worktrees.sh` is unchanged (P10).
