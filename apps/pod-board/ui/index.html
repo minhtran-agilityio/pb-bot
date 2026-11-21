@@ -96,6 +96,8 @@
   #conn[data-s="stale"] i, #conn[data-s="wait"] i, #conn[data-s="paused"] i { background: hsl(var(--butter-deep)); }
   #conn[data-s="error"] i { background: hsl(var(--rose-deep)); }
   #read { font-size: 12px; color: hsl(var(--muted-fg)); }
+  .dnd { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-radius: 14px; background: hsl(var(--butter)); font-size: 12px; font-weight: 700; }
+  .dnd button { font-size: 12px; font-weight: 700; color: hsl(var(--terracotta)); text-decoration: underline; text-underline-offset: 3px; }
   .pill-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 0 16px; border-radius: 999px; font-size: 13px; font-weight: 700; background: hsl(var(--terracotta)); color: hsl(var(--on-accent));
     box-shadow: var(--shadow-soft); transition: transform .15s; }
   .pill-btn:active { transform: scale(.97); }
@@ -222,6 +224,7 @@
     <div class="status">
       <span id="conn" data-s="wait"><i></i><span id="connText">Reading Pod Bay…</span></span>
       <span id="read" class="tab"></span>
+      <span id="dnd" class="dnd" hidden><span id="dndText"></span><button id="dndEnd" type="button">End</button></span>
       <button id="pause" class="pill-btn ghost" type="button" aria-pressed="false" title="Pause updates"></button>
     </div>
   </aside>
@@ -481,6 +484,9 @@ function bar() {
   $('conn').dataset.s = s; $('connText').textContent = text;
   $('read').textContent = snap && snap.read_at ? `read at ${new Date(snap.read_at).toLocaleTimeString('en-GB', { hour12: false })}` : '';
   $('view').classList.toggle('dim', s === 'stale' || s === 'error');
+  const until = snap && snap.dnd_until;
+  $('dnd').hidden = !until;
+  if (until) $('dndText').textContent = `Do not disturb until ${new Date(until).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
   const b = $('banner');
   if (snap && !snap.ok && snap.error) { b.textContent = `${snap.error} · retrying in 3 s`; b.classList.add('on'); } else b.classList.remove('on');
   const crumb = $('crumb'); crumb.textContent = 'Pod Board › ';
@@ -499,7 +505,7 @@ function onSnap(m) {
   lastMsg = Date.now();
   // Only the sessions, chips and error decide a redraw; a read with nothing new just moves the read time.
   const body = JSON.stringify([m.sessions, m.stopped, m.machines, m.ok, m.error]);
-  if (body === lastBody) { for (const s of [snap, pending]) if (s) { s.ok = m.ok; s.error = m.error; s.read_at = m.read_at; } }
+  if (body === lastBody) { for (const s of [snap, pending]) if (s) { s.ok = m.ok; s.error = m.error; s.read_at = m.read_at; s.dnd_until = m.dnd_until; } }
   else { lastBody = body; offer(m); }
   bar();
 }
@@ -526,6 +532,10 @@ $('theme').addEventListener('click', () => {
 
 let refreshing = false;
 function drawRefresh() { $('refresh').replaceChildren(ic('refresh')); $('refresh').classList.toggle('spin', refreshing); }
+$('dndEnd').addEventListener('click', () => {
+  const t = window.__TAURI__;
+  if (t) t.core.invoke('set_dnd', { minutes: 0 }).catch(() => {});
+});
 $('refresh').addEventListener('click', () => {
   const t = window.__TAURI__;
   if (!t || refreshing) return;

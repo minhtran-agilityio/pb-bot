@@ -11,7 +11,14 @@ It is a Tauri 2 app (Rust and one HTML page). It needs no server, no port and no
 - **Menu bar:** an icon for the most urgent state and its count: a hand (needs you), a bolt (working), a cup (idle),
   a moon (nothing running), or a warning sign when Pod Bay cannot be read. Icons: Phosphor, duotone (`THIRD-PARTY.md`).
   Its menu opens the window, turns "start at login" and "always on top" on and off, and quits.
-- **Notification:** one system notification when a session changes to `Needs you`. The first read announces nothing.
+- **Notification:** one system notification when a session starts to need you, and a reminder when it still needs
+  you 10 minutes later (at most 3 reminders for one wait). The first read after start announces nothing.
+- **Sound and flash:** a new wait or a reminder plays a short sound (macOS, at most one every 10 s; "Sound" in the
+  menu bar menu turns it off). A new wait also blinks the menu bar icon a few times.
+- **Do not disturb:** 30 minutes, 1 hour or 2 hours from the menu bar menu. It mutes notifications, reminders, sound
+  and flash; the board keeps updating. It ends by itself, or with "End" in the window. A reminder that falls inside
+  it goes out when it ends. The sound switch and the end time survive a restart (`settings.json` in the app's
+  config folder).
 - **Window:** a sidebar that filters by state and machine, one summary row and three lanes. Closing the window hides it; the app keeps watching.
 
 ## Build and run

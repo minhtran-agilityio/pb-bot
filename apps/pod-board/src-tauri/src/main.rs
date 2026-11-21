@@ -3,21 +3,22 @@
 // `queue ls --all`; it never calls `podbay-dev detail` and never sends anything anywhere.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod alerts;
 mod model;
 
-use model::{build, key, newly_needs, Model, Raw};
+use alerts::Alerts;
+use model::{build, Model, Raw};
 use serde::Serialize;
 use serde_json::Value;
-use std::collections::HashMap;
 use std::io::Read;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
 use std::sync::Mutex;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
+use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::TrayIconBuilder;
-use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent, Wry};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_notification::NotificationExt;
 
@@ -30,6 +31,8 @@ struct Snapshot {
     ok: bool,
     error: Option<String>,
     read_at: Option<u64>,
+    /// Do Not Disturb until this time (ms since the epoch), when on.
+    dnd_until: Option<u64>,
     #[serde(flatten)]
     model: Model,
 }
@@ -39,6 +42,48 @@ struct Shared(Mutex<Snapshot>);
 
 /// Wakes the poll loop before its pause ends, for the Refresh button.
 struct Wake(Mutex<Sender<()>>);
+
+/// When to notify, remind, sound and flash (see alerts.rs).
+struct AlertState(Mutex<Alerts>);
+
+/// The Do Not Disturb submenu, so its title can say whether it is on.
+struct DndMenu(Mutex<Option<Submenu<Wry>>>);
+
+/// The settings that survive a restart: the sound switch and the end of Do Not Disturb.
+#[derive(serde::Serialize, serde::Deserialize, Default)]
+struct Settings {
+    sound: Option<bool>,
+    dnd_until: Option<u64>,
+}
+
+fn settings_path(app: &AppHandle) -> Option<PathBuf> {
+    app.path().app_config_dir().ok().map(|d| d.join("settings.json"))
+}
+
+fn load_settings(app: &AppHandle) -> Settings {
+    settings_path(app).and_then(|p| std::fs::read_to_string(p).ok()).and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+}
+
+fn save_settings(app: &AppHandle) {
+    let Some(path) = settings_path(app) else { return };
+    let (sound, dnd_until) = match app.state::<AlertState>().0.lock() { Ok(a) => (a.sound_on, a.dnd_until), Err(_) => return };
+    if let Some(dir) = path.parent() { let _ = std::fs::create_dir_all(dir); }
+    if let Ok(text) = serde_json::to_string(&Settings { sound: Some(sound), dnd_until }) { let _ = std::fs::write(path, text); }
+}
+
+/// Turn Do Not Disturb on for `minutes`, or off with 0. Used by the menu and by the window's "End" button.
+fn apply_dnd(app: &AppHandle, minutes: u64) {
+    if let Ok(mut a) = app.state::<AlertState>().0.lock() {
+        a.dnd_until = if minutes == 0 { None } else { Some(now_ms() + minutes * 60_000) };
+    }
+    save_settings(app);
+    if let Ok(tx) = app.state::<Wake>().0.lock() { let _ = tx.send(()); }
+}
+
+#[tauri::command]
+fn set_dnd(app: AppHandle, minutes: u64) {
+    apply_dnd(&app, minutes.min(24 * 60));
+}
 
 #[tauri::command]
 fn refresh(wake: tauri::State<'_, Wake>) {
@@ -144,7 +189,8 @@ fn publish(app: &AppHandle, snap: &Snapshot) {
         }
         let _ = tray.set_title(if title.is_empty() { None } else { Some(title) });
         let c = snap.model.counts;
-        let _ = tray.set_tooltip(Some(format!("{} need you · {} working · {} idle", c.needs, c.busy, c.idle)));
+        let quiet = if snap.dnd_until.is_some() { " · Do not disturb" } else { "" };
+        let _ = tray.set_tooltip(Some(format!("{} need you · {} working · {} idle{quiet}", c.needs, c.busy, c.idle)));
     }
     if let Some(window) = app.get_webview_window("main") {
         let needs = snap.model.counts.needs as i64;
@@ -156,10 +202,33 @@ fn notify(app: &AppHandle, title: &str, body: &str) {
     let _ = app.notification().builder().title(title).body(body).show();
 }
 
+/// A short system sound. macOS only; elsewhere the notification is the only signal.
+fn play_sound() {
+    #[cfg(target_os = "macos")]
+    let _ = Command::new("afplay").arg("/System/Library/Sounds/Glass.aiff").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn();
+}
+
+/// Blink the menu bar icon a few times, then put back the icon of the current state.
+fn flash_tray(app: AppHandle) {
+    std::thread::spawn(move || {
+        let hand = tauri::image::Image::from_bytes(include_bytes!("../icons/tray-hand-palm.png"));
+        let blank = tauri::image::Image::from_bytes(include_bytes!("../icons/tray-blank.png"));
+        let (Ok(hand), Ok(blank)) = (hand, blank) else { return };
+        for i in 0..8 {
+            if let Some(tray) = app.tray_by_id("pod-board") {
+                let _ = tray.set_icon(Some(if i % 2 == 0 { blank.clone() } else { hand.clone() }));
+                let _ = tray.set_icon_as_template(true);
+            }
+            std::thread::sleep(Duration::from_millis(300));
+        }
+        let snap = app.state::<Shared>().0.lock().map(|s| s.clone()).unwrap_or_default();
+        publish(&app, &snap);
+    });
+}
+
 fn poll_loop(app: AppHandle, wake: Receiver<()>) {
     let cmd = find_podbay();
     let mut raw = Raw::default();
-    let mut before: HashMap<String, &'static str> = HashMap::new();
     let mut n: u32 = 0;
     loop {
         let mut error = None;
@@ -185,20 +254,25 @@ fn poll_loop(app: AppHandle, wake: Receiver<()>) {
                 Some(e) => { held.ok = false; held.error = Some(e); }
                 None => {
                     let model = build(&raw);
-                    for s in newly_needs(&before, &model) {
-                        let what = if s.what.is_empty() { format!("{}/{} · {}", s.project, s.ws, s.machine) } else { s.what.clone() };
-                        notify(&app, &format!("{} needs you", s.title), &what);
-                    }
-                    before = model.sessions.iter().map(|s| (key(s), s.state)).collect();
-                    if before.is_empty() {
-                        // Keep "first read" apart from "no session": a marker stops a later first session from being silent.
-                        before.insert(String::new(), "idle");
-                    }
-                    *held = Snapshot { ok: true, error: None, read_at: Some(now_ms()), model };
+                    let now = now_ms();
+                    let outcome = match app.state::<AlertState>().0.lock() { Ok(mut a) => a.on_read(&model, now), Err(_) => Default::default() };
+                    for alert in &outcome.alerts { notify(&app, &alert.title, &alert.body); }
+                    if outcome.sound { play_sound(); }
+                    if outcome.flash { flash_tray(app.clone()); }
+                    *held = Snapshot { ok: true, error: None, read_at: Some(now), dnd_until: None, model };
                 }
             }
+            // Do Not Disturb ends by itself; the window and the menu show whether it holds.
+            let dnd = match app.state::<AlertState>().0.lock() {
+                Ok(mut a) => { let was = a.dnd_until; let on = a.quiet(now_ms()); if was.is_some() && !on { drop(a); save_settings(&app); } if on { was } else { None } }
+                Err(_) => None,
+            };
+            held.dnd_until = dnd;
             held.clone()
         };
+        if let Ok(menu) = app.state::<DndMenu>().0.lock() {
+            if let Some(sub) = menu.as_ref() { let _ = sub.set_text(if snap.dnd_until.is_some() { "Do not disturb: on" } else { "Do not disturb" }); }
+        }
         publish(&app, &snap);
         // Wait for the pause, or less when the Refresh button asks; a burst of presses counts as one.
         match wake.recv_timeout(POLL_PAUSE) {
@@ -224,15 +298,35 @@ fn main() {
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--hidden"])))
         .manage(Shared::default())
         .manage(Wake(Mutex::new(wake_tx)))
-        .invoke_handler(tauri::generate_handler![snapshot, refresh, open_session])
+        .manage(AlertState(Mutex::new(Alerts::new(true))))
+        .manage(DndMenu(Mutex::new(None)))
+        .invoke_handler(tauri::generate_handler![snapshot, refresh, open_session, set_dnd])
         .setup(move |app| {
             let handle = app.handle().clone();
+            let saved = load_settings(app.handle());
+            if let Ok(mut a) = app.state::<AlertState>().0.lock() {
+                a.sound_on = saved.sound.unwrap_or(true);
+                a.dnd_until = saved.dnd_until.filter(|&until| until > now_ms());
+            }
+            let sound_on = saved.sound.unwrap_or(true);
             let autostart_on = app.autolaunch().is_enabled().unwrap_or(false);
             let open = MenuItem::with_id(app, "open", "Open Pod Board", true, None::<&str>)?;
             let autostart = CheckMenuItem::with_id(app, "autostart", "Start at login", true, autostart_on, None::<&str>)?;
             let on_top = CheckMenuItem::with_id(app, "on_top", "Always on top", true, false, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open, &PredefinedMenuItem::separator(app)?, &autostart, &on_top, &PredefinedMenuItem::separator(app)?, &quit])?;
+            let sound = CheckMenuItem::with_id(app, "sound", "Sound", true, sound_on, None::<&str>)?;
+            let dnd = Submenu::with_items(app, "Do not disturb", true, &[
+                &MenuItem::with_id(app, "dnd_30", "For 30 minutes", true, None::<&str>)?,
+                &MenuItem::with_id(app, "dnd_60", "For 1 hour", true, None::<&str>)?,
+                &MenuItem::with_id(app, "dnd_120", "For 2 hours", true, None::<&str>)?,
+                &PredefinedMenuItem::separator(app)?,
+                &MenuItem::with_id(app, "dnd_off", "Turn off", true, None::<&str>)?,
+            ])?;
+            if let Ok(mut slot) = app.state::<DndMenu>().0.lock() { *slot = Some(dnd.clone()); }
+            let menu = Menu::with_items(app, &[
+                &open, &PredefinedMenuItem::separator(app)?, &sound, &dnd, &PredefinedMenuItem::separator(app)?,
+                &autostart, &on_top, &PredefinedMenuItem::separator(app)?, &quit,
+            ])?;
             let tray_icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray-coffee.png"))?;
             TrayIconBuilder::with_id("pod-board")
                 .icon(tray_icon)
@@ -254,6 +348,15 @@ fn main() {
                             let _ = window.set_always_on_top(want);
                         }
                     }
+                    "sound" => {
+                        let on = sound.is_checked().unwrap_or(true);
+                        if let Ok(mut a) = app.state::<AlertState>().0.lock() { a.sound_on = on; }
+                        save_settings(app);
+                    }
+                    "dnd_30" => apply_dnd(app, 30),
+                    "dnd_60" => apply_dnd(app, 60),
+                    "dnd_120" => apply_dnd(app, 120),
+                    "dnd_off" => apply_dnd(app, 0),
                     "quit" => app.exit(0),
                     _ => {}
                 })

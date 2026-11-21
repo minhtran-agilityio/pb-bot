@@ -239,18 +239,6 @@ pub fn build(raw: &Raw) -> Model {
     Model { machines, sessions, stopped, counts }
 }
 
-/// The sessions that need a human now and did not at the last read. `before` maps "machine|title" to its last
-/// state; an empty map means "first read": nothing is announced then.
-pub fn newly_needs<'a>(before: &HashMap<String, &'static str>, now: &'a Model) -> Vec<&'a Session> {
-    if before.is_empty() {
-        return Vec::new();
-    }
-    now.sessions
-        .iter()
-        .filter(|s| s.state == "needs" && before.get(&key(s)).copied() != Some("needs"))
-        .collect()
-}
-
 pub fn key(s: &Session) -> String {
     format!("{}|{}", s.machine, s.title)
 }
@@ -332,9 +320,6 @@ mod tests {
             ("Odd status", "needs", ""), ("Waiting", "needs", "input needed"),
             ("Blank wait", "busy", ""), ("Plain idle", "idle", ""),
         ]);
-        let before: HashMap<String, &'static str> = [("UA|Waiting".to_string(), "idle"), ("UA|Odd status".to_string(), "needs")].into();
-        let told: Vec<&str> = newly_needs(&before, &m).iter().map(|s| s.title.as_str()).collect();
-        assert_eq!(told, vec!["Waiting"], "a session that starts to wait is announced once");
     }
 
     #[test]
@@ -395,18 +380,6 @@ mod tests {
         assert_eq!(build(&Raw::default()), Model::default());
         let odd = Raw { ls: json!("x"), checkouts: json!([{"machine": "A", "result": "err"}]), machines: json!({}), queue: Value::Null };
         assert_eq!(build(&odd), Model::default());
-    }
-
-    #[test]
-    fn newly_needs_reports_a_change_but_not_the_first_read() {
-        let m = build(&raw());
-        assert!(newly_needs(&HashMap::new(), &m).is_empty(), "the first read announces nothing");
-        let mut before: HashMap<String, &'static str> = m.sessions.iter().map(|s| (key(s), s.state)).collect();
-        assert!(newly_needs(&before, &m).is_empty(), "no change, no announcement");
-        before.insert("UA|Asks late".into(), "busy");
-        before.remove("UA|Starting");
-        let titles: Vec<&str> = newly_needs(&before, &m).iter().map(|s| s.title.as_str()).collect();
-        assert_eq!(titles, vec!["Starting", "Asks late"], "a changed session and a new one");
     }
 
     #[test]
