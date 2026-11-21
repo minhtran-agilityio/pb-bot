@@ -21,8 +21,8 @@ CLAUDE.local.md
 
 # Claude Code local folder (user-specific rules and settings; the plugin itself lives in plugins/pd-bot/)
 # launch.json is shared: the Claude desktop Browser pane reads it to start the board.
-.claude/*
-!.claude/launch.json
+**/.claude/*
+!/.claude/launch.json
 
 # Playwright plugin output: screenshots, snapshots and GIF evidence from verify runs (local only)
 .playwright-mcp/

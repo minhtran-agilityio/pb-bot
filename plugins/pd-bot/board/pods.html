@@ -89,7 +89,7 @@
 const q = new URLSearchParams(location.search);
 if (q.get('theme') === 'light' || q.get('theme') === 'dark') document.documentElement.dataset.theme = q.get('theme');
 
-const STALE_MS = 12000, HOLD_MS = 4000;
+const STALE_MS = 20000, HOLD_MS = 4000;
 const LANES = [['needs', 'Chờ bạn'], ['busy', 'Đang chạy'], ['idle', 'Rảnh']];
 const ICON = {
   needs: 'M7.9 20A9 9 0 1 0 4 16.1L2 22Z M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3 M12 17h.01',
@@ -196,7 +196,7 @@ function connect() {
     let m; try { m = JSON.parse(e.data); } catch (err) { return; }
     lastMsg = Date.now();
     if (m.kind === 'snapshot') offer(m);
-    else if (m.kind === 'tick' && snap) { snap.ok = m.ok; snap.error = m.error; snap.read_at = m.read_at; }
+    else if (m.kind === 'tick') { for (const s of [snap, pending]) if (s) { s.ok = m.ok; s.error = m.error; s.read_at = m.read_at; } }
     bar();
   };
 }

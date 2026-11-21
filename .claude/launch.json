@@ -1,5 +1,4 @@
 {
-  // Claude desktop Browser pane: starts the board and opens the Pod Bay sessions view.
   "version": "0.0.1",
   "autoVerify": false,
   "configurations": [

@@ -133,6 +133,15 @@ test('findPodbay: PATH first, then the install folders, else the bare name', () 
   assert.strictEqual(findPodbay({}, () => false), 'podbay-dev');
 });
 
+test('parseArgs: $PORT gives the default port; an out-of-range $PORT is ignored', () => {
+    const old = process.env.PORT;
+    try {
+      process.env.PORT = '5123'; assert.strictEqual(parseArgs([]).port, 5123);
+      assert.strictEqual(parseArgs(['--port', '6000']).port, 6000);
+      process.env.PORT = '99999'; assert.strictEqual(parseArgs([]).port, 4317);
+    } finally { if (old === undefined) delete process.env.PORT; else process.env.PORT = old; }
+});
+
 // A fake podbay-dev: prints the fixture for its subcommand; exits 1 when the file `fail` is next to it.
 function fake() {
   const dir = tmp('fake');
@@ -183,15 +192,27 @@ test('/pods.json: a missing command is reported, the board keeps running', async
 test('/pods/events: a snapshot first, then ticks; a failing read keeps the last sessions and hides stderr', async () => {
   const f = fake();
   await withBoard({ podbay: f.file }, async port => {
-    const ev = await events(port, '/pods/events', 3);
-    assert.strictEqual(ev[0].kind, 'snapshot'); assert.strictEqual(ev[0].sessions.length, 5);
-    assert.strictEqual(ev[1].kind, 'tick'); assert.strictEqual(ev[1].ok, true);
+    const ev = await events(port, '/pods/events', 4);
+    assert.strictEqual(ev[0].kind, 'snapshot', 'a stream always starts with a snapshot');
+    const full = ev.find(e => e.kind === 'snapshot' && e.ok);
+    assert.ok(full, 'no read snapshot arrived'); assert.strictEqual(full.sessions.length, 5);
+    assert.strictEqual(ev[ev.length - 1].kind, 'tick'); assert.strictEqual(ev[ev.length - 1].ok, true);
     fs.writeFileSync(path.join(f.dir, 'fail'), '');
     const bad = (await events(port, '/pods/events', 3)).find(e => e.kind === 'snapshot' && !e.ok);
     assert.ok(bad, 'no failed snapshot arrived');
     assert.match(bad.error, /podbay-fake ls failed/);
     assert.ok(!JSON.stringify(bad).includes('boom'), 'stderr reached the page');
     assert.strictEqual(bad.sessions.length, 5, 'the last known sessions stay');
+  });
+});
+
+test('/pods/events: a page that connects while every read fails still gets the error', async () => {
+  await withBoard({ podbay: path.join(tmp('none'), 'no-such-podbay') }, async port => {
+    const one = await events(port, '/pods/events', 3);
+    assert.ok(one.some(e => e.kind === 'snapshot' && e.error), 'the first page got no error snapshot');
+    const two = await events(port, '/pods/events', 2);
+    assert.strictEqual(two[0].kind, 'snapshot');
+    assert.ok(two.some(e => e.kind === 'snapshot' && /not found/.test(e.error || '')), 'the second page got no error snapshot');
   });
 });
 

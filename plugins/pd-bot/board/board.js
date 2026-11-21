@@ -414,7 +414,7 @@ function findPodbay(env, exists) {
 class PodsPoller {
   constructor(cmd) {
     this.cmd = cmd || findPodbay(process.env);
-    this.raw = {}; this.n = 0; this.busy = null; this.body = '';
+    this.raw = {}; this.n = 0; this.busy = null; this.body = ''; this.version = 0;
     this.snap = { ok: false, error: 'not read yet', read_at: null, ...podsOf({}) };
   }
   run(args) {
@@ -423,7 +423,7 @@ class PodsPoller {
       try { resolve(JSON.parse(stdout)); } catch (e) { reject(new Error(`${path.basename(this.cmd)} ${args[0]} did not return JSON`)); }
     }));
   }
-  // One read. Returns true when the model changed. A failed read keeps the last model and sets `error`.
+  // One read. `version` goes up when the model or the error changed. A failed read keeps the last model and sets `error`.
   tick() {
     if (this.busy) return this.busy;
     this.busy = (async () => {
@@ -436,13 +436,14 @@ class PodsPoller {
           }
         }
       } catch (e) { error = e.message; }
-      const model = error ? { machines: this.snap.machines, sessions: this.snap.sessions, stopped: this.snap.stopped, counts: this.snap.counts } : podsOf(this.raw);
-      const body = JSON.stringify([model, error]);
-      const changed = body !== this.body;
-      this.body = body;
-      this.snap = { ok: !error, error, read_at: error ? this.snap.read_at : Date.now(), ...model };
-      this.busy = null;
-      return changed;
+      try {
+        const last = { machines: this.snap.machines, sessions: this.snap.sessions, stopped: this.snap.stopped, counts: this.snap.counts };
+        let model = last;
+        if (!error) { try { model = podsOf(this.raw); } catch (e) { error = 'Pod Bay data has an unknown shape'; } }
+        const body = JSON.stringify([model, error]);
+        if (body !== this.body) { this.body = body; this.version++; }
+        this.snap = { ok: !error, error, read_at: error ? this.snap.read_at : Date.now(), ...model };
+      } finally { this.busy = null; }
     })();
     return this.busy;
   }
@@ -454,7 +455,7 @@ class PodsPoller {
 
 function parseArgs(argv) {
   // PORT: a launcher that moves the server to a free port (Claude desktop preview) passes the port there.
-  const envPort = /^\d+$/.test(process.env.PORT || '') ? Number(process.env.PORT) : 4317;
+  const envPort = /^\d+$/.test(process.env.PORT || '') && Number(process.env.PORT) <= 65535 ? Number(process.env.PORT) : 4317;
   const a = { project: process.cwd(), run: null, port: envPort, follow: true, idleExit: 0, ledger: null, home: 'run', podbay: null };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i], v = argv[i + 1];
@@ -486,13 +487,17 @@ function start(opts) {
   const pods = new PodsPoller(opts.podbay);
   const podsClients = new Set();
   let podsTimer = null, podsLoopOn = false;
-  const podsSend = (res, kind) => res.write(`data: ${JSON.stringify(kind === 'tick'
-    ? { kind, ok: pods.snap.ok, error: pods.snap.error, read_at: pods.snap.read_at } : { kind, ...pods.snap })}\n\n`);
+  // Each stream remembers the model version it last got, so a read that another caller started is not missed.
+  const podsSend = (res, kind) => {
+    res.podsVersion = pods.version;
+    res.write(`data: ${JSON.stringify(kind === 'tick'
+      ? { kind, ok: pods.snap.ok, error: pods.snap.error, read_at: pods.snap.read_at } : { kind, ...pods.snap })}\n\n`);
+  };
   const podsLoop = async () => {
     podsTimer = null;
     if (!podsClients.size) { podsLoopOn = false; return; }
-    const changed = await pods.tick();
-    for (const res of podsClients) podsSend(res, changed ? 'snapshot' : 'tick');
+    await pods.tick();
+    for (const res of podsClients) podsSend(res, res.podsVersion === pods.version ? 'tick' : 'snapshot');
     if (podsLoopOn) podsTimer = setTimeout(podsLoop, opts.podsMs || PODS_MS);
   };
   let history = [], tail = null;
@@ -549,7 +554,7 @@ function start(opts) {
     if (url === '/pods/events') {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
       res.write('retry: 3000\n\n');
-      if (pods.snap.read_at) podsSend(res, 'snapshot');
+      podsSend(res, 'snapshot');
       podsClients.add(res);
       req.on('close', () => podsClients.delete(res));
       if (!podsLoopOn) { podsLoopOn = true; podsLoop(); }
