@@ -7,7 +7,12 @@ file. Versions change only in the release PR (see the release section of `AGENTS
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-11-21
+
 - Fixed: two tests that failed on a busy machine (P7). The clean-worktrees "item 2" time-budget case now uses a 10s budget, because the scan of every process's working directory alone took over 3s with about 2000 processes. The board-start `--no-open` case now waits up to 10s for the board to answer, because node can start after the 3s that `board-start.sh` waits. Tests only; no hook or script changed.
+- test: make the time-budget and board-start --no-open cases hold on a busy machine (P7) (PR #8)
+- feat: Pod Board desktop app for Pod Bay sessions (PR #24)
+- feat(board): Pod Bay sessions view at /pods (PR #9)
 
 ## [0.2.0] — 2026-11-21
 
