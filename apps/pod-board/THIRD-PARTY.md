@@ -2,7 +2,7 @@
 
 ## Phosphor Icons
 
-The state icons in `ui/index.html` (hand-palm, lightning, coffee, moon-stars, house, folder, warning-circle, sun, moon,
+The state icons in `ui/index.html` (hand-palm, lightning, coffee, moon-stars, house, folder, warning-circle, sun, moon, kanban, rows,
 pause, play; duotone weight) and the menu bar images `src-tauri/icons/tray-*.png` come from Phosphor Icons,
 package `@phosphor-icons/core` 2.1.1.
 
