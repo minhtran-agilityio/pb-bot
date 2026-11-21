@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use std::io::Read;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
 use std::sync::Mutex;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
@@ -35,6 +36,16 @@ struct Snapshot {
 
 #[derive(Default)]
 struct Shared(Mutex<Snapshot>);
+
+/// Wakes the poll loop before its pause ends, for the Refresh button.
+struct Wake(Mutex<Sender<()>>);
+
+#[tauri::command]
+fn refresh(wake: tauri::State<'_, Wake>) {
+    if let Ok(tx) = wake.0.lock() {
+        let _ = tx.send(());
+    }
+}
 
 #[tauri::command]
 fn snapshot(state: tauri::State<'_, Shared>) -> Snapshot {
@@ -130,7 +141,7 @@ fn notify(app: &AppHandle, title: &str, body: &str) {
     let _ = app.notification().builder().title(title).body(body).show();
 }
 
-fn poll_loop(app: AppHandle) {
+fn poll_loop(app: AppHandle, wake: Receiver<()>) {
     let cmd = find_podbay();
     let mut raw = Raw::default();
     let mut before: HashMap<String, &'static str> = HashMap::new();
@@ -174,7 +185,12 @@ fn poll_loop(app: AppHandle) {
             held.clone()
         };
         publish(&app, &snap);
-        std::thread::sleep(POLL_PAUSE);
+        // Wait for the pause, or less when the Refresh button asks; a burst of presses counts as one.
+        match wake.recv_timeout(POLL_PAUSE) {
+            Ok(()) => while wake.try_recv().is_ok() {},
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => std::thread::sleep(POLL_PAUSE),
+        }
     }
 }
 
@@ -187,12 +203,14 @@ fn show_main(app: &AppHandle) {
 }
 
 fn main() {
+    let (wake_tx, wake_rx) = channel::<()>();
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--hidden"])))
         .manage(Shared::default())
-        .invoke_handler(tauri::generate_handler![snapshot])
-        .setup(|app| {
+        .manage(Wake(Mutex::new(wake_tx)))
+        .invoke_handler(tauri::generate_handler![snapshot, refresh])
+        .setup(move |app| {
             let handle = app.handle().clone();
             let autostart_on = app.autolaunch().is_enabled().unwrap_or(false);
             let open = MenuItem::with_id(app, "open", "Open Pod Board", true, None::<&str>)?;
@@ -232,7 +250,7 @@ fn main() {
                     let _ = window.hide();
                 }
             }
-            std::thread::spawn(move || poll_loop(handle));
+            std::thread::spawn(move || poll_loop(handle, wake_rx));
             Ok(())
         })
         .on_window_event(|window, event| {
