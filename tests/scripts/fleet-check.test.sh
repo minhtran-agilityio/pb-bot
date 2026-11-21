@@ -476,6 +476,18 @@ t "a bad --kind exits 2"; fc --kind nope; rc_is 2
 t "a bad --mode exits 2"; fc "${BUG[@]}" --mode loud; rc_is 2
 t "the removed --ticket option exits 2"; fc "${BUG[@]}" --ticket 7; rc_is 2
 t "an unknown option exits 2"; fc "${BUG[@]}" --bogus; rc_is 2
+t "--help and -h print the usage to stdout, exit 0 and run no check"
+for h in --help -h; do
+  OUT=$(bash "$FC" "$h" 2>"$EV/help.err"); RC=$?
+  if [ "$RC" = 0 ] && printf '%s' "$OUT" | grep -qF 'usage: fleet-check.sh' && [ ! -s "$EV/help.err" ] && ! printf '%s' "$OUT" | grep -qE '^(ok|MISMATCH|skip) '; then pass; else fail "$h rc=$RC out: $OUT err: $(cat "$EV/help.err")"; fi
+done
+t "--help or -h with other arguments still exits 2"
+OUT=$(bash "$FC" --repo "$R" --base "$BASE" --head "$HEAD" --evidence "$EV" --kind bug -h 2>&1); RC=$?; rc_is 2
+OUT=$(bash "$FC" --help --kind bug 2>&1); RC=$?; rc_is 2
+t "a usage error still prints the usage to stderr, nothing to stdout, and exits 2"
+OUT=$(bash "$FC" --bogus 2>/dev/null); RC=$?
+ERR=$(bash "$FC" --bogus 2>&1 >/dev/null)
+if [ "$RC" = 2 ] && [ -z "$OUT" ] && printf '%s' "$ERR" | grep -qF 'usage: fleet-check.sh'; then pass; else fail "rc=$RC out: $OUT err: $ERR"; fi
 t "an option with no value exits 2"; OUT=$(bash "$FC" --repo 2>&1); RC=$?; rc_is 2
 
 finish
