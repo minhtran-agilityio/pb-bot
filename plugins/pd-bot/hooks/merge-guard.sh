@@ -367,7 +367,12 @@ while IFS= read -r seg; do
       # This is a best-effort list of common shells and wrappers, not a complete one (interpreters such as
       # python or awk, find -exec and git -c alias are not on it; see the follow-up issue).
       bash|sh|zsh|dash|ksh|rbash|eval|xargs|env|exec|nohup|time|command|sudo|doas|builtin|source|.|nice|timeout|stdbuf|setsid|ionice|taskset|chronic|unbuffer|repeat|coproc|busybox|flock|script|setpriv|prlimit|chrt|strace|fakeroot|runuser|su|watch|unshare)
-        deny "a merge inside a shell string or wrapper ($cw) cannot be judged. If the command only mentions merge in text, put it in a script file with the Write tool and run that file by a path without the word." ;;
+        # P9: a command with no merge in it reaches here through letters alone (gh in "preflight", pr in
+        # "myprojects", then the $ of an appended `echo $?`). Only the message differs; the decision is the same.
+        case "$(fold "$cmd")" in
+          *merge*) deny "a merge inside a shell string or wrapper ($cw) cannot be judged. If the command only mentions merge in text, put it in a script file with the Write tool and run that file by a path without the word." ;;
+          *) deny "a shell or wrapper ($cw) next to the letters g-h..p-r..\$ cannot be judged. The command holds no merge, but those letters (also inside words such as preflight or myprojects, then a \$, backtick, glob or escape) can spell gh pr. Run a documented command exactly as written, with nothing appended (no '; echo \$?'), or put it in a script file with the Write tool and run that file by its path." ;;
+        esac ;;
     esac
   fi
 done <<SEGS
