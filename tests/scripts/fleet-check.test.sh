@@ -42,12 +42,12 @@ new_fixture() {
   write_receipt "$HEAD"; write_report "$HEAD"
 }
 
-write_receipt() { # write_receipt <head> [findings-json]
-  printf '{"v":1,"ticket":"1","head":"%s","verdict":"pass","findings":%s,"commands":[{"cmd":"x","exit_code":0}],"model":"m","reviewed_with":[]}\n' \
-    "$1" "${2:-[]}" > "$EV/receipt.json"
+write_receipt() { # write_receipt <head> [findings-json] [intent verdict]
+  printf '{"v":1,"ticket":"1","head":"%s","verdict":"pass","findings":%s,"commands":[{"cmd":"x","exit_code":0}],"model":"m","reviewed_with":[],"intent":{"verdict":"%s"}}\n' \
+    "$1" "${2:-[]}" "${3:-match}" > "$EV/receipt.json"
 }
-write_report() { # write_report <head> [status]
-  printf '{"v":2,"run":"r","ticket":"1","status":"%s","head":"%s"}\n' "${2:-done}" "$1" > "$EV/report.json"
+write_report() { # write_report <head> [status] [decisions-json]
+  printf '{"v":2,"run":"r","ticket":"1","status":"%s","head":"%s","decisions":%s}\n' "${2:-done}" "$1" "${3:-[]}" > "$EV/report.json"
 }
 write_sec() { # write_sec <head> [findings-json]
   printf '{"v":1,"head":"%s","findings":%s}\n' "$1" "${2:-[]}" > "$EV/security-receipt.json"
@@ -72,7 +72,8 @@ new_fixture
 t "happy bug ticket: every check ok, exit 0"; fc "${BUG[@]}"
 if [ "$RC" = 0 ] && ! printf '%s\n' "$OUT" | grep -q '^MISMATCH' && printf '%s\n' "$OUT" | grep -qF 'ok repro: red on base (exit 1), green on head (exit 0)' \
   && printf '%s\n' "$OUT" | grep -qF 'ok suite: exit 0' && printf '%s\n' "$OUT" | grep -qF 'ok receipt:' \
-  && printf '%s\n' "$OUT" | grep -qF 'ok report:' && printf '%s\n' "$OUT" | grep -qF 'skip acceptance:' \
+  && printf '%s\n' "$OUT" | grep -qF 'ok report:' && printf '%s\n' "$OUT" | grep -qF 'ok intent: verdict match' \
+  && printf '%s\n' "$OUT" | grep -qF 'ok decisions: no needs_review decision' && printf '%s\n' "$OUT" | grep -qF 'skip acceptance:' \
   && printf '%s\n' "$OUT" | grep -qF 'ok security: no risky path'; then pass
 else fail "rc=$RC out: $(printf '%s' "$OUT" | tr '\n' '|')"; fi
 t "happy path: last line and fleet-check.json"
@@ -80,11 +81,36 @@ last=$(printf '%s\n' "$OUT" | tail -1)
 if [ "$last" = 'fleet-check: 0 mismatch(es), mode warn' ] \
   && [ "$(jq -r '.mismatches' "$EV/fleet-check.json")" = 0 ] && [ "$(jq -r '.v' "$EV/fleet-check.json")" = 1 ] \
   && [ "$(jq -r '.head' "$EV/fleet-check.json")" = "$HEAD" ] && [ "$(jq -r '.mode' "$EV/fleet-check.json")" = warn ] \
-  && [ "$(jq -r '.checks | length' "$EV/fleet-check.json")" = 6 ] \
+  && [ "$(jq -r '.checks | length' "$EV/fleet-check.json")" = 8 ] \
   && [ "$(jq -r '.checks[] | select(.name=="repro") | .result' "$EV/fleet-check.json")" = ok ] \
   && [ "$(jq -r '.checks[] | select(.name=="acceptance") | .result' "$EV/fleet-check.json")" = skip ] \
   && [ -z "$(ls -A "$EV" | grep '^\.fleet-check\.')" ]; then pass
 else fail "last='$last' json: $(cat "$EV/fleet-check.json" 2>&1)"; fi
+
+# --- intent and decisions -----------------------------------------------------------------------
+t "an intent verdict other than match is a MISMATCH"
+write_receipt "$HEAD" '[]' gaps; fc "${BUG[@]}"; has "MISMATCH intent: intent.verdict is 'gaps', not match"
+t "a receipt with no intent object is a MISMATCH"
+printf '{"v":1,"ticket":"1","head":"%s","verdict":"pass","findings":[]}\n' "$HEAD" > "$EV/receipt.json"; fc "${BUG[@]}"; has 'MISMATCH intent:'
+t "an intent that is a bare string is a MISMATCH"
+printf '{"v":1,"ticket":"1","head":"%s","verdict":"pass","findings":[],"intent":"match"}\n' "$HEAD" > "$EV/receipt.json"; fc "${BUG[@]}"; has 'MISMATCH intent:'
+write_receipt "$HEAD"
+t "a needs_review decision is a MISMATCH"
+write_report "$HEAD" done '[{"title":"a","needs_review":false},{"title":"b","needs_review":true}]'; fc "${BUG[@]}"
+has 'MISMATCH decisions: 1 needs_review decision(s) the owner has not seen'
+t "--decisions-seen sets the needs_review decisions aside"
+fc "${BUG[@]}" --decisions-seen; has 'ok decisions: 1 needs_review decision(s), seen by the owner'
+t "a needs_review that is not a boolean still counts"
+write_report "$HEAD" done '[{"title":"b","needs_review":"yes"}]'; fc "${BUG[@]}"; has 'MISMATCH decisions: 1 needs_review'
+t "an accepted_by inside the report does not set a needs_review decision aside"
+write_report "$HEAD" done '[{"title":"b","needs_review":true,"accepted_by":"owner"}]'; fc "${BUG[@]}"; has 'MISMATCH decisions: 1 needs_review'
+t "a report with no decisions array is a MISMATCH"
+printf '{"v":2,"run":"r","ticket":"1","status":"done","head":"%s"}\n' "$HEAD" > "$EV/report.json"; fc "${BUG[@]}"; has 'MISMATCH decisions: decisions is not an array of objects'
+t "a decisions entry that is not an object is a MISMATCH"
+write_report "$HEAD" done '["x"]'; fc "${BUG[@]}"; has 'MISMATCH decisions: decisions is not an array of objects'
+t "block mode exits 1 on an intent mismatch"
+write_report "$HEAD"; write_receipt "$HEAD" '[]' gaps; fc "${BUG[@]}" --mode block; rc_is 1
+write_receipt "$HEAD"
 
 t "an uppercase full head in the JSON files matches (lowercase string compare)"
 U=$(printf '%s' "$HEAD" | tr 'a-f' 'A-F'); write_receipt "$U"; write_report "$U"; fc "${BUG[@]}"; no_mismatch

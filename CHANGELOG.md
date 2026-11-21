@@ -7,6 +7,8 @@ file. Versions change only in the release PR (see the release section of `AGENTS
 
 ## [Unreleased]
 
+- Added: `fleet-check.sh` checks the reviewer's intent verdict (`intent.verdict` in the receipt must be `match`) and the report's `needs_review` decisions (a mismatch until the orchestrator passes `--decisions-seen` after the owner saw them). The receipt gains an `intent` object.
+- Added: `fleet-gate.sh` decides whether a fleet ticket pull request may go into its `feat/*` branch without the owner: a block-mode `fleet-check.json` for the head, green CI, and an open pull request on `feat/*` at that head. It changes nothing; on a pass it prints the one `gh pr merge` command, which `merge-guard.sh` still judges. `pd-orchestrate` can now run a milestone on a feature branch.
 - Fixed: two tests that failed on a busy machine (P7). The clean-worktrees "item 2" time-budget case now uses a 10s budget, because the scan of every process's working directory alone took over 3s with about 2000 processes. The board-start `--no-open` case now waits up to 10s for the board to answer, because node can start after the 3s that `board-start.sh` waits. Tests only; no hook or script changed.
 
 ## [0.2.0] — 2026-11-21
