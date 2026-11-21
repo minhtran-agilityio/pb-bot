@@ -511,13 +511,15 @@ function summary(list) {
     if (c.busy) { face = 'bolt'; tone = 'busy'; }
     if (done.length) {
       text = `Nobody needs you. ${done.length} ${done.length === 1 ? 'session' : 'sessions'} finished.`;
-      sub = `Latest: ${done[0].title} · ${ago(done[0].finished)}`;
+      // The time sits in its own span with data-ago, so the 30 s tick keeps it current between redraws.
+      const t = el('span', null, ago(done[0].finished)); t.dataset.ago = done[0].finished;
+      sub = [`Latest: ${done[0].title} · `, t];
     }
   }
   $('logo').replaceChildren(ic(face));
   const box = el('section', `card summary${snap.ok && c.needs ? ' hot' : ''}`);
   const m = el('span', `mascot ${tone}`); m.append(ic(face));
-  const words = el('div', 'words'); words.append(el('h1', null, text)); if (sub) words.append(el('p', null, sub));
+  const words = el('div', 'words'); words.append(el('h1', null, text)); if (sub) { const p = el('p'); p.append(...[].concat(sub)); words.append(p); }
   const counts = el('div', 'counts');
   for (const state of ['busy', 'idle', 'stopped']) {
     const b = el('button', 'count'); b.type = 'button'; b.addEventListener('click', () => go(state));

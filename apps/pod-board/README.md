@@ -80,9 +80,14 @@ Linux needs the WebKitGTK 4.1 development packages. The app looks for `podbay-de
 - Verifies: `cargo test` (32 cases: the model and its links, alerts and the finished rule, the Pod Bay reader, the
   peek text, the menu bar count and the popover position).
 - Does not verify: that `asks` means a human is awaited (on 2026-11-21 four sessions had `asks: true` with no dialog
-  on screen); the window, the Dock badge, the menu bar item and notifications in an automated test; that a click
-  on a real notification reaches the app (it relies on the notification plugin reporting the click; on macOS only
-  for a notification the app showed since it started); that Pod Bay never reports a working session as `idle` for
-  more than 8 seconds in the middle of a run, which would mark it finished too early.
+  on screen); the window, the Dock badge, the menu bar item and notifications in an automated test; that Pod Bay
+  never reports a working session as `idle` for more than 8 seconds in the middle of a run, which would mark it
+  finished too early. On 2026-11-21 two real runs on M0 (one `sleep 150`, one of ten tool calls) stayed `busy`
+  from start to end; a run that waits on a background task or a subagent was not observed.
+- Checked by hand on macOS on 2026-11-21, in the installed app: a click on a `needs you` and on a `finished`
+  notification opens that session in the Claude app and clears the mark; a click on a notification from an earlier
+  start of the app brings the board forward; each link button on a card opens its page in the browser and not the
+  session; the `finished` tag (board and List, light and dark), the summary line, the popover group and `✓n` in
+  the menu bar; opening the session from its card clears the mark.
 - The app is not signed or notarized. On another Mac, Gatekeeper asks before the first start.
 - It shows what Pod Bay on this machine sees. A machine that this Pod Bay lists as offline has no sessions here.
