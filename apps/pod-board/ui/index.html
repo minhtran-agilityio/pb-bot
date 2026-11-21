@@ -96,7 +96,9 @@
   }
 
   /* Main */
-  main { min-width: 0; padding-bottom: 24px; }
+  /* main fills the window height, so the stopped strip can sit at the bottom even when the lanes are short. */
+  main { min-width: 0; min-height: calc(100vh - 32px); display: flex; flex-direction: column; }
+  @media (max-width: 860px) { main { min-height: calc(100vh - 20px); } }
   .top { display: flex; align-items: center; gap: 12px; padding: 6px 4px 12px; }
   .crumb { min-width: 0; color: hsl(var(--muted-fg)); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .crumb b { color: hsl(var(--cocoa)); font-weight: 600; }
@@ -104,7 +106,7 @@
     border: 1px solid var(--edge); box-shadow: var(--shadow-soft); font-size: 22px; }
   #banner { display: none; margin: 0 0 14px; padding: 10px 16px; border-radius: 20px; background: hsl(var(--rose)); font-weight: 600; }
   #banner.on { display: block; }
-  #view { transition: opacity .3s; }
+  #view { flex: 1; display: flex; flex-direction: column; transition: opacity .3s; }
   #view.dim { opacity: .55; }
   #view.enter { animation: enter .4s cubic-bezier(.22, 1, .36, 1); }
   @keyframes enter { from { opacity: 0; transform: translateY(10px); filter: blur(6px); } }
@@ -124,7 +126,7 @@
   .count:hover { background: hsl(var(--paper)); }
   @media (max-width: 620px) { .counts { display: none; } }
 
-  .lanes { display: grid; gap: 16px; margin-top: 16px; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+  .lanes { display: grid; gap: 16px; margin: 16px 0; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
   @media (max-width: 1040px) { .lanes { grid-template-columns: minmax(0, 1fr); } }
   .lane { padding: 14px; }
   .lane h2 { display: flex; align-items: center; gap: 10px; margin: 2px 4px 12px; font-size: 16px; font-weight: 700; }
@@ -159,7 +161,7 @@
   .chip { padding: 3px 12px; border: 1px dashed hsl(var(--muted-fg) / .7); border-radius: 999px; }
   .chip.off { border-style: solid; background: hsl(var(--muted)); }
   /* The stopped and offline chips stay pinned to the bottom of the window while the lanes scroll. */
-  .strip { position: sticky; bottom: 16px; z-index: 5; margin-top: 16px; padding: 12px 18px; background: hsl(var(--paper) / .92);
+  .strip { position: sticky; bottom: 16px; z-index: 5; margin-top: auto; padding: 12px 18px; background: hsl(var(--paper) / .92);
     backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: var(--shadow-lift); }
   @media (max-width: 860px) { .strip { bottom: 10px; } }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; } }
