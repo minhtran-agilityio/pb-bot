@@ -305,6 +305,21 @@ function compareIds(a, b) {
 
 const orNull = v => (v === undefined ? null : v);
 
+// Milestone fields (protocol.md, Ledger). A value of the wrong type counts as absent.
+const scalarOf = v => (typeof v === 'string' && v !== '' ? v : null);
+const prOf = v => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+const idOf = v => (typeof v === 'number' && Number.isFinite(v)) || (typeof v === 'string' && v !== '');
+// [{round, failed: [ids], tickets: [numbers]}] -> the entries that have this shape; others are dropped.
+function roundsOf(v) {
+  if (!Array.isArray(v)) return [];
+  const out = [];
+  for (const r of v) {
+    if (!r || typeof r !== 'object' || Array.isArray(r) || !idOf(r.round)) continue;
+    out.push({ round: r.round, failed: Array.isArray(r.failed) ? r.failed.filter(idOf) : [], tickets: Array.isArray(r.tickets) ? r.tickets.filter(idOf) : [] });
+  }
+  return out;
+}
+
 // ledger object -> the /fleet.json body. Throws Error with a short reason when the shape is wrong.
 function fleetOf(ledger) {
   if (!ledger || typeof ledger !== 'object' || Array.isArray(ledger)) throw new Error('ledger is not a JSON object');
@@ -316,7 +331,7 @@ function fleetOf(ledger) {
     return { id, state: orNull(x.state), kind: orNull(x.kind), depth: orNull(x.depth),
       worker: sess(x.worker), reviewer: sess(x.reviewer), head: orNull(x.head), pr: orNull(x.pr) };
   });
-  return { run: orNull(ledger.run), base: orNull(ledger.base), tickets };
+  return { run: orNull(ledger.run), base: orNull(ledger.base), scenarios: scalarOf(ledger.scenarios), feature_pr: prOf(ledger.feature_pr), test_rounds: roundsOf(ledger.test_rounds), tickets };
 }
 
 // Read the ledger again: { status, body }. 404 when there is none, 503 when it does not parse.
