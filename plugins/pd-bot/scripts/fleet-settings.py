@@ -28,6 +28,10 @@ Usage:
   fleet-settings.py --checkout DIR --role worker|reviewer|tester|advisor --model ID
                     --mode auto|acceptEdits [--ticket ID] [--run ID]
   fleet-settings.py --checkout DIR --restore
+  fleet-settings.py --checkout DIR --show
+--show is read-only: it prints one line per fleet key (`<key>: <JSON value>` or `<key>: absent`) and
+a last line `restore state: present|none` (whether the git directory holds saved values to restore).
+It writes nothing and cannot be combined with --restore or the apply options.
 Exit: 0 done, 1 refused (the reason on stderr), 2 usage error.
 """
 import argparse
@@ -160,6 +164,15 @@ def restore(checkout):
     os.unlink(state)
 
 
+def show(checkout):
+    _, path, state = paths(checkout)
+    data = read_settings(path) or {}
+    for key in KEYS:
+        got = get(data, key)
+        print(f"{'.'.join(key)}: " + (json.dumps(got["value"]) if "value" in got else "absent"))
+    print("restore state: " + ("present" if os.path.exists(state) else "none"))
+
+
 def apply(a):
     cdir, path, state = paths(a.checkout)
     r = git(a.checkout, "check-ignore", "-q", "--", SETTINGS)
@@ -190,12 +203,18 @@ def main(argv):
     p = argparse.ArgumentParser(prog="fleet-settings.py")
     p.add_argument("--checkout", required=True)
     p.add_argument("--restore", action="store_true")
+    p.add_argument("--show", action="store_true")
     p.add_argument("--role", choices=ROLES)
     p.add_argument("--model")
     p.add_argument("--mode", choices=MODES)
     p.add_argument("--ticket")
     p.add_argument("--run")
     a = p.parse_args(argv)
+    if a.show:
+        if a.restore or a.role or a.model or a.mode or a.ticket or a.run:
+            p.error("--show takes only --checkout")
+        show(a.checkout)
+        return
     if a.restore:
         if a.role or a.model or a.mode or a.ticket or a.run:
             p.error("--restore takes only --checkout")
