@@ -30,7 +30,7 @@ Usage:
   fleet-settings.py --checkout DIR --restore
   fleet-settings.py --checkout DIR --show
 --show is read-only: it prints one line per fleet key (`<key>: <JSON value>` or `<key>: absent`) and
-a last line `restore state: present|none` (whether the git directory holds saved values to restore).
+a last line `restore state: present|present (invalid)|none` (whether the git directory holds saved values to restore).
 It writes nothing and cannot be combined with --restore or the apply options.
 Exit: 0 done, 1 refused (the reason on stderr), 2 usage error.
 """
@@ -151,6 +151,8 @@ def restore(checkout):
             saved = json.load(f)
         except ValueError:
             refuse(f"{state} is not valid JSON; check {path} by hand and delete it")
+    if not isinstance(saved, dict):
+        refuse(f"{state} is not a JSON object; check {path} by hand and delete it")
     data = read_settings(path) or {}
     for key in KEYS:
         put(data, key, saved.get("keys", {}).get(".".join(key), ABSENT))
@@ -170,7 +172,18 @@ def show(checkout):
     for key in KEYS:
         got = get(data, key)
         print(f"{'.'.join(key)}: " + (json.dumps(got["value"]) if "value" in got else "absent"))
-    print("restore state: " + ("present" if os.path.exists(state) else "none"))
+    label = "none"
+    if os.path.exists(state):
+        label = "present"
+        try:
+            if not os.path.isfile(state):
+                raise ValueError("not a regular file")
+            with open(state) as f:
+                if not isinstance(json.load(f), dict):
+                    raise ValueError("not a JSON object")
+        except (OSError, ValueError, RecursionError):
+            label = "present (invalid)"
+    print("restore state: " + label)
 
 
 def apply(a):

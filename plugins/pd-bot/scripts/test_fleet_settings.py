@@ -252,3 +252,31 @@ def test_show_leaves_other_keys_out_and_refuses_bad_json(checkout):
 def test_show_works_when_git_does_not_ignore_the_file(checkout):
     (checkout / ".gitignore").write_text("")
     assert show(checkout).returncode == 0
+
+
+def test_show_reports_an_invalid_restore_state_file_and_writes_nothing(checkout):
+    assert apply(checkout).returncode == 0
+    state(checkout).write_text("{nope")
+    before = (settings(checkout).read_text(), state(checkout).read_text())
+    r = show(checkout)
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.splitlines()[-1] == "restore state: present (invalid)"
+    assert (settings(checkout).read_text(), state(checkout).read_text()) == before
+    assert run("--checkout", str(checkout), "--restore").returncode == 1
+
+
+def test_show_reports_a_non_object_restore_state_as_invalid_and_restore_refuses_it(checkout):
+    assert apply(checkout).returncode == 0
+    state(checkout).write_text("[]")
+    r = show(checkout)
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.splitlines()[-1] == "restore state: present (invalid)"
+    r = run("--checkout", str(checkout), "--restore")
+    assert r.returncode == 1 and "Traceback" not in r.stderr
+
+
+def test_show_exits_0_and_reports_invalid_when_the_restore_state_path_is_a_directory(checkout):
+    state(checkout).mkdir()
+    r = show(checkout)
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.splitlines()[-1] == "restore state: present (invalid)"
