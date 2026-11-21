@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="vi">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -158,19 +158,19 @@
 </head>
 <body>
 <div class="shell">
-  <aside class="side" aria-label="Điều hướng">
-    <div class="brand"><span class="logo" id="logo" aria-hidden="true">😴</span><div><b>Pod Board</b><small>Phòng điều phối</small></div></div>
-    <nav class="nav" id="nav" aria-label="Mục"><span class="thumb" id="thumb"></span></nav>
+  <aside class="side" aria-label="Navigation">
+    <div class="brand"><span class="logo" id="logo" aria-hidden="true">😴</span><div><b>Pod Board</b><small>Session control room</small></div></div>
+    <nav class="nav" id="nav" aria-label="Sections"><span class="thumb" id="thumb"></span></nav>
     <div class="status">
-      <span id="conn" data-s="wait"><i></i><span id="connText">Đang đọc Pod Bay…</span></span>
+      <span id="conn" data-s="wait"><i></i><span id="connText">Reading Pod Bay…</span></span>
       <span id="read" class="tab"></span>
-      <button id="pause" class="pill-btn ghost" type="button" aria-pressed="false" title="Tạm dừng cập nhật">⏸<span>&nbsp;Tạm dừng</span></button>
+      <button id="pause" class="pill-btn ghost" type="button" aria-pressed="false" title="Pause updates">⏸<span>&nbsp;Pause</span></button>
     </div>
   </aside>
   <main>
     <header class="top">
       <p class="crumb" id="crumb">Pod Board</p>
-      <button class="round" id="theme" type="button" aria-label="Đổi giao diện sáng hoặc tối">🌙</button>
+      <button class="round" id="theme" type="button" aria-label="Switch light or dark theme">🌙</button>
     </header>
     <div id="banner" role="alert"></div>
     <p id="say" class="sr" role="status" aria-live="polite"></p>
@@ -182,18 +182,18 @@
 // Read-only view of Pod Bay sessions. Data: the `pods` event and the `snapshot` command of the app.
 // No prompts, replies or paths. Every value goes through textContent.
 const STALE_MS = 20000, HOLD_MS = 4000;
-const STATES = { needs: ['Chờ bạn', '🙋', 'rose'], busy: ['Đang chạy', '🏃', 'sky'], idle: ['Rảnh', '😴', 'sage'], stopped: ['Đã dừng', '💤', 'butter'] };
+const STATES = { needs: ['Needs you', '🙋', 'rose'], busy: ['Working', '🏃', 'sky'], idle: ['Idle', '😴', 'sage'], stopped: ['Stopped', '💤', 'butter'] };
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 
 function dur(since) {
   if (!since) return '';
   const m = Math.max(0, Math.round((Date.now() - since) / 60000));
-  if (m < 60) return `${m} ph`;
-  if (m < 1440) return `${Math.floor(m / 60)} g ${m % 60} ph`;
-  return `${Math.floor(m / 1440)} ng ${Math.floor(m % 1440 / 60)} g`;
+  if (m < 60) return `${m} m`;
+  if (m < 1440) return `${Math.floor(m / 60)} h ${m % 60} m`;
+  return `${Math.floor(m / 1440)} d ${Math.floor(m % 1440 / 60)} h`;
 }
-const rtf = new Intl.RelativeTimeFormat('vi', { numeric: 'auto' });
+const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto', style: 'short' });
 function ago(since) {
   if (!since) return '';
   const s = Math.round((since - Date.now()) / 1000), a = Math.abs(s);
@@ -224,10 +224,10 @@ function row(s, big) {
   if (s.state !== 'idle') { const w = el('span', 'wait tab', dur(s.since)); w.dataset.since = s.since || ''; top.append(w); }
   else { const t = el('span', 'when tab', ago(s.since)); t.dataset.ago = s.since || ''; top.append(t); }
   li.append(top);
-  if (s.state !== 'idle' || big) li.append(s.what ? el('p', 'what', s.what) : el('p', 'what fallback', s.branch ? `nhánh ${s.branch}` : 'chưa có mô tả'));
+  if (s.state !== 'idle' || big) li.append(s.what ? el('p', 'what', s.what) : el('p', 'what fallback', s.branch ? `branch ${s.branch}` : 'no description'));
   const meta = el('p', 'meta mono'); meta.append(el('span', null, `${s.project}/${s.ws} · ${s.machine}`));
   if (big && s.prs) meta.append(el('span', null, `· ${s.prs} PR`));
-  if (s.queued) meta.append(el('span', 'tag', `${s.queued} tin chờ`));
+  if (s.queued) meta.append(el('span', 'tag', `${s.queued} queued`));
   li.append(meta);
   return li;
 }
@@ -235,20 +235,20 @@ function row(s, big) {
 function lane(state, list, limit) {
   const box = el('section', `card lane tone-${STATES[state][2]}${state === 'idle' ? ' compact' : ''}`);
   const h = el('h2'); h.append(pill(state), el('span', 'n tab', String(list.length))); box.append(h);
-  if (!list.length) box.append(el('p', 'none', 'Không có session nào.'));
+  if (!list.length) box.append(el('p', 'none', 'No sessions.'));
   const ul = el('ul'); for (const s of list.slice(0, limit)) ul.append(row(s, false)); box.append(ul);
-  if (list.length > limit) { const b = el('button', 'more', `Xem cả ${list.length}`); b.type = 'button'; b.addEventListener('click', () => go(state)); box.append(b); }
+  if (list.length > limit) { const b = el('button', 'more', `Show all ${list.length}`); b.type = 'button'; b.addEventListener('click', () => go(state)); box.append(b); }
   return box;
 }
 
 // One slim row: a small mascot, one sentence, and the other counts as quiet buttons.
 function summary(list) {
   const c = { needs: 0, busy: 0, idle: 0, stopped: stoppedShown().length }; for (const s of list) c[s.state]++;
-  let face = '😴', text = 'Không ai chờ bạn.', sub = '';
-  if (!snap.ok) { face = '😵'; text = 'Không đọc được Pod Bay.'; sub = 'Đang giữ dữ liệu lần đọc cuối.'; }
+  let face = '😴', text = 'Nobody needs you.', sub = '';
+  if (!snap.ok) { face = '😵'; text = 'Cannot read Pod Bay.'; sub = 'Showing the last data that was read.'; }
   else if (c.needs) {
     const top = list.find(s => s.state === 'needs');
-    face = '🙋'; text = `${c.needs} session đang chờ bạn`; sub = `Lâu nhất: ${top.title} · ${dur(top.since)}`;
+    face = '🙋'; text = `${c.needs} ${c.needs === 1 ? 'session needs' : 'sessions need'} you`; sub = `Longest wait: ${top.title} · ${dur(top.since)}`;
   } else if (c.busy) { face = '🏃'; }
   $('logo').textContent = face;
   const box = el('section', `card summary${snap.ok && c.needs ? ' hot' : ''}`);
@@ -270,7 +270,7 @@ function stoppedStrip() {
   const box = el('section', 'card strip chips');
   box.append(pill('stopped'), el('b', 'tab', String(list.length)));
   for (const w of list) box.append(el('span', 'chip mono', `${w.project}/${w.ws}·${w.machine}${w.dirty ? ' ✎' : ''}`));
-  for (const m of off) box.append(el('span', 'chip off mono', `máy ${m.name} offline`));
+  for (const m of off) box.append(el('span', 'chip off mono', `${m.name} offline`));
   return box;
 }
 
@@ -285,13 +285,13 @@ function render() {
     const strip = stoppedStrip(); if (strip) v.append(strip);
   } else if (view === 'stopped') {
     summary(list);
-    const h = el('div', 'page-h'); h.append(el('h1', null, 'Đã dừng'), pill('stopped')); v.append(h);
-    v.append(stoppedStrip() || el('p', 'none', 'Không có workspace nào đã dừng.'));
+    const h = el('div', 'page-h'); h.append(el('h1', null, 'Stopped'), pill('stopped')); v.append(h);
+    v.append(stoppedStrip() || el('p', 'none', 'No stopped workspaces.'));
   } else {
     summary(list);
     const these = list.filter(s => s.state === view);
     const h = el('div', 'page-h'); h.append(el('h1', null, STATES[view][0]), pill(view), el('b', 'tab', String(these.length))); v.append(h);
-    if (!these.length) v.append(el('p', 'none', 'Không có session nào.'));
+    if (!these.length) v.append(el('p', 'none', 'No sessions.'));
     const ul = el('ul', 'wide'); for (const s of these) ul.append(row(s, true)); v.append(ul);
   }
   const key = `${view}|${project}|${machine}`;
@@ -300,7 +300,7 @@ function render() {
   first = false;
   nav();
   const needs = snap.counts.needs;
-  if (saidNeeds !== needs) { $('say').textContent = `${needs} session chờ bạn`; saidNeeds = needs; }
+  if (saidNeeds !== needs) { $('say').textContent = `${needs} sessions need you`; saidNeeds = needs; }
 }
 
 function item(icon, label, count, active, hot, onClick, dotClass) {
@@ -317,7 +317,7 @@ function nav() {
   const box = $('nav'); const thumb = $('thumb');
   box.textContent = ''; box.append(thumb);
   const c = snap ? snap.counts : { needs: 0, busy: 0, idle: 0, stopped: 0 };
-  box.append(item('🏠', 'Tổng quan', null, view === 'home', false, () => go('home')));
+  box.append(item('🏠', 'Overview', null, view === 'home', false, () => go('home')));
   for (const state of ['needs', 'busy', 'idle', 'stopped']) {
     box.append(item(STATES[state][1], STATES[state][0], c[state], view === state, state === 'needs' && c.needs > 0, () => go(state)));
   }
@@ -332,7 +332,7 @@ function nav() {
       }
     }
     if (snap.machines.length > 1) {
-      box.append(el('p', 'group', 'Máy'));
+      box.append(el('p', 'group', 'Machines'));
       for (const m of snap.machines) {
         box.append(item('', m.name, snap.sessions.filter(s => s.machine === m.name).length, false, false, () => { machine = machine === m.name ? null : m.name; render(); bar(); }, m.online ? 'on' : 'off'));
         if (machine === m.name) box.lastChild.style.color = 'hsl(var(--terracotta))';
@@ -348,19 +348,19 @@ function go(next) { view = next; if (snap) render(); else nav(); bar(); window.s
 function bar() {
   const now = Date.now();
   let s = 'live', text = 'Live';
-  if (paused) { s = 'paused'; text = pendingN ? `Tạm dừng · ${pendingN} thay đổi` : 'Tạm dừng'; }
-  else if (!snap) { s = 'wait'; text = 'Đang đọc Pod Bay…'; }
-  else if (!snap.ok) { s = 'error'; text = 'Lỗi đọc Pod Bay'; }
-  else if (!lastMsg || now - lastMsg > STALE_MS) { s = 'stale'; text = 'Dữ liệu cũ'; }
+  if (paused) { s = 'paused'; text = pendingN ? `Paused · ${pendingN} changes` : 'Paused'; }
+  else if (!snap) { s = 'wait'; text = 'Reading Pod Bay…'; }
+  else if (!snap.ok) { s = 'error'; text = 'Pod Bay error'; }
+  else if (!lastMsg || now - lastMsg > STALE_MS) { s = 'stale'; text = 'Stale data'; }
   $('conn').dataset.s = s; $('connText').textContent = text;
-  $('read').textContent = snap && snap.read_at ? `đọc lúc ${new Date(snap.read_at).toLocaleTimeString('vi-VN', { hour12: false })}` : '';
+  $('read').textContent = snap && snap.read_at ? `read at ${new Date(snap.read_at).toLocaleTimeString('en-GB', { hour12: false })}` : '';
   $('view').classList.toggle('dim', s === 'stale' || s === 'error');
   const b = $('banner');
-  if (snap && !snap.ok && snap.error) { b.textContent = `${snap.error} · thử lại sau 3 s`; b.classList.add('on'); } else b.classList.remove('on');
+  if (snap && !snap.ok && snap.error) { b.textContent = `${snap.error} · retrying in 3 s`; b.classList.add('on'); } else b.classList.remove('on');
   const crumb = $('crumb'); crumb.textContent = 'Pod Board › ';
-  crumb.append(el('b', null, view === 'home' ? 'Tổng quan' : STATES[view][0]));
+  crumb.append(el('b', null, view === 'home' ? 'Overview' : STATES[view][0]));
   if (project) crumb.append(` · ${project}`);
-  if (machine) crumb.append(` · máy ${machine}`);
+  if (machine) crumb.append(` · ${machine}`);
 }
 
 function apply(m) { snap = m; pending = null; pendingN = 0; render(); bar(); }
@@ -379,7 +379,7 @@ function onSnap(m) {
 }
 function connect() {
   const t = window.__TAURI__;
-  if (!t) { $('banner').textContent = 'Trang này chạy trong app Pod Board.'; $('banner').classList.add('on'); return; }
+  if (!t) { $('banner').textContent = 'This page runs inside the Pod Board app.'; $('banner').classList.add('on'); return; }
   t.event.listen('pods', e => onSnap(e.payload));
   t.core.invoke('snapshot').then(m => { if (m && (m.read_at || m.error)) onSnap(m); });
 }
@@ -402,7 +402,7 @@ $('view').addEventListener('pointermove', () => { lastMove = Date.now(); });
 $('view').addEventListener('pointerleave', () => { lastMove = 0; if (pending && !paused) apply(pending); });
 $('pause').addEventListener('click', () => {
   paused = !paused;
-  $('pause').textContent = paused ? '▶' : '⏸'; $('pause').append(el('span', null, paused ? ' Tiếp tục' : ' Tạm dừng'));
+  $('pause').textContent = paused ? '▶' : '⏸'; $('pause').append(el('span', null, paused ? ' Resume' : ' Pause'));
   $('pause').setAttribute('aria-pressed', String(paused));
   if (!paused && pending) apply(pending); else bar();
 });

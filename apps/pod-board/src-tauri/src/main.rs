@@ -111,7 +111,7 @@ fn publish(app: &AppHandle, snap: &Snapshot) {
     if let Some(tray) = app.tray_by_id("pod-board") {
         let _ = tray.set_title(Some(tray_title(snap)));
         let c = snap.model.counts;
-        let _ = tray.set_tooltip(Some(format!("{} chờ bạn · {} đang chạy · {} rảnh", c.needs, c.busy, c.idle)));
+        let _ = tray.set_tooltip(Some(format!("{} need you · {} working · {} idle", c.needs, c.busy, c.idle)));
     }
     if let Some(window) = app.get_webview_window("main") {
         let needs = snap.model.counts.needs as i64;
@@ -154,7 +154,7 @@ fn poll_loop(app: AppHandle) {
                     let model = build(&raw);
                     for s in newly_needs(&before, &model) {
                         let what = if s.what.is_empty() { format!("{}/{} · {}", s.project, s.ws, s.machine) } else { s.what.clone() };
-                        notify(&app, &format!("🙋 {} đang chờ bạn", s.title), &what);
+                        notify(&app, &format!("🙋 {} needs you", s.title), &what);
                     }
                     before = model.sessions.iter().map(|s| (key(s), s.state)).collect();
                     if before.is_empty() {
@@ -188,10 +188,10 @@ fn main() {
         .setup(|app| {
             let handle = app.handle().clone();
             let autostart_on = app.autolaunch().is_enabled().unwrap_or(false);
-            let open = MenuItem::with_id(app, "open", "Mở Pod Board", true, None::<&str>)?;
-            let autostart = CheckMenuItem::with_id(app, "autostart", "Tự khởi động khi đăng nhập", true, autostart_on, None::<&str>)?;
-            let on_top = CheckMenuItem::with_id(app, "on_top", "Luôn nổi trên cùng", true, false, None::<&str>)?;
-            let quit = MenuItem::with_id(app, "quit", "Thoát", true, None::<&str>)?;
+            let open = MenuItem::with_id(app, "open", "Open Pod Board", true, None::<&str>)?;
+            let autostart = CheckMenuItem::with_id(app, "autostart", "Start at login", true, autostart_on, None::<&str>)?;
+            let on_top = CheckMenuItem::with_id(app, "on_top", "Always on top", true, false, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open, &PredefinedMenuItem::separator(app)?, &autostart, &on_top, &PredefinedMenuItem::separator(app)?, &quit])?;
             let tray_icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))?;
             TrayIconBuilder::with_id("pod-board")

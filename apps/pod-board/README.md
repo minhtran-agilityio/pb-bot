@@ -1,7 +1,7 @@
 # Pod Board
 
-A small desktop app that shows every Pod Bay session on every machine by state: `Chờ bạn` (a dialog waits for a
-human), `Đang chạy`, `Rảnh`. Workspaces with no session show as small `Đã dừng` chips. It only observes.
+A small desktop app that shows every Pod Bay session on every machine by state: `Needs you` (a dialog waits for a
+human), `Working`, `Idle`. Workspaces with no session show as small `Stopped` chips. It only observes.
 
 It is a Tauri 2 app (Rust and one HTML page). It needs no server, no port and no Node.
 
@@ -10,8 +10,8 @@ It is a Tauri 2 app (Rust and one HTML page). It needs no server, no port and no
 - **Dock:** one icon; a click opens the window. The badge on the icon is the number of sessions that wait for you.
 - **Menu bar:** a face and a count for the most urgent state (`🙋 3`, `🏃 1`, `😴`, or `😵` when Pod Bay cannot be read).
   Its menu opens the window, turns "start at login" and "always on top" on and off, and quits.
-- **Notification:** one system notification when a session changes to `Chờ bạn`. The first read announces nothing.
-- **Window:** three lanes, the read time, the counts and a pause button. Closing the window hides it; the app keeps watching.
+- **Notification:** one system notification when a session changes to `Needs you`. The first read announces nothing.
+- **Window:** a sidebar that filters by state, project and machine, one summary row and three lanes. Closing the window hides it; the app keeps watching.
 
 ## Build and run
 
