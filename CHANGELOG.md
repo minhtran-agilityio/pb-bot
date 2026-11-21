@@ -7,7 +7,13 @@ file. Versions change only in the release PR (see the release section of `AGENTS
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-11-21
+
 - Fixed: `ship.js` never removed its stage worktrees, so each run left a full checkout and build per stage (about 170 GB across four Mnemo checkouts). At the end of a run that succeeded, the new `scripts/ship-worktree-cleanup.sh` removes the run's detached stage worktrees with `git worktree remove` (never forced). It keeps the ticket-branch worktrees, a worktree with changes or untracked files, and one whose commits are on no branch, then removes the run dir if it is empty. A blocked or failed run keeps everything. The result's new `cleanup` field and a `worktrees:` log line list what was kept, its size and the exact removal command, and the pd-autopilot completion report prints them. `clean-worktrees.sh` is unchanged (P10).
+- feat(pod-board): peek at a session's last reply; a menu bar popover (PR #28)
+- docs(pod-board): a short guide to what it is, how to build and use it (PR #29)
+- feat(pod-board): collapse and expand the sidebar (PR #34)
+- fix(ship): remove a successful run's detached stage worktrees; report what is kept (P10) (PR #33)
 
 ## [0.3.0] — 2026-11-21
 
