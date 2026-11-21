@@ -84,16 +84,19 @@ it for a slash command, or when a session does not accept cross-session messages
 1. Pick a workspace whose checkout has no session (`ls` shows no session with that `dir`), or make
    one. One ticket per workspace; a reviewer or an advisor gets its own workspace too, so no
    session shares a working tree with another.
-2. Start the session and keep its `title`, `name` and `uuid`.
-3. Set the model: `tmux send-keys -t '=<name>:' '/model <model id>' Enter`, then read the status
-   line with `detail` and confirm the model name. A session keeps its default model otherwise.
-   `/model` also saves that model as the machine's default for new sessions. Note the default
-   before the run (`model` in `~/.claude/settings.json`) and list it in the final report, so the
-   owner can set it back.
-4. Keep every session of a run in the same permission mode as yours. A session in another mode
-   holds your messages until its user approves them. Workers, reviewers and advisors run tests and
-   other project commands: in a mode that prompts for each one, they stop at every prompt, so tell
-   the owner before the run when your mode is not auto.
+2. Before you start it, set its model, its permission mode and its role in the checkout:
+   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-settings.py --checkout <checkout> --role worker|reviewer|tester|advisor --model <model id> --mode <your mode> --ticket <id> --run <run>`.
+   It writes them into the checkout's `.claude/settings.local.json`, keeps every other key, and
+   saves the file as it was. Claude Code reads that file when the session starts, so the session
+   runs on that model and in that mode with no keystrokes, and its hooks see `PD_BOT_ROLE`. Use
+   your own permission mode (`auto` or `acceptEdits`): a session in another mode holds your
+   messages until its user approves them, and a session that prompts for each test command stops
+   at every prompt; tell the owner before the run when your mode is neither. The script refuses
+   when git does not ignore that file in the checkout: ask the owner to add it to `.gitignore`.
+   It never sets `bypassPermissions`.
+3. Start the session and keep its `title`, `name` and `uuid`.
+4. Read its status line with `detail` and confirm the model name and the mode. When they differ,
+   stop it and check the file before you go on.
 5. `describe` the session with its role and ticket, so the owner sees it in the Pod Bay app.
 6. Send the brief with `SendMessage` to the `title` and `notify_when_idle: true`. Record the
    session in the ledger.
@@ -122,13 +125,16 @@ delivery confirmation for messages exist only between sessions of the same machi
 
 ## Clean up
 
-Stop each session as soon as its work is finished, without waiting for the end of the run:
+Stop each session as soon as its work is finished, without waiting for the end of the run, then
+put its checkout's settings back:
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-settings.py --checkout <checkout> --restore`.
+Do it again before you start another role in the same workspace.
 - a ticket's worker and reviewer when the ticket becomes `done`, `blocked` or `skipped` (not
   earlier: a failed acceptance check reopens it);
 - a Fable advisor session when you have checked its `advise-result` and have no question left;
 - any other session you started when it has reported and nothing waits on it.
 
 `podbay-dev start ... --resume latest` brings a stopped session back with its conversation if a
-ticket reopens. At the end of the run no session you started is still running. Leave workspaces in
+ticket reopens; run the settings script for it again first. At the end of the run no session you started is still running. Leave workspaces in
 place and list them, and the sessions you stopped, in your final report; the owner decides when the
 workspaces go.
