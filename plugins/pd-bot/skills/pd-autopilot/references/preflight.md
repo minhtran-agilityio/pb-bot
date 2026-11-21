@@ -4,8 +4,8 @@ Step 1 runs `bash ${CLAUDE_SKILL_DIR}/scripts/preflight.sh --repo-dir <checkout 
 
 Run it exactly as written, as its own Bash call, with nothing appended: no echo of the exit code and no
 chain with other commands. The tool result already shows the exit code. The merge guard denies a shell call
-next to the letters g-h, then p-r, then a dollar sign: "preflight" and "myprojects" hold the letters, so an
-appended exit-code echo gets the step denied.
+next to the letters g-h, then p-r, then a dollar sign, also inside longer words of a path (for example
+"preflight" and "myprojects"), so an appended exit-code echo can get the step denied.
 
 - Exit 0 (`preflight: ok`): go on.
 - Exit 1 and the only line is `missing: specs/ ignore`: add the line `/specs/` to `.gitignore` in the
