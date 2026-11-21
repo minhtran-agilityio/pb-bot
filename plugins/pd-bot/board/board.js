@@ -354,8 +354,12 @@ const POD_RANK = { needs: 0, busy: 1, idle: 2 };
 const wsOf = context => { const m = /@(\d+)$/.exec(String(context || '')); return m ? `src-${m[1]}` : 'src'; };
 const perMachine = list => (Array.isArray(list) ? list : []).filter(m => m && Array.isArray(m.result));
 
+// `asks` (a dialog waits for a human) wins over `status`. A session with no status yet is one Pod Bay started
+// that has not reached its prompt: seen on a session stopped at a startup dialog, so it needs a human too.
+const podState = s => (s.asks || s.status == null) ? 'needs' : s.status === 'busy' ? 'busy' : 'idle';
+
 // Build the page model from raw `podbay-dev` JSON. It copies named fields only (an allow list), so account,
-// uuid, dir, path and remote_url never reach the page. `asks` (a dialog waits for a human) wins over `status`.
+// uuid, dir, path and remote_url never reach the page.
 function podsOf(raw) {
   const r = raw || {};
   const queued = new Map();
@@ -380,7 +384,7 @@ function podsOf(raw) {
     sessions.push({
       machine: String(m.machine), project: String(s.project || ''), ws,
       title: cut(String(s.title || s.name || ''), 80),
-      state: s.asks ? 'needs' : s.status === 'busy' ? 'busy' : 'idle',
+      state: podState(s),
       since: Number(s.since) || null,
       what: cut(String(s.description || ''), WHAT_CHARS),
       branch: c && c.branch ? cut(String(c.branch), 80) : null,

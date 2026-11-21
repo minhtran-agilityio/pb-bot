@@ -81,6 +81,11 @@ test('podsOf: asks wins over status; order is needs, busy, idle', () => {
   assert.deepStrictEqual(m.counts, { needs: 2, busy: 1, idle: 2, stopped: 2 });
 });
 
+test('podsOf: a session with no status yet (stopped before its prompt) needs a human', () => {
+  const m = podsOf({ ls: [{ machine: 'M0', result: [sess({ title: 'Starting', status: null }), sess({ title: 'Ready' })] }] });
+  assert.deepStrictEqual(m.sessions.map(s => [s.title, s.state]), [['Starting', 'needs'], ['Ready', 'idle']]);
+});
+
 test('podsOf: workspace, description, branch fallback, PR count and queue count', () => {
   const by = Object.fromEntries(podsOf(RAW).sessions.map(s => [s.title, s]));
   assert.strictEqual(by['Asks late'].ws, 'src-01');
