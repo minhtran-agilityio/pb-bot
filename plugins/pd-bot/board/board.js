@@ -14,6 +14,9 @@
 // summary, a token count and tool names (names only); it never sends prompts, tool inputs or outputs, or file contents.
 //
 //   node board.js [--project <path>] [--run <run id | run dir>] [--port <n>] [--no-follow] [--ledger <ledger.json>]
+//                 [--home run|pods] [--podbay <command>]
+// Sessions view: /pods (page), /pods.json and /pods/events show every Pod Bay session by state (needs you, busy,
+// idle). It runs read-only `podbay-dev` commands, about every 3 s, and only while a page or a request asks.
 // Fleet view: /fleet (page) and /fleet.json read a /pd-bot:pd-orchestrate ledger afresh on every request.
 //
 // Verifies: the page shows each agent of one run as it starts and ends, within about one poll interval (500 ms).
@@ -24,6 +27,7 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const os = require('os');
+const { execFile } = require('child_process');
 
 const POLL_MS = 500;
 const SUMMARY_CHARS = 200;
@@ -338,23 +342,142 @@ function fleetGoing(ledgerFile, project) {
 }
 
 // ---------------------------------------------------------------------------
+// Pod Bay sessions view (/pods)
+// ---------------------------------------------------------------------------
+
+const PODS_MS = 3000;        // pause between two `ls --all` reads; one read takes about 1.3 s
+const PODS_SLOW_EVERY = 10;  // checkouts, machines and the queue change slowly: read them every 10th cycle
+const WHAT_CHARS = 160;
+const POD_RANK = { needs: 0, busy: 1, idle: 2 };
+
+// `context` is "<project>/<repo>" for src and "<project>/<repo>@NN" for src-NN.
+const wsOf = context => { const m = /@(\d+)$/.exec(String(context || '')); return m ? `src-${m[1]}` : 'src'; };
+const perMachine = list => (Array.isArray(list) ? list : []).filter(m => m && Array.isArray(m.result));
+
+// A session needs a human when Pod Bay says so in any of its ways: `waiting_for` names something (seen: "input
+// needed" with status "waiting" and asks false), `asks` is true, or `status` is anything but busy or idle (seen:
+// "waiting"; a session with no status yet has stopped before its prompt, for example at a startup dialog).
+const podState = s => {
+  const waits = typeof s.waiting_for === 'string' && s.waiting_for.trim() !== '';
+  if (waits || s.asks || (s.status !== 'busy' && s.status !== 'idle')) return 'needs';
+  return s.status === 'busy' ? 'busy' : 'idle';
+};
+
+// Build the page model from raw `podbay-dev` JSON. It copies named fields only (an allow list), so account,
+// uuid, dir, path and remote_url never reach the page.
+function podsOf(raw) {
+  const r = raw || {};
+  const queued = new Map();
+  for (const m of perMachine(r.queue)) for (const q of m.result) {
+    // Only messages still in the line: `unknown` and `sending` entries also have no `finished`.
+    if (q && q.dir && (q.state ? q.state === 'queued' : q.finished == null)) queued.set(`${m.machine}|${q.dir}`, (queued.get(`${m.machine}|${q.dir}`) || 0) + 1);
+  }
+  const checkout = new Map(), wsSeen = new Map();
+  for (const m of perMachine(r.checkouts)) for (const c of m.result) {
+    if (!c || !c.project || !c.ws) continue;
+    checkout.set(`${m.machine}|${c.project}|${c.repo}|${c.ws}`, c);
+    const k = `${m.machine}|${c.project}|${c.ws}`;
+    const w = wsSeen.get(k) || { machine: String(m.machine), project: String(c.project), ws: String(c.ws), dirty: false };
+    if (c.dirty) w.dirty = true;
+    wsSeen.set(k, w);
+  }
+  const sessions = [];
+  for (const m of perMachine(r.ls)) for (const s of m.result) {
+    if (!s) continue;
+    const ws = wsOf(s.context);
+    wsSeen.delete(`${m.machine}|${s.project}|${ws}`);
+    const c = checkout.get(`${m.machine}|${s.project}|${s.repo}|${ws}`);
+    sessions.push({
+      machine: String(m.machine), project: String(s.project || ''), ws,
+      title: cut(String(s.title || s.name || ''), 80),
+      state: podState(s),
+      since: Number(s.since) || null,
+      what: cut(String(s.description || ''), WHAT_CHARS),
+      branch: c && c.branch ? cut(String(c.branch), 80) : null,
+      prs: s.links && Array.isArray(s.links.prs) ? s.links.prs.length : 0,
+      queued: queued.get(`${m.machine}|${s.dir}`) || 0,
+    });
+  }
+  // Needs-you and busy: the longest wait first. Idle: the most recent first.
+  sessions.sort((a, b) => POD_RANK[a.state] - POD_RANK[b.state]
+    || (a.state === 'idle' ? (b.since || 0) - (a.since || 0) : (a.since || 0) - (b.since || 0))
+    || a.title.localeCompare(b.title));
+  const stopped = [...wsSeen.values()].sort((a, b) => `${a.project}/${a.ws}`.localeCompare(`${b.project}/${b.ws}`) || a.machine.localeCompare(b.machine));
+  const machines = (Array.isArray(r.machines) ? r.machines : []).filter(x => x && x.machine).map(x => ({ name: String(x.machine), online: !!x.online }));
+  const counts = { needs: 0, busy: 0, idle: 0, stopped: stopped.length };
+  for (const s of sessions) counts[s.state]++;
+  return { machines, sessions, stopped, counts };
+}
+
+// A desktop app starts the board with a short PATH, so also look where Pod Bay installs its CLI.
+function findPodbay(env, exists) {
+  const dirs = [...String((env || {}).PATH || '').split(path.delimiter), path.join(os.homedir(), '.local', 'bin'), '/usr/local/bin', '/opt/homebrew/bin'];
+  for (const d of dirs) { if (d && (exists || fs.existsSync)(path.join(d, 'podbay-dev'))) return path.join(d, 'podbay-dev'); }
+  return 'podbay-dev';
+}
+
+// Reads Pod Bay through its CLI. Read-only subcommands only; no shell; stderr is never passed on.
+class PodsPoller {
+  constructor(cmd) {
+    this.cmd = cmd || findPodbay(process.env);
+    this.raw = {}; this.n = 0; this.busy = null; this.body = ''; this.version = 0;
+    this.snap = { ok: false, error: 'not read yet', read_at: null, ...podsOf({}) };
+  }
+  run(args) {
+    return new Promise((resolve, reject) => execFile(this.cmd, args, { timeout: 10000, maxBuffer: 8 << 20 }, (err, stdout) => {
+      if (err) return reject(new Error(err.code === 'ENOENT' ? `${path.basename(this.cmd)} not found` : `${path.basename(this.cmd)} ${args[0]} failed`));
+      try { resolve(JSON.parse(stdout)); } catch (e) { reject(new Error(`${path.basename(this.cmd)} ${args[0]} did not return JSON`)); }
+    }));
+  }
+  // One read. `version` goes up when the model or the error changed. A failed read keeps the last model and sets `error`.
+  tick() {
+    if (this.busy) return this.busy;
+    this.busy = (async () => {
+      let error = null;
+      try {
+        this.raw.ls = await this.run(['ls', '--all']);
+        if (this.n++ % PODS_SLOW_EVERY === 0) {
+          for (const [k, args] of [['checkouts', ['checkouts', '--all']], ['machines', ['machines']], ['queue', ['queue', 'ls', '--all']]]) {
+            try { this.raw[k] = await this.run(args); } catch (e) { /* keep the last value */ }
+          }
+        }
+      } catch (e) { error = e.message; }
+      try {
+        const last = { machines: this.snap.machines, sessions: this.snap.sessions, stopped: this.snap.stopped, counts: this.snap.counts };
+        let model = last;
+        if (!error) { try { model = podsOf(this.raw); } catch (e) { error = 'Pod Bay data has an unknown shape'; } }
+        const body = JSON.stringify([model, error]);
+        if (body !== this.body) { this.body = body; this.version++; }
+        this.snap = { ok: !error, error, read_at: error ? this.snap.read_at : Date.now(), ...model };
+      } finally { this.busy = null; }
+    })();
+    return this.busy;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Server
 // ---------------------------------------------------------------------------
 
 function parseArgs(argv) {
-  const a = { project: process.cwd(), run: null, port: 4317, follow: true, idleExit: 0, ledger: null };
+  // PORT: a launcher that moves the server to a free port (Claude desktop preview) passes the port there.
+  const envPort = /^\d+$/.test(process.env.PORT || '') && Number(process.env.PORT) <= 65535 ? Number(process.env.PORT) : 4317;
+  const a = { project: process.cwd(), run: null, port: envPort, follow: true, idleExit: 0, ledger: null, home: 'run', podbay: null };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i], v = argv[i + 1];
     if (k === '--project') { a.project = v; i++; }
     else if (k === '--run') { a.run = v; i++; }
     else if (k === '--ledger') { a.ledger = v; i++; }
     else if (k === '--port') { a.port = Number(v); i++; }
+    else if (k === '--home') { a.home = v; i++; }
+    else if (k === '--podbay') { a.podbay = v; i++; }
     else if (k === '--no-follow') a.follow = false;
     else if (k === '--idle-exit') { a.idleExit = Number(v); i++; }
     else if (k === '-h' || k === '--help') a.help = true;
     else throw new Error(`unknown argument: ${k}`);
   }
   if (!Number.isInteger(a.port) || a.port < 0 || a.port > 65535) throw new Error('--port must be 0..65535');
+  if (a.home !== 'run' && a.home !== 'pods') throw new Error('--home must be run or pods');
   if (!(a.idleExit >= 0)) throw new Error('--idle-exit must be a number of minutes, 0 or more');
   return a;
 }
@@ -363,7 +486,26 @@ function start(opts) {
   const flow = JSON.parse(fs.readFileSync(opts.flowFile || path.join(HERE, 'flow.json'), 'utf8'));
   const page = fs.readFileSync(path.join(HERE, 'board.html'));
   const fleetPage = fs.readFileSync(path.join(HERE, 'fleet.html'));
+  const podsPage = fs.readFileSync(path.join(HERE, 'pods.html'));
   const clients = new Set();
+
+  // The sessions view polls Pod Bay only while a page is connected; /pods.json reads once when its copy is old.
+  const pods = new PodsPoller(opts.podbay);
+  const podsClients = new Set();
+  let podsTimer = null, podsLoopOn = false;
+  // Each stream remembers the model version it last got, so a read that another caller started is not missed.
+  const podsSend = (res, kind) => {
+    res.podsVersion = pods.version;
+    res.write(`data: ${JSON.stringify(kind === 'tick'
+      ? { kind, ok: pods.snap.ok, error: pods.snap.error, read_at: pods.snap.read_at } : { kind, ...pods.snap })}\n\n`);
+  };
+  const podsLoop = async () => {
+    podsTimer = null;
+    if (!podsClients.size) { podsLoopOn = false; return; }
+    await pods.tick();
+    for (const res of podsClients) podsSend(res, res.podsVersion === pods.version ? 'tick' : 'snapshot');
+    if (podsLoopOn) podsTimer = setTimeout(podsLoop, opts.podsMs || PODS_MS);
+  };
   let history = [], tail = null;
 
   const emit = ev => {
@@ -401,7 +543,28 @@ function start(opts) {
     const url = (req.url || '/').split('?')[0];
     if (url === '/' || url === '/index.html') {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
-      return res.end(page);
+      return res.end(opts.home === 'pods' ? podsPage : page);
+    }
+    if (url === '/pods') {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+      return res.end(podsPage);
+    }
+    if (url === '/pods.json') {
+      const fresh = pods.snap.read_at && Date.now() - pods.snap.read_at < (opts.podsMs || PODS_MS) && pods.snap.ok;
+      Promise.resolve(fresh || pods.tick()).then(() => {
+        res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+        res.end(JSON.stringify(pods.snap));
+      });
+      return;
+    }
+    if (url === '/pods/events') {
+      res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
+      res.write('retry: 3000\n\n');
+      podsSend(res, 'snapshot');
+      podsClients.add(res);
+      req.on('close', () => podsClients.delete(res));
+      if (!podsLoopOn) { podsLoopOn = true; podsLoop(); }
+      return;
     }
     if (url === '/flow.json') {
       res.writeHead(200, { 'content-type': 'application/json' });
@@ -436,18 +599,24 @@ function start(opts) {
     }
     res.writeHead(404); res.end('not found');
   });
-  const ping = setInterval(() => { for (const res of clients) res.write(': ping\n\n'); }, 15000);
-  server.on('close', () => { clearInterval(timer); clearInterval(ping); for (const res of clients) res.end(); clients.clear(); });
+  const ping = setInterval(() => { for (const res of [...clients, ...podsClients]) res.write(': ping\n\n'); }, 15000);
+  server.on('close', () => {
+    clearInterval(timer); clearInterval(ping); podsLoopOn = false; clearTimeout(podsTimer);
+    for (const res of [...clients, ...podsClients]) res.end();
+    clients.clear(); podsClients.clear();
+  });
   return new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen(opts.port, '127.0.0.1', () => resolve({ server, port: server.address().port, projDir }));
   });
 }
 
-const USAGE = `usage: node board.js [--project <path>] [--run <run id | run dir>] [--port <n>] [--no-follow] [--ledger <ledger.json>]
+const USAGE = `usage: node board.js [--project <path>] [--run <run id | run dir>] [--port <n>] [--no-follow] [--ledger <ledger.json>] [--home run|pods] [--podbay <command>]
   --project  the project whose newest ship.js run to show (default: the current directory)
   --run      one run: its id (wf_...) or its directory
-  --port     port on 127.0.0.1 (default 4317; 0 picks a free one)
+  --port     port on 127.0.0.1 (default: $PORT, else 4317; 0 picks a free one)
+  --home     the page at /: run (the ship.js run, default) or pods (the Pod Bay sessions view, also at /pods)
+  --podbay   the Pod Bay command the sessions view reads (default podbay-dev)
   --no-follow  stay on the run shown at start; by default the board switches to a newer run of the project
   --ledger   the fleet ledger to show at /fleet (default: the newest specs/fleet/*/ledger.json under --project)
   --idle-exit  stop after this many minutes with no run going (default 0: never)`;
@@ -462,4 +631,4 @@ if (require.main === module) {
   }).catch(e => { console.error(`board: ${e.message}`); process.exit(1); });
 }
 
-module.exports = { projectKey, parseLabel, nodeFor, statusOf, splitLines, agentFacts, usedTokens, eventOf, endEventOf, runsOf, resolveRun, RunTail, parseArgs, start, newestLedger, fleetOf, readFleet, compareIds };
+module.exports = { projectKey, parseLabel, nodeFor, statusOf, splitLines, agentFacts, usedTokens, eventOf, endEventOf, runsOf, resolveRun, RunTail, parseArgs, start, newestLedger, fleetOf, readFleet, compareIds, podsOf, wsOf, findPodbay, PodsPoller };
