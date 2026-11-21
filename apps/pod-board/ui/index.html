@@ -105,24 +105,16 @@
   .card { position: relative; min-width: 0; border-radius: 28px; padding: 20px; background: hsl(var(--paper)); border: 1px solid var(--edge); box-shadow: var(--shadow-clay); }
   .tone-peach { background: hsl(var(--peach)); } .tone-sky { background: hsl(var(--sky)); } .tone-sage { background: hsl(var(--sage)); }
   .tone-butter { background: hsl(var(--butter)); } .tone-rose { background: hsl(var(--rose)); }
-  .bento { display: grid; gap: 16px; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
-  @media (max-width: 1040px) { .bento { grid-template-columns: minmax(0, 1fr); } }
-  .hero { border-radius: 32px; padding: 28px; display: flex; align-items: center; gap: 24px; min-height: 196px; }
-  .hero .eyebrow { font-size: 14px; font-weight: 600; color: hsl(var(--cocoa) / .7); }
-  .hero h1 { margin: 4px 0 0; font-size: clamp(26px, 3.4vw, 40px); font-weight: 700; line-height: 1.15; letter-spacing: -.02em; }
-  .hero p { margin: 10px 0 0; color: hsl(var(--cocoa) / .78); }
-  .marker { background: linear-gradient(100deg, transparent 2%, hsl(var(--paper) / .8) 4%, hsl(var(--paper) / .6) 96%, transparent 98%) 0 88% / 100% 38% no-repeat; border-radius: .2em; padding-inline: .15em; margin-inline: -.15em; }
-  .mascot { flex: none; display: grid; place-items: center; width: 112px; height: 112px; border-radius: 50%; font-size: 56px;
-    background: radial-gradient(circle at 35% 30%, hsl(var(--butter)), hsl(var(--peach-deep)) 75%); box-shadow: var(--shadow-clay); animation: bob 3.2s ease-in-out infinite; }
-  @keyframes bob { 50% { transform: translateY(-5px) rotate(-3deg); } }
-  @media (max-width: 620px) { .hero { flex-direction: column; align-items: flex-start; } .mascot { width: 76px; height: 76px; font-size: 38px; } }
-  .kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-  .kpi { display: block; width: 100%; text-align: left; border-radius: 28px; padding: 16px 18px; border: 1px solid var(--edge); box-shadow: var(--shadow-clay);
-    transition: transform .3s cubic-bezier(.22, 1, .36, 1), box-shadow .3s cubic-bezier(.22, 1, .36, 1); }
-  .kpi:hover { transform: translateY(-4px); box-shadow: var(--shadow-lift); } .kpi:active { transform: scale(.98); }
-  .chipico { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 14px; font-size: 19px; box-shadow: var(--shadow-clay); }
-  .kpi .num { display: block; margin-top: 10px; font-size: 36px; font-weight: 700; line-height: 1; }
-  .kpi .lbl { display: block; margin-top: 4px; font-size: 13px; color: hsl(var(--cocoa) / .7); }
+  .summary { display: flex; align-items: center; gap: 14px; padding: 12px 18px; border-radius: 24px; }
+  .summary.hot { background: hsl(var(--peach)); }
+  .mascot { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; font-size: 24px; background: hsl(var(--paper)); box-shadow: var(--shadow-xs); }
+  .words { min-width: 0; flex: 1; }
+  .words h1 { margin: 0; font-size: 19px; font-weight: 700; line-height: 1.25; }
+  .words p { margin: 0; font-size: 13px; color: hsl(var(--cocoa) / .72); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .counts { flex: none; display: flex; flex-wrap: wrap; gap: 6px; }
+  .count { padding: 4px 12px; border-radius: 999px; background: hsl(var(--paper) / .75); font-size: 13px; color: hsl(var(--cocoa) / .8); }
+  .count:hover { background: hsl(var(--paper)); }
+  @media (max-width: 620px) { .counts { display: none; } }
 
   .lanes { display: grid; gap: 16px; margin-top: 16px; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
   @media (max-width: 1040px) { .lanes { grid-template-columns: minmax(0, 1fr); } }
@@ -247,35 +239,26 @@ function lane(state, list, limit) {
   return box;
 }
 
-function hero(list) {
-  const c = { needs: 0, busy: 0, idle: 0 }; for (const s of list) c[s.state]++;
-  let tone = 'sage', face = '😴', eyebrow = 'Yên tĩnh', head = ['Không ai chờ bạn. ', 'Tất cả đang rảnh.'], sub = `${c.idle} session rảnh, sẵn sàng nhận việc.`;
-  if (!snap.ok) { tone = 'rose'; face = '😵'; eyebrow = 'Mất liên lạc'; head = ['Không đọc được ', 'Pod Bay.']; sub = 'Đang giữ dữ liệu lần đọc cuối và thử lại mỗi 3 giây.'; }
+// One slim row: a small mascot, one sentence, and the other counts as quiet buttons.
+function summary(list) {
+  const c = { needs: 0, busy: 0, idle: 0, stopped: stoppedShown().length }; for (const s of list) c[s.state]++;
+  let face = '😴', text = 'Không ai chờ bạn.', sub = '';
+  if (!snap.ok) { face = '😵'; text = 'Không đọc được Pod Bay.'; sub = 'Đang giữ dữ liệu lần đọc cuối.'; }
   else if (c.needs) {
     const top = list.find(s => s.state === 'needs');
-    tone = 'peach'; face = '🙋'; eyebrow = 'Cần bạn'; head = [`${c.needs} session đang `, 'chờ bạn.'];
-    sub = `Lâu nhất: ${top.title}, đã chờ ${dur(top.since)}.`;
-  } else if (c.busy) { tone = 'sky'; face = '🏃'; eyebrow = 'Đang chạy'; head = ['Không ai chờ bạn. ', `${c.busy} session đang chạy.`]; sub = 'Bạn có thể để yên; app sẽ báo khi có session cần bạn.'; }
-  const box = el('section', `card hero tone-${tone}`);
-  const text = el('div'); text.style.minWidth = '0'; text.style.flex = '1';
-  const h = el('h1'); h.append(head[0], el('span', 'marker', head[1]));
-  text.append(el('p', 'eyebrow', eyebrow), h, el('p', null, sub));
-  const m = el('div', 'mascot', face); m.setAttribute('aria-hidden', 'true');
-  box.append(text, m);
+    face = '🙋'; text = `${c.needs} session đang chờ bạn`; sub = `Lâu nhất: ${top.title} · ${dur(top.since)}`;
+  } else if (c.busy) { face = '🏃'; }
   $('logo').textContent = face;
-  return box;
-}
-
-function kpis(list) {
-  const box = el('div', 'kpis');
-  const n = { needs: 0, busy: 0, idle: 0, stopped: stoppedShown().length }; for (const s of list) n[s.state]++;
-  for (const state of ['needs', 'busy', 'idle', 'stopped']) {
-    const [label, face, tone] = STATES[state];
-    const b = el('button', `kpi tone-${tone}`); b.type = 'button'; b.addEventListener('click', () => go(state));
-    const ico = el('span', 'chipico', face); ico.style.background = `hsl(var(--${tone}-deep))`; ico.setAttribute('aria-hidden', 'true');
-    b.append(ico, el('span', 'num tab', String(n[state])), el('span', 'lbl', label));
-    box.append(b);
+  const box = el('section', `card summary${snap.ok && c.needs ? ' hot' : ''}`);
+  const m = el('span', 'mascot', face); m.setAttribute('aria-hidden', 'true');
+  const words = el('div', 'words'); words.append(el('h1', null, text)); if (sub) words.append(el('p', null, sub));
+  const counts = el('div', 'counts');
+  for (const state of ['busy', 'idle', 'stopped']) {
+    const b = el('button', 'count'); b.type = 'button'; b.addEventListener('click', () => go(state));
+    b.append(el('b', 'tab', String(c[state])), ` ${STATES[state][0].toLowerCase()}`);
+    counts.append(b);
   }
+  box.append(m, words, counts);
   return box;
 }
 
@@ -293,17 +276,17 @@ function render() {
   const v = $('view'); v.textContent = '';
   const list = shown();
   if (view === 'home') {
-    const bento = el('div', 'bento'); bento.append(hero(list), kpis(list)); v.append(bento);
+    v.append(summary(list));
     const lanes = el('div', 'lanes');
     for (const state of ['needs', 'busy', 'idle']) lanes.append(lane(state, list.filter(s => s.state === state), state === 'idle' ? 8 : 6));
     v.append(lanes);
     const strip = stoppedStrip(); if (strip) v.append(strip);
   } else if (view === 'stopped') {
-    hero(list);
+    summary(list);
     const h = el('div', 'page-h'); h.append(el('h1', null, 'Đã dừng'), pill('stopped')); v.append(h);
     v.append(stoppedStrip() || el('p', 'none', 'Không có workspace nào đã dừng.'));
   } else {
-    hero(list);
+    summary(list);
     const these = list.filter(s => s.state === view);
     const h = el('div', 'page-h'); h.append(el('h1', null, STATES[view][0]), pill(view), el('b', 'tab', String(these.length))); v.append(h);
     if (!these.length) v.append(el('p', 'none', 'Không có session nào.'));
