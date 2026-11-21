@@ -155,6 +155,16 @@
   .meta { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
   .tag { padding: 1px 8px; border-radius: 999px; background: hsl(var(--butter)); color: hsl(var(--cocoa)); font: 700 11px 'Pod Sans', system-ui, sans-serif; }
   .tag.wait { background: hsl(var(--terracotta)); color: hsl(var(--on-accent)); }
+  .tag.done { background: hsl(var(--success)); color: hsl(var(--on-accent)); }
+  /* A session's links (pull requests, issues, artifacts): small buttons that open the page in the browser. */
+  .links { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin: 5px 0 0; }
+  .lrow .links { display: inline-flex; flex-wrap: nowrap; margin: 0 0 0 8px; vertical-align: middle; }
+  .lk { max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 1px 9px; border-radius: 999px; cursor: pointer;
+    border: 1px solid hsl(var(--muted-fg) / .45); background: transparent; color: hsl(var(--cocoa)); font: 700 11px 'Pod Sans', system-ui, sans-serif; }
+  .lk:hover { background: hsl(var(--muted)); border-color: hsl(var(--muted-fg)); }
+  .lk:focus-visible { outline: 2px solid hsl(var(--terracotta)); outline-offset: 2px; }
+  .lk.more { border-style: dashed; cursor: default; color: hsl(var(--muted-fg)); }
+  .row.done { box-shadow: inset 3px 0 0 hsl(var(--success)), var(--shadow-xs); }
   .compact .row { padding: 7px 12px; }
   .row .mono { font-size: 11px; }
   .pill { display: inline-flex; align-items: center; gap: 7px; padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; }
@@ -177,7 +187,9 @@
   .lrow .lt span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .lrow .sic { flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 9px; font-size: 16px; color: hsl(var(--on-accent)); }
   .sic.needs { background: hsl(var(--terracotta)); } .sic.busy { background: hsl(var(--sky-deep)); } .sic.idle { background: hsl(var(--sage-deep)); }
-  .lrow .lw { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: hsl(var(--cocoa) / .8); }
+  .lrow .lw { display: flex; align-items: center; min-width: 0; color: hsl(var(--cocoa) / .8); }
+  .lrow .lw .txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lrow .lw .links { flex: none; }
   .lrow .lw.fallback { font-style: italic; color: hsl(var(--muted-fg)); }
   .lrow .lp { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .lrow .lc { text-align: right; font-size: 12px; color: hsl(var(--muted-fg)); }
@@ -437,11 +449,44 @@ function row(s, big) {
   li.append(top);
   if (s.state !== 'idle' || big) li.append(s.what ? el('p', 'what', s.what) : el('p', 'what fallback', s.branch ? `branch ${s.branch}` : 'no description'));
   const meta = el('p', 'meta mono'); meta.append(el('span', null, `${s.project}/${s.ws} · ${s.machine}`));
-  if (big && s.prs) meta.append(el('span', null, `· ${s.prs} PR`));
+  if (big && s.prs && !(s.links || []).some(l => l.kind === 'pr')) meta.append(el('span', null, `· ${s.prs} PR`));
   if (s.waiting) meta.append(el('span', 'tag wait', s.waiting));
+  if (s.finished) { li.classList.add('done'); meta.append(doneTag(s)); }
   if (s.queued) meta.append(el('span', 'tag', `${s.queued} queued`));
   li.append(meta);
+  const lk = links(s, big ? 8 : 3); if (lk) li.append(lk);
   return linkable(li, s);
+}
+
+// "finished": the session went idle after a long run and nobody has looked at it yet.
+function doneTag(s) {
+  const t = el('span', 'tag done', 'finished');
+  t.title = `Finished ${ago(s.finished)}. Opening or peeking at the session clears this.`;
+  return t;
+}
+
+// What a link is called on a card: "PR #266", "Issue #7", or an artifact's own title.
+function linkLabel(l) {
+  const n = /#(\d+)$/.exec(l.title || '');
+  if (l.kind === 'pr') return n ? `PR #${n[1]}` : 'PR';
+  if (l.kind === 'issue') return n ? `Issue #${n[1]}` : 'Issue';
+  return l.title || 'Artifact';
+}
+
+// The session's links as buttons. A click opens the page in the browser, and never the session behind the card.
+function links(s, limit) {
+  const list = s.links || [];
+  if (!list.length) return null;
+  const box = el('span', 'links');
+  for (const l of list.slice(0, limit)) {
+    const b = el('button', 'lk', linkLabel(l)); b.type = 'button';
+    b.title = `${l.title || linkLabel(l)}: open in the browser`;
+    b.addEventListener('click', e => { e.stopPropagation(); const t = window.__TAURI__; if (t) t.core.invoke('open_link', { url: l.url }).catch(() => {}); });
+    b.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation(); });
+    box.append(b);
+  }
+  if (list.length > limit) { const m = el('span', 'lk more', `+${list.length - limit}`); m.title = 'More links on the session\u2019s own page'; box.append(m); }
+  return box;
 }
 
 function lane(state, list, limit) {
@@ -461,7 +506,14 @@ function summary(list) {
   else if (c.needs) {
     const top = list.find(s => s.state === 'needs');
     face = 'hand'; tone = 'needs'; text = `${c.needs} ${c.needs === 1 ? 'session needs' : 'sessions need'} you`; sub = `Longest wait: ${top.title} · ${dur(top.since)}`;
-  } else if (c.busy) { face = 'bolt'; tone = 'busy'; }
+  } else {
+    const done = list.filter(s => s.finished);
+    if (c.busy) { face = 'bolt'; tone = 'busy'; }
+    if (done.length) {
+      text = `Nobody needs you. ${done.length} ${done.length === 1 ? 'session' : 'sessions'} finished.`;
+      sub = `Latest: ${done[0].title} · ${ago(done[0].finished)}`;
+    }
+  }
   $('logo').replaceChildren(ic(face));
   const box = el('section', `card summary${snap.ok && c.needs ? ' hot' : ''}`);
   const m = el('span', `mascot ${tone}`); m.append(ic(face));
@@ -638,10 +690,13 @@ function listRow(s) {
   if (!first && prev.has(key) && prev.get(key) !== s.state) r.classList.add('flash');
   const ti = el('span', 'lt'); const si = el('span', `sic ${s.state}`); si.append(ic(STATES[s.state][1])); ti.append(si, el('span', null, s.title));
   const pb = peekButton(s); if (pb) { pb.style.marginLeft = 'auto'; ti.append(pb); }
-  const what = s.what ? el('span', 'lw', s.what) : el('span', 'lw fallback', s.branch ? `branch ${s.branch}` : 'no description');
+  // The text is cut with an ellipsis; the links after it always stay whole.
+  const what = el('span', s.what ? 'lw' : 'lw fallback'); what.append(el('span', 'txt', s.what || (s.branch ? `branch ${s.branch}` : 'no description')));
   const where = el('span', 'lp mono', `${s.project}/${s.ws} · ${s.machine}`);
   if (s.waiting) where.append(' ', el('span', 'tag wait', s.waiting));
+  if (s.finished) where.append(' ', doneTag(s));
   if (s.queued) where.append(' ', el('span', 'tag', `${s.queued} queued`));
+  const lk = links(s, 2); if (lk) what.append(lk);
   const when = s.state === 'idle' ? el('span', 'lc tab', ago(s.since)) : el('span', 'lc wait tab', dur(s.since));
   if (s.state === 'idle') when.dataset.ago = s.since || ''; else when.dataset.since = s.since || '';
   r.append(ti, what, where, when);

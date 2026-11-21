@@ -1,7 +1,8 @@
 // Pod Board: a small desktop window with every Pod Bay session by state (needs you, busy, idle).
 // It only observes. It polls the read-only commands `podbay-dev ls --all`, `checkouts --all`, `machines` and
 // `queue ls --all`. It runs `podbay-dev detail` only when the owner opens a session's peek, for that one session,
-// and keeps only its last prompt and reply (never the screen). It never sends anything anywhere.
+// and keeps only its last prompt and reply (never the screen). It never sends anything anywhere. A click can open
+// a session in the Claude app, or one of its links (a pull request, an issue, an artifact) in the browser.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod alerts;
@@ -11,10 +12,12 @@ use alerts::Alerts;
 use model::{build, Model, Raw};
 use serde::Serialize;
 use serde_json::Value;
+use std::collections::HashMap;
 use std::io::Read;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
+use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
@@ -51,6 +54,13 @@ struct Wake(Mutex<Sender<()>>);
 
 /// When to notify, remind, sound and flash (see alerts.rs).
 struct AlertState(Mutex<Alerts>);
+
+/// The notifications that were shown, by their id: the session each is about (`model::key`) and its Remote Control
+/// id. A click on a notification looks its session up here.
+#[derive(Default)]
+struct Told(Mutex<HashMap<i32, (String, String)>>);
+static NEXT_NOTE: AtomicI32 = AtomicI32::new(1);
+const TOLD_MAX: usize = 200;
 
 /// The Do Not Disturb submenu, so its title can say whether it is on.
 struct DndMenu(Mutex<Option<Submenu<Wry>>>);
@@ -107,8 +117,7 @@ fn refresh(wake: tauri::State<'_, Wake>) {
 
 /// Open a session in the Claude desktop app with `claude://code/<id>`, the link Pod Bay's "Open in Claude" uses.
 /// Without the desktop app (Linux) it opens `https://claude.ai/code/<id>` in the browser instead.
-#[tauri::command]
-fn open_session(id: String) -> Result<(), String> {
+fn open_claude(id: &str) -> Result<(), String> {
     if id.is_empty() || model::session_id(&format!("https://claude.ai/code/{id}")) != id {
         return Err("not a Claude session id".into());
     }
@@ -117,6 +126,48 @@ fn open_session(id: String) -> Result<(), String> {
     #[cfg(not(target_os = "macos"))]
     let (opener, url) = ("xdg-open", format!("https://claude.ai/code/{id}"));
     spawn_reaped(Command::new(opener).arg(&url)).map_err(|_| "could not open the session".to_string())
+}
+
+/// The owner looked at a session: its "finished" mark goes, at once on the page and in the menu bar.
+fn looked(app: &AppHandle, session: &str) {
+    let had = app.state::<AlertState>().0.lock().map(|mut a| a.looked(session)).unwrap_or(false);
+    if !had { return; }
+    let snap = {
+        let state = app.state::<Shared>();
+        let mut held = match state.0.lock() { Ok(g) => g, Err(p) => p.into_inner() };
+        if let Ok(a) = app.state::<AlertState>().0.lock() { a.mark(&mut held.model); }
+        held.clone()
+    };
+    publish(app, &snap);
+}
+
+/// The key (`model::key`) of the session the snapshot holds for `pick`, if any.
+fn session_key(app: &AppHandle, pick: impl Fn(&model::Session) -> bool) -> Option<String> {
+    let state = app.state::<Shared>();
+    let held = state.0.lock().ok()?;
+    held.model.sessions.iter().find(|s| pick(s)).map(model::key)
+}
+
+#[tauri::command]
+fn open_session(app: AppHandle, id: String) -> Result<(), String> {
+    open_claude(&id)?;
+    // A session with a Remote Control id has that id as its key.
+    looked(&app, &id);
+    Ok(())
+}
+
+/// Open one of a session's links (a pull request, an issue, an artifact) in the browser. Only an address the
+/// snapshot holds right now passes, so the page cannot make the app open anything else.
+#[tauri::command]
+fn open_link(app: AppHandle, url: String) -> Result<(), String> {
+    let known = !url.is_empty() && model::safe_url(&url) == url && {
+        let state = app.state::<Shared>();
+        let held = state.0.lock().map_err(|_| "no data".to_string())?;
+        held.model.sessions.iter().any(|s| s.links.iter().any(|l| l.url == url))
+    };
+    if !known { return Err("not a link of a session".into()); }
+    let opener = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
+    spawn_reaped(Command::new(opener).arg(&url)).map_err(|_| "could not open the link".to_string())
 }
 
 /// What the peek shows of one session: its last prompt and its last reply, both plain text and cut short.
@@ -182,11 +233,13 @@ fn peek_of(v: &Value) -> Peek {
 /// The last prompt and reply of one session, read on demand with `podbay-dev --on <machine> detail <name>`.
 /// It runs off the main thread: another machine can take ten seconds or more to answer.
 #[tauri::command]
-async fn peek(machine: String, name: String) -> Result<Peek, String> {
+async fn peek(app: AppHandle, machine: String, name: String) -> Result<Peek, String> {
     let (machine, name) = (model::safe_name(&machine), model::safe_name(&name));
     if machine.is_empty() || name.is_empty() {
         return Err("not a Pod Bay session".into());
     }
+    // Reading its last reply is looking at it.
+    if let Some(k) = session_key(&app, |s| s.machine == machine && s.name == name) { looked(&app, &k); }
     tauri::async_runtime::spawn_blocking(move || {
         read_for(&find_podbay(), &["--on", &machine, "detail", &name], PEEK_TIMEOUT).map(|v| peek_of(&v))
     })
@@ -281,14 +334,16 @@ fn now_ms() -> u64 {
 /// Icons: Phosphor Icons, duotone, drawn black so macOS can tint them as template images.
 fn tray_look(snap: &Snapshot) -> (&'static [u8], String) {
     let c = snap.model.counts;
+    // Nobody waits, but something finished: say so beside the icon ("✓2", or "3 ✓2" while others work).
+    let done = if c.finished > 0 { format!("✓{}", c.finished) } else { String::new() };
     if !snap.ok {
         (include_bytes!("../icons/tray-warning-circle.png"), String::new())
     } else if c.needs > 0 {
         (include_bytes!("../icons/tray-hand-palm.png"), c.needs.to_string())
     } else if c.busy > 0 {
-        (include_bytes!("../icons/tray-lightning.png"), c.busy.to_string())
+        (include_bytes!("../icons/tray-lightning.png"), format!("{} {done}", c.busy).trim_end().to_string())
     } else if c.idle > 0 {
-        (include_bytes!("../icons/tray-coffee.png"), String::new())
+        (include_bytes!("../icons/tray-coffee.png"), done)
     } else {
         (include_bytes!("../icons/tray-moon-stars.png"), String::new())
     }
@@ -305,7 +360,8 @@ fn publish(app: &AppHandle, snap: &Snapshot) {
         let _ = tray.set_title(if title.is_empty() { None } else { Some(title) });
         let c = snap.model.counts;
         let quiet = if snap.dnd_until.is_some() { " · Do not disturb" } else { "" };
-        let _ = tray.set_tooltip(Some(format!("{} need you · {} working · {} idle{quiet}", c.needs, c.busy, c.idle)));
+        let done = if c.finished > 0 { format!(" · {} finished", c.finished) } else { String::new() };
+        let _ = tray.set_tooltip(Some(format!("{} need you · {} working · {} idle{done}{quiet}", c.needs, c.busy, c.idle)));
     }
     if let Some(window) = app.get_webview_window("main") {
         let needs = snap.model.counts.needs as i64;
@@ -313,8 +369,27 @@ fn publish(app: &AppHandle, snap: &Snapshot) {
     }
 }
 
-fn notify(app: &AppHandle, title: &str, body: &str) {
-    let _ = app.notification().builder().title(title).body(body).show();
+/// Show one notification and remember which session it is about, for a click on it (see `on_note_click`).
+fn notify(app: &AppHandle, alert: &alerts::Alert) {
+    let id = NEXT_NOTE.fetch_add(1, Ordering::Relaxed);
+    if let Ok(mut told) = app.state::<Told>().0.lock() {
+        if told.len() >= TOLD_MAX { told.clear(); }
+        told.insert(id, (alert.session.clone(), alert.rc_id.clone()));
+    }
+    let _ = app.notification().builder().id(id).title(&alert.title).body(&alert.body).show();
+}
+
+/// A click on a notification opens its session in the Claude app. A session with no Remote Control id, or a
+/// notification this run did not show, opens the board instead.
+fn on_note_click(app: &AppHandle, id: Option<i32>) {
+    let about = id.and_then(|id| app.state::<Told>().0.lock().ok().and_then(|mut told| told.remove(&id)));
+    match about {
+        Some((session, rc_id)) => {
+            if rc_id.is_empty() || open_claude(&rc_id).is_err() { show_main(app); }
+            looked(app, &session);
+        }
+        None => show_main(app),
+    }
 }
 
 /// A short system sound. macOS only; elsewhere the notification is the only signal.
@@ -369,9 +444,9 @@ fn poll_loop(app: AppHandle, wake: Receiver<()>) {
                 // A failed read keeps the last sessions and says why.
                 Some(e) => { held.ok = false; held.error = Some(e); }
                 None => {
-                    let model = build(&raw);
+                    let mut model = build(&raw);
                     let now = now_ms();
-                    if let Ok(mut a) = app.state::<AlertState>().0.lock() { outcome = a.on_read(&model, now); }
+                    if let Ok(mut a) = app.state::<AlertState>().0.lock() { outcome = a.on_read(&model, now); a.mark(&mut model); }
                     *held = Snapshot { ok: true, error: None, read_at: Some(now), dnd_until: None, model };
                 }
             }
@@ -384,7 +459,7 @@ fn poll_loop(app: AppHandle, wake: Receiver<()>) {
             held.clone()
         };
         // Notifications, sound and flash run after the snapshot lock is released: a slow system call cannot hold it.
-        for alert in &outcome.alerts { notify(&app, &alert.title, &alert.body); }
+        for alert in &outcome.alerts { notify(&app, alert); }
         if outcome.sound { play_sound(); }
         if outcome.flash { flash_tray(app.clone()); }
         if let Ok(menu) = app.state::<DndMenu>().0.lock() {
@@ -448,9 +523,15 @@ fn main() {
         .manage(Wake(Mutex::new(wake_tx)))
         .manage(AlertState(Mutex::new(Alerts::new(true))))
         .manage(DndMenu(Mutex::new(None)))
-        .invoke_handler(tauri::generate_handler![snapshot, refresh, open_session, set_dnd, peek, show_board, close_popover])
+        .manage(Told::default())
+        .invoke_handler(tauri::generate_handler![snapshot, refresh, open_session, open_link, set_dnd, peek, show_board, close_popover])
         .setup(move |app| {
             let handle = app.handle().clone();
+            // With a handler registered, the plugin reports a click on a notification (`tap`).
+            let clicks = app.handle().clone();
+            let _ = app.notification().on_action(move |performed| {
+                if performed.action_id() == "tap" { on_note_click(&clicks, performed.notification().map(|n| n.id())); }
+            });
             let saved = load_settings(app.handle());
             if let Ok(mut a) = app.state::<AlertState>().0.lock() {
                 a.sound_on = saved.sound.unwrap_or(true);
@@ -610,6 +691,20 @@ mod tests {
         assert_eq!(cut.chars().count(), PEEK_REPLY_CHARS);
         assert!(cut.starts_with('…') && cut.ends_with("Shall I go on?"));
         assert_eq!(tail("short", 10), "short");
+    }
+
+    #[test]
+    fn the_menu_bar_counts_finished_sessions_unless_someone_waits() {
+        let look = |needs, busy, idle, finished| {
+            let mut snap = Snapshot { ok: true, ..Snapshot::default() };
+            snap.model.counts = model::Counts { needs, busy, idle, stopped: 0, finished };
+            tray_look(&snap).1
+        };
+        assert_eq!(look(0, 0, 3, 0), "");
+        assert_eq!(look(0, 0, 3, 2), "✓2");
+        assert_eq!(look(0, 4, 3, 0), "4");
+        assert_eq!(look(0, 4, 3, 2), "4 ✓2");
+        assert_eq!(look(1, 4, 3, 2), "1", "a wait comes first");
     }
 
     #[test]
