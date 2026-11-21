@@ -477,5 +477,11 @@ t "a bad --mode exits 2"; fc "${BUG[@]}" --mode loud; rc_is 2
 t "the removed --ticket option exits 2"; fc "${BUG[@]}" --ticket 7; rc_is 2
 t "an unknown option exits 2"; fc "${BUG[@]}" --bogus; rc_is 2
 t "an option with no value exits 2"; OUT=$(bash "$FC" --repo 2>&1); RC=$?; rc_is 2
+t "an unknown option prints the usage on stderr only"; OUT=$(bash "$FC" --bogus 2>"$WORK/err"); RC=$?
+if [ "$RC" = 2 ] && [ -z "$OUT" ] && grep -q 'usage: fleet-check.sh' "$WORK/err"; then pass; else fail "rc=$RC out=$OUT"; fi
+for h in --help -h; do
+  t "$h prints the usage on stdout, nothing on stderr, exits 0"; OUT=$(bash "$FC" "$h" 2>"$WORK/err"); RC=$?
+  if [ "$RC" = 0 ] && printf '%s' "$OUT" | grep -q 'usage: fleet-check.sh' && [ ! -s "$WORK/err" ]; then pass; else fail "rc=$RC out=$OUT err=$(cat "$WORK/err")"; fi
+done
 
 finish

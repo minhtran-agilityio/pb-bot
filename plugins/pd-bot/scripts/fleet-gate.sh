@@ -20,6 +20,7 @@
 # stripped to printable ASCII and cut to 200 characters before it is printed or written.
 #
 # Usage:
+#   fleet-gate.sh -h | --help
 #   fleet-gate.sh --evidence <dir> --head <40|64 hex> --pr <number> --gh-repo <owner/name>
 #                 --base <feat/...> [--wait <seconds>]
 # --wait: how long to wait for pending CI checks (default 0: one look). The poll interval is 30 s
@@ -27,10 +28,12 @@
 # Output: one line per check (`ok|MISMATCH <name>: <detail>`), <evidence>/fleet-gate.json, on a pass
 # the line `run: gh pr merge ...`, and the last line `fleet-gate: pass` or
 # `fleet-gate: <n> mismatch(es)`.
+# -h, --help: print the usage to stdout, run no check (no gh call), exit 0.
 # Exit: 0 on a pass, 1 on a mismatch, 2 on a usage error. Needs gh and jq.
 set -u
 
-usage() { echo "fleet-gate: $*" >&2; echo "usage: fleet-gate.sh --evidence <dir> --head <sha> --pr <number> --gh-repo <owner/name> --base <feat/...> [--wait <seconds>]" >&2; exit 2; }
+usage_text() { echo "usage: fleet-gate.sh --evidence <dir> --head <sha> --pr <number> --gh-repo <owner/name> --base <feat/...> [--wait <seconds>]"; }
+usage() { echo "fleet-gate: $*" >&2; usage_text >&2; exit 2; }
 
 lower() { printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]'; }
 is_full_hex() {
@@ -42,6 +45,7 @@ san() { printf '%s' "$1" | LC_ALL=C tr -cd '\040-\176' | cut -c1-200; }
 evid=""; head=""; pr=""; gh_repo=""; base_ref_want=""; wait_s=0
 while [ $# -gt 0 ]; do
   case "$1" in
+    -h|--help) usage_text; exit 0 ;;
     --evidence|--head|--pr|--gh-repo|--base|--wait) [ $# -ge 2 ] || usage "$1 needs a value" ;;
     *) usage "unknown argument: $1" ;;
   esac
