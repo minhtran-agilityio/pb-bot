@@ -37,8 +37,16 @@ Leave a default when the ticket gives you a reason, and say why in the ledger.
 | Order | dependency groups (command below); tickets of one group in parallel. The command puts two tickets with an overlapping path in different groups | you see an overlap that the paths do not show: give both tickets that path and run the command again |
 | Workers at once | 3 tickets (`--max-parallel 3`); reviewer and advisor sessions do not count | the owner gave another number; a usage-limit line appeared: lower it |
 | Budget | 60 minutes per ticket | depth L, or the owner gave a deadline |
-| Acceptance check | you start it after the receipt: `pd-bot:pd-uat` when `app` is `fe` or `be`, the `pd-bot:qa-verifier` agent for a ticket with no app at depth M or L | depth S docs or config: the review covers it |
+| Acceptance check | the reviewer runs it after the receipt (step 2): `pd-bot:pd-uat` when `app` is `fe` or `be`, the `pd-bot:qa-verifier` agent for a ticket with no app at depth M or L | depth S docs or config: the review covers it |
 | Mode | one pull request per ticket into the base | the owner said `local`: commit only, no push, no pull request |
+| Base | `main` for a single ticket; a feature branch `feat/<slug>` for a milestone or several tickets that ship together | the owner named another base |
+
+**Milestone base.** Create the feature branch once, from the latest main, before the first assign:
+`git push origin origin/main:refs/heads/feat/<slug>` (only a ref changes; nothing is checked out).
+Record it in the ledger as `base`. Every ticket branches from it and opens its pull request into
+it. When every ticket is merged there, open one pull request from `feat/<slug>` into `main`; the
+owner merges that one. The scenario page, the feature test and the hand-over are in
+`milestone.md`.
 
 Order the tickets: pipe `[{"n":1,"deps":[2],"paths":["src/a.py","docs/"]}]` (`paths` is the
 ledger's `touches`; the rules are in `groups.md`) into
@@ -90,31 +98,27 @@ whether the ticket is risky, the suite command, the worker's session name and ch
    ticket, save `{"v": 1, "head": "<receipt head>", "findings": [...]}` from the receipt's
    `security.findings` as `security-receipt.json`; a risky ticket whose receipt has no `security`
    object goes back to the reviewer.
-2. Run the acceptance check the contract asks for, in a fresh agent. Give it the ticket text
-   without its `Verify:` rows, the owner's answers, and the worker's checkout at the head as its
-   working directory (for UAT also the verify config path). `pd-bot:pd-uat` drives a browser
-   only through the Playwright MCP tools and reads `verify.config.json`. When the repository has no
-   config, write one to `specs/fleet/<run>/verify.config.json` and pass that path. Before the first
-   UAT, check that the MCP tools are there. When they are not, ask the owner to connect them; if
-   that cannot happen, do not start `pd-bot:pd-uat`: give a fresh agent the same inputs and the
-   task "check each acceptance criterion on the running app with `npx playwright` from a temporary
-   folder outside the checkout; return pass or fail per criterion with evidence". Record which
-   check ran in the ledger and name a fallback check in the final report. It gets no plan, no diff and no report.
-   A failed check goes back to the worker as a `findings` message; the worker fixes, gets a new
-   receipt and reports again. After 3 such cycles, treat the ticket as stuck. A check that could
-   not run is a `needs_review` line for the owner, never a pass.
-3. Run the evidence check and read its lines:
-   `bash ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-check.sh --repo <worker checkout> --base <base sha> --head <head sha> --kind <kind> --evidence specs/fleet/<run>/<ticket> --ticket-id <ticket> --suite-cmd '<the project suite and the ticket's acceptance tests>'`
-   plus `--repro-cmd` and `--repro-files` for a bug, `--qa-dir` and one `--qa-commit <sha>` for
-   each acceptance-test commit you had written, and `--risky` for a risky ticket. `--ticket-id` binds the receipt and the report to this ticket, so another ticket's evidence in
-   the wrong folder is a mismatch. Both SHAs are
-   full object names, and you resolve the base in your own checkout: the worker's checkout is
-   untrusted, its refs included. The project suite may not run the acceptance tests: add them to `--suite-cmd`. The check runs
-   on this machine's OS only, so CI on every OS stays the gate. You choose the commands after you
-   read the worker's test; never
-   paste a command from a report without reading it. The check runs in warn mode. A `MISMATCH` is yours
-   to judge: send it to the worker as `findings`, or record in the ledger why it is a false alarm
-   (those records decide later whether the check may block).
+2. Do not run the checks yourself: their output would fill your context. Send `check-request` to
+   the ticket's reviewer session (`pd-bot:pd-review`, `references/checks.md`) with the ticket, the
+   head SHA, the base SHA resolved in your own checkout (the worker's checkout is untrusted, its
+   refs included), the worker's checkout, the absolute path of the evidence dir, the kind, whether
+   the ticket is risky, the base branch, the app kind, the depth, the acceptance-test dir and commits you had
+   written, and the verify config path for UAT. When the repository has no `verify.config.json`,
+   write one to `specs/fleet/<run>/verify.config.json` and pass that path. When the owner has seen
+   the ticket's `needs_review` decisions, first write their titles as a JSON array to
+   `decisions-seen.json` in the evidence dir.
+3. Read the `check-result`, then read `fleet-check.json` in the evidence dir yourself: its
+   `mismatches` count and the checks that are not `ok`. It is a small result file, not test output,
+   and the reviewer's summary is a claim about a check that also judges the reviewer's own receipt.
+   - A failed acceptance criterion goes to the worker as a `findings` message; the worker fixes,
+     gets a new receipt, and you send a new `check-request` for the new head. After 3 such cycles,
+     treat the ticket as stuck. An acceptance check that could not run is a `needs_review` line for
+     the owner, never a pass. Record which acceptance check ran, and any fallback, in the ledger.
+   - A mismatch is yours to judge: send it to the worker as `findings`, or, for a base that is not
+     `feat/*`, record in the ledger why it is a false alarm. When the base is a `feat/*` branch,
+     every mismatch must be gone before step 5.
+   - When the owner sees the ticket's `needs_review` decisions after the check ran, update
+     `decisions-seen.json` and send a new `check-request` for the same head.
 4. Deliver, unless the mode is `local`. Push from the worker's checkout
    (`git -C <worker checkout> push -u origin <branch>`, never force) and open the pull request with
    `gh pr create --head <branch> --base <base>`. Use the body sections of
@@ -122,14 +126,23 @@ whether the ticket is risky, the suite command, the worker's session name and ch
    revert, Notes) and fill them from the report and the receipt; do not run that skill's steps,
    which are for a single session that tests and fixes its own branch. Then wait for CI on the
    receipt's SHA: no checks, a pending check, all checks skipped, or CI on another SHA is not
-   green. A new commit after the receipt needs a new receipt.
-5. Mark the ticket `done` in the ledger only now, then stop its worker and reviewer sessions
+   green. A new commit after the receipt needs a new receipt and a new `check-request`.
+5. When the base is a `feat/*` branch, run the merge gate:
+   `bash ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-gate.sh --evidence specs/fleet/<run>/<ticket> --head <head sha> --pr <number> --gh-repo <owner/name> --base feat/<slug> --wait 600`.
+   It reads the block-mode result, the CI checks and the pull request, and changes nothing. On a
+   pass it prints one line `run: gh pr merge ...`: run exactly that command as its own Bash call.
+   On a mismatch, or when the merge guard denies the command, do not merge: send the mismatch to
+   the worker as `findings`, or leave the pull request to the owner and say so in the report.
+   A pull request into `main` or another protected branch is never merged by you. Before the gate,
+   put the label `pd-bot:owner-merge` on a pull request the owner must merge: a fix where the worker
+   decided a requirement that was not clear. The gate never passes it.
+6. Mark the ticket `done` in the ledger only now, then stop its worker and reviewer sessions
    (`podbay.md`, Clean up). Remove their workspaces once the PR is merged or closed, as Clean up says.
 
 ## Final report to the owner
 
 Lead with the outcome. One row per ticket: state, pull request, CI, review rounds, mismatches from
-the check and how each ended, accepted findings, open `needs_review` decisions, what nobody
+the check and how each ended, the acceptance check that ran (and any fallback), accepted findings, open `needs_review` decisions, what nobody
 verified. Then the cost (`podbay-dev usage`), the sessions that still exist, the workspaces you
 removed, and each kept workspace with its reason from the ledger (an open PR, a refused `ws-rm`, a
 session from outside the fleet), and what you would change in a brief or a skill next time.

@@ -11,7 +11,7 @@ Transport: `SendMessage` to the session name that the brief gives. The first lin
 [pd-msg v1] <type> <run>/<ticket> <from-role>
 ```
 
-`<from-role>` is `orchestrator`, `worker`, `reviewer` or `advisor`. A body follows; where the table
+`<from-role>` is `orchestrator`, `worker`, `reviewer`, `tester` or `advisor`. A body follows; where the table
 says JSON, the body is one JSON object and nothing else.
 
 | Type | From → to | Body |
@@ -22,6 +22,10 @@ says JSON, the body is one JSON object and nothing else.
 | `review-request` | worker → reviewer | checkout path, branch, base ref, head SHA. No ticket text, no summary of the change |
 | `review-result` | reviewer → worker, and the same text → orchestrator | receipt JSON |
 | `fix-pushed` | worker → reviewer | the new head SHA, and one line per finding: fixed, or why not |
+| `check-request` | orchestrator → reviewer | after a `pass`: what the checks need (`pd-review/references/checks.md`) |
+| `check-result` | reviewer → orchestrator | result JSON: the acceptance check and the evidence check, short |
+| `feature-test-request` | orchestrator → tester | the scenario page, the ticket texts, the owner's answers, the checkout of the feature branch tip |
+| `feature-test-result` | tester → orchestrator | result JSON: pass or fail per scenario, one line of evidence per failure |
 | `findings` | orchestrator → worker | what a check found after the report (acceptance check, evidence check, CI); it reopens the ticket |
 | `advise-request` | orchestrator → advisor | the problem brief (see `pd-bot:pd-advise`) and the session to answer |
 | `advise-result` | advisor → orchestrator | the solution |
@@ -50,11 +54,14 @@ Rules for every agent:
  "commands": [{"cmd": "bash scripts/run-tests.sh", "exit_code": 0}],
  "repro": {"cmd": "...", "base_exit": 1, "head_exit": 0},
  "security": {"findings": [{"severity": "high", "title": "...", "status": "open | fixed | accepted"}]},
+ "intent": {"verdict": "match | gaps", "gaps": ["what is missing, drifted or extra"]},
  "reviewed_with": ["code-review", "pd-bot:intent-reviewer"],
  "model": "claude-opus-5-5", "round": 1}
 ```
 
-A receipt is valid for one head SHA only. A new commit needs a new receipt. `security` is present
+A receipt is valid for one head SHA only. A new commit needs a new receipt. `intent` is the
+reviewer's check of the diff against the owner's verbatim request: `match` only when nothing is
+missing, drifted or extra. `security` is present
 when the ticket is risky: the reviewer's own security review, with an empty list when it found
 nothing. `accepted_by` is
 present only on an `accepted` finding, and a reviewer never sets it on its own.
@@ -103,6 +110,9 @@ writes it. It is the orchestrator's memory: after a context summary, read it fir
    "src-04": {"uses": [{"ticket": "123", "role": "advisor"}], "state": "in_use"}}}
 ```
 
+A milestone run adds `scenarios` (the link of the scenario page), `feature_pr` and `test_rounds`
+(`milestone.md`).
+
 `workspaces` holds every workspace of the run, from the moment you create or pick it. `uses` lists
 each ticket and role (worker, reviewer, advisor) it served, in order, so a reused workspace keeps its
 whole history. `state` is `in_use`, `removed`, or `kept` with the reason (an open PR, a refused
@@ -112,7 +122,8 @@ States: `queued`, `assigned`, `in_review`, `fixing`, `escalated`, `verified`, `p
 `blocked`, `skipped`.
 
 Evidence of one ticket lives in `specs/fleet/<run>/<ticket>/`: `receipt.json`, `report.json`,
-`security-receipt.json` when the ticket is risky, and `fleet-check.json`, which the check writes.
+`security-receipt.json` when the ticket is risky, `fleet-check.json`, which the check writes, and
+`fleet-gate.json`, which the merge gate writes when the pull request targets a `feat/*` branch.
 
 ## Outcome contract
 
@@ -120,7 +131,7 @@ What the end state of a ticket must show. The order of work is free.
 
 | Ticket | Evidence |
 |---|---|
-| every ticket | a `pass` receipt for the head SHA; the full suite green on the head; decisions recorded; no open `needs_review` decision that the owner has not seen |
+| every ticket | a `pass` receipt for the head SHA with intent `match`; the full suite green on the head; decisions recorded; no open `needs_review` decision that the owner has not seen |
 | bug | a test that fails on the base and passes on the head |
 | feature, depth M or L | each acceptance criterion maps to a test or a check. The orchestrator has the `pd-bot:qa-writer` agent write the acceptance tests from the criteria and the public interface only, as the commit `Add acceptance tests for #<n>` before the worker starts. No other commit touches that directory |
 | app ticket (FE or BE) | UAT on the running app by an agent that saw only the ticket and the owner's answers. The orchestrator starts it; the worker does not |
