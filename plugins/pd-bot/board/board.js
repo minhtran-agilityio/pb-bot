@@ -364,7 +364,8 @@ function podsOf(raw) {
   const r = raw || {};
   const queued = new Map();
   for (const m of perMachine(r.queue)) for (const q of m.result) {
-    if (q && q.finished == null && q.dir) queued.set(`${m.machine}|${q.dir}`, (queued.get(`${m.machine}|${q.dir}`) || 0) + 1);
+    // Only messages still in the line: `unknown` and `sending` entries also have no `finished`.
+    if (q && q.dir && (q.state ? q.state === 'queued' : q.finished == null)) queued.set(`${m.machine}|${q.dir}`, (queued.get(`${m.machine}|${q.dir}`) || 0) + 1);
   }
   const checkout = new Map(), wsSeen = new Map();
   for (const m of perMachine(r.checkouts)) for (const c of m.result) {

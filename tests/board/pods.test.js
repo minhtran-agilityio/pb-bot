@@ -64,7 +64,8 @@ const RAW = {
     { machine: 'U0', result: [{ project: 'harness', repo: 'agent-harness', ws: 'src', branch: 'main', dirty: 0, has_conversation: true }] },
   ],
   machines: [{ machine: 'UA', online: true, id: 'ID-SECRET', addr: '10.0.0.1:7880' }, { machine: 'Old', online: false }],
-  queue: [{ machine: 'UA', result: [{ dir: '/d/02', finished: null }, { dir: '/d/02', finished: 123 }] }],
+  queue: [{ machine: 'UA', result: [{ dir: '/d/02', finished: null }, { dir: '/d/02', finished: 123 },
+    { dir: '/d/02', state: 'unknown', finished: null }, { dir: '/d/02', state: 'delivered', finished: 5 }] }],
 };
 
 test('wsOf: src for a plain context, src-NN for @NN', () => {
