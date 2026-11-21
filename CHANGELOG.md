@@ -7,8 +7,14 @@ file. Versions change only in the release PR (see the release section of `AGENTS
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-11-21
+
 - Fixed: two tests that failed on a busy machine (P7). The clean-worktrees "item 2" time-budget case now uses a 10s budget, because the scan of every process's working directory alone took over 3s with about 2000 processes. The board-start `--no-open` case now waits up to 10s for the board to answer, because node can start after the 3s that `board-start.sh` waits. Tests only; no hook or script changed.
 - Fixed: the pd-autopilot preflight step was denied by `merge-guard.sh` when an agent appended `; echo "exit=$?"`: the letters gh (in "preflight"), pr (in "myprojects") and the `$` match the guard's pre-filter. `SKILL.md` step 1 and `references/preflight.md` now say to run the command exactly as written, with nothing appended. When the denied command holds no merge, the wrapper denial now says it matched the letters g-h..p-r..$ instead of "mentions merge in text", with the same workaround. What the guard denies is unchanged (P9).
+- test: make the time-budget and board-start --no-open cases hold on a busy machine (P7) (PR #8)
+- feat: Pod Board desktop app for Pod Bay sessions (PR #24)
+- feat(board): Pod Bay sessions view at /pods (PR #9)
+- fix(merge-guard): say what matched when a denied command holds no merge; run preflight as written (P9) (PR #25)
 
 ## [0.2.0] — 2026-11-21
 
