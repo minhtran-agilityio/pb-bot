@@ -306,7 +306,7 @@ function compareIds(a, b) {
 const orNull = v => (v === undefined ? null : v);
 
 // Milestone fields (protocol.md, Ledger). A value of the wrong type counts as absent.
-const scalarOf = v => (typeof v === 'string' && v !== '' ? v : null);
+const scalarOf = v => (typeof v === 'string' && v.trim() !== '' ? v : null);
 const prOf = v => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const idOf = v => (typeof v === 'number' && Number.isFinite(v)) || (typeof v === 'string' && v !== '');
 // [{round, failed: [ids], tickets: [numbers]}] -> the entries that have this shape; others are dropped.
