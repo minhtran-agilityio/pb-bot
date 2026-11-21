@@ -211,6 +211,17 @@ t "a --base of main exits 2"; u --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo
 t "a --base of bare feat/ exits 2"; u --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo o/r --base feat/; rc_is 2
 t "a --base with a shell character exits 2"; u --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo o/r --base 'feat/x;y'; rc_is 2
 t "an unknown option exits 2"; u --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo o/r --force; rc_is 2
+for h in --help -h; do
+  t "$h prints the usage to stdout, exits 0 and writes nothing to stderr"
+  OUT=$(FAKE="$FAKE" PATH="$BIN:$PATH" bash "$FG" "$h" 2>"$FAKE/h.err"); RC=$?
+  if [ "$RC" = 0 ] && printf '%s' "$OUT" | grep -q '^usage: fleet-gate.sh' && [ ! -s "$FAKE/h.err" ]; then pass; else fail "rc=$RC out: $OUT err: $(cat "$FAKE/h.err")"; fi
+  t "$h runs no check (no result file)"
+  rm -f "$EV/fleet-gate.json"; u "$h" --evidence "$EV" --head "$HEAD" --pr 1 --gh-repo o/r --base feat/x
+  if [ "$RC" = 0 ] && [ ! -e "$EV/fleet-gate.json" ]; then pass; else fail "rc=$RC out: $OUT"; fi
+done
+t "a usage error still prints to stderr, not stdout"
+OUT=$(FAKE="$FAKE" PATH="$BIN:$PATH" bash "$FG" --bogus 2>/dev/null); RC=$?
+if [ "$RC" = 2 ] && [ -z "$OUT" ]; then pass; else fail "rc=$RC stdout: $OUT"; fi
 t "a usage error calls gh zero times"; if [ -f "$FAKE/calls" ]; then fail "calls: $(cat "$FAKE/calls")"; else pass; fi
 
 finish
