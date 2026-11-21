@@ -20,6 +20,7 @@
 # that is acceptable.
 #
 # Usage:
+#   fleet-check.sh -h|--help
 #   fleet-check.sh --repo <checkout> --base <40|64 hex> --head <40|64 hex> --kind bug|feature|docs
 #                  --evidence <dir> [--repro-cmd '<cmd>' --repro-files 'path path']
 #                  [--suite-cmd '<cmd>' | --no-suite] [--qa-dir <path> --qa-commit <sha> ...]
@@ -29,11 +30,15 @@
 # whose title is not in the file stays a mismatch, so a decision added later is never set aside.
 # Output: one line per check (`ok|MISMATCH|skip <name>: <detail>`), <evidence>/fleet-check.json, and
 # the last line `fleet-check: <n> mismatch(es), mode <mode>`.
-# Exit: 2 on a usage error; 0 in warn mode; in block mode 1 when there is a mismatch.
+# -h|--help, read as its own argument, prints the usage to stdout and exits 0, even after other
+# options (`--repo R ... -h`): no check runs and no result file is written. An earlier unknown
+# argument, a missing value or an invalid --qa-commit value is still a usage error (exit 2).
+# Exit: 2 on a usage error; 0 in warn mode, and also when -h/--help was given (no check run, no result
+# file written); in block mode 1 when there is a mismatch.
 # Needs git and jq; without jq the JSON-reading checks report a MISMATCH.
 set -u
 
-usage_text() { echo "usage: fleet-check.sh --repo <dir> --base <sha> --head <sha> --kind bug|feature|docs --evidence <dir> [--repro-cmd C --repro-files 'p ...'] [--suite-cmd C | --no-suite] [--qa-dir P --qa-commit SHA ...] [--ticket-id ID] [--risky] [--decisions-seen FILE] [--mode warn|block]"; }
+usage_text() { echo "usage: fleet-check.sh [-h|--help] --repo <dir> --base <sha> --head <sha> --kind bug|feature|docs --evidence <dir> [--repro-cmd C --repro-files 'p ...'] [--suite-cmd C | --no-suite] [--qa-dir P --qa-commit SHA ...] [--ticket-id ID] [--risky] [--decisions-seen FILE] [--mode warn|block]"; }
 usage() { echo "fleet-check: $*" >&2; usage_text >&2; exit 2; }
 
 lower() { printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]'; }
