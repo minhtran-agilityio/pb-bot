@@ -21,6 +21,8 @@ pub struct Session {
     pub branch: String,
     pub prs: usize,
     pub queued: usize,
+    /// "podbay" for a Pod Bay session, "claude" for a Claude session on this computer that Pod Bay does not know.
+    pub source: &'static str,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -62,6 +64,8 @@ pub struct Raw {
     pub checkouts: Value,
     pub machines: Value,
     pub queue: Value,
+    /// `claude agents --json` on this computer: its active Claude sessions.
+    pub local: Value,
 }
 
 fn text(v: &Value) -> String {
@@ -118,6 +122,18 @@ fn state_of(s: &Value) -> &'static str {
     if truthy(&s["asks"]) || s["status"].is_null() {
         "needs"
     } else if s["status"] == "busy" {
+        "busy"
+    } else {
+        "idle"
+    }
+}
+
+/// `claude agents` reports "busy" and "idle"; a status that names waiting, input, a question or a permission needs a human.
+fn local_state(status: &str) -> &'static str {
+    let s = status.to_ascii_lowercase();
+    if ["wait", "input", "ask", "permission", "question", "blocked"].iter().any(|w| s.contains(w)) {
+        "needs"
+    } else if s == "busy" || s == "running" || s == "working" {
         "busy"
     } else {
         "idle"
@@ -183,9 +199,44 @@ pub fn build(raw: &Raw) -> Model {
                 machine: machine.clone(),
                 project,
                 ws,
+                source: "podbay",
             });
         }
     }
+
+    // Claude sessions on this computer that Pod Bay does not list (for example one opened in the desktop app).
+    // Only the folder's last name is kept: the path never leaves this module.
+    let me = raw
+        .machines
+        .as_array()
+        .and_then(|list| list.iter().find(|m| m["me"] == Value::Bool(true)))
+        .map(|m| text(&m["machine"]))
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| "this computer".to_string());
+    if let Some(list) = raw.local.as_array() {
+        for s in list {
+            let name = cut(&text(&s["name"]), NAME_CHARS);
+            if name.is_empty() || sessions.iter().any(|p| p.machine == me && p.title == name) {
+                continue;
+            }
+            let cwd = text(&s["cwd"]);
+            let folder = cwd.trim_end_matches('/').rsplit('/').next().unwrap_or("").to_string();
+            sessions.push(Session {
+                machine: me.clone(),
+                project: folder,
+                ws: String::new(),
+                title: name,
+                state: local_state(&text(&s["status"])),
+                since: s["startedAt"].as_i64().unwrap_or(0),
+                what: String::new(),
+                branch: String::new(),
+                prs: 0,
+                queued: 0,
+                source: "claude",
+            });
+        }
+    }
+
     // Needs-you and busy: the longest wait first. Idle: the most recent first.
     sessions.sort_by(|a, b| {
         rank(a.state)
@@ -282,7 +333,40 @@ mod tests {
                 {"dir": "/d/02", "finished": null}, {"dir": "/d/02", "finished": 123},
                 {"dir": "/d/02", "state": "unknown", "finished": null}, {"dir": "/d/02", "state": "delivered", "finished": 5}
             ]}]),
+            local: Value::Null,
         }
+    }
+
+    #[test]
+    fn local_claude_sessions_join_without_duplicates_or_paths() {
+        let mut r = raw();
+        r.machines = json!([{"machine": "UA", "me": true, "online": true}]);
+        r.local = json!([
+            {"name": "Busy", "cwd": "/home/someone/secret/pb-bot", "status": "busy", "startedAt": 7000, "pid": 1},
+            {"name": "Desktop chat", "cwd": "/home/someone/secret/notes", "status": "waiting_for_input", "startedAt": 6000, "pid": 2},
+            {"name": "Background job", "cwd": "/home/someone/secret/app/", "status": "idle", "startedAt": 8000, "kind": "background"},
+            {"name": "", "cwd": "/x", "status": "busy"}
+        ]);
+        let m = build(&r);
+        let local: Vec<(&str, &str, &str, &str)> = m.sessions.iter().filter(|s| s.source == "claude")
+            .map(|s| (s.title.as_str(), s.state, s.project.as_str(), s.machine.as_str())).collect();
+        assert_eq!(local, vec![("Desktop chat", "needs", "notes", "UA"), ("Background job", "idle", "app", "UA")],
+            "a Pod Bay session with the same name on this machine is not repeated; an unnamed one is skipped");
+        assert_eq!(m.counts.needs, 4);
+        let body = serde_json::to_string(&m).unwrap();
+        assert!(!body.contains("/home/someone"), "a path reached the model");
+        assert!(m.sessions.iter().filter(|s| s.source == "podbay").count() == 6);
+    }
+
+    #[test]
+    fn local_sessions_name_this_computer_when_pod_bay_is_silent() {
+        let r = Raw { local: json!([{"name": "Solo", "cwd": "/a/b", "status": "idle"}]), ..Raw::default() };
+        let m = build(&r);
+        assert_eq!(m.sessions.len(), 1);
+        assert_eq!(m.sessions[0].machine, "this computer");
+        assert_eq!(local_state("busy"), "busy");
+        assert_eq!(local_state("Needs-Permission"), "needs");
+        assert_eq!(local_state("something new"), "idle");
     }
 
     #[test]
@@ -341,7 +425,7 @@ mod tests {
     #[test]
     fn missing_or_odd_input_gives_an_empty_model() {
         assert_eq!(build(&Raw::default()), Model::default());
-        let odd = Raw { ls: json!("x"), checkouts: json!([{"machine": "A", "result": "err"}]), machines: json!({}), queue: Value::Null };
+        let odd = Raw { ls: json!("x"), checkouts: json!([{"machine": "A", "result": "err"}]), machines: json!({}), queue: Value::Null, local: json!({}) };
         assert_eq!(build(&odd), Model::default());
     }
 

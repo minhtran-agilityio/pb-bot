@@ -166,6 +166,7 @@
   .what.fallback { font-style: italic; color: hsl(var(--muted-fg)); }
   .meta { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
   .tag { padding: 1px 8px; border-radius: 999px; background: hsl(var(--butter)); color: hsl(var(--cocoa)); font: 700 11px 'Pod Sans', system-ui, sans-serif; }
+  .tag.src { background: hsl(var(--sky)); }
   .compact .row { padding: 7px 12px; }
   .row .mono { font-size: 11px; }
   .pill { display: inline-flex; align-items: center; gap: 7px; padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; }
@@ -290,7 +291,8 @@ function row(s, big) {
   else { const t = el('span', 'when tab', ago(s.since)); t.dataset.ago = s.since || ''; top.append(t); }
   li.append(top);
   if (s.state !== 'idle' || big) li.append(s.what ? el('p', 'what', s.what) : el('p', 'what fallback', s.branch ? `branch ${s.branch}` : 'no description'));
-  const meta = el('p', 'meta mono'); meta.append(el('span', null, `${s.project}/${s.ws} · ${s.machine}`));
+  const meta = el('p', 'meta mono'); meta.append(el('span', null, `${place(s)} · ${s.machine}`));
+  if (s.source === 'claude') meta.append(el('span', 'tag src', 'Claude'));
   if (big && s.prs) meta.append(el('span', null, `· ${s.prs} PR`));
   if (s.queued) meta.append(el('span', 'tag', `${s.queued} queued`));
   li.append(meta);
@@ -343,13 +345,17 @@ function stoppedStrip() {
   return box;
 }
 
+// Pod Bay sessions name their workspace (project/src-NN); a Claude session outside Pod Bay has only its folder.
+const place = s => (s.ws ? `${s.project}/${s.ws}` : s.project);
+
 function listRow(s) {
   const key = `${s.machine}|${s.title}`;
   const r = el('div', `lrow ${s.state}`); r.dataset.key = key;
   if (!first && prev.has(key) && prev.get(key) !== s.state) r.classList.add('flash');
   const ti = el('span', 'lt'); const si = el('span', `sic ${s.state}`); si.append(ic(STATES[s.state][1])); ti.append(si, el('span', null, s.title));
   const what = s.what ? el('span', 'lw', s.what) : el('span', 'lw fallback', s.branch ? `branch ${s.branch}` : 'no description');
-  const where = el('span', 'lp mono', `${s.project}/${s.ws} · ${s.machine}`);
+  const where = el('span', 'lp mono', `${place(s)} · ${s.machine}`);
+  if (s.source === 'claude') where.append(' ', el('span', 'tag src', 'Claude'));
   if (s.queued) where.append(' ', el('span', 'tag', `${s.queued} queued`));
   const when = s.state === 'idle' ? el('span', 'lc tab', ago(s.since)) : el('span', 'lc wait tab', dur(s.since));
   if (s.state === 'idle') when.dataset.ago = s.since || ''; else when.dataset.since = s.since || '';
