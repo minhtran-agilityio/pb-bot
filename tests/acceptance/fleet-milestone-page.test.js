@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 // Acceptance tests for #16 "board /fleet page: show the milestone fields of the ledger": the page criteria
-// (AC4, AC5, AC6, AC7), in a real browser. They need Playwright; without it the file prints "skip" and exits 0, like
+// (AC2, AC4, AC5, AC7), in a real browser. They need Playwright; without it the file prints "skip" and exits 0, like
 // tests/board/fleet-page.test.js. When Playwright's own Chromium is missing, the installed Google Chrome is used
 // (channel "chrome"); with neither, the file prints "skip" and exits 0.
 // Each case starts its own board through the CLI (`--port <free port> --ledger <file>`) with HOME set to a fresh
@@ -156,25 +156,48 @@ for (const plain of ['specs/m16ui/scenarios.md', 'javascript:alert(16)', 'ftp://
   });
 }
 
-// "AC6: With all three fields absent, the page shows no milestone section or empty labels (nothing extra)."
-// First the page shows a milestone ledger (so the milestone text is known to render), then the ledger is rewritten
-// without the three fields and the page, after its own refresh, must show none of that text and no milestone label.
-const LABELS = /\bscenarios?\b|\bfeature[ _-]?pr\b|\btest[ _-]?rounds?\b|\brounds?\b/i;
-test('AC6: with all three fields absent the page shows no milestone section and no empty labels', async browser => {
-  const file = ledgerFile(ledger(MILESTONE));
-  const f = await openFleet(browser, file);
+// Ticket #16, criterion 2: "The `/fleet` page shows the feature PR number, the scenario link and one line per test
+// round (round, failed count, ticket numbers) when present, and nothing extra when absent."
+// The same ledger is shown on two fresh boards: once with the three fields, once without them. The milestone section
+// is the smallest element that holds the feature PR number, the scenarios value and every round's tickets, and no
+// ticket row. With the fields absent, the page must show none of that section's lines (so no label is left empty)
+// and no line of its own that the page with the fields does not show (no placeholder such as "none" or "-").
+const linesOf = t => t.split('\n').map(l => l.trim()).filter(Boolean);
+function milestoneSection({ want, rowText }) {
+  let best = null;
+  for (const el of document.body.querySelectorAll('*')) {
+    const t = el.innerText || '';
+    if (!want.every(w => t.includes(w)) || t.includes(rowText)) continue;
+    if (!best || best.contains(el)) best = el;
+  }
+  return best ? best.innerText : null;
+}
+test('AC2: with all three fields absent the page shows nothing extra (no milestone lines, no empty labels)', async browser => {
+  const present = await openFleet(browser, ledgerFile(ledger(MILESTONE)));
+  let section, presentText;
   try {
-    await waitText(f.page, String(FEATURE_PR), 'the feature PR number of the milestone ledger');
-    fs.writeFileSync(file, JSON.stringify(ledger({}), null, 2));
-    await f.page.waitForFunction(v => !document.body.innerText.includes(v), String(FEATURE_PR), { timeout: 8000 })
-      .catch(() => { throw new Error('the milestone section did not go away after the fields were removed from the ledger'); });
+    await waitText(present.page, String(FEATURE_PR), 'the feature PR number of the milestone ledger');
+    await waitText(present.page, '503', 'the ticket numbers of the last round');
+    section = await present.page.evaluate(milestoneSection,
+      { want: [String(FEATURE_PR), MILESTONE.scenarios, '501', '502', '503'], rowText: TICKETS['14'].worker.session });
+    presentText = await present.page.evaluate(() => document.body.innerText);
+  } finally { await present.stop(); }
+  const absent = await openFleet(browser, ledgerFile(ledger({})));
+  let absentText;
+  try {
     await sleep(500);
-    const text = await f.page.evaluate(() => document.body.innerText);
-    assert.ok(text.includes(TICKETS['14'].worker.session), 'the ticket rows are gone');
-    for (const s of [MILESTONE.scenarios, '501', '502', '503']) assert.ok(!text.includes(s), `the page still shows ${s}`);
-    const m = text.match(LABELS);
-    assert.ok(!m, `the page shows a milestone label with all three fields absent: ${JSON.stringify(m && m[0])}`);
-  } finally { await f.stop(); }
+    absentText = await absent.page.evaluate(() => document.body.innerText);
+  } finally { await absent.stop(); }
+  assert.ok(!absentText.includes(MILESTONE.scenarios), 'the page without the fields still shows the scenarios value');
+  for (const n of [String(FEATURE_PR), '501', '502', '503']) assert.ok(!tok(absentText, n), `the page without the fields still shows ${n}`);
+  const absentLines = linesOf(absentText);
+  if (section) {
+    const left = linesOf(section).filter(l => absentLines.includes(l));
+    assert.deepStrictEqual(left, [], `the page without the fields still shows milestone lines: ${JSON.stringify(left)}`);
+  }
+  const presentLines = linesOf(presentText);
+  const extra = absentLines.filter(l => !presentLines.includes(l) && !/[0-9]/.test(l));
+  assert.deepStrictEqual(extra, [], `the page without the fields shows text the page with them does not: ${JSON.stringify(extra)}`);
 });
 
 // "AC7: Any ledger text (scenarios, round values, failed ids, ticket numbers) is set with textContent or equivalent,
