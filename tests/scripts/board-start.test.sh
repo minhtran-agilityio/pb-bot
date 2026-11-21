@@ -34,6 +34,9 @@ opens() { grep -c . "$work/opened.log" 2>/dev/null || echo 0; }
 # run_in <project dir> <args...>: a display is set, SSH is not.
 run_in() { local d=$1; shift; ( cd "$d" && env -u SSH_CONNECTION -u WAYLAND_DISPLAY TMPDIR="$work/tmp" DISPLAY=:0 PATH="$work/bin:$PATH" bash "$start" "$@" 2>&1 ); }
 status() { curl -s -m 3 -o /dev/null -w '%{http_code}' "$1/state.json"; }
+# up <url>: the board answers 200 within 10s. board-start.sh waits only 3s for the board's URL line; on a
+# busy machine node can start later, and the board still comes up in the background (P7).
+up() { local _; for _ in $(seq 1 50); do [ "$(status "$1")" = "200" ] && return 0; sleep 0.2; done; return 1; }
 
 if [ ! -f "$start" ]; then
   bad "board-start.sh exists" "missing $start"
@@ -86,7 +89,7 @@ out=$(run_in "$work/proj1" --stop); rc=$?
 rm -f "$work/opened.log"
 out=$(run_in "$work/proj1" --port "$port" --no-open); rc=$?
 [ "$rc" -eq 0 ] && [ "$(opens)" = "0" ] && ok "--no-open makes no opener call" || bad "--no-open makes no opener call" "rc=$rc opens=$(opens)"
-[ "$(status "http://127.0.0.1:$port")" = "200" ] && ok "--no-open still starts the board" || bad "--no-open still starts the board"
+up "http://127.0.0.1:$port" && ok "--no-open still starts the board" || bad "--no-open still starts the board"
 run_in "$work/proj1" --stop >/dev/null
 
 # 7. No display (Linux): no opener call, the URL is printed. macOS uses `open` without X, so skip there.

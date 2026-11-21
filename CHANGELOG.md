@@ -7,6 +7,8 @@ file. Versions change only in the release PR (see the release section of `AGENTS
 
 ## [Unreleased]
 
+- Fixed: two tests that failed on a busy machine (P7). The clean-worktrees "item 2" time-budget case now uses a 10s budget, because the scan of every process's working directory alone took over 3s with about 2000 processes. The board-start `--no-open` case now waits up to 10s for the board to answer, because node can start after the 3s that `board-start.sh` waits. Tests only; no hook or script changed.
+
 ## [0.2.0] — 2026-11-21
 
 - `merge-guard.sh` now denies spellings that bash turns into `gh`, `merge` or a wrapper: brace expansion, a glob or brace in the gh words, octal, hex and unicode escapes (decoded before matching), `GH`/`Gh` and `Bash`/`SH`, a gh name built from variable slices, and any merge-like command with a backslash line break. Without jq it checks the command field only (P5).
