@@ -30,8 +30,9 @@
 # whose title is not in the file stays a mismatch, so a decision added later is never set aside.
 # Output: one line per check (`ok|MISMATCH|skip <name>: <detail>`), <evidence>/fleet-check.json, and
 # the last line `fleet-check: <n> mismatch(es), mode <mode>`.
-# -h|--help: print the usage to stdout and exit 0. It wins over every other option, wherever it stands
-# (`--repo R ... -h` exits 0): no check runs and no result file is written.
+# -h|--help, read as its own argument, prints the usage to stdout and exits 0, even after other
+# options (`--repo R ... -h`): no check runs and no result file is written. An earlier unknown
+# argument or a missing value is still a usage error (exit 2).
 # Exit: 2 on a usage error; 0 in warn mode, and also when -h/--help was given (no check run, no result
 # file written); in block mode 1 when there is a mismatch.
 # Needs git and jq; without jq the JSON-reading checks report a MISMATCH.

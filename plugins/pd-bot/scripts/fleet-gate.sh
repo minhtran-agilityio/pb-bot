@@ -28,8 +28,9 @@
 # Output: one line per check (`ok|MISMATCH <name>: <detail>`), <evidence>/fleet-gate.json, on a pass
 # the line `run: gh pr merge ...`, and the last line `fleet-gate: pass` or
 # `fleet-gate: <n> mismatch(es)`.
-# -h|--help: print the usage to stdout and exit 0. It wins over every other option, wherever it stands
-# (`--evidence D ... -h` exits 0): no check runs and no result file is written.
+# -h|--help, read as its own argument, prints the usage to stdout and exits 0, even after other
+# options (`--evidence D ... -h`): no check runs and no result file is written. An earlier unknown
+# argument or a missing value is still a usage error (exit 2).
 # Exit: 0 on a pass, or when -h/--help was given (no check run, no result file written); 1 on a
 # mismatch; 2 on a usage error. Needs gh and jq.
 set -u
