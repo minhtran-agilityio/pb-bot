@@ -51,13 +51,15 @@
 
   /* Sidebar */
   .side { position: sticky; top: 16px; height: calc(100vh - 32px); display: flex; flex-direction: column; gap: 16px; padding: 16px; min-width: 0;
-    border-radius: 32px; background: hsl(var(--sage)); border: 1px solid var(--edge); box-shadow: var(--shadow-clay); overflow: hidden auto; scrollbar-width: none; }
-  .side::-webkit-scrollbar { display: none; }
+    border-radius: 32px; background: hsl(var(--sage)); border: 1px solid var(--edge); box-shadow: var(--shadow-clay); overflow: hidden; }
   .brand { display: flex; align-items: center; gap: 12px; padding: 0 4px; }
   .brand .logo { flex: none; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 14px; background: hsl(var(--sage-deep)); box-shadow: var(--shadow-clay); font-size: 22px; }
   .brand b { display: block; font-size: 18px; font-weight: 700; line-height: 1.2; }
   .brand small { color: hsl(var(--cocoa) / .6); font-size: 12px; }
-  .nav { position: relative; display: flex; flex-direction: column; gap: 4px; }
+  /* The list scrolls by itself, so the status card at the bottom always stays in view. */
+  .nav { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 4px; overflow: hidden auto; scrollbar-width: none; }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav > * { flex: none; }
   .group { margin: 4px 0 0; padding: 0 12px; font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--cocoa) / .55); }
   .thumb { position: absolute; left: 0; right: 0; top: 0; height: 42px; border-radius: 20px; background: hsl(var(--paper)); box-shadow: var(--shadow-soft);
     transition: transform .32s cubic-bezier(.22, 1, .36, 1), height .32s cubic-bezier(.22, 1, .36, 1); pointer-events: none; }
@@ -70,7 +72,7 @@
   .item[data-hot="1"] .n { background: hsl(var(--terracotta)); color: hsl(var(--on-accent)); }
   .item .dot { flex: none; width: 9px; height: 9px; margin: 0 6px; border-radius: 50%; background: hsl(var(--success)); }
   .item .dot.off { background: transparent; border: 1.5px dashed hsl(var(--muted-fg)); }
-  .status { margin-top: auto; padding: 14px; border-radius: 24px; background: hsl(var(--paper) / .72); display: grid; gap: 8px; }
+  .status { flex: none; padding: 14px; border-radius: 24px; background: hsl(var(--paper) / .72); display: grid; gap: 8px; }
   #conn { display: flex; align-items: center; gap: 8px; font-weight: 700; }
   #conn i { flex: none; width: 10px; height: 10px; border-radius: 50%; background: hsl(var(--success)); }
   #conn[data-s="stale"] i, #conn[data-s="wait"] i, #conn[data-s="paused"] i { background: hsl(var(--butter-deep)); }
