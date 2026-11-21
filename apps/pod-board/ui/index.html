@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pod Board</title>
+<style>
+  :root {
+    --bg: #f7ede2; --panel: #fffaf4; --lane: #f0e3d6; --card: #fffaf4; --text: #3a2a20; --muted: #806c5e; --line: #e6d6c6;
+    --needs: #d9774f; --needs-bg: #f6d9c9; --needs-ink: #fffaf4; --busy: #7f9fc4; --busy-ink: #fffaf4; --idle: #5c8f6f;
+    --ok: #3c7d55; --warn: #b8862b; --bad: #b44a3c;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #1c1714; --panel: #241d19; --lane: #2b231e; --card: #241d19; --text: #f3e9dd; --muted: #b3a394; --line: #3a302a;
+    --needs: #e58e68; --needs-bg: #47301f; --needs-ink: #1c1714; --busy: #9db9d9; --busy-ink: #1c1714; --idle: #7fae8c;
+    --ok: #6fbf8b; --warn: #e0b45c; --bad: #e58a7c;
+  } }
+  :root[data-theme="dark"] {
+    --bg: #1c1714; --panel: #241d19; --lane: #2b231e; --card: #241d19; --text: #f3e9dd; --muted: #b3a394; --line: #3a302a;
+    --needs: #e58e68; --needs-bg: #47301f; --needs-ink: #1c1714; --busy: #9db9d9; --busy-ink: #1c1714; --idle: #7fae8c;
+    --ok: #6fbf8b; --warn: #e0b45c; --bad: #e58a7c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 ui-rounded, "SF Pro Rounded", Nunito, system-ui, sans-serif; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; color: var(--muted); }
+  header { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; padding: 10px 18px;
+    background: var(--panel); border-bottom: 1px solid var(--line); }
+  #conn { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; }
+  #conn i { width: 10px; height: 10px; border-radius: 50%; background: var(--ok); }
+  #conn[data-s="stale"] i, #conn[data-s="wait"] i, #conn[data-s="paused"] i { background: var(--warn); }
+  #conn[data-s="error"] i { background: var(--bad); }
+  #read, #counts { color: var(--muted); font-variant-numeric: tabular-nums; }
+  #counts b { color: var(--text); }
+  #pause { margin-left: auto; min-height: 32px; padding: 4px 14px; border: 0; border-radius: 999px; background: var(--lane); color: var(--text);
+    font: inherit; font-weight: 700; cursor: pointer; }
+  #banner { display: none; margin: 12px 18px 0; padding: 8px 14px; border-radius: 14px; background: var(--needs-bg); font-weight: 600; }
+  #banner.on { display: block; }
+  main { padding: 16px 18px 8px; transition: opacity .3s; }
+  main.dim { opacity: .55; }
+  .lanes { display: grid; gap: 14px; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+  @media (max-width: 760px) { .lanes { grid-template-columns: minmax(0, 1fr); } }
+  .lane { min-width: 0; padding: 12px; border-radius: 22px; background: var(--lane); }
+  .lane[data-state="needs"] { background: var(--needs-bg); }
+  .lane h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; font-size: 16px; }
+  .pill { display: inline-flex; align-items: center; gap: 7px; padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; }
+  .pill .face { font-size: 15px; line-height: 1; }
+  .pill.needs { background: var(--needs); color: var(--needs-ink); }
+  .pill.busy { background: var(--busy); color: var(--busy-ink); }
+  .pill.idle { border: 1.5px solid var(--idle); }
+  .pill.stopped { border: 1.5px dashed var(--muted); color: var(--muted); }
+  .pill.busy .face { display: inline-block; animation: jog 1.2s ease-in-out infinite; }
+  @keyframes jog { 50% { transform: translateY(-2px); } }
+  .n { font-variant-numeric: tabular-nums; }
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .card { min-width: 0; padding: 12px 14px; border-radius: 16px; background: var(--card); }
+  .card.flash { animation: flash 1.2s ease-out 1; }
+  @keyframes flash { from { box-shadow: 0 0 0 3px var(--needs); } to { box-shadow: 0 0 0 3px transparent; } }
+  .top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; font-weight: 700; }
+  .wait { flex: none; font-weight: 800; color: var(--needs); font-variant-numeric: tabular-nums; }
+  .what { margin: 3px 0 4px; color: var(--text); opacity: .85; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .what.fallback { font-style: italic; color: var(--muted); }
+  .lane[data-state="idle"] .card { padding: 8px 14px; }
+  .none { margin: 6px 4px; color: var(--muted); font-size: 13px; }
+  .tag { margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--lane); color: var(--text); font-size: 11px; font-weight: 700; }
+  #stopped { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; padding: 10px 4px; border-top: 1px solid var(--line); }
+  .chip { padding: 2px 10px; border: 1px dashed var(--muted); border-radius: 999px; }
+  .chip.off { border-style: solid; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  @media (prefers-reduced-motion: reduce) { .pill.busy .face, .card.flash { animation: none; } main { transition: none; } }
+</style>
+</head>
+<body>
+<header>
+  <span id="conn" data-s="wait"><i></i><span id="connText">Đang kết nối…</span></span>
+  <span id="read"></span>
+  <span id="counts"></span>
+  <button id="pause" type="button" aria-pressed="false">Tạm dừng</button>
+</header>
+<div id="banner" role="alert"></div>
+<p id="say" class="sr" role="status" aria-live="polite"></p>
+<main id="main">
+  <div class="lanes" id="lanes"></div>
+  <div id="stopped"></div>
+</main>
+<script>
+'use strict';
+// Read-only view of Pod Bay sessions. Data: the `pods` event and the `snapshot` command of the app. No prompts, replies or paths.
+const q = new URLSearchParams(location.search);
+if (q.get('theme') === 'light' || q.get('theme') === 'dark') document.documentElement.dataset.theme = q.get('theme');
+
+const STALE_MS = 20000, HOLD_MS = 4000;
+const LANES = [['needs', 'Chờ bạn'], ['busy', 'Đang chạy'], ['idle', 'Rảnh']];
+const FACE = { needs: '🙋', busy: '🏃', idle: '😴', stopped: '💤' };
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+function pill(state, label) {
+  const p = el('span', `pill ${state}`);
+  const face = el('span', 'face', FACE[state]); face.setAttribute('aria-hidden', 'true');
+  p.append(face, label);
+  return p;
+}
+function dur(since) {
+  if (!since) return '';
+  const m = Math.max(0, Math.round((Date.now() - since) / 60000));
+  if (m < 60) return `${m} ph`;
+  if (m < 1440) return `${Math.floor(m / 60)} g ${m % 60} ph`;
+  return `${Math.floor(m / 1440)} ng ${Math.floor(m % 1440 / 60)} g`;
+}
+const rtf = new Intl.RelativeTimeFormat('vi', { numeric: 'auto' });
+function ago(since) {
+  if (!since) return '';
+  const s = Math.round((since - Date.now()) / 1000), a = Math.abs(s);
+  if (a < 60) return rtf.format(s, 'second');
+  if (a < 3600) return rtf.format(Math.round(s / 60), 'minute');
+  if (a < 86400) return rtf.format(Math.round(s / 3600), 'hour');
+  return rtf.format(Math.round(s / 86400), 'day');
+}
+
+let snap = null, pending = null, pendingN = 0, paused = false, lastMsg = 0, lastMove = 0, first = true, saidNeeds = null;
+const prev = new Map();
+
+function render() {
+  const lanes = $('lanes'); lanes.textContent = '';
+  for (const [state, label] of LANES) {
+    const list = snap.sessions.filter(s => s.state === state);
+    const lane = el('section', 'lane'); lane.dataset.state = state;
+    const h = el('h2'); h.append(pill(state, label), el('span', 'n', String(list.length))); lane.append(h);
+    if (!list.length) lane.append(el('p', 'none', 'Không có session nào.'));
+    const ul = el('ul');
+    for (const s of list) {
+      const key = `${s.machine}|${s.title}`;
+      const li = el('li', 'card'); li.dataset.key = key;
+      if (!first && prev.get(key) !== state) li.classList.add('flash');
+      const top = el('div', 'top'); top.append(el('span', 'title', s.title));
+      if (state !== 'idle') { const w = el('span', 'wait', dur(s.since)); w.dataset.since = s.since || ''; top.append(w); }
+      li.append(top);
+      if (state !== 'idle') li.append(s.what ? el('p', 'what', s.what) : el('p', 'what fallback', s.branch ? `nhánh ${s.branch}` : 'chưa có mô tả'));
+      const meta = el('p', 'mono', `${s.project}/${s.ws} · ${s.machine}`); meta.style.margin = '0';
+      if (state === 'idle') { const t = el('span', null, ` · ${ago(s.since)}`); t.dataset.ago = s.since || ''; meta.append(t); }
+      if (s.queued) meta.append(el('span', 'tag', `${s.queued} tin chờ`));
+      li.append(meta); ul.append(li);
+    }
+    lane.append(ul); lanes.append(lane);
+  }
+  prev.clear(); for (const s of snap.sessions) prev.set(`${s.machine}|${s.title}`, s.state);
+  first = false;
+
+  const st = $('stopped'); st.textContent = '';
+  const off = snap.machines.filter(m => !m.online);
+  if (snap.stopped.length || off.length) {
+    st.append(pill('stopped', 'Đã dừng'), el('span', 'n', String(snap.stopped.length)));
+    for (const w of snap.stopped) st.append(el('span', 'chip mono', `${w.project}/${w.ws}·${w.machine}${w.dirty ? ' ✎' : ''}`));
+    for (const m of off) st.append(el('span', 'chip off mono', `máy ${m.name} offline`));
+  }
+  const c = snap.counts;
+  const counts = $('counts'); counts.textContent = '';
+  counts.append(el('b', null, String(c.needs)), ` chờ bạn · ${c.busy} đang chạy · ${c.idle} rảnh · ${c.stopped} đã dừng`);
+  if (saidNeeds !== c.needs) { $('say').textContent = `${c.needs} session chờ bạn`; saidNeeds = c.needs; }
+}
+
+function bar() {
+  const now = Date.now();
+  let s = 'live', text = 'Live';
+  if (paused) { s = 'paused'; text = pendingN ? `Tạm dừng · ${pendingN} thay đổi chờ` : 'Tạm dừng'; }
+  else if (!snap) { s = 'wait'; text = 'Đang đọc Pod Bay…'; }
+  else if (snap && !snap.ok) { s = 'error'; text = 'Lỗi đọc Pod Bay'; }
+  else if (!lastMsg || now - lastMsg > STALE_MS) { s = 'stale'; text = 'Dữ liệu cũ'; }
+  $('conn').dataset.s = s; $('connText').textContent = text;
+  $('read').textContent = snap && snap.read_at ? `đọc lúc ${new Date(snap.read_at).toLocaleTimeString('vi-VN', { hour12: false })}` : '';
+  $('main').classList.toggle('dim', s === 'wait' || s === 'stale' || s === 'error');
+  const b = $('banner');
+  if (snap && !snap.ok && snap.error) { b.textContent = `${snap.error} · thử lại sau 3 s`; b.classList.add('on'); } else b.classList.remove('on');
+}
+
+function apply(m) { snap = m; pending = null; pendingN = 0; render(); bar(); }
+// Do not reorder under a moving pointer: hold a new snapshot until the pointer has rested for HOLD_MS.
+function offer(m) {
+  if (paused || Date.now() - lastMove < HOLD_MS) { pending = m; pendingN++; bar(); } else apply(m);
+}
+function onSnap(m) {
+  if (!m) return;
+  lastMsg = Date.now();
+  // Only the sessions, chips and error decide a redraw; a read with nothing new just moves the read time.
+  const body = JSON.stringify([m.sessions, m.stopped, m.machines, m.ok, m.error]);
+  if (body === lastBody) { for (const s of [snap, pending]) if (s) { s.ok = m.ok; s.error = m.error; s.read_at = m.read_at; } }
+  else { lastBody = body; offer(m); }
+  bar();
+}
+let lastBody = '';
+function connect() {
+  const t = window.__TAURI__;
+  if (!t) { $('banner').textContent = 'Trang này chạy trong app Pod Board.'; $('banner').classList.add('on'); return; }
+  t.event.listen('pods', e => onSnap(e.payload));
+  t.core.invoke('snapshot').then(m => { if (m && m.read_at) onSnap(m); });
+}
+
+$('lanes').addEventListener('pointermove', () => { lastMove = Date.now(); });
+$('lanes').addEventListener('pointerleave', () => { lastMove = 0; if (pending && !paused) apply(pending); });
+$('pause').addEventListener('click', () => {
+  paused = !paused;
+  $('pause').textContent = paused ? 'Tiếp tục' : 'Tạm dừng';
+  $('pause').setAttribute('aria-pressed', String(paused));
+  if (!paused && pending) apply(pending); else bar();
+});
+setInterval(() => {
+  if (pending && !paused && Date.now() - lastMove >= HOLD_MS) apply(pending);
+  bar();
+}, 1000);
+setInterval(() => {
+  for (const e of document.querySelectorAll('[data-since]')) e.textContent = dur(Number(e.dataset.since));
+  for (const e of document.querySelectorAll('[data-ago]')) e.textContent = ` · ${ago(Number(e.dataset.ago))}`;
+}, 30000);
+connect(); bar();
+</script>
+</body>
+</html>
