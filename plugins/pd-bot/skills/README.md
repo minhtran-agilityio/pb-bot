@@ -166,7 +166,8 @@ writing-plans              ──► implement
 implement                  ──► /code-review → intent-review → finishing-a-development-branch
 intent-review              ──► (standalone — same pipeline; needs the verbatim request and a BASE..HEAD range)
 tickets                    ──► GitHub issues (optional milestone) → autopilot
-pd-orchestrate             ──► intake / grilling (owner) → pd-work (one session per ticket) ⇄ pd-review → uat / qa-verifier → fleet-check.sh → finishing-a-development-branch
+pd-orchestrate             ──► intake / grilling (owner) → pd-work (one session per ticket) ⇄ pd-review (check-request → reviewer runs acceptance check + fleet-check.sh → check-result) → PR (into feat/*: fleet-gate.sh decides)
+                               milestone: all tickets in feat/<slug> → feature test in a tester session → owner merges feat/<slug> into main
                                stuck: advisor (Opus) → pd-advise (Fable 5.2 session) → owner
 autopilot                  ──► intake (per ticket) → grilling → workflows/ship.js (launch, terminal)
 decision-record            ──► docs/adr/NNNN-*.md + PR `## Decisions` section (terminal)
