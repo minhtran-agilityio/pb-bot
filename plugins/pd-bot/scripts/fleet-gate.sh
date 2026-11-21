@@ -20,6 +20,7 @@
 # stripped to printable ASCII and cut to 200 characters before it is printed or written.
 #
 # Usage:
+#   fleet-gate.sh -h|--help
 #   fleet-gate.sh --evidence <dir> --head <40|64 hex> --pr <number> --gh-repo <owner/name>
 #                 --base <feat/...> [--wait <seconds>]
 # --wait: how long to wait for pending CI checks (default 0: one look). The poll interval is 30 s
@@ -27,10 +28,15 @@
 # Output: one line per check (`ok|MISMATCH <name>: <detail>`), <evidence>/fleet-gate.json, on a pass
 # the line `run: gh pr merge ...`, and the last line `fleet-gate: pass` or
 # `fleet-gate: <n> mismatch(es)`.
-# Exit: 0 on a pass, 1 on a mismatch, 2 on a usage error. Needs gh and jq.
+# -h|--help, read as its own argument, prints the usage to stdout and exits 0, even after other
+# options (`--evidence D ... -h`): no check runs and no result file is written. An earlier unknown
+# argument or a missing value is still a usage error (exit 2).
+# Exit: 0 on a pass, or when -h/--help was given (no check run, no result file written); 1 on a
+# mismatch; 2 on a usage error. Needs gh and jq.
 set -u
 
-usage() { echo "fleet-gate: $*" >&2; echo "usage: fleet-gate.sh --evidence <dir> --head <sha> --pr <number> --gh-repo <owner/name> --base <feat/...> [--wait <seconds>]" >&2; exit 2; }
+usage_text() { echo "usage: fleet-gate.sh [-h|--help] --evidence <dir> --head <sha> --pr <number> --gh-repo <owner/name> --base <feat/...> [--wait <seconds>]"; }
+usage() { echo "fleet-gate: $*" >&2; usage_text >&2; exit 2; }
 
 lower() { printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]'; }
 is_full_hex() {
@@ -42,6 +48,7 @@ san() { printf '%s' "$1" | LC_ALL=C tr -cd '\040-\176' | cut -c1-200; }
 evid=""; head=""; pr=""; gh_repo=""; base_ref_want=""; wait_s=0
 while [ $# -gt 0 ]; do
   case "$1" in
+    -h|--help) usage_text; exit 0 ;;
     --evidence|--head|--pr|--gh-repo|--base|--wait) [ $# -ge 2 ] || usage "$1 needs a value" ;;
     *) usage "unknown argument: $1" ;;
   esac

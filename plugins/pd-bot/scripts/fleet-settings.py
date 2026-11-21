@@ -28,6 +28,10 @@ Usage:
   fleet-settings.py --checkout DIR --role worker|reviewer|tester|advisor --model ID
                     --mode auto|acceptEdits [--ticket ID] [--run ID]
   fleet-settings.py --checkout DIR --restore
+  fleet-settings.py --checkout DIR --show
+--show is read-only: it prints one line per fleet key (`<key>: <JSON value>` or `<key>: absent`) and
+a last line `restore state: present|present (invalid)|none` (whether the git directory holds saved values to restore).
+It writes nothing and cannot be combined with --restore or the apply options.
 Exit: 0 done, 1 refused (the reason on stderr), 2 usage error.
 """
 import argparse
@@ -147,6 +151,8 @@ def restore(checkout):
             saved = json.load(f)
         except ValueError:
             refuse(f"{state} is not valid JSON; check {path} by hand and delete it")
+    if not isinstance(saved, dict):
+        refuse(f"{state} is not a JSON object; check {path} by hand and delete it")
     data = read_settings(path) or {}
     for key in KEYS:
         put(data, key, saved.get("keys", {}).get(".".join(key), ABSENT))
@@ -158,6 +164,26 @@ def restore(checkout):
         write_atomic(path, dump(data))
         print(f"fleet-settings: restored the fleet keys in {path}")
     os.unlink(state)
+
+
+def show(checkout):
+    _, path, state = paths(checkout)
+    data = read_settings(path) or {}
+    for key in KEYS:
+        got = get(data, key)
+        print(f"{'.'.join(key)}: " + (json.dumps(got["value"]) if "value" in got else "absent"))
+    label = "none"
+    if os.path.exists(state):
+        label = "present"
+        try:
+            if not os.path.isfile(state):
+                raise ValueError("not a regular file")
+            with open(state) as f:
+                if not isinstance(json.load(f), dict):
+                    raise ValueError("not a JSON object")
+        except (OSError, ValueError, RecursionError):
+            label = "present (invalid)"
+    print("restore state: " + label)
 
 
 def apply(a):
@@ -190,19 +216,25 @@ def main(argv):
     p = argparse.ArgumentParser(prog="fleet-settings.py")
     p.add_argument("--checkout", required=True)
     p.add_argument("--restore", action="store_true")
+    p.add_argument("--show", action="store_true")
     p.add_argument("--role", choices=ROLES)
     p.add_argument("--model")
     p.add_argument("--mode", choices=MODES)
     p.add_argument("--ticket")
     p.add_argument("--run")
     a = p.parse_args(argv)
+    if a.show:
+        if a.restore or any(v is not None for v in (a.role, a.model, a.mode, a.ticket, a.run)):
+            p.error("--show takes only --checkout")
+        show(a.checkout)
+        return
     if a.restore:
         if a.role or a.model or a.mode or a.ticket or a.run:
             p.error("--restore takes only --checkout")
         restore(a.checkout)
         return
     if not (a.role and a.model and a.mode):
-        p.error("--role, --model and --mode are required (or --restore)")
+        p.error("--role, --model and --mode are required (or --restore or --show)")
     if not MODEL_RE.match(a.model):
         p.error("--model is not a model id")
     for name in ("ticket", "run"):
