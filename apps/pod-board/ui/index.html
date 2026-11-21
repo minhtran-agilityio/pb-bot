@@ -34,15 +34,22 @@
     --shadow-pressed: inset 0 2px 6px #00000059;
     --grain: .05; --grain-blend: soft-light;
   }
+  /* The board's fonts ship inside the app, so macOS draws the same letters as the design preview:
+     Ubuntu (Ubuntu Font Licence 1.0) for text and DejaVu Sans Mono (Bitstream Vera licence) for code. See THIRD-PARTY.md. */
+  @font-face { font-family: 'Pod Sans'; font-weight: 400; font-display: block; src: url('fonts/Ubuntu-R.woff') format('woff'); }
+  @font-face { font-family: 'Pod Sans'; font-weight: 500; font-display: block; src: url('fonts/Ubuntu-M.woff') format('woff'); }
+  @font-face { font-family: 'Pod Sans'; font-weight: 700; font-display: block; src: url('fonts/Ubuntu-B.woff') format('woff'); }
+  @font-face { font-family: 'Pod Mono'; font-weight: 400; font-display: block; src: url('fonts/DejaVuSansMono.woff') format('woff'); }
+  @font-face { font-family: 'Pod Mono'; font-weight: 700; font-display: block; src: url('fonts/DejaVuSansMono-Bold.woff') format('woff'); }
   * { box-sizing: border-box; }
-  html { -webkit-font-smoothing: antialiased; }
+  /* No -webkit-font-smoothing: macOS then draws text at its normal weight, like the Linux preview, not thinner. */
   body { margin: 0; background: hsl(var(--cream)); color: hsl(var(--cocoa));
-    font: 15px/1.5 ui-rounded, "SF Pro Rounded", Nunito, system-ui, sans-serif; }
+    font: 15px/1.5 'Pod Sans', system-ui, sans-serif; }
   body::after { content: ""; position: fixed; inset: 0; z-index: 60; pointer-events: none; opacity: var(--grain); mix-blend-mode: var(--grain-blend);
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.25 0 0 0 0 0.15 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
   button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
   button:focus-visible { outline: 2px solid hsl(var(--terracotta)); outline-offset: 2px; }
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; color: hsl(var(--muted-fg)); }
+  .mono { font-family: 'Pod Mono', ui-monospace, Menlo, monospace; font-size: 12px; color: hsl(var(--muted-fg)); }
   .tab { font-variant-numeric: tabular-nums; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
@@ -157,7 +164,7 @@
   .what { margin: 2px 0 3px; font-size: 13px; line-height: 1.45; color: hsl(var(--cocoa) / .82); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .what.fallback { font-style: italic; color: hsl(var(--muted-fg)); }
   .meta { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
-  .tag { padding: 1px 8px; border-radius: 999px; background: hsl(var(--butter)); color: hsl(var(--cocoa)); font: 700 11px ui-rounded, system-ui, sans-serif; }
+  .tag { padding: 1px 8px; border-radius: 999px; background: hsl(var(--butter)); color: hsl(var(--cocoa)); font: 700 11px 'Pod Sans', system-ui, sans-serif; }
   .compact .row { padding: 7px 12px; }
   .row .mono { font-size: 11px; }
   .pill { display: inline-flex; align-items: center; gap: 7px; padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; }
