@@ -32,6 +32,10 @@ def settings(d):
     return d / ".claude" / "settings.local.json"
 
 
+def state(d):
+    return d / ".git" / "pd-bot-fleet-settings.json"
+
+
 def apply(d, *extra):
     return run("--checkout", str(d), "--role", "worker", "--model", "claude-haiku-5-5",
                "--mode", "auto", *extra)
@@ -58,8 +62,58 @@ def test_keeps_other_keys_and_restores_the_file(checkout):
     assert data["env"]["FOO"] == "1" and data["env"]["PD_BOT_ROLE"] == "worker"
     r = run("--checkout", str(checkout), "--restore")
     assert r.returncode == 0, r.stderr
-    assert settings(checkout).read_text() == text
-    assert not os.path.exists(str(settings(checkout)) + ".pd-bot-backup")
+    assert json.loads(settings(checkout).read_text()) == before
+    assert not state(checkout).exists()
+
+
+def test_nothing_is_written_in_the_work_tree_but_the_settings_file(checkout):
+    assert apply(checkout).returncode == 0
+    assert state(checkout).exists()
+    st = subprocess.run(["git", "-C", str(checkout), "status", "--porcelain", "--ignored"],
+                        capture_output=True, text=True, env=GIT_ENV).stdout
+    assert "pd-bot-backup" not in st
+    assert [l for l in st.splitlines() if "!!" not in l] == ["?? .gitignore"]
+
+
+def test_restore_keeps_a_rule_the_session_saved(checkout):
+    assert apply(checkout).returncode == 0
+    data = json.loads(settings(checkout).read_text())
+    data["permissions"]["allow"] = ["Bash(npm run e2e)"]
+    settings(checkout).write_text(json.dumps(data))
+    assert run("--checkout", str(checkout), "--restore").returncode == 0
+    assert json.loads(settings(checkout).read_text()) == {"permissions": {"allow": ["Bash(npm run e2e)"]}}
+
+
+def test_a_refused_apply_writes_nothing(checkout):
+    settings(checkout).parent.mkdir()
+    settings(checkout).write_text('{"permissions": []}')
+    assert apply(checkout).returncode == 1
+    assert not state(checkout).exists()
+    settings(checkout).write_text('{"permissions": {}}')
+    assert apply(checkout).returncode == 0
+    assert run("--checkout", str(checkout), "--restore").returncode == 0
+    assert json.loads(settings(checkout).read_text()) == {}
+
+
+def test_a_file_that_looks_like_an_old_marker_is_restored(checkout):
+    settings(checkout).parent.mkdir()
+    settings(checkout).write_text('{"pd-bot-backup": "no file before"}\n')
+    assert apply(checkout).returncode == 0
+    assert run("--checkout", str(checkout), "--restore").returncode == 0
+    assert json.loads(settings(checkout).read_text()) == {"pd-bot-backup": "no file before"}
+
+
+def test_not_a_git_checkout_is_named(tmp_path):
+    d = tmp_path / "plain"
+    d.mkdir()
+    r = apply(d)
+    assert r.returncode == 1 and "not a git checkout" in r.stderr
+
+
+def test_bedrock_and_vertex_model_ids_are_accepted(checkout):
+    for m in ("us.anthropic.claude-opus-5-5-v1:0", "claude-opus-5-5@20261101"):
+        r = run("--checkout", str(checkout), "--role", "worker", "--model", m, "--mode", "auto")
+        assert r.returncode == 0, r.stderr
 
 
 def test_restore_removes_a_file_that_was_not_there(checkout):
@@ -77,12 +131,12 @@ def test_a_second_write_keeps_the_first_backup(checkout):
     assert json.loads(settings(checkout).read_text())["env"]["PD_BOT_ROLE"] == "reviewer"
     assert "PD_BOT_TICKET" not in json.loads(settings(checkout).read_text())["env"]
     run("--checkout", str(checkout), "--restore")
-    assert settings(checkout).read_text() == '{"model": "x"}'
+    assert json.loads(settings(checkout).read_text()) == {"model": "x"}
 
 
 def test_restore_without_backup_is_a_no_op(checkout):
     r = run("--checkout", str(checkout), "--restore")
-    assert r.returncode == 0 and "nothing to restore" in r.stdout
+    assert r.returncode == 0 and "nothing to restore" in r.stdout, r.stderr
 
 
 def test_refuses_a_file_git_does_not_ignore(checkout):

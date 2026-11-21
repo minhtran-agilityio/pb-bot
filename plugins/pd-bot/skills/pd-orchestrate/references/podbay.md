@@ -91,7 +91,8 @@ it for a slash command, or when a session does not accept cross-session messages
    runs on that model and in that mode with no keystrokes, and its hooks see `PD_BOT_ROLE`. Use
    your own permission mode (`auto` or `acceptEdits`): a session in another mode holds your
    messages until its user approves them, and a session that prompts for each test command stops
-   at every prompt; tell the owner before the run when your mode is neither. The script refuses
+   at every prompt. When your mode is neither, ask the owner which of the two to use before the
+   run starts. The script refuses
    when git does not ignore that file in the checkout: ask the owner to add it to `.gitignore`.
    It never sets `bypassPermissions`.
 3. Start the session and keep its `title`, `name` and `uuid`.
