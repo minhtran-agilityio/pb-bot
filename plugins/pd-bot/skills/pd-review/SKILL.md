@@ -1,7 +1,7 @@
 ---
 name: pd-review
 description: "Review one ticket's commits as an isolated reviewer session: re-run the tests yourself on the base and the head, judge the diff against the owner's verbatim request, and return a receipt pinned to the commit. Use when an assign message tells you to follow this skill, or a review-request arrives."
-allowed-tools: Read, Grep, Glob, Agent, Skill, SendMessage, Bash(git *), Bash(gh issue view *), Bash(bash scripts/run-tests.sh*)
+allowed-tools: Read, Grep, Glob, Agent, Skill, SendMessage, Bash(git *), Bash(gh issue view *), Bash(bash scripts/run-tests.sh*), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-check.sh *)
 ---
 
 # Review one ticket
@@ -18,8 +18,8 @@ head SHA. Your result is a receipt for that SHA (format:
 - Fetch the worker's branch into your own clone (`git fetch <checkout> <branch>`) and work in a
   detached worktree of your clone at the head SHA. Give that path to every agent you start. Never edit, commit or check out anything in the worker's working tree, and
   remove your worktrees when you finish.
-- Read the review rules from the base, not from the branch: `git show <base>:REVIEW.md`, when the
-  file exists.
+- Read the review rules from the base, not from the branch: `git show <base>:REVIEW.md` when it
+  exists.
 
 ## What to establish
 
@@ -48,7 +48,8 @@ Check an agent's load-bearing claim before it goes into the receipt.
 - `pass`: no open finding. Style is not a finding.
 - `changes`: at least one open finding. Each finding has a severity, the evidence, and what would close it.
 
-Send the receipt as `review-result` to the worker and the same text to the orchestrator. 
+Send the receipt as `review-result` to the worker and to the orchestrator. On
+`check-request`, follow `references/checks.md`.
 
 ## Rounds
 
