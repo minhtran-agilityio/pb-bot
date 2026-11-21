@@ -28,6 +28,10 @@ Usage:
   fleet-settings.py --checkout DIR --role worker|reviewer|tester|advisor --model ID
                     --mode auto|acceptEdits [--ticket ID] [--run ID]
   fleet-settings.py --checkout DIR --restore
+  fleet-settings.py --checkout DIR --show
+--show writes nothing. It prints one line per fleet key, `<key>=<json value>` or `<key>=absent`
+(keys: model, permissions.defaultMode, env.PD_BOT_ROLE, env.PD_BOT_TICKET, env.PD_BOT_RUN), then
+a last line `restore-state=present|absent` (whether the saved values exist in the git directory).
 Exit: 0 done, 1 refused (the reason on stderr), 2 usage error.
 """
 import argparse
@@ -160,6 +164,16 @@ def restore(checkout):
     os.unlink(state)
 
 
+def show(checkout):
+    """Print the fleet keys and the restore state. Read-only: creates and changes nothing."""
+    _, path, state = paths(checkout)
+    data = read_settings(path) or {}
+    for key in KEYS:
+        cur = get(data, key)
+        print(f"{'.'.join(key)}=" + ("absent" if cur == ABSENT else json.dumps(cur["value"])))
+    print("restore-state=" + ("present" if os.path.exists(state) else "absent"))
+
+
 def apply(a):
     cdir, path, state = paths(a.checkout)
     r = git(a.checkout, "check-ignore", "-q", "--", SETTINGS)
@@ -195,7 +209,13 @@ def main(argv):
     p.add_argument("--mode", choices=MODES)
     p.add_argument("--ticket")
     p.add_argument("--run")
+    p.add_argument("--show", action="store_true")
     a = p.parse_args(argv)
+    if a.show:
+        if a.restore or a.role or a.model or a.mode or a.ticket or a.run:
+            p.error("--show takes only --checkout")
+        show(a.checkout)
+        return
     if a.restore:
         if a.role or a.model or a.mode or a.ticket or a.run:
             p.error("--restore takes only --checkout")
