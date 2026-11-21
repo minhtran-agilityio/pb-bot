@@ -717,6 +717,43 @@ async function stageQaRepairCleanup(t, dir) {
   } catch (e) { log(`#${t.n} qa repair cleanup: skipped (${e && e.message ? e.message : String(e)})`) }
 }
 
+// P10: the end-of-run worktree step. Each stage worktree holds a full checkout (and its build output), so a run
+// that succeeded removes its detached stage worktrees; a ticket-branch worktree stays, and a run that did not
+// succeed keeps everything. The script finds the worktrees under wtRoot itself and never forces a removal:
+// a worktree with changes, or with commits on no branch, stays. The command names no stage dir (a merge-g dir
+// next to bash would trip merge-guard). The result is reported; a failed cleanup never fails the run.
+const CLEANUP_SCHEMA = { type: 'object',
+  properties: {
+    removed: strList,
+    kept: { type: 'array', items: { type: 'object', properties: { dir: STR, size: STR, reason: STR }, required: ['dir', 'reason'] } },
+    run_dir: { type: 'string', enum: ['removed', 'kept'] },
+    commands: strList,
+  },
+  required: ['removed', 'kept', 'commands'] }
+async function stageWorktreeCleanup(success) {
+  const cmd = `bash ${pluginDir}/scripts/ship-worktree-cleanup.sh --repo-dir ${repoDir} --run-dir ${wtRoot}${success ? '' : ' --keep-all'}`
+  const base = { status: 'not run', removed: [], kept: [], runDir: 'kept', commands: [], command: cmd }
+  let r = null
+  try {
+    r = await call(`Run this one command exactly as written, as its own Bash call, with nothing appended:\n${cmd}\n\n${notCwd()}\n` +
+      'It prints one tab-separated line per worktree: "removed <dir>", "kept <dir> <size> <reason>", "command <cmd>" and "run-dir removed|kept <dir>". ' +
+      'Return them as removed (dirs), kept (dir, size, reason), commands and run_dir. Remove, edit or run nothing else.',
+    { label: 'clean up worktrees', phase: 'Decisions', schema: CLEANUP_SCHEMA, model: MODEL.cheap, effort: EFFORT.cheap })
+  } catch (e) { log(`worktrees: cleanup skipped (${e && e.message ? e.message : String(e)})`) }
+  if (!r) return base
+  const kept = (r.kept || []).map(k => ({ dir: k.dir, size: k.size || '', reason: k.reason }))
+  return { ...base, status: success ? 'cleaned' : 'kept-all', removed: r.removed || [], kept, runDir: r.run_dir || 'kept', commands: r.commands || [] }
+}
+function logCleanup(c) {
+  if (c.status === 'not run') {
+    log(`worktrees: the cleanup did not run; every worktree under ${wtRoot} stays. To see them: git -C ${repoDir} worktree list`)
+    return
+  }
+  const kept = c.kept.map(k => `  ${k.dir} (${k.size ? `${k.size}, ` : ''}${k.reason})`).join('\n')
+  log(`worktrees: ${c.removed.length} removed, ${c.kept.length} kept${c.status === 'kept-all' ? ' (the run did not succeed, so nothing was removed)' : ''}` +
+    `${kept ? `:\n${kept}` : ''}${c.commands.length ? `\nto remove a kept one:\n${c.commands.map(x => `  ${x}`).join('\n')}` : ''}`)
+}
+
 // The implementer must not touch the acceptance tests. Only commits with the QA subject may; any other commit is a violation.
 async function stageTestGuard(t, impl, qa) {
   const tb = impl.branch
@@ -2118,6 +2155,8 @@ if (!deliveredAll.length) {
   const sp = await writeSpecs({ byN, final: null, review: out.review, intent: out.intent, suite: out.suite, adrs: [] })
   if (sp && !sp.ok) failures.push(`spec files: ${sp.reason}`)
   out.specFiles = specFilesOut(sp)
+  out.cleanup = await stageWorktreeCleanup(false)   // nothing was delivered: keep every worktree
+  logCleanup(out.cleanup)
   out.tickets = ordered().map(publicTicket)
   out.worktrees = [...worktrees]
   out.stats = statsOut()
@@ -2186,10 +2225,12 @@ const specsRes = await writeSpecs({ byN, final: out.final, review: out.review, i
 if (specsRes && !specsRes.ok) failures.push(`spec files: ${specsRes.reason}`)
 out.specFiles = specFilesOut(specsRes)
 
+// A run succeeded when every ticket is done and no stage failed; only then are its detached worktrees removed.
+out.cleanup = await stageWorktreeCleanup(!failures.length && ordered().every(r => r.status === 'done'))
+logCleanup(out.cleanup)
 out.tickets = ordered().map(publicTicket)
 out.worktrees = [...worktrees]
 out.stats = statsOut()
 log(`stats: ${out.stats.agentCalls} agent call(s) in ${Object.keys(out.stats.byStage).length} stage(s)`)
-log(`worktrees created (the script never removes them; remove with git -C ${repoDir} worktree remove <dir>):\n${out.worktrees.join('\n')}`)
 if (failures.length) throw new Error(`ship: ${failures.join('; ')}. The run did not complete: the PR (if any) is open without this output.`)
 return out

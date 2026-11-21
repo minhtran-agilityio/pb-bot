@@ -30,7 +30,7 @@ function metaText() {
 const FIXED_LABELS = {
   'write specs/ flow files': 'specs', 'write specs/ early': 'specs-early', 'set up integration branch': 'setup-integration', 'open final PR': 'final-pr',
   'measure diff size': 'diffstat', 'intent review · diff vs request': 'intent-review', 'test · run full suite': 'suite',
-  'test · fix failing tests': 'suite-fix', 'test · rerun failed tests': 'suite-rerun',
+  'test · fix failing tests': 'suite-fix', 'test · rerun failed tests': 'suite-rerun', 'clean up worktrees': 'worktree-cleanup',
   'CI snapshot': 'ci-snapshot', 'default branch': 'default-branch', 'merge final PR': 'final-merge', 'write ADRs': 'adr', 'check plugin and tools': 'plugin-check', 'intent fix · close gaps': 'intent-fix',
 }
 const TICKET_VERBS = {
@@ -130,6 +130,7 @@ function defaults(c, st) {
   if (l === 'final-merge') return ok({ merged: true, reason: '' })
   if (l === 'adr') return ok({ adrs: [{ number: 2, path: 'docs/adr/0002-x.md', needs_review: true }] })
   if (l === 'specs' || l === 'specs-early') return ok()
+  if (l === 'worktree-cleanup') return { removed: [], kept: [], run_dir: 'kept', commands: [] }
   throw new Error(`no scripted answer for label '${l}'`)
 }
 
@@ -941,7 +942,8 @@ test('h: the ADR stage runs once and receives decisions from every ticket', asyn
   assert(p.includes('"title":"D-one"') && p.includes('"ticket":1') && p.includes('"title":"D-two"') && p.includes('"ticket":2'))
   assert(p.includes('"run":"ms"') && p.includes('--input .ship/decisions.json') && p.includes('--render-section') && p.includes('{{DECISIONS}}'))
   assert(p.includes('"stage":"intent"') && p.includes('"decided_by"'))
-  const noSpecs = labelsOf(calls).filter(l => l !== 'specs' && l !== 'specs-early')   // the local spec write needs the ADR paths
+  // The local spec write needs the ADR paths; the worktree cleanup (P10) is the run's last step and touches no repo file.
+  const noSpecs = labelsOf(calls).filter(l => l !== 'specs' && l !== 'specs-early' && l !== 'worktree-cleanup')
   assert.strictEqual(noSpecs[noSpecs.length - 1], 'adr')
   assert.deepStrictEqual(result.adrs, [{ number: 2, path: 'docs/adr/0002-x.md', needsReview: true }])
 })
@@ -2895,6 +2897,82 @@ test('ad2: a late restatement of an early adr decision does not send it to the o
   const ds = allDecisions(r)
   assert(!ds.some(x => x.title === 'Use a queue' && x.needs_review), JSON.stringify(ds.filter(x => x.title === 'Use a queue')))
   assert(ds.some(x => x.title === 'Pick a cache' && x.needs_review), JSON.stringify(ds.map(x => [x.title, x.stage, x.needs_review])))
+})
+
+// P10: the stage worktrees of a run that succeeded are cleaned at the end; a run that did not succeed keeps all.
+const CLEAN = 'bash /plug/scripts/ship-worktree-cleanup.sh --repo-dir /repo --run-dir /.ship-repo/ms'
+const cleanAnswer = {
+  removed: ['/.ship-repo/ms/intent-review', '/.ship-repo/ms/review-r1'],
+  kept: [{ dir: '/.ship-repo/ms/t1', size: '2.1G', reason: 'a ticket branch worktree' },
+    { dir: '/.ship-repo/ms/fix-r1-1', size: '1.4G', reason: 'uncommitted changes or untracked files' }],
+  run_dir: 'kept',
+  commands: ['git -C /repo worktree remove /.ship-repo/ms/t1', 'git -C /repo worktree remove /.ship-repo/ms/fix-r1-1'],
+}
+const cleanupCall = calls => named(calls, /^worktree-cleanup$/)
+
+test('P10a: a run that succeeded runs the cleanup script once, without --keep-all, after the spec files', async () => {
+  const { result, calls } = await run({}, c => (c.label === 'worktree-cleanup' ? cleanAnswer : undefined))
+  const cl = cleanupCall(calls)
+  assert.strictEqual(cl.length, 1, labelsOf(calls).join())
+  assert(cl[0].prompt.includes(CLEAN) && !cl[0].prompt.includes('--keep-all'), cl[0].prompt.slice(0, 300))
+  assert(labelsOf(calls).indexOf('specs') < labelsOf(calls).indexOf('worktree-cleanup'), 'cleanup must come after the spec files')
+  assert.strictEqual(result.cleanup.status, 'cleaned')
+  assert.deepStrictEqual(result.cleanup.removed, cleanAnswer.removed)
+  assert(result.cleanup.kept.some(k => k.dir === '/.ship-repo/ms/t1' && k.size === '2.1G'), JSON.stringify(result.cleanup))
+})
+
+test('P10b: the cleanup command names no worktree, so a merge-g stage dir cannot trip the merge guard', async () => {
+  const { calls } = await run({ tickets: [T(1, 1), T(2, 1)] }, null)
+  const cl = cleanupCall(calls)[0]
+  assert(cl, labelsOf(calls).join())
+  const line = cl.prompt.split('\n').find(l => l.includes('ship-worktree-cleanup.sh'))
+  assert.strictEqual(line.trim(), CLEAN)
+  assert(!/merge/i.test(line), line)
+})
+
+test('P10c: a dirty worktree the script kept is in the result with its size, reason and removal command', async () => {
+  const { result, logs } = await run({}, c => (c.label === 'worktree-cleanup' ? cleanAnswer : undefined))
+  const k = result.cleanup.kept.find(x => x.dir === '/.ship-repo/ms/fix-r1-1')
+  assert(k && k.size === '1.4G' && /uncommitted/.test(k.reason), JSON.stringify(result.cleanup))
+  assert(result.cleanup.commands.includes('git -C /repo worktree remove /.ship-repo/ms/fix-r1-1'))
+  const line = logs.find(l => l.startsWith('worktrees:'))
+  assert(line && line.includes('2 removed') && line.includes('/.ship-repo/ms/fix-r1-1 (1.4G, uncommitted changes or untracked files)') &&
+    line.includes('git -C /repo worktree remove /.ship-repo/ms/fix-r1-1'), line)
+})
+
+test('P10d: a run with no delivered ticket (blocked) keeps every worktree (--keep-all)', async () => {
+  const { result, calls } = await run({}, c => (c.label === 'implement:1' ? null : undefined))
+  assert(!result.tickets.some(t => t.status === 'done'), JSON.stringify(result.tickets))
+  const cl = cleanupCall(calls)
+  assert.strictEqual(cl.length, 1, labelsOf(calls).join())
+  assert(cl[0].prompt.includes(`${CLEAN} --keep-all`), cl[0].prompt.slice(0, 300))
+  assert.strictEqual(result.cleanup.status, 'kept-all')
+})
+
+test('P10e: a run where one of two tickets is blocked keeps every worktree', async () => {
+  const { result, calls } = await run({ tickets: [T(1, 1), T(2, 1)] }, c => (c.label === 'implement:2' ? null : undefined))
+  assert(result.tickets.some(t => t.status === 'done') && result.tickets.some(t => t.status !== 'done'), JSON.stringify(result.tickets))
+  assert(cleanupCall(calls)[0].prompt.includes(`${CLEAN} --keep-all`))
+  assert.strictEqual(result.cleanup.status, 'kept-all')
+})
+
+test('P10f: a run that ends with an error keeps every worktree (--keep-all runs before the error)', async () => {
+  let seen = [], err = null
+  try {
+    await run({}, (c, calls) => { seen = calls; return c.label === 'adr' ? { status: 'blocked', blocked_reason: 'cannot write docs/adr', adrs: [] } : undefined })
+  } catch (e) { err = e }
+  assert(err && /^ship/.test(err.message), 'the run should end with the ship error')
+  const cl = cleanupCall(seen)
+  assert.strictEqual(cl.length, 1, labelsOf(seen).join())
+  assert(cl[0].prompt.includes(`${CLEAN} --keep-all`))
+})
+
+test('P10g: a cleanup agent that fails or returns nothing does not fail the run', async () => {
+  for (const ans of [new Error('agent died'), null]) {
+    const { result } = await run({}, c => (c.label === 'worktree-cleanup' ? ans : undefined))
+    assert.strictEqual(result.cleanup.status, 'not run', JSON.stringify(result.cleanup))
+    assert(result.cleanup.commands.length === 0 && result.final, JSON.stringify(result.cleanup))
+  }
 })
 
 ;(async () => {
