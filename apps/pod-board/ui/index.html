@@ -79,6 +79,7 @@
   /* A chosen filter reads like the chosen page: a paper pill, plus a terracotta edge and text so it differs from the page pill. */
   .item.sub[data-on="1"] { color: hsl(var(--terracotta)); font-weight: 800; background: hsl(var(--paper)); box-shadow: inset 0 0 0 1.5px hsl(var(--terracotta)), var(--shadow-xs); }
   .item.sub[data-on="1"] .n { background: hsl(var(--terracotta)); color: hsl(var(--on-accent)); }
+  .item.clear { justify-content: center; margin-top: 4px; color: hsl(var(--terracotta)); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
   .item .dot.warn { background: hsl(var(--butter-deep)); }
   /* The icon sprite holds no visible drawing. The app's content policy drops inline style attributes, so hide it here. */
   .sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
@@ -416,7 +417,10 @@ function item(icon, label, count, active, hot, onClick, dotClass) {
 function nav() {
   const box = $('nav'); const thumb = $('thumb'); const keep = box.scrollTop;
   box.textContent = ''; box.append(thumb);
-  const c = snap ? snap.counts : { needs: 0, busy: 0, idle: 0, stopped: 0 };
+  // Every count follows the filters that are on, so a number always matches what the view shows:
+  // the states count within the chosen project and machine; projects count within the chosen machine, and machines within the chosen project.
+  const c = { needs: 0, busy: 0, idle: 0, stopped: 0 };
+  if (snap) { for (const s of shown()) c[s.state]++; c.stopped = stoppedShown().length; }
   box.append(item('house', 'Overview', null, view === 'home', false, () => go('home')));
   for (const state of ['needs', 'busy', 'idle', 'stopped']) {
     box.append(item(STATES[state][1], STATES[state][0], c[state], view === state, state === 'needs' && c.needs > 0, () => go(state)));
@@ -426,7 +430,7 @@ function nav() {
     if (projects.length > 1) {
       box.append(el('p', 'group', 'Project'));
       for (const p of projects) {
-        const n = snap.sessions.filter(s => s.project === p).length;
+        const n = snap.sessions.filter(s => s.project === p && (!machine || s.machine === machine)).length;
         box.append(item('folder', p, n, false, false, () => { project = project === p ? null : p; render(); bar(); }));
         box.lastChild.classList.add('sub'); if (project === p) box.lastChild.dataset.on = '1';
       }
@@ -434,11 +438,16 @@ function nav() {
     if (snap.machines.length > 1) {
       box.append(el('p', 'group', 'Machines'));
       for (const m of snap.machines) {
-        box.append(item('', m.name, snap.sessions.filter(s => s.machine === m.name).length, false, false, () => { machine = machine === m.name ? null : m.name; render(); bar(); }, m.online ? 'on' : m.key_stale ? 'off warn' : 'off'));
+        box.append(item('', m.name, snap.sessions.filter(s => s.machine === m.name && (!project || s.project === project)).length, false, false, () => { machine = machine === m.name ? null : m.name; render(); bar(); }, m.online ? 'on' : m.key_stale ? 'off warn' : 'off'));
         if (!m.online) box.lastChild.title = m.key_stale ? `${m.name}: offline, password out of date` : `${m.name}: offline`;
         box.lastChild.classList.add('sub'); if (machine === m.name) box.lastChild.dataset.on = '1';
       }
     }
+  }
+  if (project || machine) {
+    const clear = el('button', 'item sub clear', 'Clear filters'); clear.type = 'button';
+    clear.addEventListener('click', () => { project = null; machine = null; render(); bar(); });
+    box.append(clear);
   }
   box.scrollTop = keep; // a redraw every few seconds must not jump the list back to the top
   fadeNav();
