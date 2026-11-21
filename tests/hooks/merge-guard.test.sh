@@ -399,6 +399,64 @@ s=$SECONDS; g "$M"; e=$((SECONDS - s))
 if [ "$RC" = 2 ] && [ "$e" -lt 20 ]; then pass; else fail "rc=$RC took ${e}s out=$OUT"; fi
 rm -f "$D/slow"
 
+# P5 (skill-coach): spellings that bash turns into gh or merge but the pre-filter did not see. Found by the
+# security review of P1 (2026-11-20); each one passed main with exit 0, so a merge into main ran with no prompt.
+reset; setbase main
+NL=$'\n'
+for c in '{g..g}h pr merge 7 --repo o/r --admin' 'g{h..h} pr merge 7 --repo o/r --admin' \
+         "g\\${NL}h pr merge 7 --repo o/r --admin" "gh pr mer\\${NL}ge 7 --repo o/r --admin" \
+         "printf '\\147h pr merge 7 --repo o/r' | bash" "printf '\\x67h pr m\\x65rge 7 --repo o/r' | bash" \
+         "\$'\\147h' pr \$'m\\145rge' 7 --repo o/r" \
+         'gh pr merg? 7 --repo o/r --admin' 'gh pr mer[g]e 7 --repo o/r --admin' '/usr/bin/g? pr merge 7 --repo o/r' \
+         'GH pr merge 7 --repo o/r --admin' 'Gh pr merge 7 --repo o/r'; do
+  t "P5: a spelling that bash turns into a gh merge is denied: ${c//$NL/<NL>}"; g "$c"; assert_rc 2
+done
+t "P5: no jq and a folded spelling of a merge (g\"\"h) is denied"; g 'g""h pr merge 7 --repo o/r --admin' "$NOJQ"; assert_rc 2
+t "P5: no jq and an upper-case GH merge is denied"; g 'GH pr merge 7 --repo o/r' "$NOJQ"; assert_rc 2
+# P5 code review: more spellings of the same kind, and the merge word in the payload's other fields.
+for c in 'gh pr mer{g..g}e 7 --repo o/r --admin' 'gh pr m{e..e}rge 7 --repo o/r' \
+         "\$'\\u67'h pr \$'m\\u65'rge 7 --repo o/r" "\$'\\U67'h pr \$'m\\U65'rge 7 --repo o/r" \
+         '/usr/bin/g? pr m?rge 7 --repo o/r --admin' "Bash -c 'gh pr merge 7 --repo o/r --admin'" \
+         'a=xghmerg; b=e; ${a:1:2} pr ${a:3}$b 7 --repo o/r --admin'; do
+  t "P5: a spelling that bash turns into a gh merge is denied: $c"; g "$c"; assert_rc 2
+done
+for c in 'printf "\033[1m" ; $EDITOR notes.txt' 'X=$HOME/bin; "$X/tool" && printf "\033[0m"'; do
+  t "P5: an escape next to a command built from a variable, with no merge word, is allowed: $c"; g "$c"; assert_rc 0
+done
+# (Without jq, a $ next to the word merge stays denied: the hook cannot tell a variable command name from text.)
+for c in 'ls *.md' 'git merge feat/x' 'printf "\033[0m"'; do
+  t "P5: no jq and a command that is not a gh merge is allowed: $c"; g "$c" "$NOJQ"; assert_rc 0
+done
+# P5 security review: a backslash line break in a comment or a quoted heredoc body is not joined by bash, so the
+# merge on the next line runs; joining it in the hook hid that merge. Escape-only spellings with no literal word.
+for c in "#a\\${NL}gh pr merge 7 --repo o/r" "echo hi # done\\${NL}gh pr merge 7 --repo o/r" \
+         "cat <<'X'${NL}foo\\${NL}X${NL}gh pr merge 7 --repo o/r${NL}X" \
+         "\$'\\x67\\x68' \$'\\x70\\x72' \$'\\x6d\\x65\\x72\\x67\\x65' 7 --repo o/r" \
+         "\$'\\147\\150' \$'\\160\\162' \$'\\155\\145\\162\\147\\145' 7" \
+         "echo -e '\\x67\\x68 \\x70\\x72 \\x6d\\x65\\x72\\x67\\x65 7 --repo o/r' | . /dev/stdin"; do
+  t "P5: a hidden or escape-only merge is denied: ${c//$NL/<NL>}"; g "$c"; assert_rc 2
+done
+for c in "printf '\\033[1mhi\\033[0m\\n'; bash scripts/run-tests.sh" "echo -e '\\x41' && sh build.sh" \
+         "grep -rlP '\\x00' . | xargs -n1 file"; do
+  t "P5: an escape that spells no merge, next to a wrapper, is allowed: $c"; g "$c"; assert_rc 0
+done
+# P5 security review 2: an escape-only merge handed to a wrapper in other forms.
+E1="\$'\\x67\\x68 \\x70\\x72 \\x6d\\x65\\x72\\x67\\x65 7 --repo o/r'"
+P1="printf '\\x67\\x68 \\x70\\x72 \\x6d\\x65\\x72\\x67\\x65 7 --repo o/r'"
+for c in "bash -c $E1" "eval $E1" "bash <<< $E1" "bash <($P1)" "$P1 | env bash" "$P1 | timeout 9 bash"; do
+  t "P5: an escape-only merge handed to a wrapper is denied: $c"; g "$c"; assert_rc 2
+done
+# Known limit: without jq, gh inside a word next to a glob and pr (ls high/pr*) is denied; jq is a listed dependency.
+# P5 security review 3: printf %b stops at \c, so a \c earlier in the command hid the decoded merge.
+for c in ": '\\c'; \$'\\x67\\x68' \$'\\x70\\x72' \$'\\x6d\\x65\\x72\\x67\\x65' 7 --repo o/r" \
+         "# \\c${NL}\$'\\x67\\x68' \$'\\x70\\x72' \$'\\x6d\\x65\\x72\\x67\\x65' 7 --repo o/r"; do
+  t "P5: a \\c before an escape-only merge does not hide it: ${c//$NL/<NL>}"; g "$c"; assert_rc 2
+done
+# ...and ordinary commands with braces, globs, escapes or a line break, and no merge, still run.
+for c in 'echo {a,b}.txt; ls *.md' "printf '\\x41\\n'" "git log --oneline \\${NL}  -3" 'echo Ghost'; do
+  t "P5: a command without a merge is allowed: ${c//$NL/<NL>}"; g "$c"; assert_rc 0
+done
+
 # Probe (opt-in: it starts real `claude -p` sessions, needs a login and costs tokens): what Claude Code does
 # with permissionDecision "ask" under default, auto and bypassPermissions. Run with RUN_ASK_PROBE=1.
 # Result (ADR 0008, 0009): in each mode the Bash call is NOT run; headless, nobody can answer the prompt.

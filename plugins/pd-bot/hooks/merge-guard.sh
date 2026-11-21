@@ -25,15 +25,55 @@
 set -u
 payload=$(cat)
 # Pre-filter on a folded copy (lowercase, quotes and backslashes removed) so "g""h", GH-case or
-# me\rge spellings do not skip the guard.
-fold() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d "\"'\\\\"; }
-is_merge_like() {
-  case "$(fold "$1")" in
+# me\rge spellings do not skip the guard. P5: a backslash line break (real, or \\\n inside the JSON payload)
+# is removed first, because bash joins the two halves (such a command is then denied below); braces and glob
+# brackets are removed in base_like, so {g..g}h and mer[g]e read as gh and merge.
+fold() {
+  local s=$1
+  s=${s//$'\\\n'/}; s=${s//'\\\n'/}
+  printf '%s' "$s" | tr '[:upper:]' '[:lower:]' | tr -d "\"'\\\\"
+}
+# P5: an octal, hex or unicode escape as bash's $'..' and printf read them (1-3 octal digits, \x1-2, \u1-4, \U1-8).
+ESC_RE='\\([0-7]{1,3}|x[0-9A-Fa-f]{1,2}|u[0-9A-Fa-f]{1,4}|U[0-9A-Fa-f]{1,8})'
+has_escape() { printf '%s' "$1" | grep -qE "$ESC_RE"; }
+# P5: the text with its escapes decoded (printf %b reads octal only after \0, so add it).
+# \c makes printf %b stop writing, so drop it first. bash 3.2 (macOS) printf %b has no \u or \U, so an ASCII
+# \u/\U code point (the only ones that can spell gh or merge) becomes \x first.
+decode() {
+  local s
+  s=$(printf '%s' "$1" | sed -E 's/\\c//g; s/\\[uU]0*([0-7]?[0-9A-Fa-f])([^0-9A-Fa-f]|$)/\\x\1\2/g; s/\\([0-7]{1,3})/\\0\1/g')
+  printf '%b' "$s" 2>/dev/null
+}
+# P5: a word that can only matter next to a spelled merge: the pr subcommand, merge itself, the API words, or a
+# pipe into a shell or wrapper. Used with escapes and globs, which can spell any letters.
+merge_context() {
+  printf '%s' "$1" | grep -qE '(^|[^a-z0-9_-])(pr|merge|pulls|graphql)([^a-z0-9_-]|$)|\|[[:space:]]*([^[:space:]]*/)?(bash|sh|zsh|dash|ksh|eval|source|xargs)([[:space:]]|$)'
+}
+# The plain patterns on a folded copy with braces and glob brackets removed.
+base_like() {
+  local g; g=$(fold "$1" | tr -d '{}[]')
+  case "$g" in
     *gh*merge*|*pulls/*merge*|*mergepullrequest*|*enablepullrequestautomerge*|*repos/*/merges*|*gh*pr*[\$\`]*|*[\$\`]*merge*) return 0 ;;
   esac
   return 1
 }
-is_merge_like "$payload" || exit 0
+is_merge_like() {  # is_merge_like <text> [loose]
+  local f
+  f=$(fold "$1")
+  # The raw payload holds JSON escapes (\\147 for \147), which decode cannot read: any escape there is enough
+  # to go on to the decoded command, where the check below is exact.
+  if [ -n "${2-}" ] && has_escape "$1"; then return 0; fi
+  base_like "$1" && return 0
+  # P5: a glob or a brace in the gh words (gh pr merg?, mer{g..g}e, /usr/bin/g? pr m?rge) can expand to them.
+  case "$f" in
+    *gh*pr*[?*\{]*) return 0 ;;
+  esac
+  if printf '%s' "$f" | grep -q '[?*{]' && merge_context "$f"; then return 0; fi
+  # P5: an escape ($'\147h', printf '\x67h' | bash) can spell gh or merge: check the decoded text.
+  if has_escape "$1" && base_like "$(decode "$1")"; then return 0; fi
+  return 1
+}
+is_merge_like "$payload" loose || exit 0
 
 TMPF=""
 trap '[ -z "$TMPF" ] || rm -f "$TMPF"' EXIT
@@ -43,7 +83,10 @@ deny() {
 }
 
 if ! command -v jq >/dev/null 2>&1; then
-  if printf '%s' "$payload" | grep -qE 'gh[[:space:]]+(pr[[:space:]]+merge|api)'; then
+  # P5: without jq, cut the command field out of the payload by hand (a best effort that can include later
+  # fields) and deny when it looks like a merge. The old check needed a plain `gh pr merge` and missed folded spellings.
+  raw=$(printf '%s' "$payload" | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\(.*\)".*/\1/p')
+  if [ -z "$raw" ] || is_merge_like "$(printf '%b' "${raw//\\c/}" 2>/dev/null)"; then
     deny "jq is not installed, so the merge command cannot be parsed."
   fi
   exit 0
@@ -51,6 +94,9 @@ fi
 cmd=$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null) || deny "the command could not be parsed."
 [ -n "$cmd" ] || deny "the command is empty or could not be parsed."
 is_merge_like "$cmd" || exit 0
+# P5: bash joins a backslash line break (g\<newline>h is gh) except in a comment or a quoted heredoc body, so
+# the splitter cannot follow it either way: deny it next to a merge-like word.
+case "$cmd" in *$'\\\n'*) deny "a backslash line break next to a merge-like word cannot be judged; write the command on one line." ;; esac
 
 DEADLINE=20  # seconds for the whole hook; the registered hook timeout is 30
 GH_OUT=""
@@ -252,12 +298,24 @@ while IFS= read -r seg; do
   case "$w0" in
     '['|'[['|'{'|'}') ;;
     *'*'*|*'?'*|*'['*) deny "a command name with glob characters next to the word merge cannot be judged." ;;
-    '{'*,*|'{'*..*) deny "a command name built by brace expansion next to the word merge cannot be judged." ;;
+    *'{'*,*'}'*|*'{'*..*'}'*) deny "a command name built by brace expansion next to the word merge cannot be judged." ;;
   esac
   b=${w0//\\/}; b=${b#=}; b=${b##*/}  # drop every backslash, zsh's leading =, and any path
+  # P5: GH or Gh runs gh on a case-insensitive file system (macOS default).
+  case "$b" in [Gg][Hh]) [ "$b" = gh ] || deny "a gh command name in another case ($b) cannot be judged." ;; esac
+  # P5: a glob in the gh subcommand words (gh pr merg?, gh pr mer[g]e) can expand to merge.
+  if printf '%s' "$seg" | grep -qE '^([^[:space:]]*/)?gh[[:space:]]+([^[:space:]]*[]?*[{][^[:space:]]*|pr[[:space:]]+[^[:space:]]*[]?*[{][^[:space:]]*)([[:space:]]|$)'; then
+    deny "a gh subcommand with glob or brace characters cannot be judged."
+  fi
   case "$b" in
     bash|sh|zsh|dash|ksh|rbash|eval|xargs|env|exec|nohup|time|command|sudo|doas|builtin|source|nice|timeout|stdbuf|setsid|ionice|taskset|chronic|unbuffer|repeat|coproc|busybox|flock|script|setpriv|prlimit|chrt|strace|fakeroot|runuser|su|watch|unshare)
       seg="$b${seg#"$w0"}" ;;
+    *) bl=$(printf '%s' "$b" | tr '[:upper:]' '[:lower:]')
+       case "$bl" in
+         bash|sh|zsh|dash|ksh|rbash|eval|xargs|env|exec|nohup|time|command|sudo|doas|builtin|source|nice|timeout|stdbuf|setsid|ionice|taskset|chronic|unbuffer|repeat|coproc|busybox|flock|script|setpriv|prlimit|chrt|strace|fakeroot|runuser|su|watch|unshare)
+           # P5: Bash or SH runs bash or sh on a case-insensitive file system.
+           seg="$bl${seg#"$w0"}" ;;
+       esac ;;
   esac
   NSEGS=$((NSEGS + 1))
   # A gh merge behind a keyword, prefix or redirection is not a plain merge to put to the owner.
@@ -286,8 +344,8 @@ while IFS= read -r seg; do
       deny "'gh api repos/.../merges' merges a branch and is not allowed; a human merges."
     fi
     if printf '%s' "$seg" | grep -qE 'pulls/[^[:space:]]*/merge'; then judge_api_merge "$seg"; fi
-  elif case "${seg%%[[:space:]]*}" in *[\$\`]*) printf '%s' "$(fold "$cmd")" | grep -q 'merge' ;; *) false ;; esac; then
-    deny "a command name built from a variable or substitution next to the word merge cannot be judged."
+  elif case "${seg%%[[:space:]]*}" in *[\$\`]*) printf '%s' "$(fold "$cmd")" | grep -q 'merge' || merge_context "$(fold "$seg")" || { has_escape "$seg" && base_like "$(decode "$cmd")"; } ;; *) false ;; esac; then
+    deny "a command name built from a variable, substitution or escape next to a merge-like word cannot be judged."
   elif printf '%s' "$seg" | grep -qE '^gh[[:space:]]+(pr[[:space:]]+)?[^[:space:]]*[$`]'; then
     deny "a gh pr subcommand built from a variable or substitution cannot be judged."
   elif printf '%s' "$seg" | grep -qE '^gh[[:space:]]+alias[[:space:]]+(set|import)([[:space:]]|$)'; then
