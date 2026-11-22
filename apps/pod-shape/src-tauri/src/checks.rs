@@ -8,7 +8,7 @@ use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Condvar, Mutex, OnceLock};
+use std::sync::{mpsc, Arc, Condvar, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 /// Shown wherever the repo input is not `owner/name` (or a form that holds one).
@@ -51,11 +51,17 @@ enum CaptureError {
     Timeout,
 }
 
-/// Copies a pipe into a shared buffer on its own thread; `finished` turns true at EOF.
-fn pump(mut pipe: impl Read + Send + 'static) -> (Arc<Mutex<Vec<u8>>>, Arc<AtomicBool>) {
+/// How long to wait for the pipes to reach EOF once the command's group is dead. EOF follows
+/// at once; the cap only covers a daemon that left the session (its own `setsid`) and still
+/// holds a pipe, so that case cannot hang the check.
+const PIPE_EOF_CAP: Duration = Duration::from_secs(5);
+
+/// Copies a pipe into a shared buffer on its own thread. The receiver gets a message at EOF,
+/// after the last byte is in the buffer.
+fn pump(mut pipe: impl Read + Send + 'static) -> (Arc<Mutex<Vec<u8>>>, mpsc::Receiver<()>) {
     let buf = Arc::new(Mutex::new(Vec::new()));
-    let finished = Arc::new(AtomicBool::new(false));
-    let (b, f) = (buf.clone(), finished.clone());
+    let (tx, eof) = mpsc::channel();
+    let b = buf.clone();
     std::thread::spawn(move || {
         let mut chunk = [0u8; 4096];
         while let Ok(n) = pipe.read(&mut chunk) {
@@ -64,9 +70,9 @@ fn pump(mut pipe: impl Read + Send + 'static) -> (Arc<Mutex<Vec<u8>>>, Arc<Atomi
             }
             b.lock().unwrap_or_else(|e| e.into_inner()).extend_from_slice(&chunk[..n]);
         }
-        f.store(true, Ordering::SeqCst);
+        let _ = tx.send(());
     });
-    (buf, finished)
+    (buf, eof)
 }
 
 fn text(buf: &Mutex<Vec<u8>>) -> String {
@@ -89,8 +95,8 @@ fn capture(mut cmd: Command, timeout: Duration, done: Option<fn(&str) -> bool>) 
         });
     }
     let mut child = cmd.spawn().map_err(CaptureError::Spawn)?;
-    let (out, out_done) = pump(child.stdout.take().ok_or(CaptureError::Timeout)?);
-    let (err, err_done) = pump(child.stderr.take().ok_or(CaptureError::Timeout)?);
+    let (out, out_eof) = pump(child.stdout.take().ok_or(CaptureError::Timeout)?);
+    let (err, err_eof) = pump(child.stderr.take().ok_or(CaptureError::Timeout)?);
     // After `setsid` the child's pid is also its process group id.
     let kill_group = |child: &mut std::process::Child| {
         // SAFETY: plain syscall; a negative pid addresses the group. The child is not reaped
@@ -116,10 +122,11 @@ fn capture(mut cmd: Command, timeout: Duration, done: Option<fn(&str) -> bool>) 
     if timed_out {
         return Err(CaptureError::Timeout);
     }
-    // The group is dead, so both pipes close at once; give the pumps a moment to drain.
-    let drain = Instant::now() + Duration::from_millis(500);
-    while !(out_done.load(Ordering::SeqCst) && err_done.load(Ordering::SeqCst)) && Instant::now() < drain {
-        std::thread::sleep(Duration::from_millis(2));
+    // The group is dead, so both pipes reach EOF at once. Wait for it: the data may still be
+    // in the pipe, and returning early would lose the output of a fast command under load.
+    let cap = Instant::now() + PIPE_EOF_CAP;
+    for eof in [&out_eof, &err_eof] {
+        let _ = eof.recv_timeout(cap.saturating_duration_since(Instant::now()));
     }
     Ok(Captured { status, stdout: text(&out), stderr: text(&err) })
 }
@@ -689,6 +696,35 @@ mod tests {
         let got = shell_path(shell.to_str().unwrap(), Duration::from_secs(20));
         assert!(got.is_some_and(|p| !p.is_empty()));
         assert!(start.elapsed() < Duration::from_secs(15), "took {:?}", start.elapsed());
+    }
+
+    #[test]
+    fn the_output_of_a_fast_command_is_never_lost() {
+        let _s = spawning();
+        for i in 0..40 {
+            let mut cmd = Command::new("printf");
+            cmd.arg("hi");
+            assert_eq!(stdout_with_timeout(cmd, Duration::from_secs(20), None).as_deref(), Some("hi"), "run {i}");
+        }
+        for i in 0..15 {
+            assert_eq!(
+                try_run("sh", &["-c", "echo out; echo err >&2"], Duration::from_secs(20)).ok().as_deref(),
+                Some("out"),
+                "run {i}"
+            );
+            assert_eq!(
+                try_run("sh", &["-c", "echo err >&2; exit 1"], Duration::from_secs(20)).err().map(|e| e.message("sh")),
+                Some("err".to_string()),
+                "run {i}"
+            );
+        }
+        // The early-stop path keeps everything printed before the stop, too.
+        for i in 0..15 {
+            let mut cmd = Command::new("sh");
+            cmd.args(["-c", "printf one; printf ready; sleep 30"]);
+            let out = stdout_with_timeout(cmd, Duration::from_secs(20), Some(|o| o.contains("ready")));
+            assert_eq!(out.as_deref(), Some("oneready"), "run {i}");
+        }
     }
 
     #[test]
