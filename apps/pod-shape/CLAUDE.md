@@ -18,7 +18,7 @@ Read `docs/HANDOFF.md` first. The build plan is §6 there; one step per PR.
 
 ## Fonts
 
-- IBM Plex Sans (UI, 400/500/600) and JetBrains Mono (code, 400/500) come from `@fontsource/ibm-plex-sans`
+- Outfit (UI, 400/500/600) and JetBrains Mono (real code only, 400/500) come from `@fontsource/outfit`
   and `@fontsource/jetbrains-mono` (both OFL), imported in `src/styles/globals.css`. Bundled, no CDN.
 - `lucide-react` is pinned to 0.577.x: 1.x removed the `Github` icon that `icons.ts` maps to `openGithub`.
 
@@ -35,10 +35,11 @@ Rules:
 - No hex/rgb values, no arbitrary Tailwind values (`bg-[#..]`, `p-[13px]`), no default Tailwind colors (`bg-blue-500`, `text-white`) in components.
 - If the task needs something that is not in the design system: STOP and ask me first. Say what is missing, which existing piece is closest, and the smallest addition you suggest. After I say yes, add it to `tokens.css` or `src/components/ui|app/` AND update `docs/DESIGN_SYSTEM.md` in the same change.
 - Every UI change must work in dark and light theme, show issue status with icon + label (not color only), and pass the checklist in DESIGN_SYSTEM.md §10.
-- Never use the banned patterns in DESIGN_SYSTEM.md §0.1: no gradients, no blur/glass/glow, no sparkles or wand icons for "AI", no emoji, no card inside a card, no colored left border on cards, no blobs/waves/decorative backgrounds, no centered hero layouts, no marketing filler words, no lorem ipsum.
+- Never use the banned patterns in DESIGN_SYSTEM.md §0.1: no gradients, no blur/glass/glow, no shadow that is not a token, no sparkles or wand icons for "AI", no emoji, no card inside a card, no colored left border on cards, no blobs/waves/decorative backgrounds, no centered hero layouts, no uppercase labels, no marketing filler words, no lorem ipsum. Pills, rounded cards and the shadow tokens of §5 are the v2.0 "Cozy" look and are allowed.
 - Icons only through `src/components/app/icons.ts` (one meaning = one icon, fixed size/stroke pairs). Never import from `lucide-react` directly.
 - Keep accent near 10% of a screen: one primary button per view; the orange node means only "you are here" (current step or selected item).
-- The branch line (DESIGN_SYSTEM.md §6.4) is the only signature detail. Use it only in TreeView, PipelineSteps and EmptyState's BranchPattern.
+- The branch line (DESIGN_SYSTEM.md §6.4) is the only signature detail. Use it only in TreeView, PipelineSteps, LevelsLegend and EmptyState's BranchPattern.
+- Mono (JetBrains Mono) only for real code: RunLog rows, the brief source, inline code. Paths, repos and `#numbers` use the UI font with `tabular-nums`.
 - Do not redraw or recolor the logo. Use the files in `src/assets/brand/`.
 
 Where things live:
@@ -46,5 +47,5 @@ Where things live:
 - Primitives (shadcn/ui): `src/components/ui/`
 - App parts: `src/components/app/`
 - Icon map: `src/components/app/icons.ts`
-- Fonts: IBM Plex Sans + JetBrains Mono, bundled via `@fontsource/ibm-plex-sans` and `@fontsource/jetbrains-mono` (no CDN; the app works offline)
+- Fonts: Outfit + JetBrains Mono, bundled via `@fontsource/outfit` and `@fontsource/jetbrains-mono` (no CDN; the app works offline)
 - Logo: `src/assets/brand/shape-board-icon.svg`, `shape-board-lockup.svg`, `branch-pattern.svg`

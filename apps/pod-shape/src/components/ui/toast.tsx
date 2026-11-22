@@ -16,10 +16,10 @@ export function Toaster() {
         unstyled: true,
         classNames: {
           toast:
-            "flex w-full items-start gap-2 rounded-lg border border-border bg-surface-2 p-4 text-base text-fg shadow-sm",
+            "flex w-full items-start gap-2 rounded-card border border-border bg-surface-2 px-4 py-3.5 text-base text-fg shadow-sm",
           title: "font-medium text-fg",
           description: "text-sm text-fg-muted",
-          closeButton: "order-last ml-auto rounded-md p-1 text-fg-muted hover:bg-surface-3",
+          closeButton: "order-last ml-auto rounded-full p-1 text-fg-muted hover:bg-surface-3",
         },
       }}
     />

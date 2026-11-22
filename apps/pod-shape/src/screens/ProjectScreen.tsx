@@ -18,12 +18,12 @@ export function ProjectScreen({ project, home }: { project: Project; home: strin
     }
   }
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6">
       <PageHeader
         title={project.name}
         meta={
           <>
-            <span className="font-mono">{shortPath(project.path, home)}</span>
+            <span className="tabular-nums">{shortPath(project.path, home)}</span>
             <span aria-hidden>·</span>
             <span>github.com/{project.repo}</span>
             <span aria-hidden>·</span>

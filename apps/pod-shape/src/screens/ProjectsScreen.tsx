@@ -7,8 +7,8 @@ import { clickableCard } from "../components/ui/card";
 import { shortPath, type Project } from "../lib/api";
 import { count, formatWhen } from "../lib/time";
 
-// DESIGN_SYSTEM.md §7.1 screen 1, Projects (home): PageHeader + grid of project Cards (gap-3):
-// repo name, path font-mono, artifact count, StatusBar of all issues.
+// DESIGN_SYSTEM.md §7.1 screen 1, Projects (home): PageHeader + grid of project Cards (grid-cards, gap-4):
+// repo name, path (UI font, tabular), artifact count, StatusBar of all issues.
 // Artifacts and issues arrive in steps 2 and 4, so every count is 0 for now.
 const NO_ISSUES = { merged: 0, pr: 0, open: 0, closed: 0 };
 
@@ -24,7 +24,7 @@ export function ProjectsScreen({
   onAdd: () => void;
 }) {
   return (
-    <div className={projects.length === 0 ? "flex flex-col gap-5" : "flex flex-col gap-6"}>
+    <div className="flex flex-col gap-6">
       <PageHeader
         title="Projects"
         meta={`${count(projects.length, "repo")} · ${count(0, "issue")}`}
@@ -46,22 +46,22 @@ export function ProjectsScreen({
           }
         />
       ) : (
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
+      <div className="grid grid-cards gap-4">
         {projects.map((p) => (
-          <button key={p.id} type="button" className={`${clickableCard} flex flex-col gap-3`} onClick={() => onOpen(p)}>
-            <div className="flex flex-col gap-1">
-              <h3 className="flex items-center gap-2 text-md font-medium text-fg">
+          <button key={p.id} type="button" className={`${clickableCard} flex flex-col gap-2.5`} onClick={() => onOpen(p)}>
+            <div className="flex flex-col gap-2.5">
+              <h3 className="flex items-center gap-2 text-md leading-5 font-semibold text-fg">
                 <Icon.project {...iconSize.default} aria-hidden className="shrink-0" />
                 <span className="truncate">{p.name}</span>
               </h3>
-              <span className="truncate font-mono text-sm text-fg-muted">{shortPath(p.path, home)}</span>
+              <span className="truncate text-sm leading-4 text-fg-subtle tabular-nums">{shortPath(p.path, home)}</span>
             </div>
             <StatusBar counts={NO_ISSUES} />
-            <div className="mt-auto flex items-center justify-between gap-2 border-t border-border bg-surface-1 px-8 py-2 text-sm text-fg-muted">
+            <div className="mt-auto flex items-center justify-between gap-2 text-sm leading-4 text-fg-muted tabular-nums">
               <span>
                 {count(0, "artifact")} · {count(0, "issue")}
               </span>
-              <span className="text-fg-subtle tabular-nums">{formatWhen(p.createdAt)}</span>
+              <span>{formatWhen(p.createdAt)}</span>
             </div>
           </button>
         ))}

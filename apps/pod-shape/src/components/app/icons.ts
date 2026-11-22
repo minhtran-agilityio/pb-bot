@@ -1,5 +1,5 @@
 // src/components/app/icons.ts
-// Shape Board icon map (design system v1.1, DESIGN_SYSTEM.md §8).
+// Shape Board icon map (design system v2.0, DESIGN_SYSTEM.md §8).
 // One meaning -> one lucide icon. Components import `Icon` from here, never from "lucide-react".
 // Adding or changing a meaning is a design system change: ask the user first.
 import {
