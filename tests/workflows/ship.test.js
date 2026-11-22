@@ -508,11 +508,11 @@ test('b: three tickets, groups 1,1,2: setup, parallel, merge, group 2, merge, on
   assert(named(calls, /^implement:3$/)[0].prompt.startsWith('git -C /repo fetch origin\ngit -C /repo worktree add -b feat/ms-3 /.ship-repo/ms/t3 origin/feat/ms'))
   assert(named(calls, /^finish:1$/)[0].prompt.includes('base feat/ms'))
   const fin = named(calls, /^finish:3$/)[0].prompt
-  assert(fin.includes('--head "$(cat <branch file>)" --title "$(cat <title file>)" --body-file <body file>'), fin)
+  assert(fin.includes('gh api repos/o/r/pulls -X POST --input /tmp/pd-bot-pr-3.json') && !fin.includes('$(cat'), fin)
   const fp = named(calls, /^final-pr$/)[0].prompt
-  assert(fp.includes('the branch name feat/ms to a third') && fp.includes('--base integration --head "$(cat <branch file>)" --title "$(cat <title file>)" --body-file'), fp)
+  assert(fp.includes('head (feat/ms), base (integration)') && fp.includes('gh api repos/o/r/pulls -X POST --input /tmp/pd-bot-final-pr.json') && !fp.includes('$(cat'), fp)
   // ADR 0004: the gh command text holds neither the slug nor the branch name, so a slug with the word merge is not asked about
-  assert(!/gh pr create[^\n]*(feat\/ms|"ms")/.test(fp), fp)
+  assert(!/gh api repos[^\n]*(feat\/ms|"ms")/.test(fp), fp)
   assert.deepStrictEqual(result.tickets.map(t => t.status), ['done', 'done', 'done'])
   assert.strictEqual(result.final.branch, 'feat/ms')
   const body = named(calls, /^adr$/)[0].prompt

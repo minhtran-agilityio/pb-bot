@@ -106,7 +106,7 @@ AGENT=a1 expect deny 'gh pr merge 3 --repo o/r'
 
 echo "== no false question on ordinary commands =="
 for a in "" a1; do  # ship.js commands (ADR 0004): the slug, title and body stay in files, so merge in them is not seen
-  AGENT=$a expect pass 'gh pr create --repo o/r --base main --head "$(cat /tmp/h)" --title "$(cat /tmp/t)" --body-file /tmp/b'
+  AGENT=$a expect pass "gh api repos/o/r/pulls -X POST --input /tmp/pr.json --jq '{number, url: .html_url}'"
   AGENT=$a expect pass 'gh issue comment 5 --repo o/r --body-file /tmp/c'
 done
 expect pass 'git commit -F /tmp/msg.txt'

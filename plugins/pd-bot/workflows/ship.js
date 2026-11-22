@@ -819,7 +819,7 @@ function stageVerify(t, impl, mode) {
 async function commentVerify(t, text) {
   if (LOCAL) return
   try {
-    await call(`Write the text below to a temp file and run: gh issue comment ${t.n} --repo ${repo} --body-file <file>   (never --body: the merge guard asks about any gh command whose text holds the word merge, and this stage cannot answer)\n\n${RULES_LITE}\n\nText:\n${text}\nPost the comment and return status ok. Edit nothing else.`,
+    await call(`Write the text below to /tmp/pd-bot-verify-${t.n}.md and run, as its own Bash call: gh issue comment ${t.n} --repo ${repo} --body-file /tmp/pd-bot-verify-${t.n}.md   (never --body: the merge guard asks about any gh command whose text holds the word merge, and this stage cannot answer)\n\n${RULES_LITE}\n\nText:\n${text}\nPost the comment and return status ok. Edit nothing else.`,
       { label: lbl(`#${t.n} post verify comment`, t.title), phase: 'Tickets', schema: SETUP_SCHEMA, model: MODEL.cheap, effort: EFFORT.cheap })
   } catch (e) { log(`#${t.n} verify comment failed: ${e && e.message}`) }
 }
@@ -927,7 +927,7 @@ function stageFinish(t, impl, verifyResult) {
   const where = `Your branch ${impl.branch} is checked out in ${dir}; work there with cd ${dir}. If that path is gone, run: git -C ${repoDir} worktree add ${fw.dir} ${impl.branch}, and work in ${fw.dir} (git fetch ${remote} first).\n${setupBlock(fw.dir)}`
   const how = LOCAL
     ? `Local mode: do NOT push and do NOT open a pull request. Verify the branch as the skill describes, then write the PR description for base ${prBase} to .ship/pr-${t.n}.md inside the worktree (do not commit it) and return its absolute path as body_file with pr: 0.\n`
-    : `Verify, push the branch and open the pull request with base ${prBase}. Write the title, the branch name and the body to temp files and run gh pr create --base ${prBase} --head "$(cat <branch file>)" --title "$(cat <title file>)" --body-file <body file>: the command text must not hold the title, the branch name or the body, because the merge guard asks about any gh command whose text holds the word merge, and this stage cannot answer. The body says "Refs #${t.n}" (the final PR carries the Closes lines), contains this merge-policy block exactly once, unchanged, and ends with the footer line. Return the PR number as pr and its url.\n${single ? mergeBlock({ mode: 'human', why: `the PR targets ${base}` }) : mergeBlock({ mode: 'pending' })}\n`
+    : `Verify, push the branch and open the pull request with base ${prBase}. Open it with the GitHub API, not gh pr create: write a JSON file /tmp/pd-bot-pr-${t.n}.json with the keys title, head (your branch name), base (${prBase}) and body, then run, as its own Bash call (no cd ... && before it): gh api repos/${repo}/pulls -X POST --input /tmp/pd-bot-pr-${t.n}.json --jq '{number, url: .html_url}'. The command text must not hold the title, the branch name or the body, because the merge guard asks about any gh command whose text holds the word merge, and this stage cannot answer; use no command substitution either, because this stage cannot answer a permission prompt. The body says "Refs #${t.n}" (the final PR carries the Closes lines), contains this merge-policy block exactly once, unchanged, and ends with the footer line. Return the PR number as pr and its url.\n${single ? mergeBlock({ mode: 'human', why: `the PR targets ${base}` }) : mergeBlock({ mode: 'pending' })}\n`
   const ver = verifyResult
     ? `Verify result: ${verifyResult.result}. Local stills: ${verifyResult.stills.join(', ') || 'none'}. Evidence stays uncommitted; a later step attaches the evidence file to the pull request.\n`
     : ''
@@ -1563,7 +1563,7 @@ function stageFinalPr(done, bodyTemplate) {
   const prompt = `${RULES_LITE}\n\nStage: open the final pull request ${integBranch} -> ${base} in ${repo}.\n` +
     (LOCAL
       ? `Local mode: do not push and do not open a pull request. Return pr: 0.\n`
-      : `Write the body below to a temp file, the title ${slug} to a second temp file and the branch name ${integBranch} to a third, then run: gh pr create --repo ${repo} --base ${base} --head "$(cat <branch file>)" --title "$(cat <title file>)" --body-file <body file>. The command text must not hold the slug, because the merge guard asks about any gh command whose text holds the word merge, and this stage cannot answer. Return its number and url.\n`) +
+      : `Write a JSON file /tmp/pd-bot-final-pr.json with the keys title (${slug}), head (${integBranch}), base (${base}) and body (the body below), then run, as its own Bash call (no cd ... && before it): gh api repos/${repo}/pulls -X POST --input /tmp/pd-bot-final-pr.json --jq '{number, url: .html_url}'. The command text must not hold the slug, because the merge guard asks about any gh command whose text holds the word merge, and this stage cannot answer; use no command substitution either, because this stage cannot answer a permission prompt. Return its number and url.\n`) +
     `Body (a later stage replaces it with the final text):\n${bodyTemplate}`
   return call(prompt, { label: 'open final PR', phase: 'Review', schema: FINAL_PR_SCHEMA, model: MODEL.merge, effort: EFFORT.merge })
 }
