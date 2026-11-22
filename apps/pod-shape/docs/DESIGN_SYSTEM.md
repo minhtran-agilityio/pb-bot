@@ -69,11 +69,11 @@ All colors are CSS variables in `tokens.css`, mapped to Tailwind classes (`bg-su
 
 | Token | Tailwind | Dark | Light | Use for |
 |---|---|---|---|---|
-| `--accent` | `bg-accent` | #EB7D4C | #C4552B | Primary button, selected nav icon, current node, focused input border |
-| `--accent-hover` | `bg-accent-hover` | #F2946A | #A9461F | Hover of primary button |
+| `--accent` | `bg-accent` | #EB7D4C | #A9461F | Primary button, selected nav icon, current node, focused input border |
+| `--accent-hover` | `bg-accent-hover` | #F2946A | #9D3B11 | Hover of primary button |
 | `--accent-fg` | `text-accent-fg` | #2A1A10 | #FFF8F0 | Text and icon on `bg-accent` |
 | `--accent-soft` | `bg-accent-soft` | 16% terracotta | 13% terracotta | Selected tree row, focus halo, suggested-answer chip, Claude avatar |
-| `--accent-text` | `text-accent-text` | #F29B70 | #AE4A22 | Links and accent text |
+| `--accent-text` | `text-accent-text` | #F29B70 | #A54118 | Links and accent text |
 | `--ring` | `outline-ring` | = accent | = accent | Focus ring |
 
 `--brand` (#F97316) and `--brand-ink` (#18181B) are the logo colors. Use them only for the logo and app icon, never for UI.
@@ -86,7 +86,7 @@ All colors are CSS variables in `tokens.css`, mapped to Tailwind classes (`bg-su
 - At most **one** primary (accent-filled) button per view. Accent is for "the next step", not decoration.
 - The accent node means "you are here" (current step or selected item). Do not use it for anything else.
 - Status colors appear only inside StatusBadge, status dots, StatusBar and status icons. Never as the background of a whole card, row or panel.
-- Every text pair must pass AA (4.5:1). Do not put `fg-subtle` on `surface-3`.
+- Every text pair must pass AA (4.5:1); see the measured table in §1.5. Do not put `fg-subtle` on `surface-3`.
 
 ### 1.3 Issue status
 
@@ -94,11 +94,11 @@ V1 has **four** issue statuses. "Running" is not an issue status: pd-bot gives n
 
 | Status | Meaning | Token | Dark | Light | Icon (lucide) | Label |
 |---|---|---|---|---|---|---|
-| open | Created on GitHub, nobody working | `status-open` | #8DBF8A | #3F7A4C | `circle-dot` | Open |
-| has PR | A pull request is linked and open | `status-pr` | #7FC1B7 | #2E7770 | `git-pull-request` | Has PR |
+| open | Created on GitHub, nobody working | `status-open` | #8DBF8A | #397446 | `circle-dot` | Open |
+| has PR | A pull request is linked and open | `status-pr` | #7FC1B7 | #29736C | `git-pull-request` | Has PR |
 | merged | PR merged | `status-merged` | #C2A3D6 | #7A559C | `git-merge` | Merged |
 | closed | Closed without merge | `status-closed` | #B3A595 | #6E6156 | `circle-slash` | Closed |
-| (run in progress, RunLog only) | — | `status-running` | #8EB6D9 | #3A6E9C | `loader` (spins) | — |
+| (run in progress, RunLog only) | — | `status-running` | #8EB6D9 | #376B99 | `loader` (spins) | — |
 
 Each has a `-soft` token for the badge background (`bg-status-pr-soft`): 16% of the color in dark, a flat tint in light.
 "Draft" (not yet on GitHub, only in the review screen) is not a status: use the neutral `Badge` with label "Draft".
@@ -108,8 +108,27 @@ Each has a `-soft` token for the badge background (`bg-status-pr-soft`): 16% of 
 | Token | Dark | Light | Use for |
 |---|---|---|---|
 | `danger` / `danger-soft` | #EE8A7C | #B0412F / #F7E0D9 | Errors, destructive buttons, failed run |
-| `warning` / `warning-soft` | #E8C06A | #8F5F0E / #F6EACB | Rate limit, missing GitHub auth, stale data |
-| `success` | #8DBF8A | #3F7A4C | Toast "Created 12 issues", passed RunLog row |
+| `warning` / `warning-soft` | #E8C06A | #8E5E0D / #F6EACB | Rate limit, missing GitHub auth, stale data |
+| `success` | #8DBF8A | #397446 | Toast "Created 12 issues", passed RunLog row |
+
+
+### 1.5 Contrast (light theme, measured)
+
+Owner decision (v2.0): the light theme darkens these tokens from the prototype values, keeping their hue (OKLCH lightness only), so that every text pair passes AA 4.5:1. Dark theme values are the prototype's. Ratios are WCAG contrast; "worst" is the lowest of the surfaces the token sits on (bg, surface-1, surface-2, surface-3) and its own `-soft` chip.
+
+| Token (light) | Prototype | Now | Pair | Ratio |
+|---|---|---|---|---|
+| `accent` / `accent-fg` | #C4552B | #A9461F | primary button text #FFF8F0 on accent | 4.26 → 5.56 |
+| `accent-hover` | #A9461F | #9D3B11 | #FFF8F0 on hover | 6.50 |
+| `ring` | #C4552B | #A9461F | focus ring on surfaces (non-text, 3:1) | worst 4.75 (surface-3) |
+| `accent-text` | #AE4A22 | #A54118 | on surfaces and on `accent-soft` | worst 4.52 (accent-soft on surface-1) |
+| `status-open`, `success` | #3F7A4C | #397446 | on surfaces and `status-open-soft` | worst 4.52 (surface-3) |
+| `status-running` | #3A6E9C | #376B99 | on surfaces and its soft | worst 4.53 (soft) |
+| `status-pr` | #2E7770 | #29736C | on surfaces and its soft | worst 4.51 (soft) |
+| `warning` | #8F5F0E | #8E5E0D | on surfaces and `warning-soft` | worst 4.51 (surface-3) |
+| `status-merged` | #7A559C | unchanged | on surfaces and its soft | worst 4.60 (soft) |
+| `status-closed` | #6E6156 | unchanged | on surfaces and its soft | worst 4.80 (soft) |
+| `danger` | #B0412F | unchanged | on surfaces and `danger-soft` | worst 4.56 (soft) |
 
 ---
 
@@ -368,6 +387,7 @@ If the keeper session is not running, the agent files the request issue itself, 
 Only when the user asks. Steps: update `tokens.css` and/or the component → update this file (tables above) → bump the version at the top → note it in the changelog below.
 
 ### Changelog
+- **v2.0 (contrast)** — Owner decision: light theme tokens darkened to meet AA; differs from the prototype. `accent` #A9461F, `accent-hover` #9D3B11, `ring` #A9461F, `accent-text` #A54118, `status-open` and `success` #397446, `status-running` #376B99, `status-pr` #29736C, `warning` #8E5E0D (ratios in §1.5).
 - **v2.0** — "Cozy" redesign, from the owner's request (2026-11-22): "bỏ qua ui cũ đi, hãy follow update new design https://claude.ai/artifact/3xwd3RbWe9k1kyFMa8bgjo" ("drop the old UI and follow the new design"). The reference is the Cozy style of `docs/prototype/shape-board-prototype.html`. Warm brown and cream palette with an olive sidebar (`--side`, `--side-hover`) and a soft terracotta accent; UI font Outfit (IBM Plex Sans dropped), body 14/22, mono only for real code; pill controls and pill tabs; new radius scale (6/12/14/18/24/28/32/full); card, button and footer shadows (`shadow-card`, `shadow-btn`, `shadow-foot`) and a focus halo; floating rounded panels on a desk background (TitleBar 48, Sidebar 256, RightPanel 372, gap 12); the theme control moves to the bottom of the Sidebar; new part LevelsLegend, which may use the branch line. §0.1 now allows pills, rounded cards and the shadow tokens, and bans uppercase labels. Owner decision that differs from the v2.0 design system artifact (WRkcjobJX9VCEi74o3mVjN): V1 keeps **four** issue statuses; `status-running` is for RunLog only (§1.3). The Sidebar shows Settings and Overview only when their screens exist (owner decision for step 1).
 - **v1.4** — Request flow for UI parts (§11): every agent asks the `Pb Bot Storehouse` keeper before UI work; only the keeper and the ui-designer agent change the shared parts, in a pull request with the label `design-system`. "Changing this system" moves to §12. No token, component or layout changes. Needs owner approval: design system change (the setup pull request).
 - **v1.3** — No "running" issue status in V1 (owner decision): removed from §1.3, StatusBadge and StatusBar. New app part AddProjectDialog (§6.2), approved by the owner. The global `:focus-visible` rule in `tokens.css` moves into `@layer base`, so a component's `focus-visible:` utility can override it. EmptyState may use `max-w-140` and `max-w-85` (§6.2, §7), matching the prototype (owner decision). AddProjectDialog: input errors under the field, check failures on their RunLog row, and Cancel stays enabled during checks (owner decision).
