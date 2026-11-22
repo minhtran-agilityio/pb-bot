@@ -53,7 +53,7 @@ If the design doc and the design system disagree, follow the design doc for beha
 | Storage | SQLite on the local machine. Save the full grill history |
 | Claude access | Use the owner's Claude subscription. The app runs the Claude Code CLI in the background: `claude -p` with `--session-id` on the first turn and `--resume <id>` after that, plus `--output-format stream-json --verbose`. No API key |
 | GitHub access | `gh` CLI, already logged in. The app stores no tokens |
-| Getting artifacts | No official API exists for claude.ai Projects or artifacts. The terms do not allow an app to read claude.ai cookies or sessions. The owner pastes the artifact link and its HTML, and the app stores a copy. Pasting again creates a new version |
+| Getting artifacts | No official API exists for claude.ai Projects or artifacts. The terms do not allow an app to read claude.ai cookies or sessions. Main way: a local PostToolUse hook saves each artifact the owner publishes from Claude Code on the Mac (one HTML copy + one log line), and the app watches these and offers to add each new artifact to a project in one click. The hook only writes; the app only reads (section 11). Fallback: drag-and-drop an `.html` file, or paste the artifact link and its HTML. A new file or a new paste creates a new version |
 | Grill logic | Reuse the `pd-shape` skill from pd-bot. Do not rewrite its rules in Rust. The app disables `AskUserQuestion` and appends a system prompt. Claude then prints questions as a fenced `p2g-questions` JSON block (same shape as the AskUserQuestion input). The app shows them as cards and sends the answers back with `--resume` |
 | Grill output | 1 grill session = 1 feature = 1 brief (`specs/<slug>/brief.md`, local scratch, not committed). The owner confirms the brief in the app |
 | Issue creation | Run `/pd-bot:pd-tickets specs/<slug>/brief.md`. Its single owner approval becomes the review screen. After creation, the app finds the issues by their `source:` line and stores the links |
@@ -92,7 +92,7 @@ Each step is 1 small PR with a clear done point. Do not start step 1 until step 
    - If the spike fails, report to the owner before going on. The fallback is a small `Mode: app` section in `pd-shape`.
    - Report the result as an artifact (owner's standing rule).
 1. **App skeleton.** Tauri 2 + React, the design system files in place, fonts, SQLite + migrations, the Projects screen, adding a project (check that `gh`, `claude` and the repo folder are present). Done when a repo is added and still shows after the app restarts.
-2. **Artifact.** Paste link + HTML, store versions, preview in the sandboxed iframe. Done when a real prototype runs inside the app.
+2. **Artifact.** Import from the artifact hook (section 11: watch `~/claude-artifacts/` and the log, "New artifacts" box, project auto-select, versions), with drag-and-drop and paste link + HTML as the fallback. Store versions, preview in the sandboxed iframe. Done when a real prototype runs inside the app.
 3. **Grill.** `claude_runner`, the Grill screen, question cards, Stop/Resume, saved history, brief confirmation. Done when a real prototype is grilled end to end, and an interrupted session can be resumed after closing the app.
 4. **Generate issues.** Run `pd-tickets`, show the review screen, create the issues, store the links. Done when real issues appear on GitHub and in the tree.
 5. **Tree + status.** The full tree, status from one GraphQL call per project, progress bars. Done when 2 projects with issues in different states show correctly.
@@ -130,3 +130,79 @@ Each step is 1 small PR with a clear done point. Do not start step 1 until step 
 2. Ask the owner, in one short message: question A (folder), then 1, 3 and 4.
 3. Check PR #59's state and how pd-bot marks a running issue (question 5) by reading the pb-bot repo.
 4. Write the spike plan (step 0) and wait for the owner's "go".
+
+## 11. Hook export (artifact import)
+
+This replaces "paste link + HTML" as the main way to add an artifact. Paste and drag-and-drop stay as the fallback.
+
+### 11.1 Goal
+
+Each time the owner publishes an artifact from Claude Code on the Mac, a hook saves one HTML copy and writes one log line. Shape Board watches these and offers to add each new artifact to the right project in one click. The hook only writes. The app only reads.
+
+### 11.2 Hook (owner's personal config)
+
+The hook is part of the owner's personal config, and an older version is already installed. **Ask the owner before you change anything in `~/.claude/`.** Then replace `~/.claude/hooks/artifact-log.sh` with this script and run `chmod +x` on it:
+
+```bash
+#!/bin/bash
+# PostToolUse hook for the Artifact tool: archive each published HTML file and log it.
+# Output contract for Shape Board: see the design doc, section "Hook export".
+in=$(cat)
+action=$(jq -r '.tool_input.action // "publish"' <<<"$in")
+[ "$action" = "publish" ] || exit 0
+url=$(jq -r '.tool_response.url // empty' <<<"$in" 2>/dev/null)
+[ -n "$url" ] || exit 0                      # failed publish: nothing to do
+src=$(jq -r '.tool_response.path // .tool_input.file_path // empty' <<<"$in")
+[ -f "$src" ] || exit 0                      # no local file: nothing to archive
+ver=$(jq -r '.tool_response.version // empty' <<<"$in")
+[ -n "$ver" ] || ver=$(date -u +%Y%m%dT%H%M%SZ)   # no version: use UTC time, never overwrite
+title=$(jq -r '(.tool_response.title // "") | gsub("[\t\r\n]"; " ")' <<<"$in")
+cwd=$(jq -r '.cwd // ""' <<<"$in")
+id=${url##*/}
+dest="$HOME/claude-artifacts/$id"
+mkdir -p "$dest"
+file="$dest/${ver}_$(basename "$src")"
+cp "$src" "$file.tmp" && mv "$file.tmp" "$file"   # atomic: readers never see half a file
+printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$(date -u +%FT%TZ)" "$url" "$title" "$dest" "$cwd" "$file" \
+  >> "$HOME/.claude/artifact-log.tsv"
+exit 0
+```
+
+Check that `~/.claude/settings.json` has this entry. Merge it with the hooks that are already there; do not remove any:
+
+```json
+{ "hooks": { "PostToolUse": [
+  { "matcher": "Artifact", "hooks": [ { "type": "command", "command": "~/.claude/hooks/artifact-log.sh" } ] }
+] } }
+```
+
+The hook needs `jq`. The tool name "Artifact" and its response fields are not officially documented. If they change, the hook stops writing without an error.
+
+Done check for the hook: after the owner approves, publish one test artifact. Then `tail -1 ~/.claude/artifact-log.tsv | awk -F'\t' '{print NF}'` prints 6, and the column 6 file exists.
+
+### 11.3 Output contract
+
+- HTML: `~/claude-artifacts/<artifactId>/<version>_<original file name>`. With no version, the version is the UTC time (`20261122T113346Z`). Files are never overwritten. Ignore `*.tmp`.
+- Log: `~/.claude/artifact-log.tsv`, one line per successful publish, tab-separated, no header:
+  1. publish time UTC (`2026-11-22T11:13:40Z`)
+  2. artifact link; the id is the last part (`https://claude.ai/artifact/XD26T57sEMLh28o2cF6j1J`)
+  3. title, no tabs (`Hook Test Page`)
+  4. artifact folder (`/Users/<user>/claude-artifacts/XD26T57sEMLh28o2cF6j1J`)
+  5. session cwd, optional (`/Users/<user>/Documents/agilityio/pb-bot`)
+  6. saved file, optional (`.../XD26T57sEMLh28o2cF6j1J/20261122T111340Z_hook-test.html`)
+
+  Old lines have only columns 1–4. They stay valid. Read columns by position and ignore extra columns.
+- Source of truth: the HTML files in the folder. The log is only an index. If the log is missing or broken, scan the folder.
+
+### 11.4 App behavior (build step 2, "Artifact")
+
+1. The Rust backend watches `~/claude-artifacts/` and the log with the `notify` crate, and does a full scan when the app starts. Store the last log line read in SQLite.
+2. An artifactId that is not in any project shows in a "New artifacts" box on the Projects screen: title, publish time, "Add to project", "Ignore".
+3. Project auto-select: if column 5 is inside a project's clone folder (the longest match wins), pre-select that project. Otherwise the owner picks it.
+4. HTML = the column 6 file if present, else the newest file in the artifact folder. Save the content into SQLite (`artifact_versions`) at once, and skip it if the hash is the same.
+5. A new file for an artifact already in a project = a new version, marked "updated". Do not re-run the grill.
+6. Fallback: drag-and-drop an `.html` file, or paste link + HTML.
+7. Edge cases: missing folder or log → banner "Artifact hook not found", and the fallback still works. Bad log line → skip it and log a warning. Show "Last hook write: N days ago". Read only `.html` files, up to 5 MB.
+8. Limit: artifacts made on claude.ai or in cloud sessions do not pass through this hook. They need the fallback.
+
+All UI uses the design system (English copy, existing components only). Ask the owner if a component is missing.
