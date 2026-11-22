@@ -4,10 +4,11 @@
 
 use serde::Serialize;
 use std::io::Read;
+use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Command, ExitStatus, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Condvar, Mutex, OnceLock};
+use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 /// Shown wherever the repo input is not `owner/name` (or a form that holds one).
@@ -19,6 +20,8 @@ const PATH_BEGIN: &str = "__SHAPEBOARD_PATH_BEGIN__";
 const PATH_END: &str = "__SHAPEBOARD_PATH_END__";
 /// How long app start waits for the owner's shell to print its PATH.
 const SHELL_PATH_TIMEOUT: Duration = Duration::from_secs(3);
+/// How long `gh`, `claude` and `git` may take. `gh auth status` goes to the network.
+const CHECK_TIMEOUT: Duration = Duration::from_secs(15);
 /// How long `ssh -G <alias>` may take. It reads config only and does not touch the network.
 const SSH_G_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -31,31 +34,101 @@ pub struct CheckResult {
     pub ms: u128,
 }
 
-/// Runs `cmd` with no stdin and no stderr, and returns its stdout. When the command does not
-/// finish within `timeout`, it is killed and `None` is returned. The exit status is ignored:
-/// the caller parses the output (an interactive shell may exit non-zero after it printed).
-fn stdout_with_timeout(mut cmd: Command, timeout: Duration) -> Option<String> {
-    cmd.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null());
-    let mut child = cmd.spawn().ok()?;
-    let mut stdout = child.stdout.take()?;
-    let (tx, rx) = mpsc::channel();
-    // The reader thread ends when the pipe closes; after a kill that happens at once.
+extern "C" {
+    fn setsid() -> i32;
+    fn kill(pid: i32, sig: i32) -> i32;
+}
+
+/// What a bounded command printed. `status` is `None` when the output ended the wait early.
+struct Captured {
+    status: Option<ExitStatus>,
+    stdout: String,
+    stderr: String,
+}
+
+enum CaptureError {
+    Spawn(std::io::Error),
+    Timeout,
+}
+
+/// Copies a pipe into a shared buffer on its own thread; `finished` turns true at EOF.
+fn pump(mut pipe: impl Read + Send + 'static) -> (Arc<Mutex<Vec<u8>>>, Arc<AtomicBool>) {
+    let buf = Arc::new(Mutex::new(Vec::new()));
+    let finished = Arc::new(AtomicBool::new(false));
+    let (b, f) = (buf.clone(), finished.clone());
     std::thread::spawn(move || {
-        let mut buf = Vec::new();
-        let _ = stdout.read_to_end(&mut buf);
-        let _ = tx.send(buf);
+        let mut chunk = [0u8; 4096];
+        while let Ok(n) = pipe.read(&mut chunk) {
+            if n == 0 {
+                break;
+            }
+            b.lock().unwrap_or_else(|e| e.into_inner()).extend_from_slice(&chunk[..n]);
+        }
+        f.store(true, Ordering::SeqCst);
     });
-    match rx.recv_timeout(timeout) {
-        Ok(buf) => {
-            let _ = child.wait();
-            Some(String::from_utf8_lossy(&buf).into_owned())
-        }
-        Err(_) => {
-            let _ = child.kill();
-            let _ = child.wait();
-            None
-        }
+    (buf, finished)
+}
+
+fn text(buf: &Mutex<Vec<u8>>) -> String {
+    String::from_utf8_lossy(&buf.lock().unwrap_or_else(|e| e.into_inner())).into_owned()
+}
+
+/// Runs `cmd` with no stdin, in its own session (so it has no terminal to prompt on or grab,
+/// and `kill(-pid)` reaches everything it started). Returns when the command exits, when
+/// `done(stdout so far)` is true, or at `timeout`; then the whole process group is killed, so
+/// a background process the command left behind cannot keep the pipes open or run on.
+/// `Err(Timeout)` means neither happened in time.
+fn capture(mut cmd: Command, timeout: Duration, done: Option<fn(&str) -> bool>) -> Result<Captured, CaptureError> {
+    cmd.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    // SAFETY: `setsid` is async-signal-safe, the only thing allowed between fork and exec.
+    // Its result is ignored: it fails only for a process group leader, which a new child is not.
+    unsafe {
+        cmd.pre_exec(|| {
+            setsid();
+            Ok(())
+        });
     }
+    let mut child = cmd.spawn().map_err(CaptureError::Spawn)?;
+    let (out, out_done) = pump(child.stdout.take().ok_or(CaptureError::Timeout)?);
+    let (err, err_done) = pump(child.stderr.take().ok_or(CaptureError::Timeout)?);
+    // After `setsid` the child's pid is also its process group id.
+    let kill_group = |child: &mut std::process::Child| {
+        // SAFETY: plain syscall; a negative pid addresses the group. The child is not reaped
+        // yet, so its pid cannot belong to anything else.
+        unsafe { kill(-(child.id() as i32), 9) };
+        let _ = child.kill();
+    };
+    let deadline = Instant::now() + timeout;
+    let (status, timed_out) = loop {
+        if let Ok(Some(st)) = child.try_wait() {
+            break (Some(st), false);
+        }
+        if done.is_some_and(|d| d(&text(&out))) {
+            break (None, false);
+        }
+        if Instant::now() >= deadline {
+            break (None, true);
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    };
+    kill_group(&mut child);
+    let _ = child.wait();
+    if timed_out {
+        return Err(CaptureError::Timeout);
+    }
+    // The group is dead, so both pipes close at once; give the pumps a moment to drain.
+    let drain = Instant::now() + Duration::from_millis(500);
+    while !(out_done.load(Ordering::SeqCst) && err_done.load(Ordering::SeqCst)) && Instant::now() < drain {
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    Ok(Captured { status, stdout: text(&out), stderr: text(&err) })
+}
+
+/// Returns the stdout of `cmd`, or `None` when it cannot start or does not finish within
+/// `timeout`. The exit status is ignored: the caller parses the output (an interactive shell
+/// may exit non-zero after it printed). With `done`, stops as soon as `done` accepts the stdout.
+fn stdout_with_timeout(cmd: Command, timeout: Duration, done: Option<fn(&str) -> bool>) -> Option<String> {
+    capture(cmd, timeout, done).ok().map(|c| c.stdout)
 }
 
 /// The text between the last begin marker and the next end marker. An interactive shell may
@@ -72,7 +145,7 @@ fn shell_path(shell: &str, timeout: Duration) -> Option<String> {
     let script = format!("printf '%s%s%s' '{PATH_BEGIN}' \"$PATH\" '{PATH_END}'");
     let mut cmd = Command::new(shell);
     cmd.args(["-ilc", &script]);
-    let out = stdout_with_timeout(cmd, timeout)?;
+    let out = stdout_with_timeout(cmd, timeout, Some(|o| between_markers(o).is_some()))?;
     between_markers(&out).map(str::to_string).filter(|p| !p.is_empty())
 }
 
@@ -246,7 +319,7 @@ fn ssh_resolve_host(alias: &str) -> Option<String> {
     }
     let mut cmd = command("ssh");
     cmd.args(["-G", alias]);
-    hostname_from_ssh_g(&stdout_with_timeout(cmd, SSH_G_TIMEOUT)?)
+    hostname_from_ssh_g(&stdout_with_timeout(cmd, SSH_G_TIMEOUT, None)?)
 }
 
 /// Like `repo_from_remote`, with the SSH alias lookup passed in so tests need no `ssh`.
@@ -278,23 +351,45 @@ fn redact_url(url: &str) -> String {
     url.to_string()
 }
 
-fn run(program: &str, args: &[&str]) -> Result<String, String> {
-    match command(program).args(args).output() {
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            Err(format!("{program} is not installed or not on PATH."))
+enum RunError {
+    NotInstalled,
+    Timeout,
+    /// The command ran and failed: its whole stderr (or stdout when stderr is empty).
+    Failed(String),
+}
+
+impl RunError {
+    /// One line for the UI.
+    fn message(&self, program: &str) -> String {
+        match self {
+            RunError::NotInstalled => format!("{program} is not installed or not on PATH."),
+            RunError::Timeout => format!("{program} did not answer within {} s.", CHECK_TIMEOUT.as_secs()),
+            RunError::Failed(m) => m.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or("failed").to_string(),
         }
-        Err(e) => Err(format!("{program} could not start: {e}")),
-        Ok(out) => {
-            let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
-            let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
-            if out.status.success() {
+    }
+}
+
+/// Runs a program for at most `timeout`. Success gives stdout (stderr when stdout is empty).
+fn try_run(program: &str, args: &[&str], timeout: Duration) -> Result<String, RunError> {
+    let mut cmd = command(program);
+    cmd.args(args);
+    match capture(cmd, timeout, None) {
+        Err(CaptureError::Timeout) => Err(RunError::Timeout),
+        Err(CaptureError::Spawn(e)) if e.kind() == std::io::ErrorKind::NotFound => Err(RunError::NotInstalled),
+        Err(CaptureError::Spawn(e)) => Err(RunError::Failed(format!("{program} could not start: {e}"))),
+        Ok(c) => {
+            let (stdout, stderr) = (c.stdout.trim().to_string(), c.stderr.trim().to_string());
+            if c.status.is_some_and(|s| s.success()) {
                 Ok(if stdout.is_empty() { stderr } else { stdout })
             } else {
-                let msg = if stderr.is_empty() { stdout } else { stderr };
-                Err(msg.lines().next().unwrap_or("failed").to_string())
+                Err(RunError::Failed(if stderr.is_empty() { stdout } else { stderr }))
             }
         }
     }
+}
+
+fn run(program: &str, args: &[&str]) -> Result<String, String> {
+    try_run(program, args, CHECK_TIMEOUT).map_err(|e| e.message(program))
 }
 
 fn timed(f: impl FnOnce() -> Result<String, String>) -> CheckResult {
@@ -307,16 +402,32 @@ fn timed(f: impl FnOnce() -> Result<String, String>) -> CheckResult {
     }
 }
 
+/// What `gh auth status` said, as one line for the UI. Only a "not logged in" text gets the
+/// sign-in advice; a timeout or a network error says what it was.
+fn gh_error_message(e: &RunError) -> String {
+    const SIGNED_OUT: [&str; 5] = ["not logged in", "gh auth login", "failed to log in", "is invalid", "no oauth token"];
+    match e {
+        RunError::Failed(m) if SIGNED_OUT.iter().any(|t| m.to_ascii_lowercase().contains(t)) => {
+            "gh is not signed in. Run `gh auth login` in a terminal.".to_string()
+        }
+        // gh prints the host name on its own first line; skip it.
+        RunError::Failed(m) => m
+            .lines()
+            .map(str::trim)
+            .find(|l| !l.is_empty() && *l != "github.com")
+            .unwrap_or("gh auth status failed.")
+            .to_string(),
+        other => other.message("gh auth status"),
+    }
+}
+
 pub fn check_gh() -> CheckResult {
     timed(|| {
-        run("gh", &["auth", "status", "--hostname", "github.com"])
+        try_run("gh", &["auth", "status", "--hostname", "github.com"], CHECK_TIMEOUT)
             .map(|_| "Signed in to github.com".to_string())
-            .map_err(|e| {
-                if e.contains("not installed") {
-                    e
-                } else {
-                    "gh is not signed in. Run `gh auth login` in a terminal.".to_string()
-                }
+            .map_err(|e| match e {
+                RunError::NotInstalled => e.message("gh"),
+                _ => gh_error_message(&e),
             })
     })
 }
@@ -329,17 +440,36 @@ pub fn check_folder(repo: &str, path: &str) -> CheckResult {
     timed(|| check_folder_inner(repo, &resolve_folder(path)?))
 }
 
+/// `/Users/me/code/x` -> `~/code/x`.
+fn with_tilde(p: &Path) -> String {
+    if let Some(home) = std::env::var_os("HOME") {
+        if let Ok(rest) = p.strip_prefix(PathBuf::from(home)) {
+            return if rest.as_os_str().is_empty() { "~".into() } else { format!("~/{}", rest.display()) };
+        }
+    }
+    p.display().to_string()
+}
+
 fn check_folder_inner(repo: &str, dir: &Path) -> Result<String, String> {
     let want = normalize_repo(repo).ok_or(REPO_FORMAT_ERROR)?;
     if !dir.is_dir() {
         return Err(format!("Folder not found: {}", dir.display()));
     }
     let dir_s = dir.to_string_lossy();
-    let url = run("git", &["-C", &dir_s, "remote", "get-url", "origin"])
-        .map_err(|_| "This folder is not a git repo with an origin remote.".to_string())?;
+    let url = match try_run("git", &["-C", &dir_s, "remote", "get-url", "origin"], CHECK_TIMEOUT) {
+        Ok(url) => url,
+        Err(e @ (RunError::NotInstalled | RunError::Timeout)) => return Err(e.message("git")),
+        Err(RunError::Failed(_)) => return Err("This folder is not a git repo with an origin remote.".to_string()),
+    };
     let got = repo_from_remote(&url).ok_or_else(|| format!("origin is not a GitHub repo: {}", redact_url(&url)))?;
     if !got.eq_ignore_ascii_case(&want) {
         return Err(format!("origin points to {got}, not {want}."));
+    }
+    // A subfolder of a clone has the same origin; the project folder must be the clone's top.
+    let top = run("git", &["-C", &dir_s, "rev-parse", "--show-toplevel"])?;
+    let top = PathBuf::from(top);
+    if top.canonicalize().ok() != dir.canonicalize().ok() {
+        return Err(format!("Pick the top folder of the clone: {}", with_tilde(&top)));
     }
     Ok(got)
 }
@@ -463,12 +593,12 @@ mod tests {
         let start = Instant::now();
         let mut cmd = Command::new("sleep");
         cmd.arg("5");
-        assert_eq!(stdout_with_timeout(cmd, Duration::from_millis(300)), None);
+        assert_eq!(stdout_with_timeout(cmd, Duration::from_millis(300), None), None);
         assert!(start.elapsed() < Duration::from_secs(3));
         let mut cmd = Command::new("printf");
         cmd.arg("hi");
-        assert_eq!(stdout_with_timeout(cmd, Duration::from_secs(3)).as_deref(), Some("hi"));
-        assert_eq!(stdout_with_timeout(Command::new("/no/such/program"), Duration::from_secs(1)), None);
+        assert_eq!(stdout_with_timeout(cmd, Duration::from_secs(3), None).as_deref(), Some("hi"));
+        assert_eq!(stdout_with_timeout(Command::new("/no/such/program"), Duration::from_secs(1), None), None);
     }
 
     #[test]
@@ -487,6 +617,87 @@ mod tests {
         let start = Instant::now();
         assert_eq!(shell_path(hang.to_str().unwrap(), Duration::from_millis(300)), None);
         assert!(start.elapsed() < Duration::from_secs(3));
+    }
+
+    #[test]
+    fn run_keeps_stdout_and_stderr_semantics() {
+        assert_eq!(run("sh", &["-c", "echo out; echo err >&2"]).unwrap(), "out");
+        assert_eq!(run("sh", &["-c", "echo err >&2"]).unwrap(), "err");
+        assert_eq!(run("sh", &["-c", "echo first >&2; echo second >&2; exit 1"]).unwrap_err(), "first");
+        assert_eq!(run("sh", &["-c", "echo only-out; exit 1"]).unwrap_err(), "only-out");
+        assert!(run("no-such-program-xyz", &[]).unwrap_err().contains("not installed"));
+    }
+
+    #[test]
+    fn a_hanging_check_command_fails_with_a_clear_message() {
+        let start = Instant::now();
+        let e = try_run("sleep", &["5"], Duration::from_millis(300)).unwrap_err();
+        assert!(matches!(e, RunError::Timeout));
+        assert!(start.elapsed() < Duration::from_secs(3));
+        assert_eq!(e.message("gh"), "gh did not answer within 15 s.");
+    }
+
+    #[test]
+    fn gh_errors_are_told_apart() {
+        let signed_out = RunError::Failed("github.com\n  X Failed to log in to github.com account".into());
+        assert!(gh_error_message(&signed_out).contains("gh auth login"));
+        let none = RunError::Failed("You are not logged into any GitHub hosts. Run gh auth login to authenticate.".into());
+        assert!(gh_error_message(&none).contains("gh auth login"));
+        let net = RunError::Failed("error connecting to api.github.com\ncheck your internet connection".into());
+        assert_eq!(gh_error_message(&net), "error connecting to api.github.com");
+        assert_eq!(gh_error_message(&RunError::Timeout), "gh auth status did not answer within 15 s.");
+        assert!(!gh_error_message(&RunError::Timeout).contains("signed in"));
+    }
+
+    #[test]
+    fn the_path_probe_does_not_wait_for_a_background_process_that_holds_stdout() {
+        let dir = tempfile::tempdir().unwrap();
+        let shell = dir.path().join("bg-shell");
+        // Like a .zshrc that starts a long-lived helper (gitstatusd, an agent) on stdout.
+        std::fs::write(&shell, "#!/bin/sh\n(sleep 30 &)\neval \"$2\"\n").unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&shell, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let start = Instant::now();
+        let got = shell_path(shell.to_str().unwrap(), Duration::from_secs(10));
+        assert!(got.is_some_and(|p| !p.is_empty()));
+        assert!(start.elapsed() < Duration::from_secs(3), "took {:?}", start.elapsed());
+    }
+
+    #[test]
+    fn the_whole_process_group_is_killed() {
+        let dir = tempfile::tempdir().unwrap();
+        let pidfile = dir.path().join("pid");
+        let script = format!("sleep 60 & echo $! > {}; wait", pidfile.display());
+        let mut cmd = Command::new("sh");
+        cmd.args(["-c", &script]);
+        assert!(stdout_with_timeout(cmd, Duration::from_millis(500), None).is_none());
+        let pid: i32 = std::fs::read_to_string(&pidfile).unwrap().trim().parse().unwrap();
+        std::thread::sleep(Duration::from_millis(200));
+        // Signal 0 only checks that the process exists.
+        assert_eq!(unsafe { kill(pid, 0) }, -1, "the background sleep must be gone");
+    }
+
+    #[test]
+    fn a_subfolder_of_a_clone_is_rejected() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().to_string_lossy().to_string();
+        run("git", &["-C", &p, "init", "-q"]).unwrap();
+        run("git", &["-C", &p, "remote", "add", "origin", "git@github.com:o/n.git"]).unwrap();
+        let sub = dir.path().join("packages/web");
+        std::fs::create_dir_all(&sub).unwrap();
+        let e = check_folder_inner("o/n", &sub).unwrap_err();
+        let top = dir.path().canonicalize().unwrap();
+        assert!(e.starts_with("Pick the top folder of the clone: "), "{e}");
+        assert!(e.contains(top.to_str().unwrap()) || e.contains("~/"), "{e}");
+        assert!(check_folder_inner("o/n", dir.path()).is_ok());
+    }
+
+    #[test]
+    fn tilde_form_of_a_path() {
+        let home = PathBuf::from(std::env::var("HOME").unwrap());
+        assert_eq!(with_tilde(&home.join("code/x")), "~/code/x");
+        assert_eq!(with_tilde(&home), "~");
+        assert_eq!(with_tilde(Path::new("/opt/x")), "/opt/x");
     }
 
     #[test]

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { open as pickFolder } from "@tauri-apps/plugin-dialog";
 import { Dialog } from "../ui/dialog";
 import { Button } from "../ui/button";
@@ -37,6 +37,12 @@ export function AddProjectDialog({
   const [repoError, setRepoError] = useState<string | null>(null);
   const [pathError, setPathError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const inFlight = useRef(false);
+
+  // Check rows from an earlier run name the old folder, so clear them on open and on any input change.
+  useEffect(() => {
+    if (open) setRows(null);
+  }, [open]);
 
   function reset() {
     setRepo("");
@@ -58,11 +64,25 @@ export function AddProjectDialog({
     const picked = await pickFolder({ directory: true, multiple: false, title: "Choose the repo folder" });
     if (typeof picked === "string") {
       setPath(picked);
+      setRows(null);
       setPathError(null);
     }
   }
 
   async function submit() {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    setRows(null);
+    try {
+      await run();
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
+    }
+  }
+
+  async function run() {
     const input = repo.trim();
     const p = path.trim();
     let r = "";
@@ -83,7 +103,6 @@ export function AddProjectDialog({
     setSaveError(null);
     if (rErr || pErr) return;
 
-    setBusy(true);
     setRows(Object.fromEntries(KINDS.map((k) => [k, { state: "running" }])));
     const results = await Promise.all(
       KINDS.map(async (k) => {
@@ -107,7 +126,6 @@ export function AddProjectDialog({
         setSaveError(String(e));
       }
     }
-    setBusy(false);
   }
 
   return (
@@ -147,6 +165,7 @@ export function AddProjectDialog({
             autoCorrect="off"
             onChange={(e) => {
               setRepo(e.target.value);
+              setRows(null);
               setRepoError(null);
             }}
           />
@@ -171,6 +190,7 @@ export function AddProjectDialog({
               autoCorrect="off"
               onChange={(e) => {
                 setPath(e.target.value);
+                setRows(null);
                 setPathError(null);
               }}
             />
