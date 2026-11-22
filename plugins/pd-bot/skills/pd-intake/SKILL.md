@@ -34,8 +34,9 @@ Judge one ticket and return a verdict. Write only `specs/<slug>/intent.md`; do n
 
 ## Depth
 
-- **S** and **M**: `pd-bot:pd-writing-plans` (one or two steps at S), then `pd-bot:pd-implement`.
-- **L**: add `pd-bot:pd-shape` (design) and `pd-bot:pd-xia2` research before the plan.
+- **S**: `pd-bot:pd-writing-plans` (one or two steps), then `pd-bot:pd-implement`.
+- **M**: `pd-bot:pd-shape` (design), then the same.
+- **L**: `pd-bot:pd-shape`, `pd-bot:pd-xia2` research, then the same.
 
 A bug fix goes to `pd-bot:pd-diagnosing-bugs` first: Read `${CLAUDE_PLUGIN_ROOT}/skills/pd-diagnosing-bugs/SKILL.md` (it blocks the Skill tool).
 
