@@ -1,5 +1,5 @@
 /* ============================================================
-   Shape Board — design tokens  (v2.0 "Cozy")
+   Shape Board — design tokens  (v2.1 "Cozy")
    Single source of truth for every color, font, size, radius,
    shadow and motion value in the app.
 
@@ -112,15 +112,15 @@
     --border: #EADDCB; --border-strong: #DCCAB3;
     --fg: #33261E; --fg-muted: #5E4E42; --fg-subtle: #6F5F53;
     --accent: #A9461F; --accent-hover: #9D3B11; --accent-fg: #FFF8F0;
-    --accent-soft: rgba(217, 98, 43, 0.13); --accent-text: #A54118;
-    --status-open: #397446;    --status-open-soft: #E2EBD8;
+    --accent-soft: rgba(217, 98, 43, 0.13); --accent-text: #A23F15;
+    --status-open: #387346;    --status-open-soft: #E2EBD8;
     --status-running: #376B99; --status-running-soft: #DDE8F1;
-    --status-pr: #29736C;      --status-pr-soft: #D8EBE6;
+    --status-pr: #29726B;      --status-pr-soft: #D8EBE6;
     --status-merged: #7A559C;  --status-merged-soft: #ECE1F1;
     --status-closed: #6E6156;  --status-closed-soft: #EDE5DA;
     --danger: #B0412F; --danger-soft: #F7E0D9;
-    --warning: #8E5E0D; --warning-soft: #F6EACB;
-    --success: #397446;
+    --warning: #8E5E0C; --warning-soft: #F6EACB;
+    --success: #387346;
     --ring: #A9461F;
     --branch: #B9A184;
     --card-sh: 0 4px 16px rgba(120, 80, 45, 0.08), 0 1px 2px rgba(120, 80, 45, 0.05);
@@ -137,15 +137,15 @@
   --border: #EADDCB; --border-strong: #DCCAB3;
   --fg: #33261E; --fg-muted: #5E4E42; --fg-subtle: #6F5F53;
   --accent: #A9461F; --accent-hover: #9D3B11; --accent-fg: #FFF8F0;
-  --accent-soft: rgba(217, 98, 43, 0.13); --accent-text: #A54118;
-  --status-open: #397446;    --status-open-soft: #E2EBD8;
+  --accent-soft: rgba(217, 98, 43, 0.13); --accent-text: #A23F15;
+  --status-open: #387346;    --status-open-soft: #E2EBD8;
   --status-running: #376B99; --status-running-soft: #DDE8F1;
-  --status-pr: #29736C;      --status-pr-soft: #D8EBE6;
+  --status-pr: #29726B;      --status-pr-soft: #D8EBE6;
   --status-merged: #7A559C;  --status-merged-soft: #ECE1F1;
   --status-closed: #6E6156;  --status-closed-soft: #EDE5DA;
   --danger: #B0412F; --danger-soft: #F7E0D9;
-  --warning: #8E5E0D; --warning-soft: #F6EACB;
-  --success: #397446;
+  --warning: #8E5E0C; --warning-soft: #F6EACB;
+  --success: #387346;
   --ring: #A9461F;
   --branch: #B9A184;
   --card-sh: 0 4px 16px rgba(120, 80, 45, 0.08), 0 1px 2px rgba(120, 80, 45, 0.05);

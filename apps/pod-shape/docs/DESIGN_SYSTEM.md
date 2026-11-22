@@ -1,4 +1,4 @@
-# Shape Board — Design System v2.0 "Cozy"
+# Shape Board — Design System v2.1 "Cozy"
 
 This file is the contract for every UI change in the app.
 Coding agents (Claude Code) and people follow it the same way.
@@ -73,7 +73,7 @@ All colors are CSS variables in `tokens.css`, mapped to Tailwind classes (`bg-su
 | `--accent-hover` | `bg-accent-hover` | #F2946A | #9D3B11 | Hover of primary button |
 | `--accent-fg` | `text-accent-fg` | #2A1A10 | #FFF8F0 | Text and icon on `bg-accent` |
 | `--accent-soft` | `bg-accent-soft` | 16% terracotta | 13% terracotta | Selected tree row, focus halo, suggested-answer chip, Claude avatar |
-| `--accent-text` | `text-accent-text` | #F29B70 | #A54118 | Links and accent text |
+| `--accent-text` | `text-accent-text` | #F29B70 | #A23F15 | Links and accent text |
 | `--ring` | `outline-ring` | = accent | = accent | Focus ring |
 
 `--brand` (#F97316) and `--brand-ink` (#18181B) are the logo colors. Use them only for the logo and app icon, never for UI.
@@ -94,8 +94,8 @@ V1 has **four** issue statuses. "Running" is not an issue status: pd-bot gives n
 
 | Status | Meaning | Token | Dark | Light | Icon (lucide) | Label |
 |---|---|---|---|---|---|---|
-| open | Created on GitHub, nobody working | `status-open` | #8DBF8A | #397446 | `circle-dot` | Open |
-| has PR | A pull request is linked and open | `status-pr` | #7FC1B7 | #29736C | `git-pull-request` | Has PR |
+| open | Created on GitHub, nobody working | `status-open` | #8DBF8A | #387346 | `circle-dot` | Open |
+| has PR | A pull request is linked and open | `status-pr` | #7FC1B7 | #29726B | `git-pull-request` | Has PR |
 | merged | PR merged | `status-merged` | #C2A3D6 | #7A559C | `git-merge` | Merged |
 | closed | Closed without merge | `status-closed` | #B3A595 | #6E6156 | `circle-slash` | Closed |
 | (run in progress, RunLog only) | — | `status-running` | #8EB6D9 | #376B99 | `loader` (spins) | — |
@@ -108,24 +108,24 @@ Each has a `-soft` token for the badge background (`bg-status-pr-soft`): 16% of 
 | Token | Dark | Light | Use for |
 |---|---|---|---|
 | `danger` / `danger-soft` | #EE8A7C | #B0412F / #F7E0D9 | Errors, destructive buttons, failed run |
-| `warning` / `warning-soft` | #E8C06A | #8E5E0D / #F6EACB | Rate limit, missing GitHub auth, stale data |
-| `success` | #8DBF8A | #397446 | Toast "Created 12 issues", passed RunLog row |
+| `warning` / `warning-soft` | #E8C06A | #8E5E0C / #F6EACB | Rate limit, missing GitHub auth, stale data |
+| `success` | #8DBF8A | #387346 | Toast "Created 12 issues", passed RunLog row |
 
 
 ### 1.5 Contrast (light theme, measured)
 
-Owner decision (v2.0): the light theme darkens these tokens from the prototype values, keeping their hue (OKLCH lightness only), so that every text pair passes AA 4.5:1. Dark theme values are the prototype's. Ratios are WCAG contrast; "worst" is the lowest of the surfaces the token sits on (bg, surface-1, surface-2, surface-3) and its own `-soft` chip.
+Owner decision (v2.0, corrected in v2.1): the light theme darkens these tokens from the prototype values, keeping their hue (OKLCH lightness only), so that every text pair passes AA 4.5:1. Dark theme values are the prototype's. Ratios are WCAG contrast; "worst" is the lowest over every surface the text can sit on: `bg`, `surface-1`, `surface-2`, `surface-3`, `side`, and the token's own `-soft` chip (for `accent-text`: `accent-soft` over each of those five surfaces).
 
 | Token (light) | Prototype | Now | Pair | Ratio |
 |---|---|---|---|---|
 | `accent` / `accent-fg` | #C4552B | #A9461F | primary button text #FFF8F0 on accent | 4.26 → 5.56 |
 | `accent-hover` | #A9461F | #9D3B11 | #FFF8F0 on hover | 6.50 |
-| `ring` | #C4552B | #A9461F | focus ring on surfaces (non-text, 3:1) | worst 4.75 (surface-3) |
-| `accent-text` | #AE4A22 | #A54118 | on surfaces and on `accent-soft` | worst 4.52 (accent-soft on surface-1) |
-| `status-open`, `success` | #3F7A4C | #397446 | on surfaces and `status-open-soft` | worst 4.52 (surface-3) |
-| `status-running` | #3A6E9C | #376B99 | on surfaces and its soft | worst 4.53 (soft) |
-| `status-pr` | #2E7770 | #29736C | on surfaces and its soft | worst 4.51 (soft) |
-| `warning` | #8F5F0E | #8E5E0D | on surfaces and `warning-soft` | worst 4.51 (surface-3) |
+| `ring` | #C4552B | #A9461F | focus ring on surfaces (non-text, 3:1) | worst 4.71 (side) |
+| `accent-text` | #AE4A22 | #A23F15 | on surfaces and on `accent-soft` over each surface | worst 4.53 (accent-soft over side); 4.57 over surface-3 |
+| `status-open`, `success` | #3F7A4C | #387346 | on surfaces and `status-open-soft` | worst 4.52 (side) |
+| `status-running` | #3A6E9C | #376B99 | on surfaces and its soft | worst 4.53 (soft, side) |
+| `status-pr` | #2E7770 | #29726B | on surfaces and its soft | worst 4.53 (side) |
+| `warning` | #8F5F0E | #8E5E0C | on surfaces and `warning-soft` | worst 4.51 (side) |
 | `status-merged` | #7A559C | unchanged | on surfaces and its soft | worst 4.60 (soft) |
 | `status-closed` | #6E6156 | unchanged | on surfaces and its soft | worst 4.80 (soft) |
 | `danger` | #B0412F | unchanged | on surfaces and `danger-soft` | worst 4.56 (soft) |
@@ -206,7 +206,7 @@ Common uses:
 ## 6. Components (the full list)
 
 Location: `src/components/ui/` (shadcn primitives) and `src/components/app/` (app parts).
-**This is the complete list for v2.0.** Nothing else may be created without the user's yes (§11).
+**This is the complete list for v2.1.** Nothing else may be created without the user's yes (§11).
 
 Shared states for every interactive component:
 
@@ -218,14 +218,14 @@ Shared states for every interactive component:
 | disabled | `opacity-50 pointer-events-none`, no hover |
 | loading | spinner (`loader-circle`, `animate-spin`, 16px) replaces the left icon; width stays the same; disabled |
 | selected | `bg-surface-2 shadow-card` (sidebar, sessions) or `bg-accent-soft` (tree row); icon in `text-accent` |
-| error | `border-danger` + helper text `text-danger text-xs` under the field; the danger border stays on focus (only a valid input turns accent) |
+| error | `border-danger` + helper text `text-danger text-xs` under the field; on focus the danger border stays and there is no halo (only a valid input gets `border-accent` + `shadow-focus`) |
 
 ### 6.1 Primitives (`src/components/ui/`)
 
 | Component | Variants / sizes | Notes |
 |---|---|---|
 | **Button** | Pills (`rounded-full`), `font-medium`. `primary` (bg-accent, text-accent-fg, shadow-btn) · `secondary` (bg-surface-2, border-border, shadow-card) · `ghost` (transparent, text-fg-muted, hover surface-3 + text-fg) · `side` (ghost on the sidebar panel: hover side-hover) · `danger` (bg-danger-soft, text-danger) — sizes `sm` h-7.5 px-3 text-sm · `md` h-9 px-4 text-base — icon sizes (round, need `aria-label` + Tooltip): `icon` h-9 w-9 · `icon-sm` h-7.5 w-7.5 (dialog close) · `icon-lg` h-9.5 w-9.5 (sidebar theme button) | One primary per view. Label = verb ("Generate issues", "Send"). Icon 16px left of label, gap-1.5, from `icons.ts`. |
-| **Input** | `md` h-9.5 (38px) | Pill: bg-surface-2, border-border, rounded-full, px-4, text-base, placeholder fg-subtle. Focus: border-accent + shadow-focus. Paths and repos use the UI font. |
+| **Input** | `md` h-9.5 (38px) | Pill: bg-surface-2, border-border, rounded-full, px-4, text-base, placeholder fg-subtle. Focus: border-accent + shadow-focus (valid only; an invalid input keeps border-danger, no halo). Paths and repos use the UI font. |
 | **Textarea** | auto-grow, 1–10 rows | bg-surface-2, border-border, rounded-box, px-4 py-2.5, text-base. Code textareas use font-mono text-xs. Used by Composer and IssueDraftRow. |
 | **Select** | `md` h-9.5 | Radix Select, pill like Input, chevron 16 at the right (pr-9). Menu = DropdownMenu style. |
 | **Checkbox** | 18px | rounded-xs; checked = bg-accent + check icon accent-fg |
@@ -248,7 +248,7 @@ Shared states for every interactive component:
 |---|---|---|
 | **AppShell** | TitleBar + (Sidebar · Main · optional RightPanel) | See §7. Only one AppShell, in `App.tsx`. Panels float on `bg-bg` with `gap-3` and `px-3 pb-3`. |
 | **TitleBar** | 48px custom Tauri title bar (`data-tauri-drag-region`) | bg-bg (the desk), no border. Left: space for the macOS traffic lights, app logo 20px + breadcrumb (text-base; earlier items fg-muted, last item fg font-medium, chevron 14 fg-subtle). No buttons on the right: settings and theme live in the Sidebar. |
-| **Sidebar / SidebarItem** | Navigation and project list on the left, 256px | Panel: bg-side, rounded-panel, no border, px-2.5 py-4. Section label: text-xs font-semibold fg-muted, sentence case, px-3 pt-3.5 pb-1.5. The item list scrolls inside px-2.5 pt-4 so focus rings and shadows are not clipped. Item: pill h-9.5 px-3 gap-2.5, text-base font-medium text-fg, icon 16 + name (truncate) + count `text-sm font-medium text-fg-muted tabular-nums`; hover bg-side-hover. Selected: bg-surface-2 shadow-card font-semibold, icon text-accent. Bottom: "Add project" ghost button (full width, left-aligned), then a row above a 1px border-t: "Settings" item + the theme button (Button `side` `icon-lg`) at the right. Until the Settings screen exists, the row holds only the theme button (owner decision: Settings and Overview come in later steps). |
+| **Sidebar / SidebarItem** | Navigation and project list on the left, 256px | Panel: bg-side, rounded-panel, no border, px-2.5 py-4. Section label: text-xs font-semibold fg-muted, sentence case, px-3 pt-3.5 pb-1.5. The item list scrolls inside px-2.5 pt-4 so focus rings are not clipped (the selected item's soft shadow is cut at the scroll edge, as in the prototype). Item: pill h-9.5 px-3 gap-2.5, text-base font-medium text-fg, icon 16 + name (truncate) + count `text-sm font-medium text-fg-muted tabular-nums`; hover bg-side-hover. Selected: bg-surface-2 shadow-card font-semibold, icon text-accent. Bottom: "Add project" ghost button (full width, left-aligned), then a row above a 1px border-t: "Settings" item + the theme button (Button `side` `icon-lg`) at the right. Until the Settings screen exists, the row holds only the theme button (owner decision: Settings and Overview come in later steps). |
 | **PageHeader** | Title + meta + actions at the top of main | text-xl title (tracking-title), text-sm fg-muted meta line with `·` separators, actions right (max 1 primary + 2 secondary). Optional Tabs below. |
 | **EmptyState** | Nothing yet | Left-aligned block at the top-left of the area: `BranchPattern` (§6.4) 120px wide on the right side, icon 24 fg-subtle, text-lg title, one line text-base fg-muted, one Button (secondary). The block is at most `max-w-140` (560px) and its text at most `max-w-85` (340px). |
 | **AddProjectDialog** | The "Add project" dialog | Dialog `md`, title "Add project". Fields: "GitHub repo" Input (`owner/name`) and "Local folder" Input with a "Choose…" secondary button for the native folder picker; both inputs use the UI font. Labels text-xs font-medium fg-muted; help text text-xs fg-subtle under each field. Footer: "Cancel" ghost + "Check and add" primary (icon `add`). On submit it runs the `gh`, `claude` and folder checks and shows them as RunLog rows. An input error (empty field, wrong `owner/name` form, repo already added, a folder that is not a full path) is helper text under that field (§6 error state). A failed check shows on that check's RunLog row, under the command that ran. Cancel, X and Esc stay enabled while the checks run: they stop the checks and close the dialog without saving. A save that fails after the checks pass shows one line of `text-danger text-sm` under the RunLog. |
@@ -387,6 +387,7 @@ If the keeper session is not running, the agent files the request issue itself, 
 Only when the user asks. Steps: update `tokens.css` and/or the component → update this file (tables above) → bump the version at the top → note it in the changelog below.
 
 ### Changelog
+- **v2.1** — Review fixes on the Cozy redesign (PR #67). Light tokens darkened again so every text pair is ≥4.5:1 over all surfaces including `side` and `accent-soft` on surface-3 (§1.5 re-measured): `accent-text` #A23F15, `status-open` and `success` #387346, `status-pr` #29726B, `warning` #8E5E0C. Button gets the `side` variant (ghost on the sidebar) and the `icon-sm` (30px, dialog close) and `icon-lg` (38px, sidebar theme button) sizes (§6.1). Input: an invalid field keeps `border-danger` on focus with no accent halo (§6). Sidebar: the list padding keeps focus rings from being clipped.
 - **v2.0 (contrast)** — Owner decision: light theme tokens darkened to meet AA; differs from the prototype. `accent` #A9461F, `accent-hover` #9D3B11, `ring` #A9461F, `accent-text` #A54118, `status-open` and `success` #397446, `status-running` #376B99, `status-pr` #29736C, `warning` #8E5E0D (ratios in §1.5).
 - **v2.0** — "Cozy" redesign, from the owner's request (2026-11-22): "bỏ qua ui cũ đi, hãy follow update new design https://claude.ai/artifact/3xwd3RbWe9k1kyFMa8bgjo" ("drop the old UI and follow the new design"). The reference is the Cozy style of `docs/prototype/shape-board-prototype.html`. Warm brown and cream palette with an olive sidebar (`--side`, `--side-hover`) and a soft terracotta accent; UI font Outfit (IBM Plex Sans dropped), body 14/22, mono only for real code; pill controls and pill tabs; new radius scale (6/12/14/18/24/28/32/full); card, button and footer shadows (`shadow-card`, `shadow-btn`, `shadow-foot`) and a focus halo; floating rounded panels on a desk background (TitleBar 48, Sidebar 256, RightPanel 372, gap 12); the theme control moves to the bottom of the Sidebar; new part LevelsLegend, which may use the branch line. §0.1 now allows pills, rounded cards and the shadow tokens, and bans uppercase labels. Owner decision that differs from the v2.0 design system artifact (WRkcjobJX9VCEi74o3mVjN): V1 keeps **four** issue statuses; `status-running` is for RunLog only (§1.3). The Sidebar shows Settings and Overview only when their screens exist (owner decision for step 1).
 - **v1.4** — Request flow for UI parts (§11): every agent asks the `Pb Bot Storehouse` keeper before UI work; only the keeper and the ui-designer agent change the shared parts, in a pull request with the label `design-system`. "Changing this system" moves to §12. No token, component or layout changes. Needs owner approval: design system change (the setup pull request).

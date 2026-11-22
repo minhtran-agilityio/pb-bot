@@ -24,7 +24,7 @@ export function Sidebar({
   const ThemeIcon = themeIcon[theme];
   return (
     <aside aria-label="Projects" className="flex w-64 shrink-0 flex-col rounded-panel bg-side pb-4">
-      {/* The list scrolls with its own padding, so the focus ring and the selected shadow are not clipped. */}
+      {/* The list scrolls with its own padding, so focus rings are not clipped (the selected item's soft shadow is cut at the edge, as in the prototype). */}
       <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-4 pb-2">{children}</div>
       <div className="px-2.5">
         <Button variant="ghost" icon="add" className="w-full justify-start" onClick={onAddProject}>
