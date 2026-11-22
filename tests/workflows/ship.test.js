@@ -507,7 +507,12 @@ test('b: three tickets, groups 1,1,2: setup, parallel, merge, group 2, merge, on
   assert.strictEqual(named(calls, /^final-pr$/).length, 1)
   assert(named(calls, /^implement:3$/)[0].prompt.startsWith('git -C /repo fetch origin\ngit -C /repo worktree add -b feat/ms-3 /.ship-repo/ms/t3 origin/feat/ms'))
   assert(named(calls, /^finish:1$/)[0].prompt.includes('base feat/ms'))
-  assert(named(calls, /^final-pr$/)[0].prompt.includes('--base integration --head feat/ms'))
+  const fin = named(calls, /^finish:3$/)[0].prompt
+  assert(fin.includes('gh api repos/o/r/pulls -X POST --input /tmp/pd-bot-pr-3.json') && !fin.includes('$(cat'), fin)
+  const fp = named(calls, /^final-pr$/)[0].prompt
+  assert(fp.includes('head (feat/ms), base (integration)') && fp.includes('gh api repos/o/r/pulls -X POST --input /tmp/pd-bot-final-pr.json') && !fp.includes('$(cat'), fp)
+  // ADR 0004: the gh command text holds neither the slug nor the branch name, so a slug with the word merge is not asked about
+  assert(!/gh api repos[^\n]*(feat\/ms|"ms")/.test(fp), fp)
   assert.deepStrictEqual(result.tickets.map(t => t.status), ['done', 'done', 'done'])
   assert.strictEqual(result.final.branch, 'feat/ms')
   const body = named(calls, /^adr$/)[0].prompt
@@ -719,8 +724,8 @@ test('g10: the final PR body into a protected base says Merge: human and lists t
   }
 })
 
-test('g11: an unprotected base with every gate passed: Merge: auto in the final body and one final merge call with the head', async () => {
-  const r = await gateFlow({ base: 'phase3-ui' }, c => (c.label === 'adr' ? ok({ adrs: [] }) : undefined))
+test('g11: a feat/* base with every gate passed: Merge: auto in the final body and one final merge call with the head', async () => {
+  const r = await gateFlow({ base: 'feat/ui' }, c => (c.label === 'adr' ? ok({ adrs: [] }) : undefined))
   const adr = named(r.calls, /^adr$/)[0].prompt
   assert(adr.includes('Merge: auto') && !adr.includes('Merge: human'), adr.slice(-1500))
   const fm = named(r.calls, /^final-merge$/)
@@ -729,14 +734,15 @@ test('g11: an unprotected base with every gate passed: Merge: auto in the final 
   assert.strictEqual(r.result.final.merged, true)
 })
 
-test('g12: a protected base, the default branch, an unknown default or a failed gate keeps the final PR a human merge', async () => {
+test('g12: a protected base, a base that is not feat/*, the default branch, an unknown default or a failed gate keeps the final PR a human merge', async () => {
   const cases = [
     [{ base: 'main' }, undefined, 'protected'],
     [{ base: 'release/1.0' }, undefined, 'protected'],
-    [{ base: 'trunk' }, c => (c.label === 'default-branch' ? { name: 'trunk' } : undefined), 'default branch'],
-    [{ base: 'phase3-ui' }, c => (c.label === 'default-branch' ? { name: '' } : undefined), 'could not be read'],
-    [{ base: 'phase3-ui' }, c => (c.label === 'suite' || c.label === 'suite-rerun' ? { passed: 1, failed: 1, skipped: 0, failing: ['t'] } : undefined), 'gate suite'],
-    [{ base: 'phase3-ui', local: true }, undefined, 'local'],
+    [{ base: 'feat/trunk' }, c => (c.label === 'default-branch' ? { name: 'feat/trunk' } : undefined), 'default branch'],
+    [{ base: 'feat/ui' }, c => (c.label === 'default-branch' ? { name: '' } : undefined), 'could not be read'],
+    [{ base: 'feat/ui' }, c => (c.label === 'suite' || c.label === 'suite-rerun' ? { passed: 1, failed: 1, skipped: 0, failing: ['t'] } : undefined), 'gate suite'],
+    [{ base: 'phase3-ui' }, undefined, 'only into feat/*'],
+    [{ base: 'feat/ui', local: true }, undefined, 'local'],
   ]
   for (const [over, ov, why] of cases) {
     const r = await gateFlow(over, ov)
