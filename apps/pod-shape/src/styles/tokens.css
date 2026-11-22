@@ -119,7 +119,7 @@
     --status-merged: #7A559C;  --status-merged-soft: #ECE1F1;
     --status-closed: #6E6156;  --status-closed-soft: #EDE5DA;
     --danger: #B0412F; --danger-soft: #F7E0D9;
-    --warning: #8E5E0C; --warning-soft: #F6EACB;
+    --warning: #8C5C0B; --warning-soft: #F6EACB;
     --success: #387346;
     --ring: #A9461F;
     --branch: #B9A184;
@@ -144,7 +144,7 @@
   --status-merged: #7A559C;  --status-merged-soft: #ECE1F1;
   --status-closed: #6E6156;  --status-closed-soft: #EDE5DA;
   --danger: #B0412F; --danger-soft: #F7E0D9;
-  --warning: #8E5E0C; --warning-soft: #F6EACB;
+  --warning: #8C5C0B; --warning-soft: #F6EACB;
   --success: #387346;
   --ring: #A9461F;
   --branch: #B9A184;

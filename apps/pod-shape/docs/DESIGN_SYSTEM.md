@@ -108,24 +108,24 @@ Each has a `-soft` token for the badge background (`bg-status-pr-soft`): 16% of 
 | Token | Dark | Light | Use for |
 |---|---|---|---|
 | `danger` / `danger-soft` | #EE8A7C | #B0412F / #F7E0D9 | Errors, destructive buttons, failed run |
-| `warning` / `warning-soft` | #E8C06A | #8E5E0C / #F6EACB | Rate limit, missing GitHub auth, stale data |
+| `warning` / `warning-soft` | #E8C06A | #8C5C0B / #F6EACB | Rate limit, missing GitHub auth, stale data |
 | `success` | #8DBF8A | #387346 | Toast "Created 12 issues", passed RunLog row |
 
 
 ### 1.5 Contrast (light theme, measured)
 
-Owner decision (v2.0, corrected in v2.1): the light theme darkens these tokens from the prototype values, keeping their hue (OKLCH lightness only), so that every text pair passes AA 4.5:1. Dark theme values are the prototype's. Ratios are WCAG contrast; "worst" is the lowest over every surface the text can sit on: `bg`, `surface-1`, `surface-2`, `surface-3`, `side`, and the token's own `-soft` chip (for `accent-text`: `accent-soft` over each of those five surfaces).
+Owner decision (v2.0, corrected in v2.1): the light theme darkens these tokens from the prototype values, keeping their hue (OKLCH lightness only), so that every text pair passes AA 4.5:1. Dark theme values are the prototype's. Ratios are WCAG contrast, measured on the final hex values; "worst" is the lowest over every surface the text can sit on: `bg`, `surface-1`, `surface-2`, `surface-3`, `side`, and the token's own `-soft` chip (for `accent-text`: `accent-soft` over each of those five surfaces).
 
 | Token (light) | Prototype | Now | Pair | Ratio |
 |---|---|---|---|---|
 | `accent` / `accent-fg` | #C4552B | #A9461F | primary button text #FFF8F0 on accent | 4.26 → 5.56 |
 | `accent-hover` | #A9461F | #9D3B11 | #FFF8F0 on hover | 6.50 |
 | `ring` | #C4552B | #A9461F | focus ring on surfaces (non-text, 3:1) | worst 4.71 (side) |
-| `accent-text` | #AE4A22 | #A23F15 | on surfaces and on `accent-soft` over each surface | worst 4.53 (accent-soft over side); 4.57 over surface-3 |
-| `status-open`, `success` | #3F7A4C | #387346 | on surfaces and `status-open-soft` | worst 4.52 (side) |
-| `status-running` | #3A6E9C | #376B99 | on surfaces and its soft | worst 4.53 (soft, side) |
-| `status-pr` | #2E7770 | #29726B | on surfaces and its soft | worst 4.53 (side) |
-| `warning` | #8F5F0E | #8E5E0C | on surfaces and `warning-soft` | worst 4.51 (side) |
+| `accent-text` | #AE4A22 | #A23F15 | on surfaces and on `accent-soft` over each surface | worst 4.53 (accent-soft over side); 4.57 (accent-soft over surface-3) |
+| `status-open`, `success` | #3F7A4C | #387346 | on surfaces and `status-open-soft` | worst 4.55 (side) |
+| `status-running` | #3A6E9C | #376B99 | on surfaces and its soft | worst 4.53 (side) |
+| `status-pr` | #2E7770 | #29726B | on surfaces and its soft | worst 4.55 (side) |
+| `warning` | #8F5F0E | #8C5C0B | on surfaces and `warning-soft` | worst 4.62 (side) |
 | `status-merged` | #7A559C | unchanged | on surfaces and its soft | worst 4.60 (soft) |
 | `status-closed` | #6E6156 | unchanged | on surfaces and its soft | worst 4.80 (soft) |
 | `danger` | #B0412F | unchanged | on surfaces and `danger-soft` | worst 4.56 (soft) |
@@ -387,7 +387,7 @@ If the keeper session is not running, the agent files the request issue itself, 
 Only when the user asks. Steps: update `tokens.css` and/or the component → update this file (tables above) → bump the version at the top → note it in the changelog below.
 
 ### Changelog
-- **v2.1** — Review fixes on the Cozy redesign (PR #67). Light tokens darkened again so every text pair is ≥4.5:1 over all surfaces including `side` and `accent-soft` on surface-3 (§1.5 re-measured): `accent-text` #A23F15, `status-open` and `success` #387346, `status-pr` #29726B, `warning` #8E5E0C. Button gets the `side` variant (ghost on the sidebar) and the `icon-sm` (30px, dialog close) and `icon-lg` (38px, sidebar theme button) sizes (§6.1). Input: an invalid field keeps `border-danger` on focus with no accent halo (§6). Sidebar: the list padding keeps focus rings from being clipped.
+- **v2.1** — Review fixes on the Cozy redesign (PR #67). Light tokens darkened again so every text pair is ≥4.5:1 over all surfaces including `side` and `accent-soft` on surface-3 (§1.5 re-measured): `accent-text` #A23F15, `status-open` and `success` #387346, `status-pr` #29726B, `warning` #8C5C0B. Button gets the `side` variant (ghost on the sidebar) and the `icon-sm` (30px, dialog close) and `icon-lg` (38px, sidebar theme button) sizes (§6.1). Input: an invalid field keeps `border-danger` on focus with no accent halo (§6). Sidebar: the list padding keeps focus rings from being clipped.
 - **v2.0 (contrast)** — Owner decision: light theme tokens darkened to meet AA; differs from the prototype. `accent` #A9461F, `accent-hover` #9D3B11, `ring` #A9461F, `accent-text` #A54118, `status-open` and `success` #397446, `status-running` #376B99, `status-pr` #29736C, `warning` #8E5E0D (ratios in §1.5).
 - **v2.0** — "Cozy" redesign, from the owner's request (2026-11-22): "bỏ qua ui cũ đi, hãy follow update new design https://claude.ai/artifact/3xwd3RbWe9k1kyFMa8bgjo" ("drop the old UI and follow the new design"). The reference is the Cozy style of `docs/prototype/shape-board-prototype.html`. Warm brown and cream palette with an olive sidebar (`--side`, `--side-hover`) and a soft terracotta accent; UI font Outfit (IBM Plex Sans dropped), body 14/22, mono only for real code; pill controls and pill tabs; new radius scale (6/12/14/18/24/28/32/full); card, button and footer shadows (`shadow-card`, `shadow-btn`, `shadow-foot`) and a focus halo; floating rounded panels on a desk background (TitleBar 48, Sidebar 256, RightPanel 372, gap 12); the theme control moves to the bottom of the Sidebar; new part LevelsLegend, which may use the branch line. §0.1 now allows pills, rounded cards and the shadow tokens, and bans uppercase labels. Owner decision that differs from the v2.0 design system artifact (WRkcjobJX9VCEi74o3mVjN): V1 keeps **four** issue statuses; `status-running` is for RunLog only (§1.3). The Sidebar shows Settings and Overview only when their screens exist (owner decision for step 1).
 - **v1.4** — Request flow for UI parts (§11): every agent asks the `Pb Bot Storehouse` keeper before UI work; only the keeper and the ui-designer agent change the shared parts, in a pull request with the label `design-system`. "Changing this system" moves to §12. No token, component or layout changes. Needs owner approval: design system change (the setup pull request).
