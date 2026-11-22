@@ -31,7 +31,7 @@ cmd=$(field .tool_input.command)
 low=$(printf '%s' "$cmd" | tr '[:upper:]' '[:lower:]')
 
 # 2. A git push that names main or master (origin main, HEAD:main, refs/heads/main): ask.
-if printf '%s' "$low" | grep -qE '(^|[^a-z0-9_-])git([[:space:]]+-[^[:space:]]+([[:space:]]+[^-[:space:]][^[:space:]]*)?)*[[:space:]]+push[[:space:]].*[[:space:]:/](main|master)([[:space:];&|)]|$)'; then
+if printf '%s' "$low" | grep -qE '(^|[^a-z0-9_-])git([[:space:]]+-[^[:space:]]+([[:space:]]+[^-[:space:]][^[:space:]]*)?)*[[:space:]]+push[[:space:]].*[[:space:]:/+](main|master)([[:space:];&|)]|$)'; then
   ask "This command pushes to main or master."
 fi
 
@@ -46,14 +46,14 @@ case " $low " in *" --auto "*|*" --admin "*) deny "--auto and --admin are not al
 plain='^(gh pr|glab mr) merge [0-9]+( -[-a-zA-Z]+( [A-Za-z0-9._/-]+)?)*$'
 if [[ $cmd =~ $plain ]]; then
   n=$(printf '%s' "$cmd" | cut -d' ' -f4)
-  repo=$(printf '%s' "$cmd" | grep -oE -- '(--repo|-R) [^ ]+' | head -n 1 | cut -d' ' -f2)
+  repo=$(printf '%s' "$cmd" | grep -oE -- '(--repo|-R) [^ ]+' | tail -n 1 | cut -d' ' -f2)
   read_base() { case "$cmd" in
     gh*)   gh pr view "$n" ${repo:+--repo "$repo"} --json baseRefName -q .baseRefName ;;
     glab*) glab mr view "$n" ${repo:+--repo "$repo"} --output json | jq -r '.target_branch // empty' ;;
   esac; }
   f=$(mktemp 2>/dev/null) || ask "Merge #$n? (no temp file, so the base was not read)"
   read_base >"$f" 2>/dev/null & p=$!
-  (sleep 15; kill "$p") >/dev/null 2>&1 & w=$!
+  (sleep 15 & s=$!; trap 'kill $s' TERM; wait $s; pkill -P "$p"; kill "$p") >/dev/null 2>&1 & w=$!
   wait "$p" 2>/dev/null; kill "$w" 2>/dev/null; base=$(head -n 1 "$f"); rm -f "$f"
   case "$base" in feat/?*) exit 0 ;; esac
   ask "Merge #$n into '${base:-a base that could not be read}'?"

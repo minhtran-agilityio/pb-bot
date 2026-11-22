@@ -91,6 +91,10 @@ expect ask  'gh pr merge https://github.com/o/r/pull/2'
 expect ask  'gh api graphql -f query="mutation { mergePullRequest(input: {}) { clientMutationId } }"'
 expect ask  'git commit -m "docs: say when gh pr merge asks"'
 expect ask  'git push origin main'
+expect ask  'git push origin +main'
+t "a repeated repo flag reads the base in the last repo, the one gh uses"
+run 'gh pr merge 2 --repo o/r --merge -R x/main-repo'
+if grep -q 'gh pr view 2 --repo x/main-repo' "$LOG"; then pass; else fail "log: $(cat "$LOG" 2>/dev/null)"; fi
 expect ask  'git -C ../x push origin master; echo done'
 expect ask  'git push origin main && gh pr create'
 expect ask  '' mcp__gitlab__merge_merge_request
@@ -101,6 +105,10 @@ AGENT=a1 expect deny '' mcp__github__merge_pull_request
 AGENT=a1 expect deny 'gh pr merge 3 --repo o/r'
 
 echo "== no false question on ordinary commands =="
+for a in "" a1; do  # ship.js commands (ADR 0004): the slug, title and body stay in files, so merge in them is not seen
+  AGENT=$a expect pass 'gh pr create --repo o/r --base main --head "$(cat /tmp/h)" --title "$(cat /tmp/t)" --body-file /tmp/b'
+  AGENT=$a expect pass 'gh issue comment 5 --repo o/r --body-file /tmp/c'
+done
 expect pass 'git commit -F /tmp/msg.txt'
 expect pass 'git commit -m "push the fix to main"'
 expect pass 'git push origin feat/main-x'
