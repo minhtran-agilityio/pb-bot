@@ -34,7 +34,7 @@ export function Dialog({
             widths[size],
           )}
         >
-          <div className="flex min-h-8 items-center justify-between gap-2 pr-10">
+          <div className="flex min-h-7 items-center justify-between gap-2 pr-10">
             <D.Title className="text-lg font-semibold text-fg">{title}</D.Title>
           </div>
           {children}
