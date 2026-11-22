@@ -57,7 +57,7 @@ export function ProjectsScreen({
               <span className="truncate font-mono text-sm text-fg-muted">{shortPath(p.path, home)}</span>
             </div>
             <StatusBar counts={NO_ISSUES} />
-            <div className="flex items-center justify-between gap-2 border-t border-border pt-3 text-sm text-fg-muted">
+            <div className="mt-auto flex items-center justify-between gap-2 border-t border-border bg-surface-1 px-8 py-2 text-sm text-fg-muted">
               <span>
                 {count(0, "artifact")} · {count(0, "issue")}
               </span>

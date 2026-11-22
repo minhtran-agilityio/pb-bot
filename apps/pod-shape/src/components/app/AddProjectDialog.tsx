@@ -38,10 +38,14 @@ export function AddProjectDialog({
   const [pathError, setPathError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const inFlight = useRef(false);
+  const gen = useRef(0);
 
   // Check rows from an earlier run name the old folder, so clear them on open and on any input change.
   useEffect(() => {
-    if (open) setRows(null);
+    if (open) {
+      gen.current += 1;
+      setRows(null);
+    }
   }, [open]);
 
   function reset() {
@@ -54,10 +58,19 @@ export function AddProjectDialog({
     setSaveError(null);
   }
 
+  // The one close path: Cancel, X, Esc and the overlay all end here. A running check or save is stopped,
+  // its late result is ignored (generation bump), and nothing is saved.
   function change(next: boolean) {
-    if (busy) return;
-    if (!next) reset();
-    onOpenChange(next);
+    if (next) {
+      gen.current += 1;
+      onOpenChange(true);
+      return;
+    }
+    gen.current += 1;
+    if (inFlight.current) void api.cancelChecks().catch(() => {});
+    inFlight.current = false;
+    reset();
+    onOpenChange(false);
   }
 
   async function choose() {
@@ -72,17 +85,21 @@ export function AddProjectDialog({
   async function submit() {
     if (inFlight.current) return;
     inFlight.current = true;
+    const g = ++gen.current;
     setBusy(true);
     setRows(null);
     try {
-      await run();
+      await run(g);
     } finally {
-      inFlight.current = false;
-      setBusy(false);
+      if (g === gen.current) {
+        inFlight.current = false;
+        setBusy(false);
+      }
     }
   }
 
-  async function run() {
+  async function run(g: number) {
+    const stale = () => g !== gen.current;
     const input = repo.trim();
     const p = path.trim();
     let r = "";
@@ -97,7 +114,10 @@ export function AddProjectDialog({
         rErr = typeof e === "string" && e ? e : REPO_HINT;
       }
     }
-    const pErr = p ? null : "Pick the folder where this repo is cloned.";
+    if (stale()) return;
+    let pErr: string | null = null;
+    if (!p) pErr = "Pick the folder where this repo is cloned.";
+    else if (!(p === "~" || p.startsWith("/") || p.startsWith("~/"))) pErr = "Use a full path, for example ~/code/shop-web.";
     setRepoError(rErr);
     setPathError(pErr);
     setSaveError(null);
@@ -112,17 +132,21 @@ export function AddProjectDialog({
         } catch (e) {
           result = { ok: false, detail: String(e), ms: 0 };
         }
-        setRows((prev) => ({ ...prev, [k]: { state: result.ok ? "done" : "failed", result } }));
+        if (!stale()) setRows((prev) => ({ ...prev, [k]: { state: result.ok ? "done" : "failed", result } }));
         return result;
       }),
     );
+    if (stale()) return;
     if (results.every((x) => x.ok)) {
       try {
         const project = await api.addProject(r, p);
+        if (stale()) return;
+        inFlight.current = false;
         reset();
         onAdded(project);
         return;
       } catch (e) {
+        if (stale()) return;
         setSaveError(String(e));
       }
     }
@@ -135,7 +159,7 @@ export function AddProjectDialog({
       title="Add project"
       footer={
         <>
-          <Button variant="ghost" onClick={() => change(false)} disabled={busy}>
+          <Button variant="ghost" onClick={() => change(false)}>
             Cancel
           </Button>
           <Button variant="primary" icon="add" loading={busy} onClick={submit}>
@@ -152,7 +176,7 @@ export function AddProjectDialog({
         }}
       >
         <label className="flex flex-col gap-1.5">
-          <span className="text-base font-medium text-fg">GitHub repo</span>
+          <span className="text-sm font-medium text-fg-muted">GitHub repo</span>
           <Input
             autoFocus
             placeholder="owner/name"
@@ -169,12 +193,12 @@ export function AddProjectDialog({
               setRepoError(null);
             }}
           />
-          <span className={repoError ? "text-sm text-danger" : "text-sm text-fg-muted"}>
+          <span className={repoError ? "text-sm text-danger" : "text-sm text-fg-subtle"}>
             {repoError ?? "1 project = 1 GitHub repo."}
           </span>
         </label>
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="project-folder" className="text-base font-medium text-fg">
+          <label htmlFor="project-folder" className="text-sm font-medium text-fg-muted">
             Local folder
           </label>
           <div className="flex gap-2">
@@ -198,7 +222,7 @@ export function AddProjectDialog({
               Choose…
             </Button>
           </div>
-          <span className={pathError ? "text-sm text-danger" : "text-sm text-fg-muted"}>
+          <span className={pathError ? "text-sm text-danger" : "text-sm text-fg-subtle"}>
             {pathError ?? "Claude Code runs in this folder, so it can read the code."}
           </span>
         </div>

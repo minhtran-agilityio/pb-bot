@@ -34,16 +34,17 @@ export function Dialog({
             widths[size],
           )}
         >
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex min-h-8 items-center justify-between gap-2 pr-10">
             <D.Title className="text-lg font-semibold text-fg">{title}</D.Title>
-            <D.Close asChild>
-              <Button variant="ghost" size="icon" aria-label="Close">
-                <Icon.close {...iconSize.default} aria-hidden />
-              </Button>
-            </D.Close>
           </div>
           {children}
           <div className="flex justify-end gap-2">{footer}</div>
+          {/* Last in the DOM so it is the last Tab stop; positioned where the header would hold it. */}
+          <D.Close asChild>
+            <Button variant="ghost" size="icon" aria-label="Close" className="absolute top-6 right-6">
+              <Icon.close {...iconSize.default} aria-hidden />
+            </Button>
+          </D.Close>
         </D.Content>
       </D.Portal>
     </D.Root>

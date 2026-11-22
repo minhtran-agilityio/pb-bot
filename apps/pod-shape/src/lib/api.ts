@@ -21,6 +21,8 @@ export const api = {
   runCheck: (kind: CheckKind, repo: string, path: string) => invoke<CheckResult>("run_check", { kind, repo, path }),
   /** Turns `github.com/o/n`, a full URL or `o/n` into `owner/name`; rejects with the form hint. */
   normalizeRepo: (input: string) => invoke<string>("normalize_repo", { input }),
+  /** Kills every running check; in-flight run_check calls resolve with "Cancelled.". */
+  cancelChecks: () => invoke<void>("cancel_checks"),
   addProject: (repo: string, path: string) => invoke<Project>("add_project", { repo, path }),
 };
 

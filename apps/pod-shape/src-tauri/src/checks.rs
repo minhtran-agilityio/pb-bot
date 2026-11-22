@@ -7,12 +7,16 @@ use std::io::Read;
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::cell::Cell;
+use std::collections::HashSet;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, Condvar, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 /// Shown wherever the repo input is not `owner/name` (or a form that holds one).
 pub const REPO_FORMAT_ERROR: &str = "Use the form owner/name, for example acme/shop-web.";
+/// Shown when `cancel_checks` ended a check.
+pub const CANCELLED: &str = "Cancelled.";
 /// Shown when the folder is not a full path.
 pub const FULL_PATH_ERROR: &str = "Use a full path, for example ~/code/shop-web.";
 
@@ -49,6 +53,58 @@ struct Captured {
 enum CaptureError {
     Spawn(std::io::Error),
     Timeout,
+    /// `cancel_checks` ran while the command was running or about to start.
+    Cancelled,
+}
+
+/// Counts `cancel_checks` calls. A check remembers the value at its start; when the value
+/// changes, the check was cancelled. A check that starts later is not affected.
+static CANCEL_EPOCH: AtomicU64 = AtomicU64::new(0);
+/// Process groups (pid = pgid, see `capture`) of the commands the checks have running now.
+/// A pid is in here only until its group is killed, and always before it is reaped, so a
+/// pid in the set is never a recycled one.
+static LIVE: Mutex<Option<HashSet<i32>>> = Mutex::new(None);
+
+thread_local! {
+    /// The epoch the check running on this thread began with, so every step of one check
+    /// (git remote, git rev-parse, ssh -G) answers to the same cancel.
+    static RUN_EPOCH: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+pub fn cancel_epoch() -> u64 {
+    CANCEL_EPOCH.load(Ordering::SeqCst)
+}
+
+/// `Err("Cancelled.")` when `cancel_checks` ran since `epoch` was read.
+pub fn ensure_not_cancelled(epoch: u64) -> Result<(), String> {
+    if cancel_epoch() == epoch {
+        Ok(())
+    } else {
+        Err(CANCELLED.to_string())
+    }
+}
+
+/// Cancels the checks: every running check command is killed (its whole process group) and
+/// every running check returns "Cancelled.". The shell PATH lookup is not a check and is not
+/// touched. Order matters: the epoch changes first, then the live groups are killed, so a
+/// command that registers after this loop sees the new epoch and kills itself (`capture`).
+pub fn cancel_checks() {
+    CANCEL_EPOCH.fetch_add(1, Ordering::SeqCst);
+    let live = LIVE.lock().unwrap_or_else(|e| e.into_inner());
+    for pid in live.iter().flatten() {
+        // SAFETY: the pid is in the set only while its child is not reaped (see `LIVE`).
+        unsafe { kill(-*pid, 9) };
+    }
+}
+
+fn live_insert(pid: i32) {
+    LIVE.lock().unwrap_or_else(|e| e.into_inner()).get_or_insert_with(HashSet::new).insert(pid);
+}
+
+fn live_remove(pid: i32) {
+    if let Some(set) = LIVE.lock().unwrap_or_else(|e| e.into_inner()).as_mut() {
+        set.remove(&pid);
+    }
 }
 
 /// How long to wait for the pipes to reach EOF once the command's group is dead. EOF follows
@@ -84,7 +140,22 @@ fn text(buf: &Mutex<Vec<u8>>) -> String {
 /// `done(stdout so far)` is true, or at `timeout`; then the whole process group is killed, so
 /// a background process the command left behind cannot keep the pipes open or run on.
 /// `Err(Timeout)` means neither happened in time.
-fn capture(mut cmd: Command, timeout: Duration, done: Option<fn(&str) -> bool>) -> Result<Captured, CaptureError> {
+///
+/// With `cancellable` the command belongs to a check: `cancel_checks` kills it and this returns
+/// `Err(Cancelled)` within a few milliseconds. Race: a cancel that runs while this is starting
+/// cannot be missed. The pid is registered first, and the epoch is read after that. If the
+/// epoch was read before the cancel's increment, the registration came before the increment
+/// too, so the cancel's loop sees the pid and kills it; otherwise this sees the new epoch.
+fn capture(
+    mut cmd: Command,
+    timeout: Duration,
+    done: Option<fn(&str) -> bool>,
+    cancellable: bool,
+) -> Result<Captured, CaptureError> {
+    let epoch = RUN_EPOCH.with(Cell::get).unwrap_or_else(cancel_epoch);
+    if cancellable && cancel_epoch() != epoch {
+        return Err(CaptureError::Cancelled);
+    }
     cmd.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
     // SAFETY: `setsid` is async-signal-safe, the only thing allowed between fork and exec.
     // Its result is ignored: it fails only for a process group leader, which a new child is not.
@@ -95,33 +166,50 @@ fn capture(mut cmd: Command, timeout: Duration, done: Option<fn(&str) -> bool>) 
         });
     }
     let mut child = cmd.spawn().map_err(CaptureError::Spawn)?;
+    // After `setsid` the child's pid is also its process group id.
+    let pid = child.id() as i32;
+    if cancellable {
+        live_insert(pid);
+    }
     let (out, out_eof) = pump(child.stdout.take().ok_or(CaptureError::Timeout)?);
     let (err, err_eof) = pump(child.stderr.take().ok_or(CaptureError::Timeout)?);
-    // After `setsid` the child's pid is also its process group id.
-    let kill_group = |child: &mut std::process::Child| {
-        // SAFETY: plain syscall; a negative pid addresses the group. The child is not reaped
-        // yet, so its pid cannot belong to anything else.
-        unsafe { kill(-(child.id() as i32), 9) };
-        let _ = child.kill();
-    };
+    enum Ended {
+        Exited(ExitStatus),
+        Done,
+        Timeout,
+        Cancelled,
+    }
     let deadline = Instant::now() + timeout;
-    let (status, timed_out) = loop {
+    let ended = loop {
+        if cancellable && cancel_epoch() != epoch {
+            break Ended::Cancelled;
+        }
         if let Ok(Some(st)) = child.try_wait() {
-            break (Some(st), false);
+            break Ended::Exited(st);
         }
         if done.is_some_and(|d| d(&text(&out))) {
-            break (None, false);
+            break Ended::Done;
         }
         if Instant::now() >= deadline {
-            break (None, true);
+            break Ended::Timeout;
         }
         std::thread::sleep(Duration::from_millis(5));
     };
-    kill_group(&mut child);
-    let _ = child.wait();
-    if timed_out {
-        return Err(CaptureError::Timeout);
+    // SAFETY: plain syscall; a negative pid addresses the group. The child is not reaped
+    // yet, so its pid cannot belong to anything else.
+    unsafe { kill(-pid, 9) };
+    let _ = child.kill();
+    // Out of the live set before the reap, so `cancel_checks` never signals a recycled pid.
+    if cancellable {
+        live_remove(pid);
     }
+    let _ = child.wait();
+    let status = match ended {
+        Ended::Timeout => return Err(CaptureError::Timeout),
+        Ended::Cancelled => return Err(CaptureError::Cancelled),
+        Ended::Exited(st) => Some(st),
+        Ended::Done => None,
+    };
     // The group is dead, so both pipes reach EOF at once. Wait for it: the data may still be
     // in the pipe, and returning early would lose the output of a fast command under load.
     let cap = Instant::now() + PIPE_EOF_CAP;
@@ -132,10 +220,10 @@ fn capture(mut cmd: Command, timeout: Duration, done: Option<fn(&str) -> bool>) 
 }
 
 /// Returns the stdout of `cmd`, or `None` when it cannot start or does not finish within
-/// `timeout`. The exit status is ignored: the caller parses the output (an interactive shell
+/// `timeout`. Not a check command: `cancel_checks` does not touch it (the shell PATH probe). The exit status is ignored: the caller parses the output (an interactive shell
 /// may exit non-zero after it printed). With `done`, stops as soon as `done` accepts the stdout.
 fn stdout_with_timeout(cmd: Command, timeout: Duration, done: Option<fn(&str) -> bool>) -> Option<String> {
-    capture(cmd, timeout, done).ok().map(|c| c.stdout)
+    capture(cmd, timeout, done, false).ok().map(|c| c.stdout)
 }
 
 /// The text between the last begin marker and the next end marker. An interactive shell may
@@ -326,7 +414,7 @@ fn ssh_resolve_host(alias: &str) -> Option<String> {
     }
     let mut cmd = command("ssh");
     cmd.args(["-G", alias]);
-    hostname_from_ssh_g(&stdout_with_timeout(cmd, SSH_G_TIMEOUT, None)?)
+    hostname_from_ssh_g(&capture(cmd, SSH_G_TIMEOUT, None, true).ok()?.stdout)
 }
 
 /// Like `repo_from_remote`, with the SSH alias lookup passed in so tests need no `ssh`.
@@ -361,6 +449,7 @@ fn redact_url(url: &str) -> String {
 enum RunError {
     NotInstalled,
     Timeout,
+    Cancelled,
     /// The command ran and failed: its whole stderr (or stdout when stderr is empty).
     Failed(String),
 }
@@ -370,6 +459,7 @@ impl RunError {
     fn message(&self, program: &str) -> String {
         match self {
             RunError::NotInstalled => format!("{program} is not installed or not on PATH."),
+            RunError::Cancelled => CANCELLED.to_string(),
             RunError::Timeout => format!("{program} did not answer within {} s.", CHECK_TIMEOUT.as_secs()),
             RunError::Failed(m) => m.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or("failed").to_string(),
         }
@@ -380,8 +470,9 @@ impl RunError {
 fn try_run(program: &str, args: &[&str], timeout: Duration) -> Result<String, RunError> {
     let mut cmd = command(program);
     cmd.args(args);
-    match capture(cmd, timeout, None) {
+    match capture(cmd, timeout, None, true) {
         Err(CaptureError::Timeout) => Err(RunError::Timeout),
+        Err(CaptureError::Cancelled) => Err(RunError::Cancelled),
         Err(CaptureError::Spawn(e)) if e.kind() == std::io::ErrorKind::NotFound => Err(RunError::NotInstalled),
         Err(CaptureError::Spawn(e)) => Err(RunError::Failed(format!("{program} could not start: {e}"))),
         Ok(c) => {
@@ -399,9 +490,15 @@ fn run(program: &str, args: &[&str]) -> Result<String, String> {
     try_run(program, args, CHECK_TIMEOUT).map_err(|e| e.message(program))
 }
 
+/// Runs one check. If `cancel_checks` ran meanwhile, the result is "Cancelled." whatever the
+/// check found, and the check's later steps do not start (`RUN_EPOCH`).
 fn timed(f: impl FnOnce() -> Result<String, String>) -> CheckResult {
     let start = Instant::now();
+    let epoch = cancel_epoch();
+    let previous = RUN_EPOCH.with(|e| e.replace(Some(epoch)));
     let r = f();
+    RUN_EPOCH.with(|e| e.set(previous));
+    let r = ensure_not_cancelled(epoch).and(r);
     let ms = start.elapsed().as_millis();
     match r {
         Ok(detail) => CheckResult { ok: true, detail, ms },
@@ -465,7 +562,7 @@ fn check_folder_inner(repo: &str, dir: &Path) -> Result<String, String> {
     let dir_s = dir.to_string_lossy();
     let url = match try_run("git", &["-C", &dir_s, "remote", "get-url", "origin"], CHECK_TIMEOUT) {
         Ok(url) => url,
-        Err(e @ (RunError::NotInstalled | RunError::Timeout)) => return Err(e.message("git")),
+        Err(e @ (RunError::NotInstalled | RunError::Timeout | RunError::Cancelled)) => return Err(e.message("git")),
         Err(RunError::Failed(_)) => return Err("This folder is not a git repo with an origin remote.".to_string()),
     };
     let got = repo_from_remote(&url).ok_or_else(|| format!("origin is not a GitHub repo: {}", redact_url(&url)))?;
@@ -484,7 +581,7 @@ fn check_folder_inner(repo: &str, dir: &Path) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{RwLock, RwLockReadGuard};
+    use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
     /// Why this lock exists: a test that writes a script and then runs it can fail with
     /// "Text file busy" (ETXTBSY). Spawning a child with `pre_exec` makes std fork instead of
@@ -500,6 +597,30 @@ mod tests {
 
     fn spawning() -> RwLockReadGuard<'static, ()> {
         SPAWN_LOCK.read().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// For tests that call `cancel_checks`: it is global, so no other test may run a check or
+    /// start a process meanwhile. Exclusive against every `spawning()` test.
+    fn exclusive() -> RwLockWriteGuard<'static, ()> {
+        SPAWN_LOCK.write().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// True when no process with this pid exists. A killed child stays visible as a zombie
+    /// until its parent (init) reaps it, so poll instead of checking once.
+    fn process_gone(pid: i32) -> bool {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while Instant::now() < deadline {
+            // Signal 0 only checks that the process exists.
+            if unsafe { kill(pid, 0) } == -1 {
+                return true;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        false
+    }
+
+    fn read_pid_file(f: &Path) -> i32 {
+        std::fs::read_to_string(f).unwrap().trim().parse().unwrap()
     }
 
     /// Writes an executable script. Call it before `spawning()` (the lock is not re-entrant).
@@ -728,21 +849,77 @@ mod tests {
     }
 
     #[test]
+    fn cancel_ends_a_running_check_and_kills_its_group() {
+        let _x = exclusive();
+        let dir = tempfile::tempdir().unwrap();
+        let pidfile = dir.path().join("pid");
+        let script = format!("sleep 60 & echo $! > {}; wait", pidfile.display());
+        let check = std::thread::spawn(move || timed(|| run("sh", &["-c", &script])));
+        let wait_for_pid = Instant::now() + Duration::from_secs(10);
+        while !pidfile.exists() || std::fs::read_to_string(&pidfile).unwrap_or_default().trim().is_empty() {
+            assert!(Instant::now() < wait_for_pid, "the check never started");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let start = Instant::now();
+        cancel_checks();
+        let r = check.join().unwrap();
+        assert!(!r.ok);
+        assert_eq!(r.detail, CANCELLED);
+        assert!(start.elapsed() < Duration::from_secs(5), "took {:?}", start.elapsed());
+        assert!(process_gone(read_pid_file(&pidfile)), "the background sleep must be gone");
+        assert!(LIVE.lock().unwrap().iter().flatten().next().is_none(), "no pid left in the registry");
+    }
+
+    #[test]
+    fn a_run_after_cancel_works_normally() {
+        let _x = exclusive();
+        cancel_checks();
+        assert_eq!(run("sh", &["-c", "echo ok"]).unwrap(), "ok");
+        let r = timed(|| run("sh", &["-c", "echo fine"]));
+        assert!(r.ok, "{}", r.detail);
+        assert_eq!(r.detail, "fine");
+    }
+
+    #[test]
+    fn a_check_that_starts_after_a_cancel_in_its_run_does_not_spawn() {
+        let _x = exclusive();
+        // A check began, then a cancel came before its next step started: that step must not run.
+        let epoch = cancel_epoch();
+        RUN_EPOCH.with(|e| e.set(Some(epoch)));
+        cancel_checks();
+        let r = try_run("sh", &["-c", "echo should-not-run"], Duration::from_secs(20));
+        RUN_EPOCH.with(|e| e.set(None));
+        assert!(matches!(r, Err(RunError::Cancelled)));
+        assert_eq!(RunError::Cancelled.message("gh"), CANCELLED);
+    }
+
+    #[test]
+    fn cancel_does_not_touch_the_path_probe() {
+        let _x = exclusive();
+        let probe = std::thread::spawn(|| {
+            let mut cmd = Command::new("sh");
+            cmd.args(["-c", "sleep 1; printf done"]);
+            stdout_with_timeout(cmd, Duration::from_secs(20), None)
+        });
+        std::thread::sleep(Duration::from_millis(300));
+        cancel_checks();
+        assert_eq!(probe.join().unwrap().as_deref(), Some("done"));
+    }
+
+    #[test]
+    fn the_save_guard_refuses_after_a_cancel() {
+        let _x = exclusive();
+        let epoch = cancel_epoch();
+        assert_eq!(ensure_not_cancelled(epoch), Ok(()));
+        cancel_checks();
+        assert_eq!(ensure_not_cancelled(epoch), Err(CANCELLED.to_string()));
+        // A save that starts after the cancel is not affected.
+        assert_eq!(ensure_not_cancelled(cancel_epoch()), Ok(()));
+    }
+
+    #[test]
     fn the_whole_process_group_is_killed() {
         let _s = spawning();
-        // Gone = no such process. A killed child stays visible as a zombie until its parent
-        // (init) reaps it, so poll instead of checking once.
-        let gone = |pid: i32| {
-            let deadline = Instant::now() + Duration::from_secs(10);
-            while Instant::now() < deadline {
-                if unsafe { kill(pid, 0) } == -1 {
-                    return true;
-                }
-                std::thread::sleep(Duration::from_millis(20));
-            }
-            false
-        };
-        let read_pid = |f: &Path| -> i32 { std::fs::read_to_string(f).unwrap().trim().parse().unwrap() };
         let dir = tempfile::tempdir().unwrap();
 
         // End by timeout: the script writes its pid file, then waits for the sleep forever.
@@ -751,7 +928,7 @@ mod tests {
         let mut cmd = Command::new("sh");
         cmd.args(["-c", &script]);
         assert!(stdout_with_timeout(cmd, Duration::from_secs(2), None).is_none());
-        assert!(gone(read_pid(&pidfile)), "the background sleep must be gone after a timeout");
+        assert!(process_gone(read_pid_file(&pidfile)), "the background sleep must be gone after a timeout");
 
         // End early because the output is complete: the leftover helper is killed too.
         let pidfile = dir.path().join("pid-early");
@@ -760,7 +937,7 @@ mod tests {
         cmd.args(["-c", &script]);
         let out = stdout_with_timeout(cmd, Duration::from_secs(20), Some(|o| o.contains("ready")));
         assert!(out.is_some_and(|o| o.contains("ready")));
-        assert!(gone(read_pid(&pidfile)), "the background sleep must be gone after an early stop");
+        assert!(process_gone(read_pid_file(&pidfile)), "the background sleep must be gone after an early stop");
     }
 
     #[test]
@@ -810,6 +987,7 @@ mod tests {
 
     #[test]
     fn folder_must_be_a_full_path() {
+        let _s = spawning(); // a cancel in another test would change the result
         assert_eq!(resolve_folder("code/shop-web").unwrap_err(), FULL_PATH_ERROR);
         assert_eq!(resolve_folder("./shop-web").unwrap_err(), FULL_PATH_ERROR);
         assert_eq!(resolve_folder("").unwrap_err(), FULL_PATH_ERROR);

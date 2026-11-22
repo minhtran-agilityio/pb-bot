@@ -33,6 +33,13 @@ async fn run_check(kind: String, repo: String, path: String) -> Result<CheckResu
     .map_err(err)?
 }
 
+/// Cancel button of the Add project dialog: ends every running check and any save in progress.
+/// Running `run_check` calls return a failed result with the detail "Cancelled.".
+#[tauri::command]
+fn cancel_checks() {
+    checks::cancel_checks();
+}
+
 /// `owner/name` for any accepted input form (`owner/name`, `github.com/o/n`, `https://github.com/o/n.git`).
 #[tauri::command]
 fn normalize_repo(input: String) -> Result<String, String> {
@@ -44,6 +51,8 @@ fn normalize_repo(input: String) -> Result<String, String> {
 /// the case of the folder's origin remote, not the case the owner typed.
 #[tauri::command]
 async fn add_project(db: tauri::State<'_, Db>, repo: String, path: String) -> Result<Project, String> {
+    // A cancel after this point must stop the save (see the check right before the insert).
+    let epoch = checks::cancel_epoch();
     let typed = checks::normalize_repo(&repo).ok_or(checks::REPO_FORMAT_ERROR)?;
     let dir = checks::resolve_folder(&path)?;
     let (r, p) = (typed, path.clone());
@@ -61,6 +70,7 @@ async fn add_project(db: tauri::State<'_, Db>, repo: String, path: String) -> Re
     if db::find_by_repo(&conn, &repo).map_err(err)?.is_some() {
         return Err("This repo is already added.".to_string());
     }
+    checks::ensure_not_cancelled(epoch)?;
     db::insert_project(&conn, &repo, &name, &abs).map_err(err)
 }
 
@@ -78,7 +88,7 @@ pub fn run() {
             app.manage(Db(Mutex::new(conn)));
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![list_projects, run_check, add_project, normalize_repo])
+        .invoke_handler(tauri::generate_handler![list_projects, run_check, cancel_checks, add_project, normalize_repo])
         .run(tauri::generate_context!())
         .expect("error while running Shape Board");
 }
