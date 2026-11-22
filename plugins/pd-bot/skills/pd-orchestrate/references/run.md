@@ -5,9 +5,12 @@ Defaults, the brief, what to do when a ticket reports, and the final report. Par
 
 ## Before you assign
 
+- **Read the tickets.** For a milestone run, list its open issues with
+  `gh issue list --repo <repo> --milestone '<name>' --state open --json number,title,labels`
+  (`'`→`'\''`). Never put the name in double quotes: the shell would expand it.
 - **Triage in parallel, ask once.** One agent per ticket follows `pd-bot:pd-intake` and returns the
   verdict, the depth and its questions; it does not ask the owner. Add the `Touches:` request of
-  `${CLAUDE_PLUGIN_ROOT}/skills/pd-autopilot/references/groups.md` to its prompt, so it also
+  `${CLAUDE_PLUGIN_ROOT}/skills/pd-orchestrate/references/groups.md` to its prompt, so it also
   returns the paths it expects the ticket to change. You collect every CONFIRM
   question and ask them in one batch, then run `pd-bot:pd-grilling` for each GRILL ticket. Record the
   answers verbatim in the ledger and as a "Confirmed decisions" comment on the issue.
@@ -31,7 +34,7 @@ Leave a default when the ticket gives you a reason, and say why in the ledger.
 
 | Decision | Default | Change it when |
 |---|---|---|
-| Where the work runs | one Pod Bay session per ticket, in its own workspace | read-only or single-step work with no owner question: an in-process `Agent` with `isolation: worktree` is cheaper. It cannot exchange messages, so it returns its result to you and you route the review |
+| Where the work runs | one Pod Bay session per ticket, in its own workspace | read-only work with no owner question: an in-process `Agent` that only reads is cheaper. It cannot exchange messages, so it returns its result to you |
 | Worker model | Sonnet 5.5 for depth S and M; Opus 5.5 at depth L | the ticket touches hooks, security or a public contract; a worker already failed once on it |
 | Reviewer | a different session, Opus 5.5, skill `pd-bot:pd-review` | never the worker's session; never you alone |
 | Order | dependency groups (command below); tickets of one group in parallel. The command puts two tickets with an overlapping path in different groups | you see an overlap that the paths do not show: give both tickets that path and run the command again |
@@ -50,7 +53,7 @@ owner merges that one. The scenario page, the feature test and the hand-over are
 
 Order the tickets: pipe `[{"n":1,"deps":[2],"paths":["src/a.py","docs/"]}]` (`paths` is the
 ledger's `touches`; the rules are in `groups.md`) into
-`python3 ${CLAUDE_PLUGIN_ROOT}/skills/pd-autopilot/scripts/plan_groups.py --max-parallel 3`; exit 2
+`python3 ${CLAUDE_PLUGIN_ROOT}/skills/pd-orchestrate/scripts/plan_groups.py --max-parallel 3`; exit 2
 names a dependency cycle, which you show to the owner, or bad input, which you correct. Each stderr line names a ticket that moved to
 a later group and why (an overlap with another ticket, or a full group): record it in the ledger.
 The groups are the order, not a lock. When a worker slot is free, you may start a ticket of a later

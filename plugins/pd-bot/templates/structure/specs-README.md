@@ -24,14 +24,9 @@ the summary's Verify table; `D<n>` in `decision.md`, cited by the summary.
 Extra files when they apply: `research-brief.md` (`xia2`, depth L) and `diagnosis.md`
 (`diagnosing-bugs`).
 
-A step that runs inside a workflow (`Mode: auto`) writes no `specs/` file. It returns the text, and
-the workflow script writes the files to the main checkout's `specs/<slug>/`, so they stay after the
-worktree is removed. Autopilot writes `intent.md` after the intent stage (at depth S also `design.md`
-and `plan.md`), and `design.md`, `plan.md` and `research-brief.md` after the plan stage. It writes
-`decision.md` at the end, and it rewrites the other files at the end. The Write tool refuses a report
-file such as `summary.md` from a subagent, so no agent writes `summary.md`: the run result carries its text
-in `specFiles`, and the main session writes it after the run. In a `claude --bg` session the shared-checkout
-guard can block the writer agent; then every spec file goes to `specFiles` and the main session writes them all.
+A step that runs with `Mode: auto` writes no `specs/` file. It returns the text, and its caller (the
+worker session of the ticket) writes the files to `specs/<slug>/` of its own checkout. The Write tool
+refuses a report file such as `summary.md` from a subagent, so the session itself writes `summary.md`.
 
 ## What stays tracked
 

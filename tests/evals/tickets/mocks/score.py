@@ -94,7 +94,7 @@ elif case == "no-milestone-flag-creates-none":
     checks += [
         ("No milestone is created or attached", no_ms, f"{len(ms_posts)} posts"),
         ("At least 2 tickets are created", len(tickets) >= 2, f"{len(tickets)} tickets"),
-        ("The next step names issue numbers", bool(re.search(r"autopilot[^\n]*#\d+", final)), final[-200:]),
+        ("The next step names issue numbers", bool(re.search(r"pd-orchestrate[^\n]*#\d+", final)), final[-200:]),
     ]
 elif case == "no-flag-asks-owner-who-declines":
     checks += [

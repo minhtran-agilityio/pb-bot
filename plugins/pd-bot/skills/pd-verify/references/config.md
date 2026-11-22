@@ -32,7 +32,7 @@ Create them in your own shell, for example `export VERIFY_PASSWORD=$(openssl ran
 
 Otherwise report BLOCKED. The password is random, lives for one run, and protects a server on
 throwaway data that the stage started and stops. Never write it to a file, the PR or the config.
-No code enforces the consent (`ship.js` is untouched): the rule is yours to keep.
+No code enforces the consent: the rule is yours to keep.
 
 Typing it with `browser_fill_form` is accepted for this case only. Never pass it through
 `browser_run_code_unsafe`. Real or staging accounts keep owner-supplied variables: never invent them.

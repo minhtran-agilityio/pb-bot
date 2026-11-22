@@ -18,9 +18,8 @@ Every depth (S, M, L) runs all six phases. No "cause known" shortcut exists.
 ## Isolation
 
 Create the isolation before Phase 1.
-At depth S, run `git checkout -b fix/<slug>` only from a shared branch.
-Otherwise keep the current branch.
-At depth M and L, run `pd-bot:pd-using-git-worktrees`.
+Run `git checkout -b fix/<slug>`: at depth S only from a shared branch (else keep the current
+branch), at depth M and L from the base branch.
 Do every probe, harness and fix edit there, never on a shared branch.
 
 ## Phases

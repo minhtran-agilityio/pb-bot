@@ -99,7 +99,7 @@ Optional. Decide before step 3, because the choice changes which deps are `wait`
 | Both flags | Stop and ask the owner to pick one |
 | Neither flag | Ask in step 2 |
 
-The step 2 question is "Group these issues under a milestone?". Options: `Use "<brief title>"` (recommended, because `/pd-bot:pd-autopilot` can then start the whole batch by name) and `No milestone`. The owner types another name under Other. If the dialog is not available, stop and name the two flags.
+The step 2 question is "Group these issues under a milestone?". Options: `Use "<brief title>"` (recommended, because `/pd-bot:pd-orchestrate` can then start the whole batch by name) and `No milestone`. The owner types another name under Other. If the dialog is not available, stop and name the two flags.
 
 If the milestone question makes more than 4 questions in step 2, say that a milestone flag removes it.
 
@@ -115,9 +115,9 @@ After step 9, if a milestone was chosen, read it back:
 
     gh issue list --milestone '<name>' --state all --limit 1000 --json number,title
 
-The report lists these issues under the milestone name, with the milestone URL. Each new ticket must be on that list: name any that is not, and do not call the run done. Also name each `exists` ticket outside the milestone, because `/pd-bot:pd-autopilot <milestone>` will not start it.
+The report lists these issues under the milestone name, with the milestone URL. Each new ticket must be on that list: name any that is not, and do not call the run done. Also name each `exists` ticket outside the milestone, because `/pd-bot:pd-orchestrate <milestone>` will not start it.
 
-Next command in the report: `/pd-bot:pd-autopilot <milestone>`. With no milestone: `/pd-bot:pd-autopilot #n #m ...` with every open ticket of this batch.
+Next command in the report: `/pd-bot:pd-orchestrate <milestone>`. With no milestone: `/pd-bot:pd-orchestrate #n #m ...` with every open ticket of this batch.
 
 ## Shell safety
 
@@ -133,7 +133,7 @@ A title, a milestone name or a label can come from the brief, so each one is unt
 - Never write a `gh` value in double quotes. A `$(...)` in a double-quoted title runs, even under the pre-allowed pattern.
 - Put each value in single quotes, and write a `'` inside it as `'\''`.
 - If a value has a newline or another control character, stop and ask for another value.
-- A milestone name cannot hold `$`, a backtick, `\\`, `"` or `'`, and cannot be only digits. `/pd-bot:pd-autopilot` and `gh` read the name again, and `gh` reads digits as a milestone number. Remove these characters from a recommended name. Ask for another name if the owner gave it.
+- A milestone name cannot hold `$`, a backtick, `\\`, `"` or `'`, and cannot be only digits. `/pd-bot:pd-orchestrate` and `gh` read the name again, and `gh` reads digits as a milestone number. Remove these characters from a recommended name. Ask for another name if the owner gave it.
 - An `area:*` label uses lowercase letters, digits and hyphens only.
 - If a body line is exactly `TICKET_BODY_END`, stop before step 8 and name the line. That line would end the body, and the shell would run the lines after it.
 

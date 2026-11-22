@@ -1,4 +1,4 @@
-//! The page model, built from raw `podbay-dev` JSON. Same rules as `podsOf` in plugins/pd-bot/board/board.js.
+//! The page model, built from raw `podbay-dev` JSON.
 //! It copies named fields only (an allow list): account, uuid, dir, path and remote_url never leave this module.
 
 use serde::Serialize;

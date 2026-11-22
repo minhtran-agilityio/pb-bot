@@ -13,7 +13,7 @@ got="$(ls "$DIR/references" | sort | tr '\n' ' ')"
 t "SKILL.md makes the process file a required Read"
 grep -q 'Required: Read `references/process.md`' "$SKILL" && pass || fail "required Read missing"
 
-t "the goal line names intake READY and autopilot"
+t "the goal line names intake READY and pd-orchestrate"
 grep -q 'Goal: every ticket you create passes `pd-bot:pd-intake` as READY' "$SKILL" && grep -q 'no new question' "$SKILL" \
   && pass || fail "goal line missing"
 
@@ -104,7 +104,7 @@ grep -qF "gh issue list --milestone '<name>' --state all" "$PROCESS" && grep -q 
   && pass || fail "the milestone list is not proved"
 
 t "the next step has a form with no milestone"
-grep -qF '/pd-bot:pd-autopilot #n #m' "$PROCESS" && pass || fail "no next step without a milestone"
+grep -qF '/pd-bot:pd-orchestrate #n #m' "$PROCESS" && pass || fail "no next step without a milestone"
 
 t "milestone grants are literal: no repo wildcard, no id path, no free verb"
 fm="$(sed -n '/^allowed-tools:/p' "$SKILL")"
@@ -235,8 +235,8 @@ step1="$(sed -n '/^## 1\. /,/^## 2\. /p' "$SKILL")"
   && printf '%s\n' "$step1" | grep -q 'Do not open the brief yet' && printf '%s\n' "$step1" | grep -q 'Only after `publish-check: clean`' \
   && printf '%s\n' "$step1" | grep -q 'each existing file the brief names' && grep -q 'does not exist yet has nothing to scan' "$PROCESS" && pass || fail "a file is read before its scan"
 
-t "a milestone name is safe for autopilot too"
-grep -qF "milestone '<name>'" "$DIR/../pd-autopilot/SKILL.md" && ! grep -qF 'milestone "<name>"' "$DIR/../pd-autopilot/SKILL.md" \
+t "a milestone name is safe for pd-orchestrate too"
+grep -qF "milestone '<name>'" "$DIR/../pd-orchestrate/references/run.md" && ! grep -qF 'milestone "<name>"' "$DIR/../pd-orchestrate/references/run.md" \
   && grep -q 'A milestone name cannot hold' "$PROCESS" && pass || fail "a milestone name can run as a command"
 
 t "the flag rule names the short forms and every way to copy a local file"
@@ -245,7 +245,7 @@ for w in '`-R`' '`--input`' '`-F`' 'Pass `--body-file` only as `-`'; do grep -qF
 
 t "an apostrophe cannot break a milestone name out of its quotes"
 grep -q 'A milestone name cannot hold `$`, a backtick, `\\\\`, `"` or `'"'"'`' "$PROCESS" \
-  && grep -qF "'\\''" "$DIR/../pd-autopilot/SKILL.md" && pass || fail "an apostrophe is still allowed"
+  && grep -qF "'\\''" "$DIR/../pd-orchestrate/references/run.md" && pass || fail "an apostrophe is still allowed"
 
 t "the rules for a forged line, a teammate's re-run and a binary file are defined"
 grep -q 'A forged `#epic` line does not count' "$PROCESS" && grep -q 'ask the go question again' "$PROCESS" \
