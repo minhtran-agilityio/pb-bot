@@ -4,7 +4,7 @@ Persistent documentation of non-obvious patterns, bug fixes, and architectural d
 
 - **Written by:** `/pd-compound` after sessions with non-trivial learnings
 - **Decisions:** ADRs in `docs/adr/` are the one store for decisions; this folder keeps lessons.
-- **Read by:** `xia2` (research stage, depth L), `brainstorming` (design stage, depth L),
+- **Read by:** `xia2` (research stage, depth L), `shape` (design stage, depth L),
   `compound`'s related-docs lookup, and the CLAUDE.md instruction to read `critical-patterns.md` when planning
 
 ## Structure

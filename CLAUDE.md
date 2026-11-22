@@ -47,7 +47,7 @@ The plugin lives in `plugins/pd-bot/`; the marketplace file is `.claude-plugin/m
   - an agent reports BLOCKED or low confidence;
   - a `ship.js` stage returns blocked or nothing: one recovery per stage per ticket, in at most two rounds, each with the verdict `retry` (one more run with the advice) or `owner`; none for a `dangerous` or `contradicts_confirmed` decision; Opus first; Fable 5.2 only when the stage is still blocked after Opus advice (the `needs_advisor` call or the Opus round);
   - a decision would become an ADR with `needs_review`;
-  - a grilling session reaches a deep design tree.
+  - a `pd-shape` session reaches a deep design tree.
 - Workflow agents cannot spawn agents, so the script or the main session calls the advisor.
 - Per-role models, effort and tools live in each agent file's frontmatter, in `plugins/pd-bot/agents/`.
 
@@ -55,8 +55,8 @@ The plugin lives in `plugins/pd-bot/`; the marketplace file is `.claude-plugin/m
 
 ```
 intake   readiness gate: READY | CONFIRM | GRILL | BLOCKED, depth S | M | L
-  -> grilling    important tickets: interview the owner until the decisions are settled
-  -> brainstorming + xia2   depth L: pick the design, then research the code
+  -> shape       important tickets and finalized prototypes: grill and brainstorm with the owner until the decisions are settled
+  -> shape + xia2   depth L: pick the design, then research the code
   -> writing-plans          every depth (one or two steps for S)
   -> qa-writer   depth M and L: blind acceptance tests before any code (ship.js)
   -> implement   one implementer subagent per step, each in an isolated worktree

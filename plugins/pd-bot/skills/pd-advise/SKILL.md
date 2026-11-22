@@ -30,7 +30,7 @@ You choose the method. What usually pays off:
   (`git fetch <checkout path> <branch>` brings it here).
 - **Go wide, then narrow.** Send several `pd-bot:researcher` or `Explore` agents in parallel over
   independent questions (how the code works, how others solved it, what the docs say).
-  `pd-bot:pd-xia2` for how a part works; `pd-bot:pd-brainstorming` when the answer is a choice among
+  `pd-bot:pd-xia2` for how a part works; `pd-bot:pd-shape` when the answer is a choice among
   designs; for a defect, Read `${CLAUDE_PLUGIN_ROOT}/skills/pd-diagnosing-bugs/SKILL.md`.
 - **Prove the answer.** Build the smallest prototype that shows your solution works, on a scratch
   branch in this workspace. A solution you ran is worth more than three you reasoned about.

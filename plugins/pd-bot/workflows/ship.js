@@ -651,7 +651,7 @@ function stageResearch(t, intent) {
 
 function stageDesign(t, intent, research) {
   const w = newWt(`design-${t.n}`, null, integRef)
-  const build = advice => w.setup + head(t, 'pd-brainstorming',
+  const build = advice => w.setup + head(t, 'pd-shape',
     `Stage: design. Return the design as a decision with stage 'design' in decisions[] (a design ADR) with adr true and its text as design_md, in the shape of ${pluginDir}/templates/specs/design.md. Write no file.\n` +
     `Intent: ${JSON.stringify(intent)}\nResearch brief:\n${research.research_md}${advice}`, w.dir)
   return runStage(t, 'design', build, DESIGN_SCHEMA, { model: stageModel('design', t.depth), effort: EFFORT.design })

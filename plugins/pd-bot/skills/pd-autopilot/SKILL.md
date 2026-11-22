@@ -29,12 +29,12 @@ skill runs in the main session; `${CLAUDE_PLUGIN_ROOT}/workflows/ship.js` is the
    `python3 ${CLAUDE_SKILL_DIR}/scripts/plan_groups.py` as `references/groups.md` says. Exit 2:
    stop and show it.
 4. **Clarify** (skip with `--no-ask`). Collect every ticket's CONFIRM questions. Ask with
-   AskUserQuestion, at most 4 per call, in the `pd-bot:pd-grilling` "Question format". Evidence goes in the
-   option `preview` (`pd-grilling/references/review-layout.md`). One decision each.
-5. **Grill** (skip with `--no-ask`). Run the `pd-bot:pd-grilling` skill, interactive, for each GRILL
+   AskUserQuestion, at most 4 per call, in the `pd-bot:pd-shape` question format. Evidence goes in the
+   option `preview` (`pd-shape/references/review-layout.md`). One decision each.
+5. **Grill** (skip with `--no-ask`). Run the `pd-bot:pd-shape` skill, interactive, for each GRILL
    ticket, one ticket at a time.
 6. **Record.** Post each ticket's confirmed answers as one comment titled "Confirmed decisions":
-   `gh issue comment <n> --repo <repo> --body-file <file>`. Grilling posts its own. With `--no-ask` nobody answers: pass the open questions on with
+   `gh issue comment <n> --repo <repo> --body-file <file>`. `pd-shape` posts its own. With `--no-ask` nobody answers: pass the open questions on with
    `noAsk: true` so the workflow records them as `needs_review` decisions.
    No `Verify:` row: draft one from the acceptance criteria into that comment and `confirmed`; with
    `--no-ask` also pass the decision `Verify: row drafted for #<n>` (`references/launch-args.md`).

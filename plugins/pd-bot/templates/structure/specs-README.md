@@ -10,8 +10,8 @@ later step uses the same slug.
 
 | File | Written by | What it holds |
 |---|---|---|
-| `intent.md` | `intake`; `grilling` adds to it | The request verbatim, the goal, the acceptance criteria, out of scope, the verdict and depth, and the confirmed decisions. |
-| `design.md` | `brainstorming` (depth L); `writing-plans` (depth S and M) | The chosen approach and the options it beat. At depth S and M this is a few lines. |
+| `intent.md` | `intake`; `shape` adds to it | The request verbatim, the goal, the acceptance criteria, out of scope, the verdict and depth, and the confirmed decisions. |
+| `design.md` | `shape` (depth L); `writing-plans` (depth S and M) | The chosen approach and the options it beat. At depth S and M this is a few lines. |
 | `decision.md` | every step that decides | One entry per decision: title, decision, why, how to reverse, and the ADR path when one was written. |
 | `plan.md` | `writing-plans` | The steps, each with Files, Effort, Done-when and a parallel group. At depth S this is one or two steps. |
 | `summary.md` | `finishing-a-development-branch` | What shipped: branch, PR, commits, the verify commands and their output, review results, and any deviation from the plan. |

@@ -29,13 +29,13 @@ Judge one ticket and return a verdict. Write only `specs/<slug>/intent.md`; do n
   If the row logs in, check its login variables first: `references/verify-login.md`.
 - **GRILL**: the ticket is important or its design tree is deep: auth or security, data migration
   or deletion, a public contract, quota or money, an irreversible action, cross-module
-  architecture, or the label `grill`. Hand off: run the grilling skill.
+  architecture, or the label `grill`. Hand off: run `pd-bot:pd-shape`.
 - **BLOCKED**: the ticket is too large (propose a split) or a dependency is missing (name it).
 
 ## Depth
 
 - **S** and **M**: `pd-bot:pd-writing-plans` (one or two steps at S), then `pd-bot:pd-implement`.
-- **L**: add `pd-bot:pd-brainstorming` and `pd-bot:pd-xia2` research before the plan.
+- **L**: add `pd-bot:pd-shape` (design) and `pd-bot:pd-xia2` research before the plan.
 
 A bug fix goes to `pd-bot:pd-diagnosing-bugs` first: Read `${CLAUDE_PLUGIN_ROOT}/skills/pd-diagnosing-bugs/SKILL.md` (it blocks the Skill tool).
 

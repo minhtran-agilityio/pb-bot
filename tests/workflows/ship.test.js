@@ -242,7 +242,7 @@ test('b3: the result lists the worktree dirs outside the repo', async () => {
 
 test('c4: skill and role reads use absolute paths under pluginDir, not the worktree or .claude', async () => {
   const { calls } = await run({ tickets: [T(1, 1, [], { depth: 'L' })] }, null)
-  const want = { 'research:1': 'pd-xia2', 'design:1': 'pd-brainstorming', 'plan:1': 'pd-writing-plans', 'implement:1': 'pd-implement' }
+  const want = { 'research:1': 'pd-xia2', 'design:1': 'pd-shape', 'plan:1': 'pd-writing-plans', 'implement:1': 'pd-implement' }
   for (const [l, sk] of Object.entries(want)) {
     const p = named(calls, new RegExp(`^${l}$`))[0].prompt
     assert(p.includes(`Read /plug/skills/${sk}/SKILL.md`) && !/\.claude\/(?!rules\/)/.test(p), `${l}: ${p.match(/Read [^\n]*/)}`)

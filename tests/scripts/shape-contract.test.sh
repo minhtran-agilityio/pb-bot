@@ -1,0 +1,35 @@
+#!/bin/bash
+source "$(dirname "$0")/../lib.sh"
+SKILL="plugins/pd-bot/skills/pd-shape/SKILL.md"
+t "shape replaces grilling, own and brainstorming"
+[ -f "$ROOT/$SKILL" ] && [ ! -e "$ROOT/plugins/pd-bot/skills/pd-grilling" ] && [ ! -e "$ROOT/plugins/pd-bot/skills/pd-own" ] && [ ! -e "$ROOT/plugins/pd-bot/skills/pd-brainstorming" ] && pass || fail "pd-shape missing or an old skill still present"
+t "shape acts on nothing until the owner confirms the brief"
+grep -q 'Act on nothing until the owner' "$ROOT/$SKILL" && grep -q 'Does this brief say what you mean?' "$ROOT/$SKILL" && pass || fail "confirmation gate missing"
+t "shape checks the 8 topics a prototype cannot show"
+TOPICS="plugins/pd-bot/skills/pd-shape/references/prototype-topics.md"
+ok=1; grep -qF 'references/prototype-topics.md' "$ROOT/$SKILL" || ok=0
+for w in 'Goal:' 'Business rules:' 'Edge cases and errors:' 'Data:' 'Permissions:' 'Non-functional:' 'Out of scope:' 'Priority:'; do grep -qF -- "$w" "$ROOT/$TOPICS" || { ok=0; echo "missing topic: $w"; }; done
+[ $ok = 1 ] && pass || fail "a prototype topic is missing"
+t "shape lets the owner answer big decisions first, with a counter-argument"
+grep -qF 'references/owner-first.md' "$ROOT/$SKILL" && grep -q 'strongest argument against your own recommendation' "$ROOT/plugins/pd-bot/skills/pd-shape/references/owner-first.md" && pass || fail "owner-first protocol missing"
+t "shape writes the brief to specs/<slug>/brief.md from its template"
+grep -qF 'specs/<slug>/brief.md' "$ROOT/$SKILL" && grep -qF 'references/brief-template.md' "$ROOT/$SKILL" && [ -f "$ROOT/plugins/pd-bot/skills/pd-shape/references/brief-template.md" ] && pass || fail "brief output or template missing"
+t "shape proposes an ADR only for a repo-level decision that meets all 3 conditions, and asks the owner"
+grep -q 'meets all 3' "$ROOT/$SKILL" && grep -q 'Make this an ADR?' "$ROOT/$SKILL" && grep -qF 'write_adrs.py' "$ROOT/plugins/pd-bot/skills/pd-shape/references/adr.md" && grep -q 'Never push to the default branch' "$ROOT/plugins/pd-bot/skills/pd-shape/references/adr.md" && pass || fail "ADR rule missing"
+t "shape has an Auto mode section that writes no ADR or specs file and stops on a prototype"
+grep -q '^## Auto mode' "$ROOT/$SKILL" && grep -q 'Write no ADR file, no `specs/` file' "$ROOT/$SKILL" && grep -q 'A prototype needs an owner' "$ROOT/$SKILL" && pass || fail "Auto mode rules missing"
+t "every flow file has a template with a Ticket/Depth header line"
+ok=1; for f in intent design decision plan summary; do grep -q '^Ticket: #<n> · Depth: S|M|L' "$ROOT/plugins/pd-bot/templates/specs/$f.md" 2>/dev/null || { ok=0; echo "missing or no header: $f.md"; }; done
+[ $ok = 1 ] && pass || fail "a templates/specs file is missing"
+TPL="plugins/pd-bot/skills/pd-shape/references/design-template.md"
+BRIEF="plugins/pd-bot/skills/pd-xia2/references/research-brief-template.md"
+has_all() { local f="$1"; shift; for a in "$@"; do grep -qF -- "$a" "$ROOT/$f" || return 1; done; }
+t "design template exists and shape reads it"
+[ -f "$ROOT/$TPL" ] && grep -qF 'references/design-template.md' "$ROOT/$SKILL" && pass || fail "design template or its Read missing"
+t "design and research-brief templates carry the provenance header"
+has_all "$TPL" 'stage: design' 'Pins:' && has_all "$BRIEF" '# <slug> — Research Brief' 'Written <YYYY-MM-DD>. Pins:' && pass || fail "provenance header missing"
+t "specs README says specs/ is local scratch and points decisions to docs/adr/"
+has_all "plugins/pd-bot/templates/structure/specs-README.md" 'local scratch' 'docs/adr/' && pass || fail "specs README scratch note or docs/adr pointer missing"
+t "specs README no longer documents the removed SUMMARY/ESCALATIONS/QUESTIONS files"
+! grep -qE 'SUMMARY|ESCALATIONS|QUESTIONS|RUN\.json' "$ROOT/plugins/pd-bot/templates/structure/specs-README.md" && pass || fail "specs README still names a removed spec file"
+finish
