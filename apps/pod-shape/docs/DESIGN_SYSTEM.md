@@ -213,7 +213,7 @@ Shared states for every interactive component:
 | **TitleBar** | 40px custom Tauri title bar (`data-tauri-drag-region`) | bg-surface-1, border-b. Left: app logo 16px + breadcrumb. Right: theme toggle, settings icon button. |
 | **Sidebar / SidebarItem** | Project (repo) list on the left, 240px | Section label text-xs uppercase fg-subtle. Item h-8 rounded-md px-2 gap-2: icon 16 + name (truncate) + count `text-sm text-fg-subtle tabular-nums`. Selected = §6 selected state. Bottom: "Add project" ghost button. |
 | **PageHeader** | Title + meta + actions at the top of main | text-xl title, text-sm fg-muted meta line, actions right (max 1 primary + 2 secondary). Optional Tabs below. |
-| **EmptyState** | Nothing yet | Left-aligned block at the top-left of the area: `BranchPattern` (§6.4) on the right side, icon 24 fg-subtle, text-lg title, one line text-base fg-muted, one Button. |
+| **EmptyState** | Nothing yet | Left-aligned block at the top-left of the area: `BranchPattern` (§6.4) on the right side, icon 24 fg-subtle, text-lg title, one line text-base fg-muted, one Button. The text block is at most `max-w-140` (560px) and its line of text at most `max-w-85` (340px), as in the prototype. |
 | **AddProjectDialog** | The "Add project" dialog | Dialog `md`, title "Add project". Fields: "GitHub repo" Input (`owner/name`) and "Local folder" Input (font-mono) with a "Choose…" secondary button for the native folder picker. Footer: "Cancel" ghost + "Check and add" primary (icon `add`). On submit it runs the `gh`, `claude` and folder checks and shows them as RunLog rows; a field error is helper text under that field (§6 error state). |
 | **StatusBadge** | Issue status pill | `status` prop: open · pr · merged · closed. h-5 px-1.5 rounded-sm text-sm font-500, bg `-soft`, text = status color, icon 12px + label (§1.3). `compact` prop = 8px dot + label only (for tree rows). |
 | **ArtifactCard** | One artifact (prototype, doc) of a project | Card. Row 1: file-type icon + name (text-md) + updated time (fg-subtle). Row 2: one-line summary (fg-muted, clamp 2). Row 3: pipeline chips — "Grilled ✓", "3 features", "2 milestones", "14 issues" — as `Badge neutral`, plus a mini StatusBar. Action: "Open grill" ghost button. |
@@ -266,7 +266,7 @@ The **orange node** (8px circle, `accent`) marks the single "you are here" item 
 
 - Minimum window: **1024 × 640**. Below 1180px wide, RightPanel becomes an overlay sheet from the right.
 - Main content scrolls; TitleBar and Sidebar never scroll with it.
-- Lists and the tree use full main width. Reading content (chat, forms) uses `max-w-[--content-max]` → write it as `max-w-240` (960px) — no other max widths.
+- Lists and the tree use full main width. Reading content (chat, forms) uses `max-w-[--content-max]` → write it as `max-w-240` (960px). The only other max widths are EmptyState's `max-w-140` and `max-w-85` (§6.2).
 - Grill chat: messages column max 760px wide (`max-w-190`), centered; Composer sticks to the bottom.
 
 ### 7.1 Screens (v1.1)
@@ -325,7 +325,7 @@ The **orange node** (8px circle, `accent`) marks the single "you are here" item 
 Only when the user asks. Steps: update `tokens.css` and/or the component → update this file (tables above) → bump the version at the top → note it in the changelog below.
 
 ### Changelog
-- **v1.3** — No "running" issue status in V1 (owner decision): removed from §1.3, StatusBadge and StatusBar. New app part AddProjectDialog (§6.2), approved by the owner. The global `:focus-visible` rule in `tokens.css` moves into `@layer base`, so a component's `focus-visible:` utility can override it.
+- **v1.3** — No "running" issue status in V1 (owner decision): removed from §1.3, StatusBadge and StatusBar. New app part AddProjectDialog (§6.2), approved by the owner. The global `:focus-visible` rule in `tokens.css` moves into `@layer base`, so a component's `focus-visible:` utility can override it. EmptyState may use `max-w-140` and `max-w-85` (§6.2, §7), matching the prototype (owner decision).
 - **v1.2** — UI font is IBM Plex Sans (chosen by the user after a side-by-side test). Switzer dropped: not loadable in previews and licence not verified. UI copy is English only.
 - **v1.1** — anti-slop update: Switzer replaces Inter; warm-tinted neutrals; `--branch` token and the branch-line signature (§6.4); banned patterns (§0.1); 60-30-10 color budget; `icons.ts` icon map with fixed size/stroke pairs; new PipelineSteps and RunLog; EmptyState left-aligned with BranchPattern.
 - **v1.0** — first version: colors aligned with the Shape Board logo; tokens, 17 primitives, 16 app parts, 5 screens.
