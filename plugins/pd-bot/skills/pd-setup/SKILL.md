@@ -24,7 +24,7 @@ Run once per project, after `claude plugin install pd-bot@pd-bot`. Work in the p
    (exit 3 if missing) and refuses a file that is not valid JSON or whose permissions, allow or deny has the wrong type (exit 2, file untouched). It adds
    these rules and keeps every existing one: `.env` read and edit, force-push, push to main or master.
 4. **Merge guard (nothing to install).** The plugin registers `merge-guard.sh`, a PreToolUse hook:
-   `merge-guard.sh` blocks every merge into a protected base (main, master, release/*, the default branch and similar); it fails closed. Tell the owner
+   `merge-guard.sh` asks the owner about every merge whose base is not `feat/*`. Tell the owner
    that every PR into a protected base is a human merge (in a session the owner can approve one named PR in the
    confirmation prompt the hook raises; nothing else is merged), and that ticket PRs into `feat/<slug>` stay
    human-merged too unless they merge them: setup writes no allow rule for `gh pr merge`, because no

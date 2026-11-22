@@ -81,8 +81,8 @@ the repo's `plugins/pd-bot/workflows/ship.js`, say so. If the result has no such
   per-ticket gate (CI, review, intent review, no open `needs_review` decision). The final PR (and a
   single-ticket PR) is merged by the run only when `base` is not protected (not main, master, develop, development,
   staging, production, release/* or the default branch) and every gate passed (`Merge: auto` in the PR body).
-  Otherwise it is a human merge (`Merge: human`, with the failed gate named). The merge guard hook stops any merge
-  into a protected base and fails closed. Local mode has no PRs: no guard, no gate.
+  Otherwise it is a human merge (`Merge: human`, with the failed gate named). The merge guard hook passes only a merge
+  into `feat/*` without a question; in a workflow agent every other merge is denied (ADR 0004). Local mode has no PRs: no guard, no gate.
 - Merge permission: the owner must allow `gh pr merge` into `feat/<slug>*`. Without it the merge stage
   fails with a reason that names this permission. Do not change permission settings and do not work
   around a denial; tell the owner. A ticket whose gate failed is not merged; its PR stays open with a

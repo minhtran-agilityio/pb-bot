@@ -1,407 +1,63 @@
 #!/usr/bin/env bash
-# PreToolUse(Bash) guard: a PR merge from a Claude session is allowed without a prompt when the PR base is
-# not protected (feat/*, phase3-ui and any other branch that is not listed below). Protected bases are
-# main, master, develop, development, staging, production, release/*, release-* and the repo default
-# branch. A merge into a protected base is allowed only as ONE plain `gh pr merge <n> --repo o/r` from the main session, and only
-# after the owner answers a confirmation prompt (permissionDecision "ask"); the agent cannot answer it.
-# `ask` is honored in every permission mode (probed: default, auto, bypassPermissions); with no one to
-# answer (`claude -p`) Claude Code turns it into a denial. The hook itself denies in a mode it does not
-# know, in dontAsk, in a subagent (payload carries agent_id) and when permission_mode is missing.
-# A merge into a protected base in any other form (a subagent, a chain, --admin-less variants) is denied.
-# Unlike the other hooks, this one FAILS CLOSED: once it has seen a merge command, any doubt (no gh,
-# no jq, no PR number, no --repo, an unreadable base, a stalled gh) blocks the command (exit 2, reason
-# on stderr). A Bash call that is not a merge exits 0 at once, before any parsing.
-# Verifies: the PR base read live with `gh pr view --json baseRefName` for every PR number of every merge
-#   segment (`gh pr merge`, `gh api .../pulls/<n>/merge`) is not protected (see above) and is not the repo default branch.
-#   It denies `--auto`, `gh api graphql ... mergePullRequest`, a merge inside bash -c / eval / xargs or another
-#   wrapper on a best-effort list (also behind an assignment, keyword, zsh prefix or redirection, or with a
-#   path, backslash or = on the name; #677), a merge that is not at command position, and `gh alias
-#   set|import` next to the word merge. Not on the list: interpreters (python, perl, awk), find -exec, git -c.
-# Does not verify: your own `!` or terminal commands (the hook never sees them), a local `git merge`, a
-#   merge through the web UI or another client, a script that builds the command at run time, or whether
-#   the PR is ready (the workflow gate checks that).
-# No env-var bypass. No helper file and no path derived from this file's location: the hook is
-# self-contained so it can be copied alone.
+# PreToolUse guard (Bash, and MCP tools that merge): no automatic merge into a protected base.
+# Goal: an agent never merges into main (or another base that is not feat/*) on its own. The owner is
+# asked each time and the merge runs only on the owner's yes. A merge into feat/* needs no question.
+# Threat model: an agent that merges out of habit with a normal command. NOT an agent that hides the
+# command (escapes, scripts, interpreters, curl with a token); see docs/adr/0004-*.
+# Rule: doubt means ask. Anything that looks like a merge and is not a plain `gh pr merge <n>` or
+# `glab mr merge <n>` into feat/* is put to the owner. In a subagent nobody can answer, so ask = deny.
+# The hook never parses bash. A false ask on prose (`git commit -m "... gh pr merge ..."`): put the
+# text in a file (`git commit -F`, `--body-file`).
 set -u
 payload=$(cat)
-# Pre-filter on a folded copy (lowercase, quotes and backslashes removed) so "g""h", GH-case or
-# me\rge spellings do not skip the guard. P5: a backslash line break (real, or \\\n inside the JSON payload)
-# is removed first, because bash joins the two halves (such a command is then denied below); braces and glob
-# brackets are removed in base_like, so {g..g}h and mer[g]e read as gh and merge.
-fold() {
-  local s=$1
-  s=${s//$'\\\n'/}; s=${s//'\\\n'/}
-  printf '%s' "$s" | tr '[:upper:]' '[:lower:]' | tr -d "\"'\\\\"
-}
-# P5: an octal, hex or unicode escape as bash's $'..' and printf read them (1-3 octal digits, \x1-2, \u1-4, \U1-8).
-ESC_RE='\\([0-7]{1,3}|x[0-9A-Fa-f]{1,2}|u[0-9A-Fa-f]{1,4}|U[0-9A-Fa-f]{1,8})'
-has_escape() { printf '%s' "$1" | grep -qE "$ESC_RE"; }
-# P5: the text with its escapes decoded (printf %b reads octal only after \0, so add it).
-# \c makes printf %b stop writing, so drop it first. bash 3.2 (macOS) printf %b has no \u or \U, so an ASCII
-# \u/\U code point (the only ones that can spell gh or merge) becomes \x first.
-decode() {
-  local s
-  s=$(printf '%s' "$1" | sed -E 's/\\c//g; s/\\[uU]0*([0-7]?[0-9A-Fa-f])([^0-9A-Fa-f]|$)/\\x\1\2/g; s/\\([0-7]{1,3})/\\0\1/g')
-  printf '%b' "$s" 2>/dev/null
-}
-# P5: a word that can only matter next to a spelled merge: the pr subcommand, merge itself, the API words, or a
-# pipe into a shell or wrapper. Used with escapes and globs, which can spell any letters.
-merge_context() {
-  printf '%s' "$1" | grep -qE '(^|[^a-z0-9_-])(pr|merge|pulls|graphql)([^a-z0-9_-]|$)|\|[[:space:]]*([^[:space:]]*/)?(bash|sh|zsh|dash|ksh|eval|source|xargs)([[:space:]]|$)'
-}
-# The plain patterns on a folded copy with braces and glob brackets removed.
-base_like() {
-  local g; g=$(fold "$1" | tr -d '{}[]')
-  case "$g" in
-    *gh*merge*|*pulls/*merge*|*mergepullrequest*|*enablepullrequestautomerge*|*repos/*/merges*|*gh*pr*[\$\`]*|*[\$\`]*merge*) return 0 ;;
-  esac
-  return 1
-}
-is_merge_like() {  # is_merge_like <text> [loose]
-  local f
-  f=$(fold "$1")
-  # The raw payload holds JSON escapes (\\147 for \147), which decode cannot read: any escape there is enough
-  # to go on to the decoded command, where the check below is exact.
-  if [ -n "${2-}" ] && has_escape "$1"; then return 0; fi
-  base_like "$1" && return 0
-  # P5: a glob or a brace in the gh words (gh pr merg?, mer{g..g}e, /usr/bin/g? pr m?rge) can expand to them.
-  case "$f" in
-    *gh*pr*[?*\{]*) return 0 ;;
-  esac
-  if printf '%s' "$f" | grep -q '[?*{]' && merge_context "$f"; then return 0; fi
-  # P5: an escape ($'\147h', printf '\x67h' | bash) can spell gh or merge: check the decoded text.
-  if has_escape "$1" && base_like "$(decode "$1")"; then return 0; fi
-  return 1
-}
-is_merge_like "$payload" loose || exit 0
+command -v jq >/dev/null 2>&1 || case "$payload" in
+  *merge*|*push*) echo "merge-guard: BLOCKED. jq is missing, so merges cannot be judged. Install jq." >&2; exit 2 ;;
+  *) exit 0 ;; esac
+field() { printf '%s' "$payload" | jq -r "$1 // empty" 2>/dev/null; }
 
-TMPF=""
-trap '[ -z "$TMPF" ] || rm -f "$TMPF"' EXIT
-deny() {
-  printf 'merge-guard: BLOCKED. %s\nA human merges this PR: run the merge yourself in a terminal (or with the ! prefix).\n' "$1" >&2
-  exit 2
-}
-
-if ! command -v jq >/dev/null 2>&1; then
-  # P5: without jq, cut the command field out of the payload by hand (a best effort that can include later
-  # fields) and deny when it looks like a merge. The old check needed a plain `gh pr merge` and missed folded spellings.
-  raw=$(printf '%s' "$payload" | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\(.*\)".*/\1/p')
-  if [ -z "$raw" ] || is_merge_like "$(printf '%b' "${raw//\\c/}" 2>/dev/null)"; then
-    deny "jq is not installed, so the merge command cannot be parsed."
-  fi
+deny() { echo "merge-guard: BLOCKED. $1" >&2; exit 2; }
+ask() {  # the owner decides; where nobody can answer (a subagent), it is a denial
+  [ -z "$(field .agent_id)" ] || deny "$1 A subagent cannot ask the owner; the main session or the owner must run it."
+  jq -n --arg r "merge-guard: $1" \
+    '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$r}}'
   exit 0
+}
+
+# 1. An MCP merge tool (hooks.json sends only those here): the base is not read, so always ask.
+tool=$(field .tool_name)
+case "$tool" in mcp__*) ask "The MCP tool '$tool' merges a pull or merge request." ;; esac
+
+cmd=$(field .tool_input.command)
+low=$(printf '%s' "$cmd" | tr '[:upper:]' '[:lower:]')
+
+# 2. A git push that names main or master (origin main, HEAD:main, refs/heads/main): ask.
+if printf '%s' "$low" | grep -qE '(^|[^a-z0-9_-])git([[:space:]]+-[^[:space:]]+([[:space:]]+[^-[:space:]][^[:space:]]*)?)*[[:space:]]+push[[:space:]].*[[:space:]:/](main|master)([[:space:];&|)]|$)'; then
+  ask "This command pushes to main or master."
 fi
-cmd=$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null) || deny "the command could not be parsed."
-[ -n "$cmd" ] || deny "the command is empty or could not be parsed."
-is_merge_like "$cmd" || exit 0
-# P5: bash joins a backslash line break (g\<newline>h is gh) except in a comment or a quoted heredoc body, so
-# the splitter cannot follow it either way: deny it next to a merge-like word.
-case "$cmd" in *$'\\\n'*) deny "a backslash line break next to a merge-like word cannot be judged; write the command on one line." ;; esac
 
-DEADLINE=20  # seconds for the whole hook; the registered hook timeout is 30
-GH_OUT=""
-# ghrun <args...>: run gh in the background, kill it after 10 s (or at the hook deadline). No `timeout`
-# binary is needed, so it works on macOS. Sets GH_OUT; returns 0 only on a clean exit.
-ghrun() {
-  local pid limit rc
-  [ "$SECONDS" -lt "$DEADLINE" ] || deny "the time budget of ${DEADLINE}s ran out while reading the PR."
-  command -v gh >/dev/null 2>&1 || deny "gh is not installed, so the PR base cannot be read."
-  [ -n "$TMPF" ] || TMPF=$(mktemp 2>/dev/null) || deny "no temp file for the gh answer."
-  : > "$TMPF"
-  gh "$@" >"$TMPF" 2>/dev/null &
-  pid=$!
-  limit=$((SECONDS + 10)); [ "$limit" -le "$DEADLINE" ] || limit=$DEADLINE
-  while kill -0 "$pid" 2>/dev/null; do
-    if [ "$SECONDS" -ge "$limit" ]; then kill "$pid" 2>/dev/null; { wait "$pid"; } 2>/dev/null; return 1; fi
-    sleep 0.1
-  done
-  { wait "$pid"; } 2>/dev/null; rc=$?
-  GH_OUT=$(head -n 1 "$TMPF" 2>/dev/null | tr -d '\r')
-  return "$rc"
-}
+# 3. Not a merge: leave at once. `merge` must be a whole word, so mergeable and merged do not count.
+printf '%s' "$low" | grep -qE '(^|[^a-z0-9_-])(gh|glab)[[:space:]].*[^a-z]merge([^a-z]|$)|(pulls|merge_requests)/[0-9]+/merge|mergepullrequest' || exit 0
 
-DEFAULTS=" "  # "repo=branch " cache, one default-branch read per repo
-MERGES=0  # merge segments seen (gh pr merge and gh api .../merge)
-ASKS=0    # merges into a non-feat base that may be put to the owner
-ASK_REASON=""
-NOTE=""   # flags of the one plain merge that change what it does (--admin), named in the owner prompt
-default_of() {  # default_of <repo>: sets def
-  case "$DEFAULTS" in
-    *" $1="*) def=${DEFAULTS#*" $1="}; def=${def%% *} ;;
-    *) ghrun repo view "$1" --json defaultBranchRef -q .defaultBranchRef.name || deny "the default branch of $1 could not be read."
-       def=$GH_OUT; [ -n "$def" ] || deny "the default branch of $1 is empty."
-       DEFAULTS="$DEFAULTS$1=$def " ;;
-  esac
-}
-# judge <pr> <repo> [plain] [match]: "plain" marks the one form that may be put to the owner (a single
-# plain `gh pr merge`); every other form into a non-feat base is denied. The owner approves one head
-# commit, so the ask needs --match-head-commit <that head> (match): gh then refuses to merge a later push.
-judge() {
-  local pr=$1 repo=$2 plain=${3:-} match=${4:-} base head def words
-  MERGES=$((MERGES + 1))
-  ghrun pr view "$pr" --repo "$repo" --json baseRefName,headRefOid -q '.baseRefName + " " + .headRefOid' || deny "PR #$pr of $repo: its base could not be read."
-  # shellcheck disable=SC2086
-  set -- $GH_OUT
-  [ "$#" -eq 2 ] || deny "PR #$pr of $repo: gh returned no usable base branch and head commit."
-  base=$1; head=$2
-  case "$base" in *[!A-Za-z0-9._/-]*) deny "PR #$pr of $repo: unreadable base branch name." ;; esac
-  case "$head" in *[!0-9a-f]*) deny "PR #$pr of $repo: unreadable head commit." ;; esac
-  [ "${#head}" -eq 40 ] || deny "PR #$pr of $repo: unreadable head commit."
-  words="PR #$pr of $repo targets '$base'"
-  case "$base" in
-    main|master|develop|development|staging|production|release/*|release-*)
-      [ -n "$plain" ] || deny "$words (only a plain single 'gh pr merge' can be put to the owner)."
-      [ "$match" = "$head" ] || deny "$words: add --match-head-commit $head so the owner's approval covers exactly that commit."
-      ASKS=$((ASKS + 1)); ASK_REASON="Merge PR #$pr of $repo into $base at $head$NOTE?"; return ;;
-    feat/?*) ;;
-    *)
-      # Any other base (for example phase3-ui) is not protected: it is allowed like feat/*, unless it is
-      # the repo default branch, which is protected and goes to the owner.
-      default_of "$repo"
-      [ "$def" = "$base" ] || return 0
-      [ -n "$plain" ] || deny "$words, the default branch (only a plain single 'gh pr merge' can be put to the owner)."
-      [ "$match" = "$head" ] || deny "$words: add --match-head-commit $head so the owner's approval covers exactly that commit."
-      ASKS=$((ASKS + 1)); ASK_REASON="Merge PR #$pr of $repo into $base at $head$NOTE?"; return ;;
-  esac
-  default_of "$repo"
-  [ "$def" != "$base" ] || deny "$words, the default branch of the repo."
-}
+# 4. Never automatic.
+case " $low " in *" --auto "*|*" --admin "*) deny "--auto and --admin are not allowed; the owner decides each merge." ;; esac
 
-judge_pr_merge() {  # judge_pr_merge <segment starting with gh pr merge>
-  local seg w repo="" prs="" skip="" u n r urepos="" match=""
-  NOTE=""
-  local adm=0 delb=0  # last occurrence wins, as in gh; the note is built once after the loop
-  seg=$(printf '%s' "$1" | sed -E 's/^gh[[:space:]]+pr[[:space:]]+merge[[:space:]]*//')
-  set -f
-  for w in $seg; do
-    if [ "$skip" = repo ]; then repo=$w; skip=""; continue; fi
-    if [ "$skip" = match ]; then match=$w; skip=""; continue; fi
-    if [ -n "$skip" ]; then skip=""; continue; fi
-    case "$w" in
-      --repo|-R) skip=repo ;;
-      --repo=*) repo=${w#--repo=} ;;
-      -R?*) repo=${w#-R} ;;
-      --admin=false|--admin=0|--admin=f|--admin=F|--admin=False|--admin=FALSE) adm=0 ;;
-      --admin|--admin=*) adm=1 ;;
-      --delete-branch=false|--delete-branch=0|--delete-branch=f|--delete-branch=F|--delete-branch=False|--delete-branch=FALSE|-d=false|-d=0) delb=0 ;;
-      -b?*|-t?*|-F?*|-A?*) ;;  # attached value of a value-taking short flag, not bundled flags
-      --delete-branch|--delete-branch=*|-d|-[!-]*d*) delb=1 ;;
-      --auto) deny "'gh pr merge --auto' is not allowed; a human merges." ;;
-      --match-head-commit) skip=match ;;
-      --match-head-commit=*) match=${w#--match-head-commit=} ;;
-      -b|--body|-t|--subject|-F|--body-file|-A|--author-email) skip=other ;;
-      -*) ;;
-      *[!0-9]*)
-        case "$w" in
-          http*://*/*/*/pull/[0-9]*)
-            u=${w#*://}; u=${u#*/}; r=${u%%/pull/*}; n=${u##*/pull/}; n=${n%%[!0-9]*}
-            urepos="$urepos $r"
-            prs="$prs $n" ;;
-          *) deny "'$w' is not a PR number or PR URL, so the PR cannot be judged." ;;
-        esac ;;
-      *) prs="$prs $w" ;;
-    esac
-  done
-  [ "$adm" = 1 ] && NOTE="$NOTE, WITH --admin (bypasses branch protection and required checks)"
-  [ "$delb" = 1 ] && NOTE="$NOTE, and deletes the head branch"
-  [ -n "$prs" ] || deny "'gh pr merge' without a PR number cannot be judged."
-  # gh merges the repo in the URL; the PR must be judged in that same repo, so any other repo is a deny.
-  for u in $urepos; do
-    if [ -z "$repo" ]; then repo=$u
-    elif [ "$(printf '%s' "$u" | tr '[:upper:]' '[:lower:]')" != "$(printf '%s' "$repo" | tr '[:upper:]' '[:lower:]')" ]; then
-      deny "the PR URL repo '$u' and the repo '$repo' differ, so the PR cannot be judged."
-    fi
-  done
-  [ -n "$repo" ] || deny "'gh pr merge' without --repo cannot be judged (GH_REPO does not count)."
-  case "$repo" in */*/*|*/|/*|*[!A-Za-z0-9._/-]*|"") deny "unreadable --repo value '$repo'." ;; esac
-  # shellcheck disable=SC2086
-  set -- $prs
-  if [ "$#" -eq 1 ]; then judge "$1" "$repo" plain "$match"; else for n in "$@"; do judge "$n" "$repo"; done; fi
-}
-
-judge_api_merge() {  # judge_api_merge <segment>
-  local rp
-  rp=$(printf '%s' "$1" | sed -nE 's|.*repos/([A-Za-z0-9._-]+/[A-Za-z0-9._-]+)/pulls/([0-9]+)/merge.*|\1 \2|p')
-  [ -n "$rp" ] || deny "'gh api ... /merge' without a literal repos/<owner>/<repo>/pulls/<n>/merge path (placeholders cannot be resolved here)."
-  judge "${rp#* }" "${rp%% *}"
-}
-
-# Reduce the command to what the shell would run (same splitter as clean-worktrees.sh): drop heredoc
-# bodies and quoted strings that hold whitespace or separators (each leaves one QUOTED word, so a value
-# option such as --body still has its value and does not swallow the PR number), so text that only
-# mentions a merge never matches; then split on separators and standalone braces.
-# Redirections that hold & or | (2>&1, >&f, <&3, >|f) would be cut at that character and leave their
-# target as a command word; turn them into a plain > or < first.
-segs=$(printf '%s\n' "$cmd" | sed -E 's/[0-9]*([<>])&[0-9-]+/ \1 \/dev\/null /g; s/([<>])&/\1 /g; s/>\|/> /g' | awk '
-    { L[NR] = $0 }
-    END {
-      q = ""; qb = ""; out = ""; hd = ""
-      for (r = 1; r <= NR; r++) {
-        line = L[r]
-        if (hd != "") { l = line; sub(/^[ \t]+/, "", l); if (l == hd) hd = ""; continue }
-        n = length(line)
-        for (i = 1; i <= n; i++) { c = substr(line, i, 1)
-          if (q == "") {
-            if (c == "\"" || c == "\047") { q = c; qb = "" }
-            else {
-              if (c == "<" && substr(line, i + 1, 1) == "<" && substr(line, i + 2, 1) != "<" && (i == 1 || substr(line, i - 1, 1) != "<")) {
-                rest = substr(line, i); if (match(rest, /^<<-?[ \t]*["\047]?[A-Za-z_][A-Za-z0-9_]*/)) {
-                  d = substr(rest, RSTART, RLENGTH); sub(/^<<-?[ \t]*["\047]?/, "", d)
-                  for (k = r + 1; k <= NR; k++) { t = L[k]; sub(/^[ \t]+/, "", t); if (t == d) { hd = d; break } } } }
-              out = out c }
-          } else if (q == "\"" && c == "\\") { qb = qb c substr(line, i + 1, 1); i++ }
-          else if (c == q) { if (qb ~ /^[^ \t\n;|&()]*$/) out = out qb; else out = out "QUOTED"; q = "" }
-          else qb = qb c }
-        if (q == "") { print out; out = "" } else qb = qb "\n" }
-      if (q != "") print "\001OPENQUOTE"
-      if (out != "") print out
-    }' | sed -E 's/&&|\|\||[;|&()]/\
-/g; s/(^|[[:space:]])[{}]([[:space:]]|$)/\
-/g')
-
-# A quote still open at end of input (an apostrophe in a # comment, an escaped or stray quote) would
-# swallow a later merge, so the splitter cannot be trusted: deny.
-case "$segs" in *$'\001'OPENQUOTE*) deny "an unclosed quote in the command hides what follows it, so a merge cannot be judged." ;; esac
-
-set -f
-NSEGS=0
-while IFS= read -r seg; do
-  seg=$(printf '%s' "$seg" | sed -E 's/^[[:space:]]+//'); orig=$seg
-  # #677: variable assignments, shell keywords (if then else elif do while until !), zsh prefixes (noglob,
-  # nocorrect, -) and redirections (>f, 2>&1, <f, <<<w) in front of a command do not change what runs.
-  # Strip them in one loop until nothing changes, so `if X=1 bash -c ...` and `>/dev/null bash -c ...`
-  # reach the wrapper check below. KW records that a keyword, prefix or redirection was stripped.
-  KW=0
-  drop_word() { case "$seg" in *[[:space:]]*) seg=$(printf '%s' "${seg#*[[:space:]]}" | sed -E 's/^[[:space:]]+//') ;; *) seg="" ;; esac; }
-  while :; do
-    if printf '%s' "$seg" | grep -qE '^[A-Za-z_][A-Za-z0-9_]*(\[[^]]*\])?\+?=[^[:space:]]*([[:space:]]+|$)'; then
-      seg=$(printf '%s' "$seg" | sed -E 's/^[A-Za-z_][A-Za-z0-9_]*(\[[^]]*\])?\+?=[^[:space:]]*[[:space:]]*//'); continue
-    fi
-    w0=${seg%%[[:space:]]*}
-    case "$w0" in
-      if|then|else|elif|do|while|until|'!'|noglob|nocorrect|-) KW=1; drop_word ;;
-      [0-9]*'<'*|[0-9]*'>'*|'<'*|'>'*)
-        KW=1; drop_word
-        # an operator with its target in the next word (`> f`, `2> f`, `<<< w`): drop that word too
-        case "$w0" in *'<'|*'>'|*'>&'|*'<&') drop_word ;; esac ;;  # *'<' also covers <<<
-      *) break ;;
-    esac
-  done
-  if [ -z "$seg" ]; then
-    # A keyword or redirection alone still counts as a command, so a merge next to it is not "the only command".
-    [ "$KW" -eq 1 ] && NSEGS=$((NSEGS + 1))
-    continue
-  fi
-  # A shell or wrapper name with a path, a backslash anywhere, or zsh's =cmd runs the same program. A glob
-  # (/bin/bas?) or a brace word ({bash,-c,...}) in the command name cannot be judged.
-  w0=${seg%%[[:space:]]*}
-  case "$w0" in
-    '['|'[['|'{'|'}') ;;
-    *'*'*|*'?'*|*'['*) deny "a command name with glob characters next to the word merge cannot be judged." ;;
-    *'{'*,*'}'*|*'{'*..*'}'*) deny "a command name built by brace expansion next to the word merge cannot be judged." ;;
-  esac
-  b=${w0//\\/}; b=${b#=}; b=${b##*/}  # drop every backslash, zsh's leading =, and any path
-  # P5: GH or Gh runs gh on a case-insensitive file system (macOS default).
-  case "$b" in [Gg][Hh]) [ "$b" = gh ] || deny "a gh command name in another case ($b) cannot be judged." ;; esac
-  # P5: a glob in the gh subcommand words (gh pr merg?, gh pr mer[g]e) can expand to merge.
-  if printf '%s' "$seg" | grep -qE '^([^[:space:]]*/)?gh[[:space:]]+([^[:space:]]*[]?*[{][^[:space:]]*|pr[[:space:]]+[^[:space:]]*[]?*[{][^[:space:]]*)([[:space:]]|$)'; then
-    deny "a gh subcommand with glob or brace characters cannot be judged."
-  fi
-  case "$b" in
-    bash|sh|zsh|dash|ksh|rbash|eval|xargs|env|exec|nohup|time|command|sudo|doas|builtin|source|nice|timeout|stdbuf|setsid|ionice|taskset|chronic|unbuffer|repeat|coproc|busybox|flock|script|setpriv|prlimit|chrt|strace|fakeroot|runuser|su|watch|unshare)
-      seg="$b${seg#"$w0"}" ;;
-    *) bl=$(printf '%s' "$b" | tr '[:upper:]' '[:lower:]')
-       case "$bl" in
-         bash|sh|zsh|dash|ksh|rbash|eval|xargs|env|exec|nohup|time|command|sudo|doas|builtin|source|nice|timeout|stdbuf|setsid|ionice|taskset|chronic|unbuffer|repeat|coproc|busybox|flock|script|setpriv|prlimit|chrt|strace|fakeroot|runuser|su|watch|unshare)
-           # P5: Bash or SH runs bash or sh on a case-insensitive file system.
-           seg="$bl${seg#"$w0"}" ;;
-       esac ;;
-  esac
-  NSEGS=$((NSEGS + 1))
-  # A gh merge behind a keyword, prefix or redirection is not a plain merge to put to the owner.
-  if [ "$KW" -eq 1 ] && printf '%s' "$seg" | grep -qE '^gh[[:space:]]'; then
-    if printf '%s' "$(fold "$seg")" | grep -qE 'pr[[:space:]]+merge|/merge|graphql'; then
-      deny "a gh merge behind a shell keyword, prefix or redirection cannot be put to the owner; run the merge alone."
-    fi
-  fi
-  # A backslash inside the gh words (g\h pr merge, gh pr mer\ge) does not change what runs, but it hides
-  # the words from the checks below: deny such a segment when it reads as a gh merge without the backslashes.
-  case "$seg" in
-    *\\*)
-      if printf '%s' "$(fold "${seg//\\/}")" | grep -qE '^gh[[:space:]].*(pr[[:space:]]+merge|/merge|graphql)'; then
-        deny "a gh merge spelled with a backslash cannot be judged."
-      fi ;;
-  esac
-  if printf '%s' "$seg" | grep -qE '^gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$)'; then
-    judge_pr_merge "$seg"
-  elif printf '%s' "$seg" | grep -qE '^gh[[:space:]]+api[[:space:]]'; then
-    if printf '%s' "$seg" | grep -qE '(^|[[:space:]])graphql([[:space:]]|$)'; then
-      case "$(fold "$cmd")" in
-        *mergepullrequest*|*enablepullrequestautomerge*) deny "a GraphQL mergePullRequest or enablePullRequestAutoMerge mutation is not allowed; a human merges." ;;
-      esac
-    fi
-    if printf '%s' "$seg" | grep -qE 'repos/[^[:space:]]*/merges([^A-Za-z0-9_]|$)'; then
-      deny "'gh api repos/.../merges' merges a branch and is not allowed; a human merges."
-    fi
-    if printf '%s' "$seg" | grep -qE 'pulls/[^[:space:]]*/merge'; then judge_api_merge "$seg"; fi
-  elif case "${seg%%[[:space:]]*}" in *[\$\`]*) printf '%s' "$(fold "$cmd")" | grep -q 'merge' || merge_context "$(fold "$seg")" || { has_escape "$seg" && base_like "$(decode "$cmd")"; } ;; *) false ;; esac; then
-    deny "a command name built from a variable, substitution or escape next to a merge-like word cannot be judged."
-  elif printf '%s' "$seg" | grep -qE '^gh[[:space:]]+(pr[[:space:]]+)?[^[:space:]]*[$`]'; then
-    deny "a gh pr subcommand built from a variable or substitution cannot be judged."
-  elif printf '%s' "$seg" | grep -qE '^gh[[:space:]]+alias[[:space:]]+(set|import)([[:space:]]|$)'; then
-    case "$cmd" in *merge*) deny "'gh alias set|import' next to the word merge could hide a merge command." ;; esac
-  elif printf '%s' "$seg" | grep -qE '^gh[[:space:]].*[[:space:]]pr[[:space:]]+merge([[:space:]]|$)'; then
-    deny "a gh merge command in an unusual form cannot be judged."
-  elif printf '%s' "$orig" | grep -qE '(^|[^[:alnum:]_-])gh[[:space:]]+(pr[[:space:]]+merge|api[[:space:]].*(pulls/[^[:space:]]*/merge|graphql))|pulls/[^[:space:]]*/merge'; then
-    deny "a gh merge command that is not at command position (wrapper, path, backtick) cannot be judged."
-  else
-    cw=${seg%%[[:space:]]*}
-    case "$cw" in
-      # No exemption for a shell that runs a script file (#671): four security reviews of such an exemption
-      # each found a way to run a merge built at run time, and a fifth (P1, 2026-11-20) found eight more
-      # (BASH_ENV, an interpreter that builds the script name, sed w/-i, ./ spellings). Narrowing the pre-filter
-      # instead (gh as a word of its own) lets a renamed gh through a wrapper (bash -c "/tmp/ghx pr merge 7").
-      # A harmless command that trips this (prose that mentions merge next to `bash x.sh`, or a $ before a file
-      # name like post-merge-hooks.test.sh) is a known false positive: put the command in a script file with the
-      # Write tool and run that file by a path without the word.
-      # This is a best-effort list of common shells and wrappers, not a complete one (interpreters such as
-      # python or awk, find -exec and git -c alias are not on it; see the follow-up issue).
-      bash|sh|zsh|dash|ksh|rbash|eval|xargs|env|exec|nohup|time|command|sudo|doas|builtin|source|.|nice|timeout|stdbuf|setsid|ionice|taskset|chronic|unbuffer|repeat|coproc|busybox|flock|script|setpriv|prlimit|chrt|strace|fakeroot|runuser|su|watch|unshare)
-        # P9: a command with no merge in it reaches here through letters alone (gh in "preflight", pr in
-        # "myprojects", then the $ of an appended `echo $?`). Only the message differs; the decision is the same.
-        # The plain-letters message is used only when the command has no merge, no escape, and no glob, brace,
-        # variable or backtick other than the $? of an exit-code echo: any of those can spell a merge (gh pr $X
-        # with X=merge), and then the old message stays.
-        fc=$(fold "$cmd"); fg=${fc//'$?'/}
-        case "$fc" in
-          *merge*) plain='' ;;
-          *) plain=1; has_escape "$cmd" && plain=''; case "$fg" in *[][?*{}\$\`]*) plain='' ;; esac ;;
-        esac
-        if [ -n "$plain" ]; then
-          deny "a shell or wrapper ($cw) next to the letters g-h..p-r..\$ cannot be judged. The command holds no merge, but those letters (also inside longer words, for example preflight and myprojects) followed by the \$ of '\$?' can spell gh pr. Run a documented command exactly as written, with nothing appended (no '; echo \$?'), or put it in a script file with the Write tool and run that file by its path."
-        fi
-        deny "a merge inside a shell string or wrapper ($cw) cannot be judged. If the command only mentions merge in text, put it in a script file with the Write tool and run that file by a path without the word." ;;
-    esac
-  fi
-done <<SEGS
-$segs
-SEGS
-
-[ "$ASKS" -gt 0 ] || exit 0
-# Something targets a non-feat base. It may be put to the owner only when it is the one and only merge.
-if [ "$ASKS" -ne 1 ] || [ "$MERGES" -ne 1 ]; then
-  deny "a command with more than one merge cannot be put to the owner; one PR at a time."
+# 5. A plain `gh pr merge <n> [flags]` or `glab mr merge <n> [flags]`: read the base (at most 15 s).
+#    feat/* passes; every other base, and one that cannot be read, is the owner's call.
+plain='^(gh pr|glab mr) merge [0-9]+( -[-a-zA-Z]+( [A-Za-z0-9._/-]+)?)*$'
+if [[ $cmd =~ $plain ]]; then
+  n=$(printf '%s' "$cmd" | cut -d' ' -f4)
+  repo=$(printf '%s' "$cmd" | grep -oE -- '(--repo|-R) [^ ]+' | head -n 1 | cut -d' ' -f2)
+  read_base() { case "$cmd" in
+    gh*)   gh pr view "$n" ${repo:+--repo "$repo"} --json baseRefName -q .baseRefName ;;
+    glab*) glab mr view "$n" ${repo:+--repo "$repo"} --output json | jq -r '.target_branch // empty' ;;
+  esac; }
+  f=$(mktemp 2>/dev/null) || ask "Merge #$n? (no temp file, so the base was not read)"
+  read_base >"$f" 2>/dev/null & p=$!
+  (sleep 15; kill "$p") >/dev/null 2>&1 & w=$!
+  wait "$p" 2>/dev/null; kill "$w" 2>/dev/null; base=$(head -n 1 "$f"); rm -f "$f"
+  case "$base" in feat/?*) exit 0 ;; esac
+  ask "Merge #$n into '${base:-a base that could not be read}'?"
 fi
-# The owner's yes approves the whole Bash command, but the prompt names only the merge: any other
-# segment (&&, ;, |, a second line) would run on that yes, so the merge must be the only command.
-[ "$NSEGS" -eq 1 ] || deny "a merge into a non-feat base must be the only command; other commands in the same line would run on the owner's yes. Run the merge alone."
-agent=$(printf '%s' "$payload" | jq -r '.agent_id // empty' 2>/dev/null) || deny "the hook input could not be parsed."
-[ -z "$agent" ] || deny "a subagent or workflow agent cannot merge into a non-feat base; the owner answers in the main session."
-mode=$(printf '%s' "$payload" | jq -r '.permission_mode // empty' 2>/dev/null) || deny "the hook input could not be parsed."
-case "$mode" in
-  default|acceptEdits|auto|bypassPermissions) ;;
-  *) deny "permission mode '${mode:-missing}' cannot show the owner a confirmation prompt." ;;
-esac
-jq -n --arg r "$ASK_REASON" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$r}}' \
-  || deny "the confirmation prompt could not be built."
-exit 0
+
+# 6. Any other form (a chain, a pipe, quotes, gh api, glab api, GraphQL, merge in a text): ask.
+ask "This command looks like a merge but is not a plain 'gh pr merge <n>' or 'glab mr merge <n>'. Approve only if you mean it."

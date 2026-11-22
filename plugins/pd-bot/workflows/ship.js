@@ -721,7 +721,7 @@ async function stageQaRepairCleanup(t, dir) {
 // that succeeded removes its detached stage worktrees; a ticket-branch worktree stays, and a run that did not
 // succeed keeps everything. The script finds the worktrees under wtRoot itself and never forces a removal:
 // a worktree with changes, or with commits on no branch, stays. The command names no stage dir (a merge-g dir
-// next to bash would trip merge-guard). The result is reported; a failed cleanup never fails the run.
+// next to bash tripped the old merge guard). The result is reported; a failed cleanup never fails the run.
 const CLEANUP_SCHEMA = { type: 'object',
   properties: {
     removed: strList,
@@ -1510,7 +1510,8 @@ async function stageCiSnapshot(finalPr) {
 
 // Final PR merge policy (owner decision, replaces decision A): the final PR merges without the owner when its
 // base is not protected and every gate passed. Protected = main, master, develop, development, staging,
-// production, release/*, release-* and the repo default branch (same list as hooks/merge-guard.sh).
+// production, release/*, release-* and the repo default branch. hooks/merge-guard.sh (ADR 0004) passes only a feat/*
+// base without asking, so in this workflow agent a merge into any other base is denied and becomes a human merge.
 const PROTECTED_BASE = /^(main|master|develop|development|staging|production|release\/.*|release-.*)$/
 let finalPolicy = { mode: 'human', why: `the PR targets ${base}; a human merges it` }   // read by buildBody
 
