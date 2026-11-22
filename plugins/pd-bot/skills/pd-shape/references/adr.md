@@ -17,8 +17,12 @@ Propose an ADR only when the decision meets all 3:
    `{"run": "<slug>", "decisions": [...]}` with `stage: grilling`, `adr: true`,
    `owner_confirmed: true`, `decided_by: owner` and the fields of
    `${CLAUDE_PLUGIN_ROOT}/skills/pd-decision-record/SKILL.md` ("How an agent returns it").
-2. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/write_adrs.py --input <file>`. Exit 2 means bad input:
-   fix the file.
-3. `git switch -c adr/<slug>`, `git add docs/adr`, `git commit`, `git push -u origin adr/<slug>`,
-   then `gh pr create` into the default branch. Never push to the default branch.
+2. Branch from the fetched default branch, not from the current HEAD. Use a separate worktree:
+   `git fetch origin <default>`, then
+   `git worktree add -b adr/<slug> <scratch path>/adr-<slug> origin/<default>`. Number the ADR there:
+   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/write_adrs.py --input <file> --adr-dir <worktree>/docs/adr`
+   (run from the worktree). Exit 2 means bad input: fix the file.
+3. In the worktree: `git add docs/adr`, `git commit`, `git push -u origin adr/<slug>`, then
+   `gh pr create` into the default branch. Never push to the default branch. Then remove the worktree
+   (`git worktree remove <path>`); your own branch and working tree stay as they were.
 4. Add the ADR paths to the brief's `ADRs` section. The owner merges the pull request.

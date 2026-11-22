@@ -163,7 +163,7 @@ def is_late(d: dict) -> bool:
 
 def _norm_context(value) -> str:
     text = " ".join(as_text(value).lower().split())
-    return "" if text == "n/a" else text   # ship.js fills a missing context with 'n/a'
+    return "" if text == "n/a" else text   # a caller may fill a missing context with 'n/a'
 
 
 def _context_key(d: dict) -> str:
@@ -214,7 +214,7 @@ def recorded_match(d: dict, keys: list):
     """
     ticket = str(d["ticket"]).strip()
     if ticket.lower() == "run":
-        return None   # autopilot run-level decisions repeat across runs
+        return None   # run-level decisions repeat across runs
     slug, ctx = slugify(d["title"]), _context_key(d)
     dec = " ".join(as_text(d["decision"]).lower().split())
     live = [k for k in keys if k[1] == ticket and not k[5]]
@@ -364,7 +364,7 @@ def force_late_review(merged: list, skip=frozenset()) -> list:
 
 
 def needs_section(decisions: list) -> str:
-    """The PR '## Needs your decision' list (same line format as ship.js buildBody); '' when empty."""
+    """The PR '## Needs your decision' list (one line per decision); '' when empty."""
     flat = lambda v: " ".join(as_text(v).split())
     lines = [f"- {flat(d['title'])}: {flat(d['decision'])}" for d in decisions if d["needs_review"]]
     return "## Needs your decision\n\n" + "\n".join(lines) + "\n" if lines else ""

@@ -27,8 +27,8 @@ intake  (readiness gate — run first on every ticket)
   → GRILL hands off to the shape skill · BLOCKED proposes a split or names the missing dependency
   → Input-type: bug fix → diagnosing-bugs before the plan (see Bug Fix Path)
       ↓
-shape  (depth L)
-  → explores options, converges on a design; depth L writes specs/<slug>/design.md and the design ADR in docs/adr/; no review rounds
+shape  (depth M and L)
+  → explores options, converges on a design; depth M and L write specs/<slug>/design.md (interactive and auto mode); depth L also records the design ADR in docs/adr/; no review rounds
       ↓
 xia2  (depth L; a short inline brief for M)
   → research before building; external docs only when the change has an external surface
@@ -38,10 +38,8 @@ writing-plans  (every depth; one or two steps for S)
   → steps carry Files, Effort, Done-when, Parallel group → specs/<slug>/plan.md (local scratch)
   → depth S and M: also a short specs/<slug>/design.md
       ↓
-using-git-worktrees  (manual runs; a Workflow uses isolation: 'worktree')
-      ↓
 implement
-  → one fresh implementer subagent per step in an isolated worktree; runs Done-when; fix loop capped at 3
+  → one fresh implementer subagent per step, one step at a time on the working branch; runs Done-when; fix loop capped at 3
   → hands back files touched + verify output; review is /code-review plus intent-review
       ↓
 compound  (if non-obvious pattern found)
@@ -70,7 +68,7 @@ Apply asd-ste100 to agent prose you edit under skills/, rules/, or agents/.
 intake  (Input-type: bug fix — any fix of wrong behavior, harness bugs included)
       ↓
 diagnosing-bugs  (every depth — six gated phases; intake Reads its SKILL.md, not the Skill tool)
-  → isolation first: depth S → `git checkout -b fix/<slug>` from a shared branch · M / L → using-git-worktrees
+  → isolation first: depth S → `git checkout -b fix/<slug>` from a shared branch · M / L → `git checkout -b fix/<slug>` from the base branch
   → Phases 1–4 write specs/<slug>/diagnosis.md (Loop, Repro, Hypotheses, Probes, Confirmed, Seam)
   → task-reviewer reviews it before any fix (spec_verdict: pass + quality_verdict: approved)
       ↓
@@ -101,7 +99,7 @@ compound  (when the root cause is a reusable learning — the bug track takes it
 
 | Skill | Trigger | Output |
 |---|---|---|
-| `pd-shape` | **User-, intake- or autopilot-invoked** (`/pd-bot:pd-shape <prototype file \| #issue \| text>`). After the owner finalizes a prototype, for a GRILL ticket, or when the goal is clear but the approach is not. One loop: it grills each unclear requirement and brainstorms each approach with two or more viable options. On at most 3 big decisions the owner answers first, then sees the agent's recommendation and a counter-argument. For a prototype it checks 8 topics a prototype cannot show (goal, rules, edge cases, data, permissions, non-functional, out of scope, priority). It proposes an ADR only for a repo-level decision. `Mode: auto` is for `--no-ask` runs and the `ship.js` design stage. Replaces `pd-grilling`, `pd-own` and `pd-brainstorming` | `specs/<slug>/brief.md` (local scratch, confirmed by the owner); for a ticket also a "Confirmed decisions" comment, `intent.md` and `decision.md`; an ADR pull request only when the owner accepts a repo-level decision |
+| `pd-shape` | **User-, intake- or orchestrator-invoked** (`/pd-bot:pd-shape <prototype file \| #issue \| text>`). After the owner finalizes a prototype, for a GRILL ticket, or when the goal is clear but the approach is not. One loop: it grills each unclear requirement and brainstorms each approach with two or more viable options. On at most 3 big decisions the owner answers first, then sees the agent's recommendation and a counter-argument. For a prototype it checks 8 topics a prototype cannot show (goal, rules, edge cases, data, permissions, non-functional, out of scope, priority). It proposes an ADR only for a repo-level decision. `Mode: auto` is for a caller that cannot answer (`pd-orchestrate`, a worker session). Replaces `pd-grilling`, `pd-own` and `pd-brainstorming` | `specs/<slug>/brief.md` (local scratch, confirmed by the owner); for a ticket also a "Confirmed decisions" comment, `intent.md` and `decision.md`; an ADR pull request only when the owner accepts a repo-level decision |
 | `pd-xia2` | Find out how something actually works here before building on it. Examples: a feature on unexplained code, a library or API that the repo does not use yet, or how an existing part works. Not for a choice between approaches (that is `shape`). No depth classifier | `specs/<slug>/research-brief.md` (depth L) or a short inline brief |
 | `pd-diagnosing-bugs` | **User- or intake-invoked**. Run `/pd-bot:pd-diagnosing-bugs`, or `intake` routes an `Input-type: bug fix` here. The skill blocks model invocation, so intake uses the Read tool on its `SKILL.md`. It proves the root cause in six gated phases before any fix. Every depth runs all six phases. No "cause known" shortcut exists. `task-reviewer` reviews the diagnosis before the fix | `specs/<slug>/diagnosis.md` → red test + fix (depth S) or the M / L route |
 
@@ -115,16 +113,14 @@ compound  (when the root cause is a reusable learning — the bug track takes it
 
 | Skill | Trigger | Output |
 |---|---|---|
-| `pd-using-git-worktrees` | Manual runs that need an isolated worktree from the right base (a Workflow uses `isolation: 'worktree'`) | Isolated worktree + branch |
-| `pd-implement` | Carrying out an agreed plan — a fresh implementer subagent per step in an isolated worktree, Done-when run, fix loop capped at 3 | Commits, files touched and verify output per step |
+| `pd-implement` | Carrying out an agreed plan — a fresh implementer subagent per step, one step at a time on the working branch, Done-when run, fix loop capped at 3 | Commits, files touched and verify output per step |
 
 ### Review & Shipping
 
 | Skill | Trigger | Output |
 |---|---|---|
-| `pd-intent-review` | Checks the diff range against the owner's original request verbatim, blind to the plan; dispatches the `intent-reviewer` agent with only those two inputs. **Standalone** on any diff plus its request, or run by the ship workflow as its last pass | Findings classified `gap` / `excess` / `drift` → fix · ask the owner (auto mode: record a decision) · list in the PR |
-| `pd-tickets` | **User-invoked** (`/pd-bot:pd-tickets <brief path> [--max 30] [--milestone <name> \| --no-milestone]`). Reads a brief, splits it into tickets, shows one table, asks one go/no-go question, then creates the issues and an epic with `gh`, under a milestone if the owner chooses one. Stops on a secret in the brief. Each ticket is written to pass `intake` as READY. Never edits existing issues | GitHub issues, an epic and an optional milestone; next step `/pd-bot:pd-autopilot <milestone>` or `/pd-bot:pd-autopilot #n #m ...` |
-| `pd-autopilot` | **User-invoked** (`/pd-bot:pd-autopilot <milestone \| #n \| free text> [base=<branch>] [--no-ask] [--no-board]`). Interactive first half of a hands-off run for one ticket or a milestone: triages each ticket (`intake`), groups them by dependency (`skills/pd-autopilot/scripts/plan_groups.py`), asks the owner every open question once, runs `grilling` for GRILL tickets, then launches `workflows/ship.js` after one go/no-go. Just before the launch it starts the run board with `skills/pd-autopilot/scripts/board-start.sh` and opens it in a browser when a desktop is there (skip with `--no-board`; stop it with `--stop`). The script writes `specs/` files as each stage ends: `intent.md` after the intent stage (at depth S also `design.md` and `plan.md`), `design.md`, `plan.md` and `research-brief.md` after the plan stage, `decision.md` at the end, and it rewrites the others at the end; the run result carries `summary.md` in `specFiles` and the main session writes it | Summary table, "Confirmed decisions" comments on the tickets, one `Workflow` run |
+| `pd-intent-review` | Checks the diff range against the owner's original request verbatim, blind to the plan; dispatches the `intent-reviewer` agent with only those two inputs. **Standalone** on any diff plus its request, or run by a worker or reviewer session as the last pass | Findings classified `gap` / `excess` / `drift` → fix · ask the owner (auto mode: record a decision) · list in the PR |
+| `pd-tickets` | **User-invoked** (`/pd-bot:pd-tickets <brief path> [--max 30] [--milestone <name> \| --no-milestone]`). Reads a brief, splits it into tickets, shows one table, asks one go/no-go question, then creates the issues and an epic with `gh`, under a milestone if the owner chooses one. Stops on a secret in the brief. Each ticket is written to pass `intake` as READY. Never edits existing issues | GitHub issues, an epic and an optional milestone; next step `/pd-bot:pd-orchestrate <milestone>` or `/pd-bot:pd-orchestrate #n #m ...` |
 | `pd-decision-record` | **Stage- or user-invoked**. A model decided something on its own during an autonomous run. Stage agents return `decisions[]`. The final ADR stage runs `scripts/write_adrs.py`, commits `docs/adr/NNNN-*.md` and renders the PR `## Decisions` section | ADR files + a `## Decisions` PR section |
 | `pd-recall` | **User-invoked only** (`/pd-bot:pd-recall <task description>`). Use it when you start a task and want to see what `docs/solutions/` already knows about it. Manual only, with no automatic trigger. Read-only: it runs in a forked `Explore` context with `Read`, `Grep` and `Glob`, opens at most 3 records and never writes a file. Not `compound` (which writes records) | Matching record paths with one line each, things to avoid from `failure` and `bug` records, and a `Search surface:` line that lists every file read. With no match it prints `no match` and the `Search surface:` line |
 | `pd-compound` | Only after a session that produced a reusable learning (non-obvious bug fix, pattern, decision, useful failure) | `docs/solutions/<category>/<slug>.md`, rebuilt `INDEX.md`, `critical-patterns.md` entries for critical or recurring learnings |
@@ -133,8 +129,8 @@ compound  (when the root cause is a reusable learning — the bug track takes it
 | `pd-release-summary` | **User-invoked** (`/pd-bot:pd-release-summary [<fact-list.json>] [--audience team\|client\|stakeholder] [--out <path>]`). Reads the fact-list JSON from `release-notes` and drafts a plain-language summary: breaking changes with `What you need to do:`, what is new by outcome, what to watch, and items to confirm tagged `[NEEDS HUMAN]`. Every line cites a PR. Leaves out Internal types, excluded PRs and commits with no PR. Draft only: never tags, pushes, publishes or merges | `docs/releases/v<version>-summary.md`. the harness repo script `scripts/check_release_summary.py` checks the format |
 | `pd-asd-ste100` | Use it when an agent or a tool must read English text with no human to help. Use it for instructions, tool descriptions, error messages, and status reports. Do not use it for creative or marketing copy. Vendored from upstream. See `skills/pd-asd-ste100/UPSTREAM.md`. Implementers apply it to prose under `skills/`, `rules/`, and `agents/`. `compound` applies it to new records. | Text rewritten in ASD-STE100 style (Strict or STE-flavored mode). `skills/pd-asd-ste100/scripts/ste-lint.py` checks the structural rules. |
 | `pd-verify` | Use it when a ticket has a `Verify:` row and its code is ready, or run `/pd-bot:pd-verify`. Picks the checks by ticket type (BE, FE, FE+BE, docs). Browser steps use the Claude Code Playwright plugin tools only, and pass or fail comes from assertions. The agent infers the start recipe and writes `verify.config.json` (names of the login variables, never values). Never a project-level skill named `pd-verify` | A pass or fail table, stills in `.playwright-mcp/<ticket>/` (gitignored), and a committed `verify.config.json`. A fixture app in `tests/fixtures/verify-app/` lets you try it by hand |
-| `pd-uat` | Use it after a ticket is built, for FE, BE and FE+BE tickets, or run `/pd-bot:pd-uat N`. Reads only the issue body and the Confirmed decisions comment (never the plan, the diff or the `Verify:` row), numbers the acceptance bullets AC1..ACn, and checks the running app through `pd-verify/references/run-app.md`. `ship.js` runs it as the UAT phase between intent review and testing | A table of scenarios (each naming an AC id, negative, extra or not-browser-checkable) with PASS or FAIL, assertion and still path. Never fixes code |
-| `qa-verifier` (agent, `agents/qa-verifier.md`) | `ship.js` runs it in the UAT phase for a `docs` ticket (docs, config, CLI, scripts, plugin files) at depth M and L; depth S skips it. Plan-blind like `uat`: it gets the issue body and owner block with every `Verify:` row stripped, runs commands and reads the delivered files, and never reads the diff, `git log`, `specs/`, `docs/adr/` or a plan | One row per AC: `PASS` or `FAIL` with command and exit code, or `not-checkable` (never a pass, never a failure), plus `head_sha`. Never fixes code |
+| `pd-uat` | Use it after a ticket is built, for FE, BE and FE+BE tickets, or run `/pd-bot:pd-uat N`. Reads only the issue body and the Confirmed decisions comment (never the plan, the diff or the `Verify:` row), numbers the acceptance bullets AC1..ACn, and checks the running app through `pd-verify/references/run-app.md`. In a fleet run the reviewer session runs it after the receipt | A table of scenarios (each naming an AC id, negative, extra or not-browser-checkable) with PASS or FAIL, assertion and still path. Never fixes code |
+| `qa-verifier` (agent, `agents/qa-verifier.md`) | In a fleet run the reviewer session runs it for a `docs` ticket (docs, config, CLI, scripts, plugin files) at depth M and L; depth S skips it. Plan-blind like `uat`: it gets the issue body and owner block with every `Verify:` row stripped, runs commands and reads the delivered files, and never reads the diff, `git log`, `specs/`, `docs/adr/` or a plan | One row per AC: `PASS` or `FAIL` with command and exit code, or `not-checkable` (never a pass, never a failure), plus `head_sha`. Never fixes code |
 | `pd-finishing-a-development-branch` | Implementation complete, tests pass | Runs tests, pushes, opens a PR with a structured body (never merges), writes `specs/<slug>/summary.md` |
 
 ---
@@ -162,11 +158,10 @@ xia2                       ──► research brief → writing-plans
 writing-plans              ──► implement
 implement                  ──► /code-review → intent-review → finishing-a-development-branch
 intent-review              ──► (standalone — same pipeline; needs the verbatim request and a BASE..HEAD range)
-tickets                    ──► GitHub issues (optional milestone) → autopilot
+tickets                    ──► GitHub issues (optional milestone) → pd-orchestrate
 pd-orchestrate             ──► intake / shape (owner) → pd-work (one session per ticket) ⇄ pd-review → check-request → pd-review (uat / qa-verifier, fleet-check.sh) → check-result → finishing-a-development-branch
                                feat/* base: fleet-gate.sh → PR into feat/<slug> · milestone: feature test (tester session) → owner merges feat/<slug> into main
                                stuck: advisor (Opus) → pd-advise (Fable 5.2 session) → owner
-autopilot                  ──► intake (per ticket) → shape → workflows/ship.js (launch, terminal)
 decision-record            ──► docs/adr/NNNN-*.md + PR `## Decisions` section (terminal)
 diagnosing-bugs            ──► diagnosis.md → task-reviewer → S: red test → fix → cleanup
                                 M / L: writing-plans → implement (Phase 6) → compound
@@ -208,7 +203,7 @@ Schema reference: `docs/solutions/README.md` (scaffolded by `/pd-bot:pd-setup`).
 `hooks/session-rules.sh` delivers `rules/behavior.md` at session start.
 `hooks/session-role.sh` adds the orchestrator role text (`hooks/orchestrator-role.md`) to the Pod Bay session of the main workspace, and to no other session.
 `hooks/secrets-scan.sh` runs before every `git commit`: it blocks a staged secret pattern or a staged `.env` file.
-`hooks/merge-guard.sh` blocks `gh pr merge` and `gh api .../pulls/<n>/merge` unless the PR base is `feat/*`; unlike the other hooks it fails closed.
+`hooks/merge-guard.sh` lets a plain `gh pr merge <n>` or `glab mr merge <n>` into `feat/*` run and asks the owner about every other merge-like command, a push to main or master, and an MCP merge tool; in a subagent it denies (ADR 0004).
 `hooks/pr-opened.sh` reminds the main session to review a PR after a `gh pr create` command whose output holds a PR URL; it tells the orchestrator session to hand the review to another session. A script that runs `gh pr create` inside it gets no reminder.
 `hooks/clean-worktrees.sh`
 removes merged worktrees and branches after a merge and at session start (it fetches first; `git branch -D` only when a merged PR head equals the local tip; it skips protected branch names (`develop`, `staging`, `release/*`, ...) and the session-start sweep also skips a worktree another live process uses and stops after a 20 s budget (`CLEAN_BUDGET`); `CLEAN_KEEP`, `CLEAN_STRICT`, `CLEAN_RECREATE` and `CLEAN_REMOTE` set it per project). The old commit gate is gone; its lane and escalation checks are judgment calls now.

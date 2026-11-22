@@ -1,6 +1,6 @@
 # pd-bot
 
-Skill framework for Claude Code (the only supported runtime): reusable prompt-based workflows from ticket to merged PR.
+Skill framework for Claude Code (the only supported runtime) with Pod Bay (`podbay-dev`, required): reusable prompt-based workflows from ticket to merged PR.
 
 ## Run and test
 
@@ -8,18 +8,15 @@ Skill framework for Claude Code (the only supported runtime): reusable prompt-ba
 
 `bash scripts/check-shellcheck.sh` runs shellcheck over the harness shell scripts. Run it before the PR; CI runs the same script with `REQUIRE_SHELLCHECK=1`, which fails instead of skipping when shellcheck is missing.
 
-`node plugins/pd-bot/board/board.js` shows the newest autopilot run of the current project live at `http://127.0.0.1:4317` (`plugins/pd-bot/board/README.md`).
+`apps/pod-board/` is the Pod Bay session board, a menu bar app (`apps/pod-board/README.md`).
 
 The plugin lives in `plugins/pd-bot/`; the marketplace file is `.claude-plugin/marketplace.json`. To develop, run `claude --plugin-dir plugins/pd-bot` from the repo root. The plugin's hooks and rule then load from there (the repo's `settings.json` wires no hooks), and its skills appear as `/pd-bot:<name>`.
 
 ## Models
 
-- Main session: Sonnet 5.5 by default. `/pd-bot:pd-autopilot` reads its models from the autopilot
-  profile (`plugins/pd-bot/skills/pd-autopilot/profile.json`, overridden per project by
-  `<repo>/.claude/autopilot-profile.json`); it warns when the session model differs from the profile's
-  `orchestrator`. The profile can set every `ship.js` stage. Without a profile entry, `implement` and `fix` run
-  Sonnet 5.5 at `medium`, except that `implement` runs Opus 5.5 at `medium` at depth L.
-- Outside autopilot, the main session chooses the model and effort for each subagent from the task
+- Main session: Sonnet 5.5 by default; the fleet orchestrator runs on Opus 5.5. Worker models are in
+  `plugins/pd-bot/skills/pd-orchestrate/references/run.md` (Sonnet 5.5 for depth S and M, Opus 5.5 at depth L).
+- The main session chooses the model and effort for each subagent from the task
   itself, whatever model the main session runs on. It always passes `model` to an agent that has no
   model in its frontmatter, because such an agent otherwise inherits the main session's model.
 - Coding: Sonnet 5.5 (`implementer` agent). Testing: Haiku 5.5
@@ -29,7 +26,7 @@ The plugin lives in `plugins/pd-bot/`; the marketplace file is `.claude-plugin/m
   unblock the work, for a high-stakes architecture decision, or when the owner asks. In a fleet run
   the Fable 5.2 advisor is a session in its own Pod Bay workspace (`pd-bot:pd-advise`): it
   researches the problem and returns a solution, and the Opus orchestrator decides.
-- The orchestrator chooses the model and the effort for each subagent and each workflow agent,
+- The orchestrator chooses the model and the effort for each subagent and each session,
   based on how hard the task is. It thinks for itself; the models above are defaults, not fixed
   assignments, and it may raise or lower the model or the effort. Effort is not fixed. The Fable 5.2
   conditions and the depth L rule below are hard limits.
@@ -37,18 +34,17 @@ The plugin lives in `plugins/pd-bot/`; the marketplace file is `.claude-plugin/m
   longer work; `low` can skip verification, so use it only for mechanical stages. Opus 5.5: start at
   `medium`. Use `xhigh` or `max` only where a quality gain was measured. To get less thinking, lower
   the effort rather than adding prompt instructions.
-- When tasks are independent, the orchestrator spawns subagents in parallel (several `Agent` calls
-  in one message, or a workflow `parallel()`), not one after another. It runs tasks in sequence
+- When tasks are independent, the orchestrator spawns subagents or sessions in parallel (several
+  `Agent` calls in one message), not one after another. It runs tasks in sequence
   only when one needs the result of another.
-- Workflow `intent`, `plan` and `qa` stages use Opus 5.5 at `medium` at every depth (a profile entry can override each). Depth M has its own plan stage, fed by the intent only; depth S has no plan stage. Design runs on Opus 5.5 at depth L: depth L is the difficulty signal, so that fixed rule is an intentional exception to the flexible rule above.
+- Design runs on Opus 5.5 at depth L: depth L is the difficulty signal, so that fixed rule is an intentional exception to the flexible rule above.
 - Call the advisor when:
   - the ticket depth is L, or the ticket is important (design or plan review, before implement);
   - the same check fails twice after a fix;
   - an agent reports BLOCKED or low confidence;
-  - a `ship.js` stage returns blocked or nothing: one recovery per stage per ticket, in at most two rounds, each with the verdict `retry` (one more run with the advice) or `owner`; none for a `dangerous` or `contradicts_confirmed` decision; Opus first; Fable 5.2 only when the stage is still blocked after Opus advice (the `needs_advisor` call or the Opus round);
+  - a worker session reports blocked or stops answering: Opus first; Fable 5.2 (`pd-advise`) only when the ticket is still blocked after Opus advice;
   - a decision would become an ADR with `needs_review`;
   - a `pd-shape` session reaches a deep design tree.
-- Workflow agents cannot spawn agents, so the script or the main session calls the advisor.
 - Per-role models, effort and tools live in each agent file's frontmatter, in `plugins/pd-bot/agents/`.
 
 ## Workflow
@@ -56,26 +52,26 @@ The plugin lives in `plugins/pd-bot/`; the marketplace file is `.claude-plugin/m
 ```
 intake   readiness gate: READY | CONFIRM | GRILL | BLOCKED, depth S | M | L
   -> shape       important tickets and finalized prototypes: grill and brainstorm with the owner until the decisions are settled
-  -> shape + xia2   depth L: pick the design, then research the code
+  -> shape + xia2   depth M and L: shape writes specs/<slug>/design.md (depth L also the design ADR); depth L then researches the code with xia2
   -> writing-plans          every depth (one or two steps for S)
-  -> qa-writer   depth M and L: blind acceptance tests before any code (ship.js)
-  -> implement   one implementer subagent per step, each in an isolated worktree
-  -> security-reviewer   risky tickets: read-only gate before the PR (ship.js)
+  -> qa-writer   depth M and L: blind acceptance tests before any code (the orchestrator starts it)
+  -> implement   one implementer subagent per step, one step at a time on the working branch
+  -> security-reviewer   risky tickets: read-only gate before the PR
   -> /code-review, intent-review
-  -> uat         plan-blind acceptance test on the running app (ship.js, FE/BE tickets)
-  -> qa-verifier plan-blind command and file check of a ticket with no app (ship.js, docs tickets at depth M and L)
+  -> uat         plan-blind acceptance test on the running app (FE/BE tickets)
+  -> qa-verifier plan-blind command and file check of a ticket with no app (docs tickets at depth M and L)
   -> finishing-a-development-branch   push and open a PR; a human merges
 ```
 
-**Fleet path (ADR 0041, phase 1).** `/pd-bot:pd-orchestrate` runs the same tickets with free agent
-sessions instead of a fixed script: the main session (Opus 5.5) assigns one worker session per ticket
+**Fleet path (the only run path, `docs/adr/0005-pd-bot-runs-only-with-pod-bay-and-the-fleet-is-the-only-run-path.md`).** `/pd-bot:pd-orchestrate` runs the tickets with free agent
+sessions: the main session (Opus 5.5) assigns one worker session per ticket
 in a Pod Bay workspace (`pd-work`), a different session reviews (`pd-review`), and a Fable 5.2 session
 advises when the orchestrator is stuck (`pd-advise`). Order is free; the end state must show the
 evidence of `plugins/pd-bot/skills/pd-orchestrate/references/protocol.md`, which a reviewer and
-`plugins/pd-bot/scripts/fleet-check.sh` (warn mode; block mode when the base is `feat/*`) check. The reviewer session runs the tests, the acceptance check and `fleet-check.sh`, and sends the orchestrator a short result, so test output stays out of the orchestrator's context; a milestone's feature test runs in its own tester session. For a milestone the tickets go into one `feat/<slug>` branch after `plugins/pd-bot/scripts/fleet-gate.sh` passes, and the owner merges that branch into main. `ship.js` stays as one of three
-paths (ship.js, the fleet, a single agent), chosen per ticket (ADR 0043).
+`plugins/pd-bot/scripts/fleet-check.sh` (warn mode; block mode when the base is `feat/*`) check. The reviewer session runs the tests, the acceptance check and `fleet-check.sh`, and sends the orchestrator a short result, so test output stays out of the orchestrator's context; a milestone's feature test runs in its own tester session. For a milestone the tickets go into one `feat/<slug>` branch after `plugins/pd-bot/scripts/fleet-gate.sh` passes, and the owner merges that branch into main.
+Each session works in its own Pod Bay workspace (a clean clone), so a session never needs a git worktree for isolation.
 
-Decisions made on the way are recorded as ADRs in `docs/adr/`. The skills above live in `plugins/pd-bot/skills/` and run as `/pd-bot:<name>`; `qa-writer`, `qa-verifier` and `security-reviewer` are agents in `plugins/pd-bot/agents/`. `/pd-bot:pd-autopilot` asks everything first, then launches `plugins/pd-bot/workflows/ship.js` (one Workflow script for 1..N tickets). `plugins/pd-bot/skills/README.md` has the full map, including the bug-fix path (`diagnosing-bugs`).
+Decisions made on the way are recorded as ADRs in `docs/adr/`. The skills above live in `plugins/pd-bot/skills/` and run as `/pd-bot:<name>`; `qa-writer`, `qa-verifier` and `security-reviewer` are agents in `plugins/pd-bot/agents/`. `plugins/pd-bot/skills/README.md` has the full map, including the bug-fix path (`diagnosing-bugs`).
 
 ## Rules
 
@@ -87,14 +83,14 @@ Decisions made on the way are recorded as ADRs in `docs/adr/`. The skills above 
 
 ## Hooks
 
-Wired (✅) means registered in `plugins/pd-bot/hooks/hooks.json`. All hooks fail open except `merge-guard.sh`, which fails closed, and `stop-evidence.sh` on its risk floor. The plugin cannot ship `permissions.deny`: the repo's `settings.json` carries it (`.env`, force-push, push to `main`/`master`), and `/pd-bot:pd-setup` merges it into a consuming project.
+Wired (✅) means registered in `plugins/pd-bot/hooks/hooks.json`. All hooks fail open except `stop-evidence.sh` on its risk floor; `merge-guard.sh` asks the owner when in doubt (ADR 0004). The plugin cannot ship `permissions.deny`: the repo's `settings.json` carries it (`.env`, force-push, push to `main`/`master`), and `/pd-bot:pd-setup` merges it into a consuming project.
 
 | Hook | Trigger | Action | Wired |
 |---|---|---|---|
 | `session-rules.sh` | SessionStart | Delivers `rules/behavior.md` as session context (a plugin has no rules component) | ✅ |
 | `session-role.sh` | SessionStart | In the Pod Bay session of the main workspace (`src`), adds the orchestrator role text (`hooks/orchestrator-role.md`): check, coordinate, decide, and delegate hands-on work; reads the tmux options Pod Bay sets (`@tn_context` has no `@NN` suffix in `src`); silent in `src-NN`, in a nested `claude -p` and outside Pod Bay; a set `PD_BOT_ROLE` decides before any tmux check: `PD_BOT_ROLE=orchestrator` gives the role, any other non-empty value (`worker`, `reviewer`, `tester`, `advisor`, `none`) gives none, and `fleet-settings.py` sets it for fleet sessions; off also with `{"orchestrator": "off"}` in `<repo>/.claude/pd-bot.json` | ✅ |
 | `secrets-scan.sh` | PreToolUse (Bash) | On `git commit`, blocks a staged secret pattern or a staged `.env` file | ✅ |
-| `merge-guard.sh` | PreToolUse (Bash) | Blocks `gh pr merge` and `gh api .../pulls/<n>/merge` unless the PR base is `feat/*`; one plain `gh pr merge <n> --repo o/r` into main or another base shows a confirmation prompt (`ask`) and runs only after the owner approves; it denies in a mode, subagent or `-p` run where nobody can answer, and still denies `--auto`, wrappers, `gh api`, GraphQL and every doubt path; fails closed (no env bypass); the owner's own `!` or terminal merge is not seen | ✅ |
+| `merge-guard.sh` | PreToolUse (Bash, MCP merge tools) | Doubt means ask (ADR 0004): a plain `gh pr merge <n>` or `glab mr merge <n>` whose base is `feat/*` runs; every other merge-like command (another base, an unreadable base, a chain, `gh api`, GraphQL, merge in a text), a `git push` that names main or master, and an MCP merge tool (PreToolUse `mcp__.*__(merge_.*\|enable_.*auto_merge.*)`) shows the owner a confirmation prompt (`ask`); in a subagent or workflow agent nobody can answer, so it denies; `--auto` and `--admin` are denied; it stops habitual merges, not hidden ones (escapes, scripts, interpreters); the owner's own `!` or terminal merge is not seen | ✅ |
 | `pr-opened.sh` | PostToolUse (Bash) | After a `gh pr create` command whose output holds a PR URL, reminds the main session to review the PR; the orchestrator session is told to hand the review to another session | ✅ |
 | `stop-evidence.sh` | Stop | When code changed and the transcript has no Bash output, blocks the end of the main session; a model judge (Opus 5.5) picks remind (blocks once) or force; an Opus main session skips the judge unless a bash risk floor matches (`hooks/`, `scripts/`, auth or secret words); fails open, except on the risk floor | ✅ |
 | `clean-worktrees.sh` | PostToolUse (Bash), SessionStart | After a merge, and at session start, fetches and removes the worktree and branch of merged branches (`git branch -D` only when a merged PR head equals the local tip); skips protected names (`develop`, `staging`, `release/*`, ...); the session-start sweep also skips a worktree a live process uses and stops after a 20 s budget | ✅ |
@@ -102,9 +98,9 @@ Wired (✅) means registered in `plugins/pd-bot/hooks/hooks.json`. All hooks fai
 ## Knowledge
 
 - One store per record type: decisions in `docs/adr/`, lessons in `docs/solutions/`. `docs/solutions/` holds solved problems and patterns. Start at `docs/solutions/INDEX.md`; read `docs/solutions/critical-patterns.md` when you plan. Entries carry `confirmed_at`: treat an entry older than 30 days as possibly stale.
-- `REVIEW.md` holds review-only rules that `ship.js` review stages read from the base branch. An agent never edits it inside a ticket PR; a new row needs the same miss in two PRs and owner approval in its own PR.
+- `REVIEW.md` holds review-only rules that the reviewer session (`pd-review`) reads from the base branch. An agent never edits it inside a ticket PR; a new row needs the same miss in two PRs and owner approval in its own PR.
 - `docs/adr/` holds durable decisions and depth-L designs (an ADR with `stage: design`).
-- `specs/` is local scratch and is gitignored. Every ticket gets `specs/<slug>/` with five flow files: `intent.md`, `design.md`, `decision.md`, `plan.md`, `summary.md` (contract: `plugins/pd-bot/templates/structure/specs-README.md`). A durable design or decision also goes to `docs/adr/`. Do not commit under `specs/`.
+- `specs/` is local scratch and is gitignored. Every ticket gets `specs/<slug>/` with five flow files: `intent.md`, `design.md` (shape at depth M and L, writing-plans at depth S), `decision.md`, `plan.md`, `summary.md` (contract: `plugins/pd-bot/templates/structure/specs-README.md`). A durable design or decision also goes to `docs/adr/`. Do not commit under `specs/`.
 
 ## Gotchas
 

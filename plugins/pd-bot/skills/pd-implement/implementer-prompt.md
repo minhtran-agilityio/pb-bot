@@ -1,14 +1,14 @@
 # Implementer prompt
 
 Fill the brackets and send this to a fresh `implementer` subagent, one per plan step.
-Set [PLUGIN_DIR] to the plugin directory (`${CLAUDE_PLUGIN_ROOT}` in SKILL.md).
+Set [PLUGIN_DIR] to the plugin directory (`${CLAUDE_PLUGIN_ROOT}` in SKILL.md) and [WORK_DIR] to the
+root of the checkout.
 
 ```text
 model_stage: implementer
 
-Implement this step in your own git worktree.
-
-Base: check out [BASE_BRANCH] first and confirm `git rev-parse HEAD` matches it.
+Implement this step in [WORK_DIR], on the branch that is checked out there. Do not create a
+branch or a git worktree, and do not switch branches.
 Step: [TITLE]
 Files: [FILES]
 Context: [one or two lines: where this fits, what it depends on]

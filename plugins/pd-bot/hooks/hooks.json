@@ -56,7 +56,19 @@
             "command": "bash",
             "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/merge-guard.sh"],
             "timeout": 30,
-            "statusMessage": "Merge guard (PR base must be feat/*)…"
+            "statusMessage": "Merge guard (asks the owner unless the base is feat/*)…"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__.*__(merge_.*|enable_.*auto_merge.*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/merge-guard.sh"],
+            "timeout": 30,
+            "statusMessage": "Merge guard (an MCP merge asks the owner)…"
           }
         ]
       }

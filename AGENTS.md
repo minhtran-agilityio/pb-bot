@@ -1,7 +1,7 @@
 # Repository Guidelines
 
-This repository ships `pd-bot`, a Claude Code plugin of skills, agents, hooks and one Workflow
-script that carry a change from a ticket to a reviewed pull request. `CLAUDE.md` is the working
+This repository ships `pd-bot`, a Claude Code plugin of skills, agents and hooks that carry a change
+from a ticket to a reviewed pull request. It runs only with Pod Bay (`podbay-dev`). `CLAUDE.md` is the working
 contract (commands, workflow, hooks, gotchas) and `plugins/pd-bot/skills/README.md` is the skill
 and handoff map. Read both before you change a skill, an agent, a hook or a script.
 
@@ -13,11 +13,10 @@ and handoff map. Read both before you change a skill, an agent, a hook or a scri
 - `plugins/pd-bot/agents/` - the subagent role files (`pd-bot:<role>`); model, effort and tools are in their frontmatter.
 - `plugins/pd-bot/hooks/` - `hooks.json` plus the Bash hooks listed in the `CLAUDE.md` Hooks table.
 - `plugins/pd-bot/rules/behavior.md` - the one behavioral rule, delivered at session start.
-- `plugins/pd-bot/workflows/ship.js` - the autonomous Workflow script that `/pd-bot:pd-autopilot` launches.
-- `plugins/pd-bot/board/` - the live run board for `ship.js` runs.
 - `plugins/pd-bot/templates/` and `plugins/pd-bot/scripts/` - scaffold files and the runtime scripts the skills call.
 - `scripts/` - CI, lint, validation and release scripts for this repository, with their `test_*.py` tests.
-- `tests/` - `hooks/`, `scripts/` and `workflows/` hold contract and integration tests, `board/` the board tests, `fixtures/` their inputs, `evals/tickets/` the ticket evals.
+- `tests/` - `hooks/` and `scripts/` hold contract and integration tests, `fixtures/` their inputs, `evals/tickets/` the ticket evals.
+- `apps/pod-board/` - the Pod Bay session board (a Tauri menu bar app).
 - `assets/` - images that the READMEs show.
 - `docs/` and `specs/` are local only and gitignored. Do not link to them from tracked files.
 
@@ -48,7 +47,8 @@ ambiguous.
 Use Conventional Commit subjects (`fix(hooks): ...`, `docs: ...`) and keep commits focused. A pull
 request states the workflow impact, the tests run and the linked issue. Never merge a pull request
 without human review: an agent merges into the base branch only after the owner approves that one
-PR in the confirmation prompt that `merge-guard.sh` raises.
+PR in the confirmation prompt that `merge-guard.sh` raises (ADR 0004: when in doubt it asks the owner; only
+a plain merge into `feat/*` runs without a question).
 
 Only the release PR changes `VERSION`, `plugin.json` and the versioned sections of `CHANGELOG.md`.
 Run the `release` workflow from `main` to open it; merging it makes `release-tag` create the tag and

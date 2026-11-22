@@ -25,9 +25,9 @@ if printf '%s' "$flat2" | grep -qF '## Run and test' && printf '%s' "$flat2" | g
    && printf '%s' "$flat2" | grep -qF 'only after the owner agrees' && printf '%s' "$flat2" | grep -qF 'ask before deleting'; then pass
 else fail "the Run and test step is missing or does not ask first"; fi
 
-t "SKILL.md step 4 names merge-guard.sh (fails closed, protected bases only) and offers no gh pr merge allow rule"
+t "SKILL.md step 4 names merge-guard.sh (asks unless the base is feat/*) and offers no gh pr merge allow rule"
 flat=$(tr '\n' ' ' < "$SKILL" | tr -s ' ')
-if grep -qF 'merge-guard.sh' "$SKILL" && printf '%s' "$flat" | grep -qF 'blocks every merge into a protected base (main, master, release/*, the default branch and similar); it fails closed' \
+if grep -qF 'merge-guard.sh' "$SKILL" && printf '%s' "$flat" | grep -qF 'asks the owner about every merge whose base is not `feat/*`' \
    && printf '%s' "$flat" | grep -qF 'stay human-merged' \
    && ! grep -qF 'merge-allow.sh' "$SKILL" && ! grep -qF 'Bash(gh pr merge *)' "$SKILL" \
    && printf '%s' "$flat" | grep -qF 'Setup never writes `.claude/settings.local.json`'; then pass

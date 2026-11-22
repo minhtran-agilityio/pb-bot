@@ -118,9 +118,9 @@ t "fixture config uses a \${PORT} baseUrl and an env map"
 grep -q 'baseUrl.*127.0.0.1:\${PORT}' "$FIX/verify.config.json" && grep -q '"env"' "$FIX/verify.config.json" && pass || fail "fixture config lacks PORT placeholder or env"
 
 REF="$ROOT/plugins/pd-bot/skills/pd-verify/references/config.md"
-t "references/config.md pins env, PORT, throwaway consent, fill_form rule, ship.js note"
+t "references/config.md pins env, PORT, throwaway consent, fill_form rule"
 miss=""
-for w in 'env' '${PORT}' 'throwaway credentials OK' 'browser_fill_form' 'browser_run_code_unsafe' 'openssl rand' 'ship.js'; do
+for w in 'env' '${PORT}' 'throwaway credentials OK' 'browser_fill_form' 'browser_run_code_unsafe' 'openssl rand'; do
   grep -qF -- "$w" "$REF" || miss="$miss $w"
 done
 [ -z "$miss" ] && pass || fail "reference missing:$miss"
