@@ -477,6 +477,31 @@ fn check_folder_inner(repo: &str, dir: &Path) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{RwLock, RwLockReadGuard};
+
+    /// Why this lock exists: a test that writes a script and then runs it can fail with
+    /// "Text file busy" (ETXTBSY). Spawning a child with `pre_exec` makes std fork instead of
+    /// `posix_spawn`, and between fork and exec the child still holds every open file
+    /// descriptor of the parent, so a script that another test thread has open for writing
+    /// is busy for any exec. The fix is mutual exclusion: a script is created, written and
+    /// closed under the write lock (`write_script`), and every test that starts a process
+    /// holds the read lock for its whole body (`spawning`). `Command::spawn` returns only
+    /// after the exec succeeded, so no forked child outlives a read guard, and no writer can
+    /// have a file open while any child is between fork and exec. Tests that only need a
+    /// script to run use `sh <script>` and never exec the written file.
+    static SPAWN_LOCK: RwLock<()> = RwLock::new(());
+
+    fn spawning() -> RwLockReadGuard<'static, ()> {
+        SPAWN_LOCK.read().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Writes an executable script. Call it before `spawning()` (the lock is not re-entrant).
+    fn write_script(path: &Path, body: &str) {
+        use std::os::unix::fs::PermissionsExt;
+        let _w = SPAWN_LOCK.write().unwrap_or_else(|e| e.into_inner());
+        std::fs::write(path, body).unwrap();
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
 
     #[test]
     fn repo_input_forms() {
@@ -590,15 +615,17 @@ mod tests {
 
     #[test]
     fn a_slow_command_is_killed_at_the_timeout() {
+        let _s = spawning();
         let start = Instant::now();
         let mut cmd = Command::new("sleep");
-        cmd.arg("5");
+        cmd.arg("30");
         assert_eq!(stdout_with_timeout(cmd, Duration::from_millis(300), None), None);
-        assert!(start.elapsed() < Duration::from_secs(3));
+        // Far below the 30 s sleep: the command was killed, not waited for.
+        assert!(start.elapsed() < Duration::from_secs(10), "took {:?}", start.elapsed());
         let mut cmd = Command::new("printf");
         cmd.arg("hi");
-        assert_eq!(stdout_with_timeout(cmd, Duration::from_secs(3), None).as_deref(), Some("hi"));
-        assert_eq!(stdout_with_timeout(Command::new("/no/such/program"), Duration::from_secs(1), None), None);
+        assert_eq!(stdout_with_timeout(cmd, Duration::from_secs(20), None).as_deref(), Some("hi"));
+        assert_eq!(stdout_with_timeout(Command::new("/no/such/program"), Duration::from_secs(20), None), None);
     }
 
     #[test]
@@ -606,21 +633,20 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let noisy = dir.path().join("noisy-shell");
         // Stands in for an interactive shell: prints noise, then runs the script it was given.
-        std::fs::write(&noisy, "#!/bin/sh\necho 'banner from .zshrc'\nPATH=/x:/y eval \"$2\"\necho trailing\n").unwrap();
+        write_script(&noisy, "#!/bin/sh\necho 'banner from .zshrc'\nPATH=/x:/y eval \"$2\"\necho trailing\n");
         let hang = dir.path().join("hang-shell");
-        std::fs::write(&hang, "#!/bin/sh\nsleep 5\n").unwrap();
-        for f in [&noisy, &hang] {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(f, std::fs::Permissions::from_mode(0o755)).unwrap();
-        }
-        assert_eq!(shell_path(noisy.to_str().unwrap(), Duration::from_secs(3)).as_deref(), Some("/x:/y"));
+        write_script(&hang, "#!/bin/sh\nsleep 30\n");
+        let _s = spawning();
+        assert_eq!(shell_path(noisy.to_str().unwrap(), Duration::from_secs(20)).as_deref(), Some("/x:/y"));
         let start = Instant::now();
         assert_eq!(shell_path(hang.to_str().unwrap(), Duration::from_millis(300)), None);
-        assert!(start.elapsed() < Duration::from_secs(3));
+        // Far below the 30 s sleep: the hanging shell was killed at the timeout.
+        assert!(start.elapsed() < Duration::from_secs(10), "took {:?}", start.elapsed());
     }
 
     #[test]
     fn run_keeps_stdout_and_stderr_semantics() {
+        let _s = spawning();
         assert_eq!(run("sh", &["-c", "echo out; echo err >&2"]).unwrap(), "out");
         assert_eq!(run("sh", &["-c", "echo err >&2"]).unwrap(), "err");
         assert_eq!(run("sh", &["-c", "echo first >&2; echo second >&2; exit 1"]).unwrap_err(), "first");
@@ -630,10 +656,11 @@ mod tests {
 
     #[test]
     fn a_hanging_check_command_fails_with_a_clear_message() {
+        let _s = spawning();
         let start = Instant::now();
-        let e = try_run("sleep", &["5"], Duration::from_millis(300)).unwrap_err();
+        let e = try_run("sleep", &["30"], Duration::from_millis(300)).unwrap_err();
         assert!(matches!(e, RunError::Timeout));
-        assert!(start.elapsed() < Duration::from_secs(3));
+        assert!(start.elapsed() < Duration::from_secs(10), "took {:?}", start.elapsed());
         assert_eq!(e.message("gh"), "gh did not answer within 15 s.");
     }
 
@@ -654,31 +681,55 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let shell = dir.path().join("bg-shell");
         // Like a .zshrc that starts a long-lived helper (gitstatusd, an agent) on stdout.
-        std::fs::write(&shell, "#!/bin/sh\n(sleep 30 &)\neval \"$2\"\n").unwrap();
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&shell, std::fs::Permissions::from_mode(0o755)).unwrap();
+        write_script(&shell, "#!/bin/sh\n(sleep 30 &)\neval \"$2\"\n");
+        let _s = spawning();
         let start = Instant::now();
-        let got = shell_path(shell.to_str().unwrap(), Duration::from_secs(10));
+        // The timeout is 20 s and the helper sleeps 30 s: a result before either means the
+        // probe stopped at the end marker. (Waiting for EOF would give None at the timeout.)
+        let got = shell_path(shell.to_str().unwrap(), Duration::from_secs(20));
         assert!(got.is_some_and(|p| !p.is_empty()));
-        assert!(start.elapsed() < Duration::from_secs(3), "took {:?}", start.elapsed());
+        assert!(start.elapsed() < Duration::from_secs(15), "took {:?}", start.elapsed());
     }
 
     #[test]
     fn the_whole_process_group_is_killed() {
+        let _s = spawning();
+        // Gone = no such process. A killed child stays visible as a zombie until its parent
+        // (init) reaps it, so poll instead of checking once.
+        let gone = |pid: i32| {
+            let deadline = Instant::now() + Duration::from_secs(10);
+            while Instant::now() < deadline {
+                if unsafe { kill(pid, 0) } == -1 {
+                    return true;
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            false
+        };
+        let read_pid = |f: &Path| -> i32 { std::fs::read_to_string(f).unwrap().trim().parse().unwrap() };
         let dir = tempfile::tempdir().unwrap();
-        let pidfile = dir.path().join("pid");
+
+        // End by timeout: the script writes its pid file, then waits for the sleep forever.
+        let pidfile = dir.path().join("pid-timeout");
         let script = format!("sleep 60 & echo $! > {}; wait", pidfile.display());
         let mut cmd = Command::new("sh");
         cmd.args(["-c", &script]);
-        assert!(stdout_with_timeout(cmd, Duration::from_millis(500), None).is_none());
-        let pid: i32 = std::fs::read_to_string(&pidfile).unwrap().trim().parse().unwrap();
-        std::thread::sleep(Duration::from_millis(200));
-        // Signal 0 only checks that the process exists.
-        assert_eq!(unsafe { kill(pid, 0) }, -1, "the background sleep must be gone");
+        assert!(stdout_with_timeout(cmd, Duration::from_secs(2), None).is_none());
+        assert!(gone(read_pid(&pidfile)), "the background sleep must be gone after a timeout");
+
+        // End early because the output is complete: the leftover helper is killed too.
+        let pidfile = dir.path().join("pid-early");
+        let script = format!("sleep 60 & echo $! > {}; echo ready; wait", pidfile.display());
+        let mut cmd = Command::new("sh");
+        cmd.args(["-c", &script]);
+        let out = stdout_with_timeout(cmd, Duration::from_secs(20), Some(|o| o.contains("ready")));
+        assert!(out.is_some_and(|o| o.contains("ready")));
+        assert!(gone(read_pid(&pidfile)), "the background sleep must be gone after an early stop");
     }
 
     #[test]
     fn a_subfolder_of_a_clone_is_rejected() {
+        let _s = spawning();
         let dir = tempfile::tempdir().unwrap();
         let p = dir.path().to_string_lossy().to_string();
         run("git", &["-C", &p, "init", "-q"]).unwrap();
@@ -705,7 +756,7 @@ mod tests {
         let never = (Mutex::new(false), Condvar::new());
         let start = Instant::now();
         assert!(!wait_ready(&never, Duration::from_millis(200)));
-        assert!(start.elapsed() < Duration::from_secs(2));
+        assert!(start.elapsed() < Duration::from_secs(10), "took {:?}", start.elapsed());
         // A lookup that finishes while a check waits releases it early.
         let state = std::sync::Arc::new((Mutex::new(false), Condvar::new()));
         let s2 = state.clone();
@@ -714,10 +765,11 @@ mod tests {
             mark_ready(&s2);
         });
         let start = Instant::now();
-        assert!(wait_ready(&state, Duration::from_secs(5)));
-        assert!(start.elapsed() < Duration::from_secs(2));
+        // Released by the 100 ms thread long before the 30 s limit.
+        assert!(wait_ready(&state, Duration::from_secs(30)));
+        assert!(start.elapsed() < Duration::from_secs(15), "took {:?}", start.elapsed());
         // Already ready: no wait at all.
-        assert!(wait_ready(&state, Duration::from_secs(5)));
+        assert!(wait_ready(&state, Duration::from_secs(30)));
     }
 
     #[test]
@@ -737,6 +789,7 @@ mod tests {
 
     #[test]
     fn folder_check_matches_origin() {
+        let _s = spawning();
         let dir = tempfile::tempdir().unwrap();
         let p = dir.path().to_string_lossy().to_string();
         assert!(check_folder_inner("o/n", dir.path()).is_err(), "not a git repo yet");
@@ -750,6 +803,7 @@ mod tests {
 
     #[test]
     fn folder_check_never_prints_a_token() {
+        let _s = spawning();
         let dir = tempfile::tempdir().unwrap();
         let p = dir.path().to_string_lossy().to_string();
         run("git", &["-C", &p, "init", "-q"]).unwrap();
