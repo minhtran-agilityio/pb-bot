@@ -9,15 +9,31 @@ are the same as `main` @ e344cfe), model `claude-sonnet-5-5` at effort `medium`.
 the Shape Board prototype (`shape-board-prototype.html`, 267 KB, one esbuild bundle). Each run used
 its own throwaway clone of pb-bot outside every Pod Bay workspace. The runs ran one after another.
 
+The 3 `pd-shape` runs and the first `pd-tickets` check ran before review round 1, with the flag set
+without `--permission-mode` (their init event reports `permissionMode: default`). After review, the
+flag set pins `--permission-mode dontAsk` (see `README.md`). The `pd-tickets` check was run again
+with it. The `pd-shape` runs were not run again: their tools are the same, and `dontAsk` only removes
+permissions.
+
 ## pd-shape, 3 runs
 
-| Run | Turns | Question turns | Invalid blocks | Questions only in prose | AskUserQuestion calls | Errors | Time | Cost (USD) |
+| Run | Turns | Question turns | Invalid blocks | Questions only in prose | AskUserQuestion calls | Errors | Time | Cost (USD, session total) |
 |---|---|---|---|---|---|---|---|---|
-| 1 | 10 | 9 | 0 | 0 | 0 | 0 | 92.5 s | 2.10 |
-| 2 | 9 | 8 | 0 | 0 | 0 | 0 | 103.7 s | 2.37 |
-| 3 | 10 | 9 | 0 | 0 | 0 | 0 | 97.6 s | 2.36 |
+| 1 | 10 | 9 | 0 | 0 | 0 | 0 | 92.5 s | 0.29 |
+| 2 | 9 | 8 | 0 | 0 | 0 | 0 | 103.7 s | 0.35 |
+| 3 | 10 | 9 | 0 | 0 | 0 | 0 | 97.6 s | 0.32 |
 
 Driver output: `PASS 3/3`.
+
+Cost: `total_cost_usd` in a `result` event is cumulative over `--resume`, so a session's cost is
+the last turn's value. Round 1 summed it over the turns and reported USD 2.10, 2.37 and 2.36,
+about 7 times too much. The values above are the last turn's values in the same transcripts
+(run 1 per turn: 0.153, 0.166, 0.175 ... 0.292).
+
+The stricter gates added in round 2 (block in the turn's last message, no question only in prose,
+no write outside `specs/`) also hold for the recorded runs: every question turn has
+`block_in_final_message: true`, no turn without a block has a `?` line, and the only write per run is
+`specs/shape-board/brief.md`.
 
 - Every question turn had exactly one block, and the block was in the last message of the turn.
   The last turn of each run had no block: the run ended after "Does this brief say what you mean?"
@@ -41,7 +57,7 @@ Driver output: `PASS 3/3`.
 - The `system/init` event lists both `pd-bot:pd-shape` and `pd-bot:pd-tickets` in `slash_commands`.
 - `/pd-bot:pd-shape prototypes/<file>.html` as the `-p` message runs the skill (3 runs above).
 - `/pd-bot:pd-tickets specs/shape-board/brief.md` runs the skill too, even though it has
-  `disable-model-invocation: true`. It took 2 turns, 46.2 s and USD 0.38:
+  `disable-model-invocation: true`. The first check took 2 turns, 46.2 s and USD 0.21:
   1. It ran its read steps (`publish-check.sh`, `gh repo view`, `gh api user`, `gh label list`, the
      milestone GET, `gh issue list`). Then it asked 3 questions in one valid block: milestone,
      retry rule, and app location. The driver answered "No milestone".
@@ -52,6 +68,10 @@ Driver output: `PASS 3/3`.
   did not try to create anything. The driver stopped there and never sent "go".
 - GitHub after the check: `gh issue list --state all` returns 10 issues, as before. None of the 6
   labels it planned exists. No permission denial was recorded in either turn.
+- The check run again with `--permission-mode dontAsk` (init event: `permissionMode: dontAsk`): 2
+  turns, 46.6 s, USD 0.10, `pass=True`. Every read call ran with 0 denials. Turn 1 asked 3 questions
+  in one valid block, and turn 2 asked "Create these 12 tickets and 1 epic on PUBLIC repo ...?" in one
+  valid block. GitHub write attempts: 0. GitHub afterwards: 10 issues, none of the planned labels.
 
 ## For the app
 

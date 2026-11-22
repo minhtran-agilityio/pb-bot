@@ -81,6 +81,13 @@ def validate(obj):
                 errs.append(_err(f"{op}.description", "must be a string"))
             if "preview" in o and not isinstance(o["preview"], str):
                 errs.append(_err(f"{op}.preview", "must be a string"))
+        labels = [o.get("label") for o in opts if isinstance(o, dict) and isinstance(o.get("label"), str)]
+        if len(labels) != len(set(labels)):
+            errs.append(_err(f"{p}.options", "duplicate labels"))
+    # Answers are keyed by question text (protocol rule 6), so two equal texts lose an answer.
+    texts = [q.get("question") for q in qs if isinstance(q, dict) and isinstance(q.get("question"), str)]
+    if len(texts) != len(set(texts)):
+        errs.append(_err("$.questions", "duplicate question texts"))
     return errs
 
 
@@ -126,6 +133,10 @@ def _selftest():
     assert not r["blocks"] and not r["leaks"], r
     r = analyse("```p2g-questions\n" + json.dumps(good))
     assert r["blocks"][0]["errors"] == ["unclosed fence"], r
+    q = good["questions"][0]
+    dup = {"questions": [q, dict(q, options=[q["options"][0], q["options"][0]])]}
+    errs = validate(dup)
+    assert errs == ["$.questions[1].options: duplicate labels", "$.questions: duplicate question texts"], errs
     print("p2g selftest: ok")
 
 

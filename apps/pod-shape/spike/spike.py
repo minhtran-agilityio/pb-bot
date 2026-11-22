@@ -9,12 +9,18 @@ Transcripts, clones and specs/ stay under --work-dir; nothing here is meant to b
 
 An auto-answer stands in for the owner: the first option of each question, except "No" on an ADR
 question (the ADR step needs git, which the spike denies). `tickets` answers "No milestone" and
-stops at the approval question: it never sends "go", and the flags deny every GitHub write.
+stops at the approval question, or at any question it cannot place: it never sends "go".
+
+GitHub safety rests on `--permission-mode dontAsk` plus the allowlist: in that mode only
+`--allowedTools` (and commands Claude Code itself treats as read-only) run, and a skill's own
+`allowed-tools` pre-allows nothing (checked with a probe skill). No GitHub write is on any
+allowlist here. The deny lists are a second line for the writes the skills pre-allow.
 """
 import argparse
 import glob
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -27,9 +33,11 @@ import p2g  # noqa: E402
 
 PROMPT_FILE = os.path.join(HERE, "append-system-prompt.md")
 MAX_TURNS = 16
+TURN_TIMEOUT_S = 900
 
+# --permission-mode is pinned: a user or project defaultMode (for example "auto") must not decide.
 COMMON = ["--output-format", "stream-json", "--verbose", "--strict-mcp-config",
-          "--permission-prompts", "none"]
+          "--permission-mode", "dontAsk", "--permission-prompts", "none"]
 
 SHAPE_ALLOWED = ["Read", "Glob", "Grep", "Write(./specs/**)", "Edit(./specs/**)"]
 SHAPE_DENIED = ["AskUserQuestion", "Bash", "Agent", "WebFetch", "WebSearch", "NotebookEdit"]
@@ -38,12 +46,38 @@ TICKETS_ALLOWED = ["Read", "Glob", "Grep",
                    "Bash(bash *publish-check.sh *)", "Bash(gh repo view *)",
                    "Bash(gh api user --jq .login)", "Bash(gh label list *)", "Bash(gh issue list *)",
                    "Bash(gh api repos/{owner}/{repo}/milestones -X GET -f state=all --paginate)"]
+# Second line only (dontAsk + the allowlist above already deny these). It names every write that
+# pd-tickets pre-allows, every gh write subcommand family, and the gh api write spellings.
+# `gh api` cannot be denied as a whole: deny beats allow, and the exact milestone GET above is needed.
 TICKETS_DENIED = ["AskUserQuestion", "Write", "Edit", "Agent", "WebFetch", "WebSearch", "NotebookEdit",
                   "Bash(gh issue create*)", "Bash(gh issue edit*)", "Bash(gh issue comment*)",
-                  "Bash(gh label create*)", "Bash(gh label edit*)",
-                  "Bash(gh api repos/{owner}/{repo}/milestones -f*)", "Bash(gh api * -f title*)",
-                  "Bash(gh api * -X POST*)", "Bash(gh api * --method*)", "Bash(gh pr *)",
+                  "Bash(gh issue close*)", "Bash(gh issue reopen*)", "Bash(gh issue delete*)",
+                  "Bash(gh issue transfer*)", "Bash(gh issue lock*)", "Bash(gh issue unlock*)",
+                  "Bash(gh issue pin*)", "Bash(gh issue unpin*)", "Bash(gh issue develop*)",
+                  "Bash(gh label create*)", "Bash(gh label edit*)", "Bash(gh label delete*)",
+                  "Bash(gh label clone*)",
+                  "Bash(gh api -X*)", "Bash(gh api --method*)", "Bash(gh api * -X POST*)",
+                  "Bash(gh api * -X PATCH*)", "Bash(gh api * -X PUT*)", "Bash(gh api * -X DELETE*)",
+                  "Bash(gh api * --method*)", "Bash(gh api graphql*)", "Bash(gh api * --input*)",
+                  "Bash(gh api * -F*)", "Bash(gh api * --field*)", "Bash(gh api * --raw-field*)",
+                  "Bash(gh api * -f title*)", "Bash(gh api * -f name*)", "Bash(gh api * -f body*)",
+                  "Bash(gh api * -f description*)", "Bash(gh api * -f state=open*)",
+                  "Bash(gh api * -f state=closed*)", "Bash(gh api * -f due_on*)",
+                  "Bash(gh pr *)", "Bash(gh repo create*)", "Bash(gh repo edit*)", "Bash(gh repo delete*)",
+                  "Bash(gh repo fork*)", "Bash(gh repo rename*)", "Bash(gh repo archive*)",
+                  "Bash(gh release *)", "Bash(gh workflow *)", "Bash(gh run *)", "Bash(gh secret *)",
+                  "Bash(gh variable *)", "Bash(gh project *)", "Bash(gh gist *)", "Bash(gh auth *)",
+                  "Bash(gh extension *)", "Bash(gh alias *)", "Bash(gh config *)", "Bash(gh cache *)",
                   "Bash(git push*)", "Bash(git commit*)"]
+
+# A GitHub write in a Bash command: used to fail the tickets check if one is even attempted.
+GH_WRITE_RE = re.compile(
+    r"\bgh\s+(issue\s+(create|edit|comment|close|reopen|delete|transfer|lock|unlock|pin|unpin|develop)"
+    r"|label\s+(create|edit|delete|clone)|pr\s|repo\s+(create|edit|delete|fork|rename|archive)"
+    r"|release\s|workflow\s|run\s|secret\s|variable\s|project\s|gist\s)"
+    r"|\bgh\s+api\b.*(\s-X\s*(POST|PATCH|PUT|DELETE)|--method|\sgraphql\b|--input|\s-F\s|--field|--raw-field"
+    r"|\s-f\s+(?!state=all\b))"
+    r"|\bgit\s+(push|commit)\b")
 
 
 def flags(model, effort, allowed, denied):
@@ -59,8 +93,13 @@ def run_turn(cwd, log_path, session_flag, message, base_flags):
     env = dict(os.environ, PD_BOT_ROLE="none")
     t0 = time.time()
     with open(log_path, "w", encoding="utf-8") as out:
-        proc = subprocess.run(cmd, cwd=cwd, env=env, stdout=out, stderr=subprocess.PIPE, text=True)
-    turn = {"exit_code": proc.returncode, "stderr": proc.stderr[-2000:], "seconds": round(time.time() - t0, 1),
+        try:
+            proc = subprocess.run(cmd, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=out,
+                                  stderr=subprocess.PIPE, text=True, timeout=TURN_TIMEOUT_S)
+            code, err = proc.returncode, proc.stderr
+        except subprocess.TimeoutExpired:
+            code, err = -1, f"timeout after {TURN_TIMEOUT_S} s"
+    turn = {"exit_code": code, "stderr": err[-2000:], "seconds": round(time.time() - t0, 1),
             "texts": [], "tool_uses": [], "denials": [], "result": None, "slash_commands": None}
     with open(log_path, encoding="utf-8") as f:
         for line in f:
@@ -83,22 +122,41 @@ def run_turn(cwd, log_path, session_flag, message, base_flags):
     return turn
 
 
-def answer_for(block, stop_on_approval=False):
-    """Pick an answer per question. Returns (answers dict, approval_seen)."""
-    answers, approval = {}, False
+# An option that would start a write if chosen: "Create 9 issues", "Publish 9 tickets", "Go", ...
+GO_LABEL_RE = re.compile(r"\b(create|publish|open|file|post|submit|approve|go|proceed|yes)\b"
+                         r"|\d+\s+(issues?|tickets?|milestones?|labels?)\b", re.I)
+# The pd-tickets approval: its "go" option names the exact count, e.g. "Create 9 issues".
+APPROVAL_LABEL_RE = re.compile(r"^\s*(create|publish|open|file)\s+\d+\s+(new\s+)?(issues?|tickets?)\b", re.I)
+
+
+def answer_for(block, tickets_mode=False):
+    """Pick an answer per question. Returns (answers dict, stop_reason or None).
+
+    In tickets mode the driver must never choose an option that starts a write. It answers only a
+    milestone question ("No milestone") and questions whose options are all free of go-words.
+    The approval question stops the run with "approval"; any other option that looks like a go
+    stops it with "unplaced", which fails the check instead of passing it.
+    """
+    answers = {}
     for q in block["questions"]:
         labels = [o["label"] for o in q["options"]]
         text = q["question"]
         low = (text + " " + " ".join(labels)).lower()
-        if stop_on_approval and ("create" in low and "issue" in low):
-            approval = True
+        if tickets_mode:
+            if "milestone" in low and any("no milestone" in lb.lower() for lb in labels):
+                answers[text] = next(lb for lb in labels if "no milestone" in lb.lower())
+                continue
+            if any(APPROVAL_LABEL_RE.search(lb) for lb in labels):
+                return answers, "approval"
+            if any(GO_LABEL_RE.search(lb) or o.get("preview") for lb, o in zip(labels, q["options"])):
+                return answers, "unplaced"
+            answers[text] = labels[0]
+            continue
         pick = labels[0]
-        if "adr" in low:
+        if re.search(r"\badrs?\b", low):
             pick = next((lb for lb in labels if lb.lower().startswith("no")), pick)
-        if "milestone" in low:
-            pick = next((lb for lb in labels if "no milestone" in lb.lower()), pick)
         answers[text] = pick
-    return answers, approval
+    return answers, None
 
 
 def summarise_turn(turn):
@@ -119,12 +177,16 @@ def summarise_turn(turn):
         "denials": [{"tool": d.get("tool_name"), "input": d.get("tool_input")} for d in turn["denials"]],
         "error": None if (turn["exit_code"] == 0 and turn["result"] and not turn["result"]["is_error"])
         else {"exit_code": turn["exit_code"], "result": turn["result"], "stderr": turn["stderr"]},
+        "gh_writes": [t["input"].get("command") for t in turn["tool_uses"]
+                      if t["name"] == "Bash" and isinstance(t["input"], dict)
+                      and GH_WRITE_RE.search(t["input"].get("command") or "")],
         "seconds": turn["seconds"],
-        "cost_usd": (turn["result"] or {}).get("total_cost_usd"),
+        # total_cost_usd is cumulative over --resume: the session cost is the last turn's value.
+        "cumulative_cost_usd": (turn["result"] or {}).get("total_cost_usd"),
     }, a
 
 
-def converse(cwd, run_dir, first_message, base_flags, stop_on_approval=False):
+def converse(cwd, run_dir, first_message, base_flags, tickets_mode=False):
     sid = str(uuid.uuid4())
     turns, message, t0 = [], first_message, time.time()
     for n in range(1, MAX_TURNS + 1):
@@ -144,10 +206,11 @@ def converse(cwd, run_dir, first_message, base_flags, stop_on_approval=False):
               f"ask={s['ask_user_attempts']} {s['seconds']}s err={'yes' if s['error'] else 'no'}", flush=True)
         if s["error"] or not valid:
             break
-        answers, approval = answer_for(valid[-1], stop_on_approval)
+        answers, stop = answer_for(valid[-1], tickets_mode)
         s["answers"] = answers
-        if approval:
-            s["stopped_at_approval"] = True
+        if stop:
+            s["stop_reason"] = stop
+            s["stopped_at_approval"] = stop == "approval"
             break
         message = json.dumps({"answers": answers}, ensure_ascii=False)
     return sid, turns, round(time.time() - t0, 1)
@@ -181,22 +244,31 @@ def cmd_shape(args):
                                     flags(args.model, args.effort, SHAPE_ALLOWED, SHAPE_DENIED))
         briefs = sorted(glob.glob(os.path.join(clone, "specs", "*", "brief.md")))
         question_turns = [t for t in turns if t["blocks"]]
+        specs_dir = os.path.realpath(os.path.join(clone, "specs")) + os.sep
         run = {
             "run": i, "session_id": sid, "turns": len(turns), "question_turns": len(question_turns),
             "invalid_blocks": sum(len(t["invalid_blocks"]) for t in turns),
             "multi_block_turns": sum(1 for t in turns if t["blocks"] > 1),
-            "leak_lines": [ln for t in turns for ln in t["leak_lines"]],
+            # Rule 5: the block ends the turn, so it must be in the turn's last message.
+            "block_not_last": [t["turn"] for t in question_turns if not t["block_in_final_message"]],
+            # A question in prose in a turn with no block: the protocol failed (it would stall the app).
+            "prose_only_questions": [ln for t in turns if not t["blocks"] for ln in t["leak_lines"]],
+            # A "?" line next to a valid block (for example a lead-in): reported, not a failure.
+            "echo_lines": [ln for t in question_turns for ln in t["leak_lines"]],
             "ask_user_attempts": sum(t["ask_user_attempts"] for t in turns),
             "denials": [d for t in turns for d in t["denials"]],
             "errors": [t["error"] for t in turns if t["error"]],
             "writes": [w for t in turns for w in t["writes"]],
+            "writes_outside_specs": [w for t in turns for w in t["writes"]
+                                     if not os.path.realpath(os.path.join(clone, w or "")).startswith(specs_dir)],
             "brief": os.path.relpath(briefs[0], clone) if briefs else None,
-            "seconds": secs, "cost_usd": round(sum(t["cost_usd"] or 0 for t in turns), 4),
+            "seconds": secs, "cost_usd": turns[-1]["cumulative_cost_usd"] if turns else None,
             "detail": turns,
         }
         run["pass"] = bool(run["brief"] and run["question_turns"] and not run["invalid_blocks"]
                            and not run["ask_user_attempts"] and not run["errors"]
-                           and not run["multi_block_turns"])
+                           and not run["multi_block_turns"] and not run["block_not_last"]
+                           and not run["prose_only_questions"] and not run["writes_outside_specs"])
         print(f"run {i}: pass={run['pass']} turns={run['turns']} brief={run['brief']} {secs}s", flush=True)
         results.append(run)
         with open(os.path.join(args.work_dir, "shape-summary.json"), "w", encoding="utf-8") as f:
@@ -214,15 +286,22 @@ def cmd_tickets(args):
     print(f"tickets: {first}", flush=True)
     sid, turns, secs = converse(args.clone, run_dir, first,
                                 flags(args.model, args.effort, TICKETS_ALLOWED, TICKETS_DENIED),
-                                stop_on_approval=True)
+                                tickets_mode=True)
     out = {"session_id": sid, "seconds": secs, "turns": turns,
+           "cost_usd": turns[-1]["cumulative_cost_usd"] if turns else None,
            "reached_approval": any(t.get("stopped_at_approval") for t in turns),
-           "create_attempts": [t for turn in turns for t in turn["denials"]
-                               if "create" in json.dumps(t.get("input") or "")]}
+           "invalid_blocks": sum(len(t["invalid_blocks"]) for t in turns),
+           "ask_user_attempts": sum(t["ask_user_attempts"] for t in turns),
+           "errors": [t["error"] for t in turns if t["error"]],
+           "gh_write_attempts": [c for t in turns for c in t["gh_writes"]],
+           "denials": [d for t in turns for d in t["denials"]]}
+    out["pass"] = bool(out["reached_approval"] and not out["invalid_blocks"] and not out["ask_user_attempts"]
+                       and not out["errors"] and not out["gh_write_attempts"])
     with open(os.path.join(args.work_dir, "tickets-summary.json"), "w", encoding="utf-8") as f:
         json.dump(out, f, indent=2, ensure_ascii=False)
-    print(f"tickets: reached_approval={out['reached_approval']} {secs}s")
-    return 0 if out["reached_approval"] else 1
+    print(f"tickets: pass={out['pass']} reached_approval={out['reached_approval']} "
+          f"gh_write_attempts={len(out['gh_write_attempts'])} denials={len(out['denials'])} {secs}s")
+    return 0 if out["pass"] else 1
 
 
 def main():
