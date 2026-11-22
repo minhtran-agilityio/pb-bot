@@ -1,6 +1,6 @@
 import { Tooltip } from "../ui/tooltip";
 
-// DESIGN_SYSTEM.md §6.2 StatusBar: h-1.5 rounded-full, segments in status colors,
+// DESIGN_SYSTEM.md §6.2 StatusBar: h-2 rounded-full, segments in status colors,
 // order merged · pr · open · closed; tooltip shows counts.
 // "running" is not tracked in V1 (owner decision 5), so it has no segment.
 export interface StatusCounts {
@@ -27,7 +27,7 @@ export function StatusBar({ counts }: { counts: StatusCounts }) {
           .join(" · ");
   return (
     <Tooltip content={summary}>
-      <div role="img" aria-label={summary} className="flex h-1.5 w-full gap-px overflow-hidden rounded-full bg-surface-3">
+      <div role="img" aria-label={summary} className="flex h-2 w-full overflow-hidden rounded-full bg-surface-3">
         {SEGMENTS.map((s) =>
           counts[s.key] > 0 ? (
             <div key={s.key} className={s.className} style={{ flexGrow: counts[s.key] }} />

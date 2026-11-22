@@ -176,11 +176,10 @@ export function AddProjectDialog({
         }}
       >
         <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium text-fg-muted">GitHub repo</span>
+          <span className="text-xs font-medium text-fg-muted">GitHub repo</span>
           <Input
             autoFocus
             placeholder="owner/name"
-            className="font-mono"
             value={repo}
             invalid={!!repoError}
             disabled={busy}
@@ -193,19 +192,18 @@ export function AddProjectDialog({
               setRepoError(null);
             }}
           />
-          <span className={repoError ? "text-sm text-danger" : "text-sm text-fg-subtle"}>
+          <span className={repoError ? "text-xs text-danger" : "text-xs text-fg-subtle"}>
             {repoError ?? "1 project = 1 GitHub repo."}
           </span>
         </label>
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="project-folder" className="text-sm font-medium text-fg-muted">
+          <label htmlFor="project-folder" className="text-xs font-medium text-fg-muted">
             Local folder
           </label>
           <div className="flex gap-2">
             <Input
               id="project-folder"
               placeholder="~/code/shop-web"
-              className="font-mono"
               value={path}
               invalid={!!pathError}
               disabled={busy}
@@ -222,7 +220,7 @@ export function AddProjectDialog({
               Choose…
             </Button>
           </div>
-          <span className={pathError ? "text-sm text-danger" : "text-sm text-fg-subtle"}>
+          <span className={pathError ? "text-xs text-danger" : "text-xs text-fg-subtle"}>
             {pathError ?? "Claude Code runs in this folder, so it can read the code."}
           </span>
         </div>

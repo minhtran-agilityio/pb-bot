@@ -1,5 +1,5 @@
 /* ============================================================
-   Shape Board — design tokens  (v1.1)
+   Shape Board — design tokens  (v2.1 "Cozy")
    Single source of truth for every color, font, size, radius,
    shadow and motion value in the app.
 
@@ -8,6 +8,8 @@
      in the @theme block below, or var(--token) in CSS).
    - Never write a raw hex / rgb / px value in a component.
    - Never add a token here unless the user asked for it.
+   - Shared UI parts and this file change only through the
+     Pb Bot Storehouse keeper (DESIGN_SYSTEM.md §11).
    Full rules: DESIGN_SYSTEM.md
    ============================================================ */
 
@@ -16,123 +18,140 @@
   color-scheme: dark;
 
   /* Surfaces: from back to front */
-  --bg:             #141312; /* window background, main content area */
-  --surface-1:      #1A1918; /* sidebar, title bar, right panel */
-  --surface-2:      #211F1D; /* cards, inputs, chat bubbles */
-  --surface-3:      #2A2725; /* hover, selected row, pressed */
-  --overlay:        rgba(8, 7, 6, 0.64); /* behind dialogs */
+  --bg:             #211A15; /* window "desk" behind the panels, title bar */
+  --surface-1:      #2A211B; /* main content panel */
+  --surface-2:      #32281F; /* cards, inputs, dialogs, selected sidebar item */
+  --surface-3:      #3D3128; /* hover, tab track, pressed */
+  --side:           #2C2A1F; /* sidebar panel only (warm olive) */
+  --side-hover:     rgba(255, 240, 220, 0.05); /* hover on items inside the sidebar */
+  --overlay:        rgba(20, 14, 10, 0.62); /* behind dialogs */
 
   /* Lines */
-  --border:         #33302D; /* default 1px lines and card borders */
-  --border-strong:  #45413D; /* input borders, dividers that must be seen */
+  --border:         #45372D; /* default 1px lines and card borders */
+  --border-strong:  #584739; /* hollow node, dividers that must be seen */
 
   /* Text */
-  --fg:             #F4F2EF; /* main text */
-  --fg-muted:       #A8A29E; /* secondary text, labels, meta */
-  --fg-subtle:      #8E8883; /* placeholder, disabled text, timestamps */
+  --fg:             #F6ECE0; /* main text */
+  --fg-muted:       #D2C1AE; /* secondary text, labels, meta */
+  --fg-subtle:      #B4A18B; /* placeholder, disabled text, timestamps */
 
   /* Brand orange from the logo. Logo and app icon only, never UI. */
   --brand:          #F97316;
   --brand-ink:      #18181B;
 
-  /* Accent (logo orange). The ONLY accent color in the UI. */
-  --accent:         #F97316; /* primary button, focus ring, active icon */
-  --accent-hover:   #FB8A3C;
-  --accent-fg:      #1A1817; /* text/icon on --accent */
-  --accent-soft:    rgba(249, 115, 22, 0.14); /* selected tint, suggested-answer chip */
-  --accent-text:    #FB923C; /* accent used as text/link on --bg */
+  /* Accent (soft terracotta). The ONLY accent color in the UI. */
+  --accent:         #EB7D4C; /* primary button, focus ring, current node */
+  --accent-hover:   #F2946A;
+  --accent-fg:      #2A1A10; /* text/icon on --accent */
+  --accent-soft:    rgba(235, 125, 76, 0.16); /* selected tint, focus halo, chips */
+  --accent-text:    #F29B70; /* accent used as text/link */
 
-  /* Issue status (also used for milestones) */
-  --status-open:          #3FB97A;
-  --status-open-soft:     rgba(63, 185, 122, 0.14);
-  --status-running:       #5B9DF5;
-  --status-running-soft:  rgba(91, 157, 245, 0.14);
-  --status-pr:            #2FB8B0;
-  --status-pr-soft:       rgba(47, 184, 176, 0.14);
-  --status-merged:        #A884F3;
-  --status-merged-soft:   rgba(168, 132, 243, 0.16);
-  --status-closed:        #8B94A0;
-  --status-closed-soft:   rgba(139, 148, 160, 0.14);
+  /* Issue status (also used for milestones). "running" is used only by RunLog in V1. */
+  --status-open:          #8DBF8A;
+  --status-open-soft:     rgba(141, 191, 138, 0.16);
+  --status-running:       #8EB6D9;
+  --status-running-soft:  rgba(142, 182, 217, 0.16);
+  --status-pr:            #7FC1B7;
+  --status-pr-soft:       rgba(127, 193, 183, 0.16);
+  --status-merged:        #C2A3D6;
+  --status-merged-soft:   rgba(194, 163, 214, 0.16);
+  --status-closed:        #B3A595;
+  --status-closed-soft:   rgba(179, 165, 149, 0.16);
 
   /* Feedback */
-  --danger:         #F06363;
-  --danger-soft:    rgba(240, 99, 99, 0.14);
-  --warning:        #E8B23F;
-  --warning-soft:   rgba(232, 178, 63, 0.14);
-  --success:        #3FB97A;
+  --danger:         #EE8A7C;
+  --danger-soft:    rgba(238, 138, 124, 0.16);
+  --warning:        #E8C06A;
+  --warning-soft:   rgba(232, 192, 106, 0.16);
+  --success:        #8DBF8A;
 
   /* Branch lines (overview tree, pipeline). Node "now" = --accent. */
-  --branch:         #5A5550;
+  --branch:         #85705E;
 
   /* Focus */
-  --ring:           #F97316;
+  --ring:           #EB7D4C;
 
-  /* Shadows (only for things that float: menus, popovers, dialogs, toasts) */
-  --elev-sm: 0 2px 8px rgba(0, 0, 0, 0.40), 0 0 0 1px rgba(255, 255, 255, 0.04);
-  --elev-lg: 0 16px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  /* Shadows. Cards rest on --card-sh; things that float use --elev-*. */
+  --card-sh:        0 6px 20px rgba(10, 6, 3, 0.28);
+  --card-sh-hover:  0 14px 32px rgba(10, 6, 3, 0.38);
+  --btn-sh:         0 4px 12px rgba(196, 85, 43, 0.25); /* primary button only */
+  --btn-sh-hover:   0 6px 16px rgba(196, 85, 43, 0.32);
+  --foot-sh:        0 -10px 24px -16px rgba(90, 58, 30, 0.25); /* sticky footer bar */
+  --elev-sm:        0 8px 24px rgba(10, 6, 3, 0.35), 0 1px 0 rgba(255, 240, 220, 0.04) inset;
+  --elev-lg:        0 28px 64px rgba(10, 6, 3, 0.50);
+  --focus-halo:     0 0 0 4px var(--accent-soft); /* focused input, composer */
 
   /* Type */
-  --font-ui: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-ui: "Outfit", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-code: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
   /* Layout sizes */
-  --titlebar-h:  40px;
-  --sidebar-w:   240px;
-  --panel-w:     360px;
+  --titlebar-h:  48px;
+  --sidebar-w:   256px;
+  --panel-w:     372px;
   --content-max: 960px;
+  --shell-gap:   12px; /* gap and outer padding between the rounded panels */
 
   /* Motion */
-  --dur-fast: 120ms;  /* hover, press, color change */
+  --dur-fast: 160ms;  /* hover, press, color change, lift */
   --dur-base: 200ms;  /* open/close menu, dialog, tree expand */
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 /* ---------- Light theme ---------- */
+/* Owner decision (v2.0): accent, accent-text, status, success and warning are darker than the prototype
+   so every text pair passes AA 4.5:1 (DESIGN_SYSTEM.md §1.5). */
 /* Applied when the OS is light and the user did not force dark,
    or when the user picks light in Settings. */
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     color-scheme: light;
-    --bg: #F5F4F2; --surface-1: #FAF9F7; --surface-2: #FFFFFF; --surface-3: #EBE8E4;
-    --overlay: rgba(26, 24, 23, 0.40);
-    --border: #DFDBD6; --border-strong: #C9C4BE;
-    --fg: #1A1817; --fg-muted: #57534E; --fg-subtle: #6B655F;
-    --accent: #C2410C; --accent-hover: #9A3412; --accent-fg: #FFFFFF;
-    --accent-soft: rgba(249, 115, 22, 0.12); --accent-text: #C2410C;
-    --status-open: #1F8A55;    --status-open-soft: rgba(31, 138, 85, 0.10);
-    --status-running: #2163C8; --status-running-soft: rgba(33, 99, 200, 0.10);
-    --status-pr: #0E7F79;      --status-pr-soft: rgba(14, 127, 121, 0.10);
-    --status-merged: #7044D0;  --status-merged-soft: rgba(112, 68, 208, 0.10);
-    --status-closed: #5F6874;  --status-closed-soft: rgba(95, 104, 116, 0.10);
-    --danger: #C9302C; --danger-soft: rgba(201, 48, 44, 0.08);
-    --warning: #9A6B00; --warning-soft: rgba(154, 107, 0, 0.10);
-    --success: #1F8A55;
-    --ring: #C2410C;
-    --branch: #B5AFA8;
-    --elev-sm: 0 2px 8px rgba(26, 24, 23, 0.08), 0 0 0 1px rgba(26, 24, 23, 0.06);
-    --elev-lg: 0 16px 48px rgba(26, 24, 23, 0.16), 0 0 0 1px rgba(26, 24, 23, 0.06);
+    --bg: #F7F0E6; --surface-1: #F2E9DC; --surface-2: #FFFBF5; --surface-3: #F1E6D6;
+    --side: #E6E8D6; --side-hover: rgba(255, 251, 245, 0.5);
+    --overlay: rgba(59, 42, 30, 0.32);
+    --border: #EADDCB; --border-strong: #DCCAB3;
+    --fg: #33261E; --fg-muted: #5E4E42; --fg-subtle: #6F5F53;
+    --accent: #A9461F; --accent-hover: #9D3B11; --accent-fg: #FFF8F0;
+    --accent-soft: rgba(217, 98, 43, 0.13); --accent-text: #A23F15;
+    --status-open: #387346;    --status-open-soft: #E2EBD8;
+    --status-running: #376B99; --status-running-soft: #DDE8F1;
+    --status-pr: #29726B;      --status-pr-soft: #D8EBE6;
+    --status-merged: #7A559C;  --status-merged-soft: #ECE1F1;
+    --status-closed: #6E6156;  --status-closed-soft: #EDE5DA;
+    --danger: #B0412F; --danger-soft: #F7E0D9;
+    --warning: #8C5C0B; --warning-soft: #F6EACB;
+    --success: #387346;
+    --ring: #A9461F;
+    --branch: #B9A184;
+    --card-sh: 0 4px 16px rgba(120, 80, 45, 0.08), 0 1px 2px rgba(120, 80, 45, 0.05);
+    --card-sh-hover: 0 12px 28px rgba(120, 80, 45, 0.14);
+    --elev-sm: 0 8px 24px rgba(120, 80, 45, 0.12), 0 1px 2px rgba(120, 80, 45, 0.06);
+    --elev-lg: 0 28px 64px rgba(90, 58, 30, 0.20);
   }
 }
 :root[data-theme="light"] {
   color-scheme: light;
-  --branch: #B5AFA8;
-  --bg: #F5F4F2; --surface-1: #FAF9F7; --surface-2: #FFFFFF; --surface-3: #EBE8E4;
-  --overlay: rgba(26, 24, 23, 0.40);
-  --border: #DFDBD6; --border-strong: #C9C4BE;
-  --fg: #1A1817; --fg-muted: #57534E; --fg-subtle: #6B655F;
-  --accent: #C2410C; --accent-hover: #9A3412; --accent-fg: #FFFFFF;
-  --accent-soft: rgba(249, 115, 22, 0.12); --accent-text: #C2410C;
-  --status-open: #1F8A55;    --status-open-soft: rgba(31, 138, 85, 0.10);
-  --status-running: #2163C8; --status-running-soft: rgba(33, 99, 200, 0.10);
-  --status-pr: #0E7F79;      --status-pr-soft: rgba(14, 127, 121, 0.10);
-  --status-merged: #7044D0;  --status-merged-soft: rgba(112, 68, 208, 0.10);
-  --status-closed: #5F6874;  --status-closed-soft: rgba(95, 104, 116, 0.10);
-  --danger: #C9302C; --danger-soft: rgba(201, 48, 44, 0.08);
-  --warning: #9A6B00; --warning-soft: rgba(154, 107, 0, 0.10);
-  --success: #1F8A55;
-  --ring: #C2410C;
-  --elev-sm: 0 2px 8px rgba(26, 24, 23, 0.08), 0 0 0 1px rgba(26, 24, 23, 0.06);
-  --elev-lg: 0 16px 48px rgba(26, 24, 23, 0.16), 0 0 0 1px rgba(26, 24, 23, 0.06);
+  --bg: #F7F0E6; --surface-1: #F2E9DC; --surface-2: #FFFBF5; --surface-3: #F1E6D6;
+  --side: #E6E8D6; --side-hover: rgba(255, 251, 245, 0.5);
+  --overlay: rgba(59, 42, 30, 0.32);
+  --border: #EADDCB; --border-strong: #DCCAB3;
+  --fg: #33261E; --fg-muted: #5E4E42; --fg-subtle: #6F5F53;
+  --accent: #A9461F; --accent-hover: #9D3B11; --accent-fg: #FFF8F0;
+  --accent-soft: rgba(217, 98, 43, 0.13); --accent-text: #A23F15;
+  --status-open: #387346;    --status-open-soft: #E2EBD8;
+  --status-running: #376B99; --status-running-soft: #DDE8F1;
+  --status-pr: #29726B;      --status-pr-soft: #D8EBE6;
+  --status-merged: #7A559C;  --status-merged-soft: #ECE1F1;
+  --status-closed: #6E6156;  --status-closed-soft: #EDE5DA;
+  --danger: #B0412F; --danger-soft: #F7E0D9;
+  --warning: #8C5C0B; --warning-soft: #F6EACB;
+  --success: #387346;
+  --ring: #A9461F;
+  --branch: #B9A184;
+  --card-sh: 0 4px 16px rgba(120, 80, 45, 0.08), 0 1px 2px rgba(120, 80, 45, 0.05);
+  --card-sh-hover: 0 12px 28px rgba(120, 80, 45, 0.14);
+  --elev-sm: 0 8px 24px rgba(120, 80, 45, 0.12), 0 1px 2px rgba(120, 80, 45, 0.06);
+  --elev-lg: 0 28px 64px rgba(90, 58, 30, 0.20);
 }
 
 /* ---------- Tailwind v4 mapping ----------
@@ -140,7 +159,7 @@
      @import "tailwindcss";
      @import "./tokens.css";
    Then use classes like bg-surface-2, text-fg-muted, border-border,
-   text-status-merged, rounded-md, shadow-lg, font-mono, text-base.
+   text-status-merged, rounded-card, shadow-card, text-base.
    Tailwind's default color palette is turned OFF (--color-*: initial),
    so classes like bg-blue-500 do not exist. This is on purpose. */
 @theme inline {
@@ -152,6 +171,8 @@
   --color-surface-1: var(--surface-1);
   --color-surface-2: var(--surface-2);
   --color-surface-3: var(--surface-3);
+  --color-side: var(--side);
+  --color-side-hover: var(--side-hover);
   --color-overlay: var(--overlay);
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
@@ -186,29 +207,49 @@
   --font-sans: var(--font-ui);
   --font-mono: var(--font-code);
 
-  /* Type scale: size / line-height. Base is 13px (desktop, dense). */
+  /* Type scale: size / line-height. Base is 14/22. */
   --text-*: initial;
-  --text-xs: 11px;   --text-xs--line-height: 16px;
-  --text-sm: 12px;   --text-sm--line-height: 16px;
-  --text-base: 13px; --text-base--line-height: 20px;
-  --text-md: 14px;   --text-md--line-height: 20px;
-  --text-lg: 16px;   --text-lg--line-height: 24px;
-  --text-xl: 20px;   --text-xl--line-height: 28px;
-  --text-2xl: 24px;  --text-2xl--line-height: 32px;
+  --text-xs: 12px;   --text-xs--line-height: 16px;
+  --text-sm: 13px;   --text-sm--line-height: 20px;
+  --text-base: 14px; --text-base--line-height: 22px;
+  --text-md: 15px;   --text-md--line-height: 24px;
+  --text-lg: 18px;   --text-lg--line-height: 26px;
+  --text-xl: 26px;   --text-xl--line-height: 34px;
+
+  --tracking-*: initial;
+  --tracking-title: -0.01em; /* page title (text-xl) only */
 
   --radius-*: initial;
-  --radius-sm: 4px;      /* badges, chips, checkbox, kbd */
-  --radius-md: 6px;      /* buttons, inputs, menu items, tree rows */
-  --radius-lg: 10px;     /* cards, dialogs, chat bubbles, popovers */
-  --radius-full: 9999px; /* status dot, avatar, switch */
+  --radius-xs: 6px;      /* checkbox, kbd, inline code */
+  --radius-sm: 12px;     /* tree row, tooltip, menu item */
+  --radius-md: 14px;     /* code block, run log output */
+  --radius-box: 18px;    /* textarea, menu, boxes inside a panel */
+  --radius-card: 24px;   /* card, list, run log, toast */
+  --radius-panel: 28px;  /* sidebar, main panel, right panel */
+  --radius-dialog: 32px; /* dialog */
+  --radius-full: 9999px; /* buttons, inputs, badges, tabs, sidebar items, dots */
 
   --shadow-*: initial;
+  --shadow-card: var(--card-sh);
+  --shadow-card-hover: var(--card-sh-hover);
+  --shadow-btn: var(--btn-sh);
+  --shadow-btn-hover: var(--btn-sh-hover);
+  --shadow-foot: var(--foot-sh);
   --shadow-sm: var(--elev-sm);
   --shadow-lg: var(--elev-lg);
+  --shadow-focus: var(--focus-halo);
+
+  --ease-*: initial;
+  --ease-out: var(--ease-out);
 
   /* Spacing: Tailwind's 4px step stays (p-1 = 4px, p-2 = 8px ...).
      Allowed steps are listed in DESIGN_SYSTEM.md §4. */
   --spacing: 4px;
+}
+
+/* Projects grid: as many 280px-min columns as fit (DESIGN_SYSTEM.md §7.1). */
+@utility grid-cards {
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
 }
 
 /* ---------- Base ---------- */
@@ -218,11 +259,12 @@ body {
   background: var(--bg);
   color: var(--fg);
   font-family: var(--font-ui);
-  font-size: 13px;
-  line-height: 20px;
+  font-size: 14px;
+  line-height: 22px;
+  letter-spacing: 0.005em;
   -webkit-font-smoothing: antialiased;
-  font-feature-settings: "tnum" 0;
 }
+/* Mono is for real code only (run log, brief source, inline code). Paths, repos and #numbers use the UI font. */
 code, kbd, pre, .font-mono { font-family: var(--font-code); }
 @layer base {
   :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }

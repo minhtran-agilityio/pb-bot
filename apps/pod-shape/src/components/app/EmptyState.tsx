@@ -3,7 +3,7 @@ import { Icon, iconSize, type IconName } from "./icons";
 import pattern from "../../assets/brand/branch-pattern.svg?raw";
 
 // DESIGN_SYSTEM.md §6.2 EmptyState + §6.4 BranchPattern: left-aligned block, pattern on the right
-// in the `branch` color (the SVG carries its own 40% opacity; shown 120px wide as in the prototype), icon 24 fg-subtle, text-lg title, one line, one Button.
+// in the `branch` color (the SVG carries its own 40% opacity; shown 120px wide as in the prototype), icon 24 fg-subtle, text-lg (18/26) title, one line, one Button.
 export function EmptyState({
   icon,
   title,

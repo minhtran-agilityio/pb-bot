@@ -32,7 +32,7 @@ The flow: add a repo, paste an artifact, grill it, generate issues, then see eve
 Sources of truth:
 
 - **Design doc (architecture, protocol, data model, risks):** https://claude.ai/artifact/K47EPMgWrZgCv37Z7zSzyH (Vietnamese).
-- **Design system:** `docs/DESIGN_SYSTEM.md` (v1.4) is the contract. The artifact https://claude.ai/artifact/WRkcjobJX9VCEi74o3mVjN was the source of v1.3; it has moved on, so where they differ the repo file wins.
+- **Design system:** `docs/DESIGN_SYSTEM.md` v2.0 "Cozy" is the contract (owner request 2026-11-22, from the Cozy prototype). The artifact https://claude.ai/artifact/WRkcjobJX9VCEi74o3mVjN shows v2.0 too; where they differ (four issue statuses), the repo file wins.
 - **Clickable prototype:** https://claude.ai/artifact/3xwd3RbWe9k1kyFMa8bgjo (same as `docs/prototype/shape-board-prototype.html`; replaces the earlier FVACosM4PvP3syMpk9ngc1, owner decision 2026-11-22). It shows every screen and flow with fake data. Copy its screens and behavior. Do not copy its code: it is a single esbuild bundle, and its source files were not kept.
 
 If the design doc and the design system disagree, follow the design doc for behavior and the design system for looks. One known conflict is listed in section 5.
@@ -97,15 +97,15 @@ Each step is 1 small PR with a clear done point. Do not start step 1 until step 
 4. **Generate issues.** Run `pd-tickets`, show the review screen, create the issues, store the links. Done when real issues appear on GitHub and in the tree.
 5. **Tree + status.** The full tree, status from one GraphQL call per project, progress bars. Done when 2 projects with issues in different states show correctly.
 
-## 7. Design system v1.4, fonts and logo (must follow)
+## 7. Design system v2.0 "Cozy", fonts and logo (must follow)
 
 - **UI parts: ask the keeper first.** Before any UI work, ask the `Pb Bot Storehouse` session whether the part exists (`DESIGN_SYSTEM.md` §11, `docs/storehouse-keeper.md`). Only the keeper and the `ui-designer` agent change `src/components/ui/`, `src/components/app/` and `tokens.css`.
 
 - Read `DESIGN_SYSTEM.md` fully before any UI work. Paste `CLAUDE.md.snippet.md` into the app's `CLAUDE.md`.
 - Use only its tokens, components (§6), layouts (§7) and icons (§8). **Do not invent** a color, size, spacing, radius, shadow, component or variant. No hex or arbitrary Tailwind values. If something is missing, stop and ask the owner first.
-- v1.4 rules (same look as v1.3): warm-tinted neutrals (not zinc); orange accent near 10% of a screen, one primary button per view; the branch line is the only signature detail (TreeView, PipelineSteps, EmptyState); banned patterns in §0.1 (no gradients, blur, glow, sparkles/wand icons, emoji, blobs, card inside card, centered hero). Icons only through `icons.ts`, never directly from `lucide-react`.
+- v2.0 rules: warm browns and creams with an olive sidebar; terracotta accent near 10% of a screen, one primary button per view; pill controls, rounded cards and panels, soft token shadows; the branch line is the only signature detail (TreeView, PipelineSteps, LevelsLegend, EmptyState); banned patterns in §0.1 (no gradients, glow, sparkles/wand icons, emoji, blobs, card inside card, centered hero, uppercase labels). Icons only through `icons.ts`, never directly from `lucide-react`.
 - Status = color + icon + word. Dark and light themes. Run the §10 checklist before you call a UI change done.
-- **Fonts.** `npm i @fontsource/ibm-plex-sans @fontsource/jetbrains-mono` (both SIL Open Font License). IBM Plex Sans (UI, weights 400/500/600) and JetBrains Mono (code) are bundled so the app works offline. No CDN, no other font.
+- **Fonts.** `@fontsource/outfit` and `@fontsource/jetbrains-mono` (both SIL Open Font License). Outfit (UI, weights 400/500/600) and JetBrains Mono (real code only) are bundled so the app works offline. No CDN, no other font.
 - **UI copy is English only, in sentence case.**
 - Logo: option 1 (branch tree). Never redraw or recolor it.
 
