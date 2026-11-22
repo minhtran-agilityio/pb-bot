@@ -10,12 +10,12 @@ You received `shape-board-handoff.zip`. Unzip it **outside** the repo first (for
 | --- | --- | --- |
 | `HANDOFF.md` | This file | `docs/HANDOFF.md` |
 | `prototype/shape-board-prototype.html` | Clickable UI prototype, one HTML file. Open it in a browser | `docs/prototype/` (reference only, not app code) |
-| `design-system/DESIGN_SYSTEM.md` | Design system v1.2, the UI contract | `docs/DESIGN_SYSTEM.md` |
+| `design-system/DESIGN_SYSTEM.md` | Design system v1.3, the UI contract | `docs/DESIGN_SYSTEM.md` |
 | `design-system/tokens.css` | Tailwind v4 tokens | `src/styles/tokens.css` |
 | `design-system/icons.ts` | The only allowed icon map | `src/components/app/icons.ts` |
 | `design-system/CLAUDE.md.snippet.md` | Rules for coding agents | Paste into the app's `CLAUDE.md` |
 | `design-system/preview.html` | Visual reference of every token and component | `docs/` (reference only) |
-| `design-system/anti-slop-report.html` | Why v1.2 bans some patterns | `docs/` (reference only) |
+| `design-system/anti-slop-report.html` | Why v1.3 bans some patterns | `docs/` (reference only) |
 | `design-system/assets/` | Logo SVGs + `branch-pattern.svg` | `src/assets/brand/` |
 | `logos/final/` | Final logo: icon SVG, 1024 PNG (for `tauri icon`), lockup SVG/PNG | `src/assets/brand/` (+ run `tauri icon` on the PNG) |
 
@@ -26,13 +26,13 @@ You received `shape-board-handoff.zip`. Unzip it **outside** the repo first (for
 The flow: add a repo, paste an artifact, grill it, generate issues, then see everything in one tree.
 
 - The tree: Project (= 1 GitHub repo) → Artifact → Feature (= 1 brief) → Milestone → Issue.
-- Issue status is read live from GitHub: open, running, has PR, merged, closed.
+- Issue status is read live from GitHub: open, has PR, merged, closed. (No "running" in V1: owner decision, question 5.)
 - The owner works on many projects. The tree lets them check status fast without opening the Claude desktop app.
 
 Sources of truth:
 
 - **Design doc (architecture, protocol, data model, risks):** https://claude.ai/artifact/K47EPMgWrZgCv37Z7zSzyH (Vietnamese).
-- **Design system v1.2:** https://claude.ai/artifact/WRkcjobJX9VCEi74o3mVjN (same as `design-system/` in the zip).
+- **Design system v1.3:** https://claude.ai/artifact/WRkcjobJX9VCEi74o3mVjN (same as `design-system/` in the zip).
 - **Clickable prototype:** https://claude.ai/artifact/FVACosM4PvP3syMpk9ngc1 (same as `prototype/shape-board-prototype.html`). It shows every screen and flow with fake data. Copy its screens and behavior. Do not copy its code: it is a single esbuild bundle, and its source files were not kept.
 
 If the design doc and the design system disagree, follow the design doc for behavior and the design system for looks. One known conflict is listed in section 5.
@@ -64,15 +64,15 @@ If the design doc and the design system disagree, follow the design doc for beha
 
 ## 4. Open questions: status at hand-off
 
-**The owner has not confirmed any of these.** The clickable prototype picked the recommended option for each, so you can build on that default. Ask the owner before you build the part that depends on it.
+**Status after the owner's answers (2026-11-22):** all questions are answered. The prototype's defaults for 4 and 5 do not apply.
 
 | # | Question | Default the prototype uses | Status |
 | --- | --- | --- | --- |
-| A | Target folder: `app/pod-shape` or `apps/pod-shape`? | — | **Ask first. Blocks step 1** |
-| 1 | macOS only for V1? | macOS look (traffic-light title bar) | Not confirmed |
-| 3 | When `pd-shape` asks "Make this an ADR?" and the owner says yes, may the app let Claude commit, push and open a PR? | ADR step not shown | Not confirmed. Recommendation: yes, with git limited to `docs/adr/` + `gh pr create` |
-| 4 | Commit the prototype HTML to `prototypes/<slug>.html` on branch `prototype/<slug>` when generating issues, so issues can link to it? | A checkbox in the Create dialog, on by default | Not confirmed. Recommendation: yes, and show the command before pushing |
-| 5 | How does pd-bot mark an issue as "running"? | "Running" status kept | Not checked. Read the pb-bot repo. If there is no clear signal, drop "running" from V1 and tell the owner |
+| A | Target folder: `app/pod-shape` or `apps/pod-shape`? | — | **Answered:** `apps/pod-shape` |
+| 1 | macOS only for V1? | macOS look (traffic-light title bar) | **Answered:** yes, macOS only for V1 |
+| 3 | When `pd-shape` asks "Make this an ADR?" and the owner says yes, may the app let Claude commit, push and open a PR? | ADR step not shown | **Answered:** yes, with git limited to `docs/adr/` + `gh pr create` |
+| 4 | Commit the prototype HTML to `prototypes/<slug>.html` on branch `prototype/<slug>` when generating issues, so issues can link to it? | A checkbox in the Create dialog, on by default | **Answered:** no. Do not commit the prototype HTML; drop the checkbox |
+| 5 | How does pd-bot mark an issue as "running"? | "Running" status kept | **Answered:** pd-bot has no clear signal, so "running" is dropped from V1 |
 | 2 | React or Svelte? | React | Settled by the design system |
 | 6 | Separate repo? | — | Settled: code lives in pb-bot |
 
@@ -97,11 +97,11 @@ Each step is 1 small PR with a clear done point. Do not start step 1 until step 
 4. **Generate issues.** Run `pd-tickets`, show the review screen, create the issues, store the links. Done when real issues appear on GitHub and in the tree.
 5. **Tree + status.** The full tree, status from one GraphQL call per project, progress bars. Done when 2 projects with issues in different states show correctly.
 
-## 7. Design system v1.2, fonts and logo (must follow)
+## 7. Design system v1.3, fonts and logo (must follow)
 
 - Read `DESIGN_SYSTEM.md` fully before any UI work. Paste `CLAUDE.md.snippet.md` into the app's `CLAUDE.md`.
 - Use only its tokens, components (§6), layouts (§7) and icons (§8). **Do not invent** a color, size, spacing, radius, shadow, component or variant. No hex or arbitrary Tailwind values. If something is missing, stop and ask the owner first.
-- v1.2 rules: warm-tinted neutrals (not zinc); orange accent near 10% of a screen, one primary button per view; the branch line is the only signature detail (TreeView, PipelineSteps, EmptyState); banned patterns in §0.1 (no gradients, blur, glow, sparkles/wand icons, emoji, blobs, card inside card, centered hero). Icons only through `icons.ts`, never directly from `lucide-react`.
+- v1.3 rules: warm-tinted neutrals (not zinc); orange accent near 10% of a screen, one primary button per view; the branch line is the only signature detail (TreeView, PipelineSteps, EmptyState); banned patterns in §0.1 (no gradients, blur, glow, sparkles/wand icons, emoji, blobs, card inside card, centered hero). Icons only through `icons.ts`, never directly from `lucide-react`.
 - Status = color + icon + word. Dark and light themes. Run the §10 checklist before you call a UI change done.
 - **Fonts.** `npm i @fontsource/ibm-plex-sans @fontsource/jetbrains-mono` (both SIL Open Font License). IBM Plex Sans (UI, weights 400/500/600) and JetBrains Mono (code) are bundled so the app works offline. No CDN, no other font.
 - **UI copy is English only, in sentence case.**

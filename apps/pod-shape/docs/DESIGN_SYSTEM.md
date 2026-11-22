@@ -1,4 +1,4 @@
-# Shape Board — Design System v1.2
+# Shape Board — Design System v1.3
 
 This file is the contract for every UI change in the app.
 Coding agents (Claude Code) and people follow it the same way.
@@ -82,18 +82,17 @@ Neutrals have a small warm tint toward the logo orange (OKLCH hue about 50, very
 
 **Color budget (60-30-10):** about 60% of a screen is `bg`, about 30% is `surface-*` and text, and **10% or less** is accent. In practice:
 - At most **one** primary (accent-filled) button per view. Accent is for "the next step", not decoration.
-- The orange node means "you are here" (current step or selected item). Do not use it for anything else. "Running" is always `status-running` blue.
+- The orange node means "you are here" (current step or selected item). Do not use it for anything else.
 - Status colors appear only inside StatusBadge, status dots, StatusBar and status icons. Never as the background of a whole card, row or panel.
 - Test any palette change in Realtime Colors (realtimecolors.com): every text pair must pass AA (4.5:1).
 
 ### 1.3 Issue status
 
-The same five colors are used for issue badges, tree nodes and milestone progress.
+The same four colors are used for issue badges, tree nodes and milestone progress. V1 has no "running" issue status: pd-bot gives no clear signal for it (owner decision). The `status-running` token stays, and only RunLog uses it for a run that is in progress.
 
 | Status | Meaning | Token | Dark | Light | Icon (lucide) | Label |
 |---|---|---|---|---|---|---|
 | open | Created on GitHub, nobody working | `status-open` | #3FB97A | #1F8A55 | `circle-dot` | Open |
-| running | A Claude Code session is working on it | `status-running` | #5B9DF5 | #2163C8 | `loader` (spinning) | Running |
 | has PR | A pull request is linked and open | `status-pr` | #2FB8B0 | #0E7F79 | `git-pull-request` | Has PR |
 | merged | PR merged | `status-merged` | #A884F3 | #7044D0 | `git-merge` | Merged |
 | closed | Closed without merge | `status-closed` | #8B94A0 | #5F6874 | `circle-slash` | Closed |
@@ -170,7 +169,7 @@ Common uses:
 ## 6. Components (the full list)
 
 Location: `src/components/ui/` (shadcn primitives) and `src/components/app/` (app parts).
-**This is the complete list for v1.1.** Nothing else may be created without the user's yes.
+**This is the complete list for v1.3.** Nothing else may be created without the user's yes.
 
 Shared states for every interactive component:
 
@@ -215,9 +214,10 @@ Shared states for every interactive component:
 | **Sidebar / SidebarItem** | Project (repo) list on the left, 240px | Section label text-xs uppercase fg-subtle. Item h-8 rounded-md px-2 gap-2: icon 16 + name (truncate) + count `text-sm text-fg-subtle tabular-nums`. Selected = §6 selected state. Bottom: "Add project" ghost button. |
 | **PageHeader** | Title + meta + actions at the top of main | text-xl title, text-sm fg-muted meta line, actions right (max 1 primary + 2 secondary). Optional Tabs below. |
 | **EmptyState** | Nothing yet | Left-aligned block at the top-left of the area: `BranchPattern` (§6.4) on the right side, icon 24 fg-subtle, text-lg title, one line text-base fg-muted, one Button. |
-| **StatusBadge** | Issue status pill | `status` prop: open · running · pr · merged · closed. h-5 px-1.5 rounded-sm text-sm font-500, bg `-soft`, text = status color, icon 12px + label (§1.3). `running` icon spins. `compact` prop = 8px dot + label only (for tree rows). |
+| **AddProjectDialog** | The "Add project" dialog | Dialog `md`, title "Add project". Fields: "GitHub repo" Input (`owner/name`) and "Local folder" Input (font-mono) with a "Choose…" secondary button for the native folder picker. Footer: "Cancel" ghost + "Check and add" primary (icon `add`). On submit it runs the `gh`, `claude` and folder checks and shows them as RunLog rows; a field error is helper text under that field (§6 error state). |
+| **StatusBadge** | Issue status pill | `status` prop: open · pr · merged · closed. h-5 px-1.5 rounded-sm text-sm font-500, bg `-soft`, text = status color, icon 12px + label (§1.3). `compact` prop = 8px dot + label only (for tree rows). |
 | **ArtifactCard** | One artifact (prototype, doc) of a project | Card. Row 1: file-type icon + name (text-md) + updated time (fg-subtle). Row 2: one-line summary (fg-muted, clamp 2). Row 3: pipeline chips — "Grilled ✓", "3 features", "2 milestones", "14 issues" — as `Badge neutral`, plus a mini StatusBar. Action: "Open grill" ghost button. |
-| **StatusBar** | Thin progress bar of issues by status | h-1.5 rounded-full, segments in status colors, order: merged · pr · running · open · closed. Tooltip shows counts. |
+| **StatusBar** | Thin progress bar of issues by status | h-1.5 rounded-full, segments in status colors, order: merged · pr · open · closed. Tooltip shows counts. |
 | **ChatMessage** | One message in the grill chat | `role`: `claude` (no bubble, full width, 24px avatar: surface-3 circle with an fg-muted dot, text-md) · `user` (bubble bg-surface-2 border rounded-lg, max-w 80%, right aligned). Code in font-mono bg-surface-3 rounded-md. |
 | **SuggestedAnswers** | Chips under a Claude question | Up to 4 chips + "Write my own". Chip: h-7 px-3 rounded-md bg-accent-soft text-accent-text text-base; hover border-accent. Click = fills Composer (does not send). Keys 1–4 select. |
 | **Composer** | Message input at the bottom of grill | Textarea + Send button (primary, icon `arrow-up`). Enter = send, Shift+Enter = new line. Shows "Claude is thinking…" with running dot while waiting. |
@@ -325,6 +325,7 @@ The **orange node** (8px circle, `accent`) marks the single "you are here" item 
 Only when the user asks. Steps: update `tokens.css` and/or the component → update this file (tables above) → bump the version at the top → note it in the changelog below.
 
 ### Changelog
+- **v1.3** — No "running" issue status in V1 (owner decision): removed from §1.3, StatusBadge and StatusBar. New app part AddProjectDialog (§6.2), approved by the owner. The global `:focus-visible` rule in `tokens.css` moves into `@layer base`, so a component's `focus-visible:` utility can override it.
 - **v1.2** — UI font is IBM Plex Sans (chosen by the user after a side-by-side test). Switzer dropped: not loadable in previews and licence not verified. UI copy is English only.
 - **v1.1** — anti-slop update: Switzer replaces Inter; warm-tinted neutrals; `--branch` token and the branch-line signature (§6.4); banned patterns (§0.1); 60-30-10 color budget; `icons.ts` icon map with fixed size/stroke pairs; new PipelineSteps and RunLog; EmptyState left-aligned with BranchPattern.
 - **v1.0** — first version: colors aligned with the Shape Board logo; tokens, 17 primitives, 16 app parts, 5 screens.
