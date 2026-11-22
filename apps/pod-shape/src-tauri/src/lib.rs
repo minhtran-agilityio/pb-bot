@@ -33,31 +33,41 @@ async fn run_check(kind: String, repo: String, path: String) -> Result<CheckResu
     .map_err(err)?
 }
 
+/// `owner/name` for any accepted input form (`owner/name`, `github.com/o/n`, `https://github.com/o/n.git`).
+#[tauri::command]
+fn normalize_repo(input: String) -> Result<String, String> {
+    checks::normalize_repo(&input).ok_or_else(|| checks::REPO_FORMAT_ERROR.to_string())
+}
+
 /// Saves a project after the dialog's checks passed. The folder check runs again here,
-/// so the database never holds a folder that does not match its repo.
+/// so the database never holds a folder that does not match its repo. The repo is stored in
+/// the case of the folder's origin remote, not the case the owner typed.
 #[tauri::command]
 async fn add_project(db: tauri::State<'_, Db>, repo: String, path: String) -> Result<Project, String> {
-    let repo = checks::normalize_repo(&repo).ok_or("Type the GitHub repo as owner/name.")?;
-    let (r, p) = (repo.clone(), path.clone());
+    let typed = checks::normalize_repo(&repo).ok_or(checks::REPO_FORMAT_ERROR)?;
+    let dir = checks::resolve_folder(&path)?;
+    let (r, p) = (typed, path.clone());
     let folder = tauri::async_runtime::spawn_blocking(move || checks::check_folder(&r, &p))
         .await
         .map_err(err)?;
     if !folder.ok {
         return Err(folder.detail);
     }
-    let abs = checks::expand_home(&path);
-    let abs = abs.canonicalize().unwrap_or(abs).to_string_lossy().into_owned();
+    // On success `detail` is the origin's owner/name.
+    let repo = folder.detail;
+    let abs = dir.canonicalize().unwrap_or(dir).to_string_lossy().into_owned();
     let name = repo.rsplit('/').next().unwrap_or(&repo).to_string();
     let conn = db.0.lock().map_err(err)?;
-    if let Some(existing) = db::find_by_repo(&conn, &repo).map_err(err)? {
-        return Err(format!("{} is already a project.", existing.repo));
+    if db::find_by_repo(&conn, &repo).map_err(err)?.is_some() {
+        return Err("This repo is already added.".to_string());
     }
     db::insert_project(&conn, &repo, &name, &abs).map_err(err)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    checks::fix_path_for_gui_app();
+    // Looks up the shell PATH on a background thread; the checks wait for it, the window does not.
+    checks::start_path_fix();
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
@@ -68,7 +78,7 @@ pub fn run() {
             app.manage(Db(Mutex::new(conn)));
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![list_projects, run_check, add_project])
+        .invoke_handler(tauri::generate_handler![list_projects, run_check, add_project, normalize_repo])
         .run(tauri::generate_context!())
         .expect("error while running Shape Board");
 }

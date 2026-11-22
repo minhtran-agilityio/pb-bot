@@ -69,7 +69,7 @@ export default function App() {
           </main>
         </div>
       </div>
-      <AddProjectDialog open={adding} onOpenChange={setAdding} onAdded={added} />
+      <AddProjectDialog open={adding} onOpenChange={setAdding} onAdded={added} projects={projects ?? []} />
       <Toaster />
     </TooltipProvider>
   );

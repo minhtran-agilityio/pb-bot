@@ -3,9 +3,24 @@
 //! must point at the GitHub repo the owner typed).
 
 use serde::Serialize;
+use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::time::Instant;
+use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{mpsc, Condvar, Mutex, OnceLock};
+use std::time::{Duration, Instant};
+
+/// Shown wherever the repo input is not `owner/name` (or a form that holds one).
+pub const REPO_FORMAT_ERROR: &str = "Use the form owner/name, for example acme/shop-web.";
+/// Shown when the folder is not a full path.
+pub const FULL_PATH_ERROR: &str = "Use a full path, for example ~/code/shop-web.";
+
+const PATH_BEGIN: &str = "__SHAPEBOARD_PATH_BEGIN__";
+const PATH_END: &str = "__SHAPEBOARD_PATH_END__";
+/// How long app start waits for the owner's shell to print its PATH.
+const SHELL_PATH_TIMEOUT: Duration = Duration::from_secs(3);
+/// How long `ssh -G <alias>` may take. It reads config only and does not touch the network.
+const SSH_G_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -16,16 +31,65 @@ pub struct CheckResult {
     pub ms: u128,
 }
 
-/// An app started from Finder gets a short PATH (/usr/bin:/bin:...), so `gh` and `claude`
-/// are not found. Take the PATH of the owner's login shell once at start, plus the usual
-/// install folders.
-pub fn fix_path_for_gui_app() {
+/// Runs `cmd` with no stdin and no stderr, and returns its stdout. When the command does not
+/// finish within `timeout`, it is killed and `None` is returned. The exit status is ignored:
+/// the caller parses the output (an interactive shell may exit non-zero after it printed).
+fn stdout_with_timeout(mut cmd: Command, timeout: Duration) -> Option<String> {
+    cmd.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null());
+    let mut child = cmd.spawn().ok()?;
+    let mut stdout = child.stdout.take()?;
+    let (tx, rx) = mpsc::channel();
+    // The reader thread ends when the pipe closes; after a kill that happens at once.
+    std::thread::spawn(move || {
+        let mut buf = Vec::new();
+        let _ = stdout.read_to_end(&mut buf);
+        let _ = tx.send(buf);
+    });
+    match rx.recv_timeout(timeout) {
+        Ok(buf) => {
+            let _ = child.wait();
+            Some(String::from_utf8_lossy(&buf).into_owned())
+        }
+        Err(_) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            None
+        }
+    }
+}
+
+/// The text between the last begin marker and the next end marker. An interactive shell may
+/// print noise before and after (motd, plugin banners, escape codes).
+fn between_markers(out: &str) -> Option<&str> {
+    let start = out.rfind(PATH_BEGIN)? + PATH_BEGIN.len();
+    let end = out[start..].find(PATH_END)? + start;
+    Some(&out[start..end])
+}
+
+/// The PATH of the owner's interactive login shell, so nvm, volta and asdf (set in `.zshrc`)
+/// count. `None` when the shell fails or does not answer within the timeout.
+fn shell_path(shell: &str, timeout: Duration) -> Option<String> {
+    let script = format!("printf '%s%s%s' '{PATH_BEGIN}' \"$PATH\" '{PATH_END}'");
+    let mut cmd = Command::new(shell);
+    cmd.args(["-ilc", &script]);
+    let out = stdout_with_timeout(cmd, timeout)?;
+    between_markers(&out).map(str::to_string).filter(|p| !p.is_empty())
+}
+
+/// The PATH the checks give to the programs they start (`gh`, `claude`, `git`, `ssh`).
+static GUI_PATH: OnceLock<String> = OnceLock::new();
+/// Becomes true when the PATH lookup finished.
+static PATH_READY: (Mutex<bool>, Condvar) = (Mutex::new(false), Condvar::new());
+static PATH_STARTED: AtomicBool = AtomicBool::new(false);
+
+/// The PATH for an app started from Finder, which only gets a short one (/usr/bin:/bin:...):
+/// the PATH of the owner's interactive login shell (at most `SHELL_PATH_TIMEOUT`), plus the
+/// usual install folders, plus the current PATH.
+fn compute_gui_path() -> String {
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
     let mut parts: Vec<String> = Vec::new();
-    if let Ok(out) = Command::new(&shell).args(["-l", "-c", "printf %s \"$PATH\""]).output() {
-        if out.status.success() {
-            parts.extend(String::from_utf8_lossy(&out.stdout).split(':').map(String::from));
-        }
+    if let Some(path) = shell_path(&shell, SHELL_PATH_TIMEOUT) {
+        parts.extend(path.split(':').map(String::from));
     }
     if let Some(home) = std::env::var_os("HOME") {
         let home = PathBuf::from(home);
@@ -39,7 +103,45 @@ pub fn fix_path_for_gui_app() {
     }
     let mut seen = std::collections::HashSet::new();
     parts.retain(|p| !p.is_empty() && seen.insert(p.clone()));
-    std::env::set_var("PATH", parts.join(":"));
+    parts.join(":")
+}
+
+/// Starts the PATH lookup on a background thread, so the window opens at once. Every program
+/// the checks start waits for it (`command`), for at most the lookup's own timeout.
+/// The result is passed to each child as `PATH`; the app's own environment is not changed.
+pub fn start_path_fix() {
+    PATH_STARTED.store(true, Ordering::SeqCst);
+    std::thread::spawn(|| {
+        let _ = GUI_PATH.set(compute_gui_path());
+        mark_ready(&PATH_READY);
+    });
+}
+
+fn mark_ready(state: &(Mutex<bool>, Condvar)) {
+    *state.0.lock().unwrap_or_else(|e| e.into_inner()) = true;
+    state.1.notify_all();
+}
+
+/// Waits until `state` is ready, at most `timeout`. Returns whether it is ready.
+fn wait_ready(state: &(Mutex<bool>, Condvar), timeout: Duration) -> bool {
+    let guard = state.0.lock().unwrap_or_else(|e| e.into_inner());
+    match state.1.wait_timeout_while(guard, timeout, |ready| !*ready) {
+        Ok((ready, _)) => *ready,
+        Err(e) => *e.into_inner().0,
+    }
+}
+
+/// A `Command` with the shell's PATH. Waits for the lookup if it is still running; when it
+/// does not finish in time, the child gets the app's own PATH.
+fn command(program: &str) -> Command {
+    if PATH_STARTED.load(Ordering::SeqCst) {
+        wait_ready(&PATH_READY, SHELL_PATH_TIMEOUT + Duration::from_secs(1));
+    }
+    let mut cmd = Command::new(program);
+    if let Some(path) = GUI_PATH.get() {
+        cmd.env("PATH", path);
+    }
+    cmd
 }
 
 /// `~/code/x` -> `/Users/me/code/x`. Other paths are returned unchanged.
@@ -53,13 +155,20 @@ pub fn expand_home(path: &str) -> PathBuf {
     PathBuf::from(path)
 }
 
-/// Accepts `owner/name`, with an optional `https://github.com/` prefix or `.git` suffix.
-pub fn normalize_repo(input: &str) -> Option<String> {
-    let s = input.trim().trim_end_matches('/');
-    let s = s
-        .strip_prefix("https://github.com/")
-        .or_else(|| s.strip_prefix("github.com/"))
-        .unwrap_or(s);
+/// Expands `~`, then requires a full path. A relative path would resolve against the app's
+/// working folder, which is never what the owner meant.
+pub fn resolve_folder(path: &str) -> Result<PathBuf, String> {
+    let p = expand_home(path);
+    if p.is_absolute() {
+        Ok(p)
+    } else {
+        Err(FULL_PATH_ERROR.to_string())
+    }
+}
+
+/// `owner/name` with an optional `.git` suffix; each part is letters, digits, `-`, `_` or `.`.
+fn owner_name(s: &str) -> Option<String> {
+    let s = s.trim().trim_end_matches('/');
     let s = s.strip_suffix(".git").unwrap_or(s);
     let mut it = s.split('/');
     let (owner, name) = (it.next()?, it.next()?);
@@ -70,19 +179,107 @@ pub fn normalize_repo(input: &str) -> Option<String> {
     Some(format!("{owner}/{name}"))
 }
 
-/// `git@github.com:o/n.git`, `https://github.com/o/n`, `ssh://git@github.com/o/n.git` -> `o/n`.
-pub fn repo_from_remote(url: &str) -> Option<String> {
+/// Accepts `owner/name`, with an optional `https://github.com/` (or `www.`) prefix or `.git` suffix.
+pub fn normalize_repo(input: &str) -> Option<String> {
+    let s = input.trim();
+    let s = ["https://www.github.com/", "https://github.com/", "http://github.com/", "github.com/"]
+        .iter()
+        .find_map(|p| s.strip_prefix(p))
+        .unwrap_or(s);
+    owner_name(s)
+}
+
+/// A git remote URL split into its host and repo path.
+#[derive(Debug, PartialEq)]
+struct Remote {
+    host: String,
+    path: String,
+    /// True for `git@host:o/n` and `ssh://...`: the host may be an alias from `~/.ssh/config`.
+    ssh: bool,
+}
+
+fn parse_remote(url: &str) -> Option<Remote> {
     let url = url.trim();
-    let rest = url
-        .strip_prefix("git@github.com:")
-        .or_else(|| url.strip_prefix("ssh://git@github.com/"))
-        .or_else(|| url.strip_prefix("https://github.com/"))
-        .or_else(|| url.strip_prefix("http://github.com/"))?;
-    normalize_repo(rest)
+    let (host, path, ssh) = if let Some((scheme, rest)) = url.split_once("://") {
+        let ssh = match scheme.to_ascii_lowercase().as_str() {
+            "ssh" | "git+ssh" | "ssh+git" => true,
+            "https" | "http" | "git" => false,
+            _ => return None,
+        };
+        let (auth, path) = rest.split_once('/')?;
+        // Drop `user:password@` and `:port`.
+        let host_port = auth.rsplit_once('@').map_or(auth, |(_, h)| h);
+        let host = match host_port.rsplit_once(':') {
+            Some((h, port)) if !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()) => h,
+            Some(_) => return None,
+            None => host_port,
+        };
+        (host, path, ssh)
+    } else {
+        // scp-like: `[user@]host:path`
+        let (auth, path) = url.split_once(':')?;
+        (auth.rsplit_once('@').map_or(auth, |(_, h)| h), path, true)
+    };
+    if host.is_empty() || host.contains('/') {
+        return None;
+    }
+    Some(Remote { host: host.to_ascii_lowercase(), path: path.trim_start_matches('/').to_string(), ssh })
+}
+
+fn is_github_host(h: &str) -> bool {
+    h == "github.com" || h == "www.github.com"
+}
+
+/// The `hostname` value in the output of `ssh -G <alias>`.
+fn hostname_from_ssh_g(out: &str) -> Option<String> {
+    out.lines()
+        .find_map(|l| l.strip_prefix("hostname "))
+        .map(|h| h.trim().to_ascii_lowercase())
+        .filter(|h| !h.is_empty())
+}
+
+/// Resolves an SSH host alias (`Host github-work` in `~/.ssh/config`) to its real host name.
+fn ssh_resolve_host(alias: &str) -> Option<String> {
+    let safe = alias.chars().all(|c| c.is_ascii_alphanumeric() || "._-".contains(c));
+    if alias.is_empty() || alias.starts_with('-') || !safe {
+        return None;
+    }
+    let mut cmd = command("ssh");
+    cmd.args(["-G", alias]);
+    hostname_from_ssh_g(&stdout_with_timeout(cmd, SSH_G_TIMEOUT)?)
+}
+
+/// Like `repo_from_remote`, with the SSH alias lookup passed in so tests need no `ssh`.
+fn repo_from_remote_with(url: &str, resolve: impl Fn(&str) -> Option<String>) -> Option<String> {
+    let r = parse_remote(url)?;
+    let github = is_github_host(&r.host)
+        || (r.ssh && resolve(&r.host).is_some_and(|h| is_github_host(&h) || h == "ssh.github.com"));
+    if !github {
+        return None;
+    }
+    owner_name(&r.path)
+}
+
+/// `git@github.com:o/n.git`, `https://github.com/o/n`, `https://user:token@github.com/o/n`,
+/// `ssh://git@github.com:22/o/n.git`, `git@github-work:o/n.git` (alias) -> `o/n`.
+pub fn repo_from_remote(url: &str) -> Option<String> {
+    repo_from_remote_with(url, ssh_resolve_host)
+}
+
+/// The URL without `user:password@`, safe to show in an error message.
+fn redact_url(url: &str) -> String {
+    let url = url.trim();
+    if let Some((scheme, rest)) = url.split_once("://") {
+        let auth_end = rest.find('/').unwrap_or(rest.len());
+        if let Some(at) = rest[..auth_end].rfind('@') {
+            return format!("{scheme}://{}", &rest[at + 1..]);
+        }
+    }
+    url.to_string()
 }
 
 fn run(program: &str, args: &[&str]) -> Result<String, String> {
-    match Command::new(program).args(args).output() {
+    match command(program).args(args).output() {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             Err(format!("{program} is not installed or not on PATH."))
         }
@@ -129,18 +326,18 @@ pub fn check_claude() -> CheckResult {
 }
 
 pub fn check_folder(repo: &str, path: &str) -> CheckResult {
-    timed(|| check_folder_inner(repo, &expand_home(path)))
+    timed(|| check_folder_inner(repo, &resolve_folder(path)?))
 }
 
 fn check_folder_inner(repo: &str, dir: &Path) -> Result<String, String> {
-    let want = normalize_repo(repo).ok_or("Type the GitHub repo as owner/name.")?;
+    let want = normalize_repo(repo).ok_or(REPO_FORMAT_ERROR)?;
     if !dir.is_dir() {
         return Err(format!("Folder not found: {}", dir.display()));
     }
     let dir_s = dir.to_string_lossy();
     let url = run("git", &["-C", &dir_s, "remote", "get-url", "origin"])
         .map_err(|_| "This folder is not a git repo with an origin remote.".to_string())?;
-    let got = repo_from_remote(&url).ok_or_else(|| format!("origin is not a GitHub repo: {url}"))?;
+    let got = repo_from_remote(&url).ok_or_else(|| format!("origin is not a GitHub repo: {}", redact_url(&url)))?;
     if !got.eq_ignore_ascii_case(&want) {
         return Err(format!("origin points to {got}, not {want}."));
     }
@@ -155,17 +352,176 @@ mod tests {
     fn repo_input_forms() {
         assert_eq!(normalize_repo("a/b").as_deref(), Some("a/b"));
         assert_eq!(normalize_repo(" https://github.com/a-1/b.c.git/ ").as_deref(), Some("a-1/b.c"));
+        assert_eq!(normalize_repo("github.com/a/b").as_deref(), Some("a/b"));
+        assert_eq!(normalize_repo("https://github.com/a/b.git").as_deref(), Some("a/b"));
+        assert_eq!(normalize_repo("https://www.github.com/a/b").as_deref(), Some("a/b"));
         assert_eq!(normalize_repo("a"), None);
         assert_eq!(normalize_repo("a/b/c"), None);
         assert_eq!(normalize_repo("a b/c"), None);
+        assert_eq!(normalize_repo("https://gitlab.com/a/b"), None);
+        assert_eq!(normalize_repo(""), None);
+    }
+
+    /// Resolver for tests: `work` is an alias of github.com, `other` of gitlab.com.
+    fn fake_resolve(alias: &str) -> Option<String> {
+        match alias {
+            "github-work" => Some("github.com".into()),
+            "gh-443" => Some("ssh.github.com".into()),
+            "gl" => Some("gitlab.com".into()),
+            _ => None,
+        }
+    }
+
+    fn repo(url: &str) -> Option<String> {
+        repo_from_remote_with(url, fake_resolve)
     }
 
     #[test]
     fn remote_url_forms() {
-        assert_eq!(repo_from_remote("git@github.com:o/n.git").as_deref(), Some("o/n"));
-        assert_eq!(repo_from_remote("https://github.com/o/n").as_deref(), Some("o/n"));
-        assert_eq!(repo_from_remote("ssh://git@github.com/o/n.git").as_deref(), Some("o/n"));
-        assert_eq!(repo_from_remote("https://gitlab.com/o/n"), None);
+        assert_eq!(repo("git@github.com:o/n.git").as_deref(), Some("o/n"));
+        assert_eq!(repo("git@github.com:o/n").as_deref(), Some("o/n"));
+        assert_eq!(repo("https://github.com/o/n").as_deref(), Some("o/n"));
+        assert_eq!(repo("https://github.com/o/n.git").as_deref(), Some("o/n"));
+        assert_eq!(repo("http://github.com/o/n").as_deref(), Some("o/n"));
+        assert_eq!(repo("ssh://git@github.com/o/n.git").as_deref(), Some("o/n"));
+        assert_eq!(repo("https://www.github.com/o/n").as_deref(), Some("o/n"));
+        assert_eq!(repo("  git@github.com:o/n.git\n").as_deref(), Some("o/n"));
+    }
+
+    #[test]
+    fn remote_url_with_user_part() {
+        assert_eq!(repo("https://user@github.com/o/n").as_deref(), Some("o/n"));
+        assert_eq!(repo("https://x-access-token:ghp_TOKEN@github.com/o/n.git").as_deref(), Some("o/n"));
+    }
+
+    #[test]
+    fn remote_url_with_port() {
+        assert_eq!(repo("ssh://git@github.com:22/o/n").as_deref(), Some("o/n"));
+        assert_eq!(repo("ssh://git@github.com:22/o/n.git").as_deref(), Some("o/n"));
+        assert_eq!(repo("ssh://git@github.com:o/n"), None, "a non-numeric port is not a port");
+    }
+
+    #[test]
+    fn remote_url_with_ssh_alias() {
+        assert_eq!(repo("git@github-work:o/n.git").as_deref(), Some("o/n"));
+        assert_eq!(repo("ssh://git@github-work/o/n.git").as_deref(), Some("o/n"));
+        assert_eq!(repo("git@gh-443:o/n.git").as_deref(), Some("o/n"));
+    }
+
+    #[test]
+    fn remote_url_rejects() {
+        assert_eq!(repo("https://gitlab.com/o/n"), None);
+        assert_eq!(repo("git@gitlab.com:o/n.git"), None);
+        assert_eq!(repo("git@gl:o/n.git"), None, "alias that resolves to another host");
+        assert_eq!(repo("git@unknown-alias:o/n.git"), None, "alias that does not resolve");
+        assert_eq!(repo("https://github-work/o/n"), None, "no alias lookup for https");
+        assert_eq!(repo("https://github.com.evil.com/o/n"), None);
+        assert_eq!(repo("https://evil.com/github.com/o/n"), None);
+        assert_eq!(repo("https://github.com/o"), None);
+        assert_eq!(repo("https://github.com/o/n/extra"), None);
+        assert_eq!(repo("ftp://github.com/o/n"), None);
+        assert_eq!(repo("/srv/git/n.git"), None);
+        assert_eq!(repo(""), None);
+    }
+
+    #[test]
+    fn ssh_g_output_gives_the_hostname() {
+        let out = "user git\nhostname github.com\nport 22\n";
+        assert_eq!(hostname_from_ssh_g(out).as_deref(), Some("github.com"));
+        assert_eq!(hostname_from_ssh_g("hostname GitHub.com\n").as_deref(), Some("github.com"));
+        assert_eq!(hostname_from_ssh_g("user git\n"), None);
+        assert_eq!(ssh_resolve_host("-oProxyCommand=evil"), None, "no option injection");
+        assert_eq!(ssh_resolve_host("a b"), None);
+        assert_eq!(ssh_resolve_host(""), None);
+    }
+
+    #[test]
+    fn origin_url_is_redacted_for_messages() {
+        assert_eq!(
+            redact_url("https://x-access-token:ghp_SECRET@gitlab.com/o/n.git"),
+            "https://gitlab.com/o/n.git"
+        );
+        assert_eq!(redact_url("https://user@gitlab.com/o/n"), "https://gitlab.com/o/n");
+        assert_eq!(redact_url("https://gitlab.com/o/n"), "https://gitlab.com/o/n");
+        assert_eq!(redact_url("git@gitlab.com:o/n.git"), "git@gitlab.com:o/n.git");
+        assert_eq!(redact_url("https://gitlab.com/o@n"), "https://gitlab.com/o@n", "@ in the path stays");
+    }
+
+    #[test]
+    fn marked_path_ignores_shell_noise() {
+        let out = format!("Welcome!\n\x1b[0m{PATH_BEGIN}/a:/b{PATH_END}\nbye\n");
+        assert_eq!(between_markers(&out), Some("/a:/b"));
+        assert_eq!(between_markers("no markers"), None);
+        assert_eq!(between_markers(&format!("{PATH_BEGIN}unterminated")), None);
+        // An echoed command line holds the markers too; the last begin marker wins.
+        let echoed = format!("printf '{PATH_BEGIN}' x\n{PATH_BEGIN}/real{PATH_END}");
+        assert_eq!(between_markers(&echoed), Some("/real"));
+    }
+
+    #[test]
+    fn a_slow_command_is_killed_at_the_timeout() {
+        let start = Instant::now();
+        let mut cmd = Command::new("sleep");
+        cmd.arg("5");
+        assert_eq!(stdout_with_timeout(cmd, Duration::from_millis(300)), None);
+        assert!(start.elapsed() < Duration::from_secs(3));
+        let mut cmd = Command::new("printf");
+        cmd.arg("hi");
+        assert_eq!(stdout_with_timeout(cmd, Duration::from_secs(3)).as_deref(), Some("hi"));
+        assert_eq!(stdout_with_timeout(Command::new("/no/such/program"), Duration::from_secs(1)), None);
+    }
+
+    #[test]
+    fn the_shell_path_comes_through_markers_and_a_hanging_shell_falls_back() {
+        let dir = tempfile::tempdir().unwrap();
+        let noisy = dir.path().join("noisy-shell");
+        // Stands in for an interactive shell: prints noise, then runs the script it was given.
+        std::fs::write(&noisy, "#!/bin/sh\necho 'banner from .zshrc'\nPATH=/x:/y eval \"$2\"\necho trailing\n").unwrap();
+        let hang = dir.path().join("hang-shell");
+        std::fs::write(&hang, "#!/bin/sh\nsleep 5\n").unwrap();
+        for f in [&noisy, &hang] {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(f, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        assert_eq!(shell_path(noisy.to_str().unwrap(), Duration::from_secs(3)).as_deref(), Some("/x:/y"));
+        let start = Instant::now();
+        assert_eq!(shell_path(hang.to_str().unwrap(), Duration::from_millis(300)), None);
+        assert!(start.elapsed() < Duration::from_secs(3));
+    }
+
+    #[test]
+    fn waiting_for_the_path_lookup_is_bounded() {
+        let never = (Mutex::new(false), Condvar::new());
+        let start = Instant::now();
+        assert!(!wait_ready(&never, Duration::from_millis(200)));
+        assert!(start.elapsed() < Duration::from_secs(2));
+        // A lookup that finishes while a check waits releases it early.
+        let state = std::sync::Arc::new((Mutex::new(false), Condvar::new()));
+        let s2 = state.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(100));
+            mark_ready(&s2);
+        });
+        let start = Instant::now();
+        assert!(wait_ready(&state, Duration::from_secs(5)));
+        assert!(start.elapsed() < Duration::from_secs(2));
+        // Already ready: no wait at all.
+        assert!(wait_ready(&state, Duration::from_secs(5)));
+    }
+
+    #[test]
+    fn folder_must_be_a_full_path() {
+        assert_eq!(resolve_folder("code/shop-web").unwrap_err(), FULL_PATH_ERROR);
+        assert_eq!(resolve_folder("./shop-web").unwrap_err(), FULL_PATH_ERROR);
+        assert_eq!(resolve_folder("").unwrap_err(), FULL_PATH_ERROR);
+        assert_eq!(resolve_folder("~other/x").unwrap_err(), FULL_PATH_ERROR);
+        assert_eq!(resolve_folder("/tmp/x").unwrap(), PathBuf::from("/tmp/x"));
+        let home = std::env::var("HOME").unwrap();
+        assert_eq!(resolve_folder("~/code/x").unwrap(), PathBuf::from(home).join("code/x"));
+        // The check reports the same text.
+        let r = check_folder("o/n", "code/shop-web");
+        assert!(!r.ok);
+        assert_eq!(r.detail, FULL_PATH_ERROR);
     }
 
     #[test]
@@ -178,5 +534,18 @@ mod tests {
         assert_eq!(check_folder_inner("O/N", dir.path()).unwrap(), "o/n");
         assert!(check_folder_inner("o/other", dir.path()).unwrap_err().contains("points to o/n"));
         assert!(check_folder_inner("o/n", &dir.path().join("missing")).is_err());
+        assert_eq!(check_folder_inner("nope", dir.path()).unwrap_err(), REPO_FORMAT_ERROR);
+    }
+
+    #[test]
+    fn folder_check_never_prints_a_token() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().to_string_lossy().to_string();
+        run("git", &["-C", &p, "init", "-q"]).unwrap();
+        let url = "https://x-access-token:ghp_SECRET@gitlab.com/o/n.git";
+        run("git", &["-C", &p, "remote", "add", "origin", url]).unwrap();
+        let e = check_folder_inner("o/n", dir.path()).unwrap_err();
+        assert!(e.contains("gitlab.com/o/n.git"), "{e}");
+        assert!(!e.contains("ghp_SECRET") && !e.contains("x-access-token"), "{e}");
     }
 }

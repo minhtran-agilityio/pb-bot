@@ -23,25 +23,8 @@ export function ProjectsScreen({
   onOpen: (p: Project) => void;
   onAdd: () => void;
 }) {
-  if (projects.length === 0) {
-    return (
-      <div className="flex flex-col gap-8">
-        <PageHeader title="Projects" meta="0 repos" />
-        <EmptyState
-          icon="project"
-          title="No projects yet"
-          text="Add a GitHub repo and its local folder to start."
-          action={
-            <Button variant="primary" icon="add" onClick={onAdd}>
-              Add project
-            </Button>
-          }
-        />
-      </div>
-    );
-  }
   return (
-    <div className="flex flex-col gap-6">
+    <div className={projects.length === 0 ? "flex flex-col gap-5" : "flex flex-col gap-6"}>
       <PageHeader
         title="Projects"
         meta={`${count(projects.length, "repo")} · ${count(0, "issue")}`}
@@ -51,6 +34,18 @@ export function ProjectsScreen({
           </Button>
         }
       />
+      {projects.length === 0 ? (
+        <EmptyState
+          icon="project"
+          title="No projects yet"
+          text="Add a GitHub repo and the folder where it is cloned on this Mac."
+          action={
+            <Button variant="secondary" icon="add" onClick={onAdd}>
+              Add project
+            </Button>
+          }
+        />
+      ) : (
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
         {projects.map((p) => (
           <button key={p.id} type="button" className={`${clickableCard} flex flex-col gap-3`} onClick={() => onOpen(p)}>
@@ -71,6 +66,7 @@ export function ProjectsScreen({
           </button>
         ))}
       </div>
+      )}
     </div>
   );
 }

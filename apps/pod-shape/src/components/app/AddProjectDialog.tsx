@@ -8,7 +8,7 @@ import { api, type CheckKind, type CheckResult, type Project } from "../../lib/a
 
 // Add project (prototype screen): repo + local folder, then three checks before the project is saved:
 // gh is signed in, claude is installed, and the folder's origin is that GitHub repo.
-const REPO_RE = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+const REPO_HINT = "Use the form owner/name, for example acme/shop-web.";
 const KINDS: CheckKind[] = ["gh", "claude", "folder"];
 
 type Row = { state: RunState; result?: CheckResult };
@@ -23,10 +23,12 @@ export function AddProjectDialog({
   open,
   onOpenChange,
   onAdded,
+  projects,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAdded: (p: Project) => void;
+  projects: Project[];
 }) {
   const [repo, setRepo] = useState("");
   const [path, setPath] = useState("");
@@ -61,10 +63,21 @@ export function AddProjectDialog({
   }
 
   async function submit() {
-    const r = repo.trim().replace(/^https:\/\/github\.com\//, "").replace(/\.git$/, "").replace(/\/$/, "");
+    const input = repo.trim();
     const p = path.trim();
-    const rErr = REPO_RE.test(r) ? null : "Type the GitHub repo as owner/name.";
-    const pErr = p ? null : "Choose the folder of your local checkout.";
+    let r = "";
+    let rErr: string | null = null;
+    if (!input) {
+      rErr = REPO_HINT;
+    } else {
+      try {
+        r = await api.normalizeRepo(input);
+        if (projects.some((x) => x.repo.toLowerCase() === r.toLowerCase())) rErr = "This repo is already added.";
+      } catch (e) {
+        rErr = typeof e === "string" && e ? e : REPO_HINT;
+      }
+    }
+    const pErr = p ? null : "Pick the folder where this repo is cloned.";
     setRepoError(rErr);
     setPathError(pErr);
     setSaveError(null);
