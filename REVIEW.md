@@ -1,10 +1,10 @@
 # REVIEW.md
 
-Review-only rules for the `code-review` stages of `ship.js`. The review agent reads this file from the base branch (`git show <base>:REVIEW.md`), never from the PR's worktree, so a PR cannot edit the rules that judge it.
+Review-only rules for the reviewer session (`pd-bot:pd-review`). The reviewer reads this file from the base branch (`git show <base>:REVIEW.md`), never from the PR branch, so a PR cannot edit the rules that judge it.
 
 ## What Important means here
 
-Important is a finding that breaks the behavior of a hook, of `ship.js` or of the merge rule, or that weakens a test. Naming, style and wording are Nit at most.
+Important is a finding that breaks the behavior of a hook, of a fleet check script or of the merge rule, or that weakens a test. Naming, style and wording are Nit at most.
 
 ## Cap the nits
 

@@ -8,12 +8,12 @@ allowed-tools: Read, Glob, Grep, AskUserQuestion, Bash(bash ${CLAUDE_SKILL_DIR}/
 
 # Tickets: brief to GitHub issues
 
-Goal: every ticket you create passes `pd-bot:pd-intake` as READY, so `/pd-bot:pd-autopilot` can start it with no new question.
+Goal: every ticket you create passes `pd-bot:pd-intake` as READY, so `/pd-bot:pd-orchestrate` can start it with no new question.
 
 ## NEVER
 
 - Never write a `Decide:` ticket. Intake does not pass a ticket with an open owner decision, and it has no real `Verify:` command.
-- Never put the epic in the milestone. Autopilot reads every open issue there, and an epic has no `Verify:` row.
+- Never put the epic in the milestone. `/pd-bot:pd-orchestrate` reads every open issue there, and an epic has no `Verify:` row.
 - Never create anything before step 8. `gh issue create` is pre-allowed, so that approval is the only control.
 - Never edit an existing issue or the brief's `## Intent`.
 - Never write "works", "correctly", "as expected" or "properly" in `Verify:`. Such a row cannot fail.

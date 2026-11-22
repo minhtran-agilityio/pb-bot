@@ -72,8 +72,7 @@ Linux needs the WebKitGTK 4.1 development packages. The app looks for `podbay-de
   opens only an address the current read holds, and only when you click it. A failed read shows `podbay-dev <subcommand> failed`, never stderr.
 - It sends nothing anywhere: no network code, and the page may only talk to the app itself. A clicked link is
   handed to the system (`open`, or `xdg-open` on Linux), which opens it in your browser.
-- State: `asks: true` or no `status` yet is `needs`; else `status: "busy"` is `busy`; else `idle`. The rules are the
-  same as `podsOf` in `plugins/pd-bot/board/board.js`.
+- State: `asks: true` or no `status` yet is `needs`; else `status: "busy"` is `busy`; else `idle`.
 
 ## Limits
 

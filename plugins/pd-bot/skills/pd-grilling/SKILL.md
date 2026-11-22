@@ -63,7 +63,7 @@ Return a short list of the decisions to the caller. Mark each assumed decision `
 
 ## Auto mode
 
-Auto mode exists only for `--no-ask` runs. In auto mode you NEVER ask. Answer every question with its recommended answer. Return each one in `decisions[]` as:
+In auto mode you NEVER ask. Answer every question with its recommended answer. Return each one in `decisions[]` as:
 
 `{title, context, options, decision, why, consequences, how_to_reverse, confidence, needs_review: true}`
 

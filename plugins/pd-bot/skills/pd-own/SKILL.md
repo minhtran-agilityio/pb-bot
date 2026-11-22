@@ -1,6 +1,6 @@
 ---
 name: pd-own
-description: "Run grilling or brainstorming in ownership mode. The owner answers each big decision first, then sees the agent's recommendation and a counter-argument. Use when the owner types /pd-bot:pd-own grill or /pd-bot:pd-own brainstorm. Not for autopilot or --no-ask runs."
+description: "Run grilling or brainstorming in ownership mode. The owner answers each big decision first, then sees the agent's recommendation and a counter-argument. Use when the owner types /pd-bot:pd-own grill or /pd-bot:pd-own brainstorm. Not for Mode: auto runs."
 argument-hint: "<grill | brainstorm> <#issue | issue URL | file path | free text>"
 disable-model-invocation: true
 allowed-tools: Read, Write, Edit, Grep, Glob, Bash(gh issue view *), Bash(gh issue comment *), Bash(git log *), Agent, AskUserQuestion
@@ -21,7 +21,7 @@ answers first, and only then sees your recommendation.
 | `brainstorm` | `${CLAUDE_PLUGIN_ROOT}/skills/pd-brainstorming/SKILL.md` | `references/brainstorm.md` |
 
 If the mode is missing or unknown, ask for it with `AskUserQuestion`. If the arguments contain
-`--no-ask` or `Mode: auto`, stop. Say that this skill needs an owner who answers.
+`Mode: auto`, stop. Say that this skill needs an owner who answers.
 
 ## Base skill and precedence
 

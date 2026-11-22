@@ -498,7 +498,7 @@ def test_stale_needs_review_placeholder_in_any_line_shape_is_dropped(tmp_path):
 
 
 def test_template_warning_goes_to_stderr_only_and_dry_run_writes_nothing(tmp_path):
-    # ship.js saves stdout as .ship/written.json: a warning there would corrupt it.
+    # A caller may save stdout as JSON: a warning there would corrupt it.
     adr, inp = setup(tmp_path, [dec()], existing=())
     (adr / "TEMPLATE.md").write_text(TEMPLATE.read_text().replace("status: {status}", "status: {status}\nneeds_review: {needs_review}"))
     r = run(adr, inp, "--dry-run")
@@ -793,11 +793,3 @@ def test_recorded_adr_restated_late_is_already_recorded(tmp_path):
 def test_stage_match_ignores_case_and_spaces():
     w = wa()
     assert w.is_early(dec(stage=" Design ")) and not w.is_late(dec(stage=" Design "))
-
-
-def test_stage_lists_match_in_ship_js_and_write_adrs():
-    import re
-    src = (SCRIPT.parent.parent / "workflows/ship.js").read_text()
-    m = re.search(r"const EARLY_STAGES = \[([^\]]*)\]", src)
-    assert m, "EARLY_STAGES not found in ship.js"
-    assert tuple(re.findall(r"'([^']+)'", m.group(1))) == wa().EARLY_STAGES
