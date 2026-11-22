@@ -10,12 +10,12 @@ You received `shape-board-handoff.zip`. Unzip it **outside** the repo first (for
 | --- | --- | --- |
 | `HANDOFF.md` | This file | `docs/HANDOFF.md` |
 | `prototype/shape-board-prototype.html` | Clickable UI prototype, one HTML file. Open it in a browser | `docs/prototype/` (reference only, not app code) |
-| `design-system/DESIGN_SYSTEM.md` | Design system v1.3, the UI contract | `docs/DESIGN_SYSTEM.md` |
+| `design-system/DESIGN_SYSTEM.md` | Design system (v1.3 in the zip; the current version is in `docs/DESIGN_SYSTEM.md`), the UI contract | `docs/DESIGN_SYSTEM.md` |
 | `design-system/tokens.css` | Tailwind v4 tokens | `src/styles/tokens.css` |
 | `design-system/icons.ts` | The only allowed icon map | `src/components/app/icons.ts` |
 | `design-system/CLAUDE.md.snippet.md` | Rules for coding agents | Paste into the app's `CLAUDE.md` |
 | `design-system/preview.html` | Visual reference of every token and component | `docs/` (reference only) |
-| `design-system/anti-slop-report.html` | Why v1.3 bans some patterns | `docs/` (reference only) |
+| `design-system/anti-slop-report.html` | Why v1.3 banned some patterns (history) | `docs/` (reference only) |
 | `design-system/assets/` | Logo SVGs + `branch-pattern.svg` | `src/assets/brand/` |
 | `logos/final/` | Final logo: icon SVG, 1024 PNG (for `tauri icon`), lockup SVG/PNG | `src/assets/brand/` (+ run `tauri icon` on the PNG) |
 
@@ -32,7 +32,7 @@ The flow: add a repo, paste an artifact, grill it, generate issues, then see eve
 Sources of truth:
 
 - **Design doc (architecture, protocol, data model, risks):** https://claude.ai/artifact/K47EPMgWrZgCv37Z7zSzyH (Vietnamese).
-- **Design system v1.3:** https://claude.ai/artifact/WRkcjobJX9VCEi74o3mVjN (same as `design-system/` in the zip).
+- **Design system:** `docs/DESIGN_SYSTEM.md` (v1.4) is the contract. The artifact https://claude.ai/artifact/WRkcjobJX9VCEi74o3mVjN was the source of v1.3; it has moved on, so where they differ the repo file wins.
 - **Clickable prototype:** https://claude.ai/artifact/3xwd3RbWe9k1kyFMa8bgjo (same as `docs/prototype/shape-board-prototype.html`; replaces the earlier FVACosM4PvP3syMpk9ngc1, owner decision 2026-11-22). It shows every screen and flow with fake data. Copy its screens and behavior. Do not copy its code: it is a single esbuild bundle, and its source files were not kept.
 
 If the design doc and the design system disagree, follow the design doc for behavior and the design system for looks. One known conflict is listed in section 5.
@@ -97,13 +97,13 @@ Each step is 1 small PR with a clear done point. Do not start step 1 until step 
 4. **Generate issues.** Run `pd-tickets`, show the review screen, create the issues, store the links. Done when real issues appear on GitHub and in the tree.
 5. **Tree + status.** The full tree, status from one GraphQL call per project, progress bars. Done when 2 projects with issues in different states show correctly.
 
-## 7. Design system v1.3, fonts and logo (must follow)
+## 7. Design system v1.4, fonts and logo (must follow)
 
 - **UI parts: ask the keeper first.** Before any UI work, ask the `Pb Bot Storehouse` session whether the part exists (`DESIGN_SYSTEM.md` §11, `docs/storehouse-keeper.md`). Only the keeper and the `ui-designer` agent change `src/components/ui/`, `src/components/app/` and `tokens.css`.
 
 - Read `DESIGN_SYSTEM.md` fully before any UI work. Paste `CLAUDE.md.snippet.md` into the app's `CLAUDE.md`.
 - Use only its tokens, components (§6), layouts (§7) and icons (§8). **Do not invent** a color, size, spacing, radius, shadow, component or variant. No hex or arbitrary Tailwind values. If something is missing, stop and ask the owner first.
-- v1.3 rules: warm-tinted neutrals (not zinc); orange accent near 10% of a screen, one primary button per view; the branch line is the only signature detail (TreeView, PipelineSteps, EmptyState); banned patterns in §0.1 (no gradients, blur, glow, sparkles/wand icons, emoji, blobs, card inside card, centered hero). Icons only through `icons.ts`, never directly from `lucide-react`.
+- v1.4 rules (same look as v1.3): warm-tinted neutrals (not zinc); orange accent near 10% of a screen, one primary button per view; the branch line is the only signature detail (TreeView, PipelineSteps, EmptyState); banned patterns in §0.1 (no gradients, blur, glow, sparkles/wand icons, emoji, blobs, card inside card, centered hero). Icons only through `icons.ts`, never directly from `lucide-react`.
 - Status = color + icon + word. Dark and light themes. Run the §10 checklist before you call a UI change done.
 - **Fonts.** `npm i @fontsource/ibm-plex-sans @fontsource/jetbrains-mono` (both SIL Open Font License). IBM Plex Sans (UI, weights 400/500/600) and JetBrains Mono (code) are bundled so the app works offline. No CDN, no other font.
 - **UI copy is English only, in sentence case.**

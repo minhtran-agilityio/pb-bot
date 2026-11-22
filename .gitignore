@@ -24,7 +24,10 @@ CLAUDE.local.md
 **/.claude/*
 !/.claude/launch.json
 # Project agents are shared: Claude Code loads them from <repo>/.claude/agents/ (Shape Board's ui-designer).
+# Only the agent .md files are tracked; anything else in that folder (.env, credentials) stays ignored.
 !/.claude/agents/
+/.claude/agents/*
+!/.claude/agents/*.md
 
 # Playwright plugin output: screenshots, snapshots and GIF evidence from verify runs (local only)
 .playwright-mcp/
