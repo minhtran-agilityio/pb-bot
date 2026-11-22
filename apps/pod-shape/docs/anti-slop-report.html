@@ -77,9 +77,6 @@ section{display:flex;flex-direction:column;gap:14px;min-width:0}
         <p class="muted">React + Tailwind kit "for AI products". Copies source into your repo with the shadcn CLI. 76 components, 176 blocks. Free part is MIT, Pro is paid.</p>
         <p class="muted">Useful pieces for us: Tool call card, Approval prompt, Chat composer, Stepper, Inline diff.</p>
         <p class="take"><span class="tag n">Use as idea source</span> Borrow 1–2 patterns. Do not install the kit: it brings its own look, so the app would look like every other app built on it.</p></div>
-      <div class="site"><div class="top"><h3>Fontshare</h3><a href="https://www.fontshare.com/">fontshare.com</a></div>
-        <p class="muted">Free fonts from Indian Type Foundry (ITF). Many grotesk families that are not on Google Fonts, so they are less overused.</p>
-        <p class="take"><span class="tag warn">Not verified</span> The site needs JavaScript and my network blocked its API, so I could not read the font list or licence. The font names below come from my own knowledge. Please check the licence before we ship.</p></div>
       <div class="site"><div class="top"><h3>Realtime Colors</h3><a href="https://www.realtimecolors.com/">realtimecolors.com</a></div>
         <p class="muted">Preview a palette on a real page. Five roles: text, background, primary, secondary, accent. Contrast check per pair (fail / AA / AAA). Exports CSS, Tailwind, OKLCH.</p>
         <p class="muted">Its guidance: 3 colors are usually enough, rarely more than 6, keep ratios near <b>60-30-10</b>.</p>
@@ -96,9 +93,9 @@ section{display:flex;flex-direction:column;gap:14px;min-width:0}
   <section>
     <h2>Proposed changes</h2>
     <div class="props">
-      <div class="prop"><span class="n">1</span><div class="body"><h3>UI font: Inter → Switzer (Fontshare)</h3>
-        <div class="cmp"><div><span class="label">Now</span>Inter 13px. Default of shadcn, Vercel, Linear clones.</div><div class="new"><span class="label">Proposed</span>Switzer, self-hosted WOFF2. Keep JetBrains Mono for ids and paths.</div></div>
-        <p class="why">Switzer is a neutral grotesk that reads well at small sizes, so the app keeps its density and loses the "default" feel. Backup options: General Sans (a bit warmer) or Satoshi (but Satoshi is now common on AI landing pages). I cannot show Switzer live in this page because the page can only load Google Fonts.</p></div></div>
+      <div class="prop"><span class="n">1</span><div class="body"><h3>UI font: Inter → IBM Plex Sans</h3>
+        <div class="cmp"><div><span class="label">Now</span>Inter 13px. Default of shadcn, Vercel, Linear clones.</div><div class="new"><span class="label">Proposed</span>IBM Plex Sans, bundled with <code>@fontsource/ibm-plex-sans</code> (SIL Open Font License). Keep JetBrains Mono for ids and paths.</div></div>
+        <p class="why">Updated in v1.2: the user chose IBM Plex Sans after a side-by-side test. It reads well at small sizes, so the app keeps its density and loses the "default" feel, and its licence (SIL OFL) is clear.</p></div></div>
 
       <div class="prop"><span class="n">2</span><div class="body"><h3>Neutrals: cold zinc → gray with a small warm tint toward the logo orange</h3>
         <div class="cmp"><div><span class="label">Now · dark</span>Tailwind zinc, cold blue-gray<div class="sw"><i style="background:#121214"></i><i style="background:#18181B"></i><i style="background:#1F1F23"></i><i style="background:#28282D"></i><i style="background:#A1A1AA"></i></div></div><div class="new"><span class="label">Proposed · dark</span>Same lightness, tiny warm tint<div class="sw"><i style="background:#141312"></i><i style="background:#1A1918"></i><i style="background:#211F1D"></i><i style="background:#2A2725"></i><i style="background:#A8A29E"></i></div></div></div>
@@ -148,7 +145,6 @@ section{display:flex;flex-direction:column;gap:14px;min-width:0}
 
   <div class="unv"><b>What I could not check</b>
     <ul>
-      <li>Fontshare font list and licence. The site needs JavaScript, and my network blocked it. Switzer and the other names are from my own knowledge.</li>
       <li>Knowns UI's exact visual style (fonts, radius). I only read its text pages.</li>
       <li>Haikei licence terms, and the Lucide accessibility page.</li>
     </ul>
