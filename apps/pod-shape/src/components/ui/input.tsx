@@ -17,8 +17,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       className={cn(
         "h-9.5 w-full min-w-0 rounded-full border bg-surface-2 px-4 text-base text-fg",
         "placeholder:text-fg-subtle disabled:pointer-events-none disabled:opacity-50",
-        "focus-visible:border-accent focus-visible:shadow-focus focus-visible:outline-none",
-        invalid ? "border-danger" : "border-border",
+        "focus-visible:shadow-focus focus-visible:outline-none",
+        // An invalid field keeps its danger border on focus; only a valid one turns accent.
+        invalid ? "border-danger" : "border-border focus-visible:border-accent",
         className,
       )}
       {...rest}

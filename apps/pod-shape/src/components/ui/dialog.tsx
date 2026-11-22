@@ -41,7 +41,7 @@ export function Dialog({
           <div className="flex justify-end gap-2">{footer}</div>
           {/* Last in the DOM so it is the last Tab stop; positioned where the header would hold it. */}
           <D.Close asChild>
-            <Button variant="ghost" size="icon" aria-label="Close" className="absolute top-6.5 right-6.5 h-7.5 w-7.5">
+            <Button variant="ghost" size="icon-sm" aria-label="Close" className="absolute top-6.5 right-6.5">
               <Icon.close {...iconSize.default} aria-hidden />
             </Button>
           </D.Close>

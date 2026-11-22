@@ -23,7 +23,7 @@ export function RunLogItem({
   error?: string;
 }) {
   return (
-    <li className="flex min-h-8.5 flex-col justify-center gap-1 px-3.5 py-1.5">
+    <li className="flex min-h-8.5 flex-col justify-center gap-1 px-3.5 py-1">
       <div className="flex items-center gap-2">
         {state === "running" && (
           <Icon.statusRunning {...iconSize.dense} aria-label="Running" className="shrink-0 animate-spin text-status-running" />

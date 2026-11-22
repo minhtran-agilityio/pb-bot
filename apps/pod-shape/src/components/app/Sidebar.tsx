@@ -23,21 +23,19 @@ export function Sidebar({
 }) {
   const ThemeIcon = themeIcon[theme];
   return (
-    <aside aria-label="Projects" className="flex w-64 shrink-0 flex-col rounded-panel bg-side px-2.5 py-4">
-      <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">{children}</div>
-      <Button variant="ghost" icon="add" className="w-full justify-start" onClick={onAddProject}>
-        Add project
-      </Button>
-      <div className="mt-1.5 flex items-center justify-end border-t border-border pt-2">
+    <aside aria-label="Projects" className="flex w-64 shrink-0 flex-col rounded-panel bg-side pb-4">
+      {/* The list scrolls with its own padding, so the focus ring and the selected shadow are not clipped. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-4 pb-2">{children}</div>
+      <div className="px-2.5">
+        <Button variant="ghost" icon="add" className="w-full justify-start" onClick={onAddProject}>
+          Add project
+        </Button>
+      </div>
+      <div className="mx-2.5 mt-1.5 flex items-center justify-end border-t border-border pt-2">
         <Tooltip content={`Theme: ${theme}`}>
-          <button
-            type="button"
-            aria-label={`Theme: ${theme}`}
-            onClick={onCycleTheme}
-            className="grid h-9.5 w-9.5 place-items-center rounded-full text-fg-muted transition-colors duration-160 ease-out hover:bg-side-hover hover:text-fg"
-          >
+          <Button variant="side" size="icon-lg" aria-label={`Theme: ${theme}`} onClick={onCycleTheme}>
             <ThemeIcon {...iconSize.default} aria-hidden />
-          </button>
+          </Button>
         </Tooltip>
       </div>
     </aside>

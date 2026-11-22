@@ -147,6 +147,8 @@ Numbers in columns use `tabular-nums`.
 | `rounded-dialog` | 32px | Dialog |
 | `rounded-full` | 9999px | Buttons, inputs, selects, badges, tabs and tab track, sidebar items, chips, status dots, avatar, switch |
 
+Prototype radii with no token of their own map to the nearest token: toast 22 → `rounded-card` (24), composer 26 → `rounded-card` (24), user chat bubble 22 → `rounded-card` (24) with a `rounded-xs` tail, session row 16 → `rounded-box` (18).
+
 ## 4. Spacing
 
 Base unit 4px (`--spacing`). Use the steps of the scale; half steps are allowed where the Cozy sizes need them:
@@ -197,13 +199,13 @@ Shared states for every interactive component:
 | disabled | `opacity-50 pointer-events-none`, no hover |
 | loading | spinner (`loader-circle`, `animate-spin`, 16px) replaces the left icon; width stays the same; disabled |
 | selected | `bg-surface-2 shadow-card` (sidebar, sessions) or `bg-accent-soft` (tree row); icon in `text-accent` |
-| error | `border-danger` + helper text `text-danger text-xs` under the field |
+| error | `border-danger` + helper text `text-danger text-xs` under the field; the danger border stays on focus (only a valid input turns accent) |
 
 ### 6.1 Primitives (`src/components/ui/`)
 
 | Component | Variants / sizes | Notes |
 |---|---|---|
-| **Button** | Pills (`rounded-full`), `font-medium`. `primary` (bg-accent, text-accent-fg, shadow-btn) · `secondary` (bg-surface-2, border-border, shadow-card) · `ghost` (transparent, text-fg-muted, hover surface-3 + text-fg) · `danger` (bg-danger-soft, text-danger) — sizes `sm` h-7.5 px-3 text-sm · `md` h-9 px-4 text-base — `icon` (square h-9 w-9, or h-7.5 w-7.5 for sm; needs `aria-label` + Tooltip) | One primary per view. Label = verb ("Generate issues", "Send"). Icon 16px left of label, gap-1.5, from `icons.ts`. |
+| **Button** | Pills (`rounded-full`), `font-medium`. `primary` (bg-accent, text-accent-fg, shadow-btn) · `secondary` (bg-surface-2, border-border, shadow-card) · `ghost` (transparent, text-fg-muted, hover surface-3 + text-fg) · `side` (ghost on the sidebar panel: hover side-hover) · `danger` (bg-danger-soft, text-danger) — sizes `sm` h-7.5 px-3 text-sm · `md` h-9 px-4 text-base — icon sizes (round, need `aria-label` + Tooltip): `icon` h-9 w-9 · `icon-sm` h-7.5 w-7.5 (dialog close) · `icon-lg` h-9.5 w-9.5 (sidebar theme button) | One primary per view. Label = verb ("Generate issues", "Send"). Icon 16px left of label, gap-1.5, from `icons.ts`. |
 | **Input** | `md` h-9.5 (38px) | Pill: bg-surface-2, border-border, rounded-full, px-4, text-base, placeholder fg-subtle. Focus: border-accent + shadow-focus. Paths and repos use the UI font. |
 | **Textarea** | auto-grow, 1–10 rows | bg-surface-2, border-border, rounded-box, px-4 py-2.5, text-base. Code textareas use font-mono text-xs. Used by Composer and IssueDraftRow. |
 | **Select** | `md` h-9.5 | Radix Select, pill like Input, chevron 16 at the right (pr-9). Menu = DropdownMenu style. |
@@ -214,7 +216,7 @@ Shared states for every interactive component:
 | **Tabs** | pill segmented track | Track: bg-surface-3, rounded-full, p-1, gap-1, width fits the tabs. Tab: px-3.5 py-1.5 rounded-full text-fg-muted font-medium. Active: bg-surface-2 text-fg shadow-card. No underline. |
 | **Tooltip** | one style | bg-surface-3, text-sm, px-2.5 py-1.5, shadow-sm, rounded-sm, 400ms delay |
 | **DropdownMenu** | one style | bg-surface-2, border, shadow-sm, rounded-box, p-1.5; items h-9 rounded-sm px-3; danger item text-danger |
-| **Dialog** | `sm` 420px · `md` 560px · `lg` 800px | bg-surface-2, rounded-dialog, shadow-lg, p-7, gap-4.5, no border, overlay bg-overlay. Title text-lg. Close = ghost icon button (sm). Footer: buttons right-aligned, primary last. |
+| **Dialog** | `sm` 420px · `md` 560px · `lg` 800px | bg-surface-2, rounded-dialog, shadow-lg, p-7, gap-4.5, no border, overlay bg-overlay. Title text-lg. Close = ghost `icon-sm` button. Footer: buttons right-aligned, primary last. |
 | **Toast** | `default` · `success` · `error` | sonner, bottom-right, 4s; error stays until closed. bg-surface-2, border, rounded-card, px-4 py-3.5, shadow-sm. |
 | **Separator** | horizontal / vertical | 1px border-border |
 | **ScrollArea** | — | Radix ScrollArea, thin 6px thumb bg-border-strong |
@@ -227,7 +229,7 @@ Shared states for every interactive component:
 |---|---|---|
 | **AppShell** | TitleBar + (Sidebar · Main · optional RightPanel) | See §7. Only one AppShell, in `App.tsx`. Panels float on `bg-bg` with `gap-3` and `px-3 pb-3`. |
 | **TitleBar** | 48px custom Tauri title bar (`data-tauri-drag-region`) | bg-bg (the desk), no border. Left: space for the macOS traffic lights, app logo 20px + breadcrumb (text-base; earlier items fg-muted, last item fg font-medium, chevron 14 fg-subtle). No buttons on the right: settings and theme live in the Sidebar. |
-| **Sidebar / SidebarItem** | Navigation and project list on the left, 256px | Panel: bg-side, rounded-panel, no border, px-2.5 py-4. Section label: text-xs font-semibold fg-muted, sentence case, px-3 pt-3.5 pb-1.5. Item: pill h-9.5 px-3 gap-2.5, text-base font-medium text-fg, icon 16 + name (truncate) + count `text-sm font-medium text-fg-muted tabular-nums`; hover bg-side-hover. Selected: bg-surface-2 shadow-card font-semibold, icon text-accent. Bottom: "Add project" ghost button (full width, left-aligned), then a row above a 1px border-t: "Settings" item + the theme icon button (38px round, fg-muted, hover side-hover) at the right. Until the Settings screen exists, the row holds only the theme button (owner decision: Settings and Overview come in later steps). |
+| **Sidebar / SidebarItem** | Navigation and project list on the left, 256px | Panel: bg-side, rounded-panel, no border, px-2.5 py-4. Section label: text-xs font-semibold fg-muted, sentence case, px-3 pt-3.5 pb-1.5. The item list scrolls inside px-2.5 pt-4 so focus rings and shadows are not clipped. Item: pill h-9.5 px-3 gap-2.5, text-base font-medium text-fg, icon 16 + name (truncate) + count `text-sm font-medium text-fg-muted tabular-nums`; hover bg-side-hover. Selected: bg-surface-2 shadow-card font-semibold, icon text-accent. Bottom: "Add project" ghost button (full width, left-aligned), then a row above a 1px border-t: "Settings" item + the theme button (Button `side` `icon-lg`) at the right. Until the Settings screen exists, the row holds only the theme button (owner decision: Settings and Overview come in later steps). |
 | **PageHeader** | Title + meta + actions at the top of main | text-xl title (tracking-title), text-sm fg-muted meta line with `·` separators, actions right (max 1 primary + 2 secondary). Optional Tabs below. |
 | **EmptyState** | Nothing yet | Left-aligned block at the top-left of the area: `BranchPattern` (§6.4) 120px wide on the right side, icon 24 fg-subtle, text-lg title, one line text-base fg-muted, one Button (secondary). The block is at most `max-w-140` (560px) and its text at most `max-w-85` (340px). |
 | **AddProjectDialog** | The "Add project" dialog | Dialog `md`, title "Add project". Fields: "GitHub repo" Input (`owner/name`) and "Local folder" Input with a "Choose…" secondary button for the native folder picker; both inputs use the UI font. Labels text-xs font-medium fg-muted; help text text-xs fg-subtle under each field. Footer: "Cancel" ghost + "Check and add" primary (icon `add`). On submit it runs the `gh`, `claude` and folder checks and shows them as RunLog rows. An input error (empty field, wrong `owner/name` form, repo already added, a folder that is not a full path) is helper text under that field (§6 error state). A failed check shows on that check's RunLog row, under the command that ran. Cancel, X and Esc stay enabled while the checks run: they stop the checks and close the dialog without saving. A save that fails after the checks pass shows one line of `text-danger text-sm` under the RunLog. |
@@ -244,7 +246,7 @@ Shared states for every interactive component:
 | **LevelsLegend** | The tree levels above the Overview tree | Chips "Project — Artifact — Feature — Milestone — Issue" joined by 16px `branch` lines (2px). Chip: pill h-7 px-3 bg-surface-2 shadow-card text-sm fg, icon 14 fg-muted. Hover: bg-accent-soft text-accent-text, 2px lift with shadow-card-hover, and the tree dims every row that is not that level. |
 | **RightPanel** | Detail pane, 372px | bg-surface-2, no border, rounded-panel, shadow-card. Header h-13 (52px) with title + close icon button, border-b; body p-5 gap-4.5. |
 | **PipelineSteps** | Where an artifact is in the flow: Prototype → Grill → Generate → Issues | Horizontal, 4 steps joined by a 24px, 2px `branch` line. Done step: 8px `fg-muted` node + label fg. Current step: 10px `accent` node with a 4px accent-soft halo + label fg 500. Later step: hollow 8px node `border-strong` + label fg-subtle. text-sm. |
-| **RunLog / RunLogItem** | What a background Claude Code session is doing (grill, generate, checks) | List: bg-surface-2, border, rounded-card, shadow-card, rows divided by 1px border. Row min-h 8.5 px-3.5: status icon 14 + one-line action in font-mono text-xs (`gh auth status`, `gh issue create #128`) + duration font-mono text-xs fg-subtle tabular-nums right. Running row: `loader` spinning, `status-running`. Passed row: `check`, success. Failed row: `danger` icon + one line error (text-sm text-danger). Rows can expand to show output in a font-mono block (bg-surface-3, rounded-md, max 12 lines, scroll). Newest at the bottom; auto-scroll unless the user scrolled up. |
+| **RunLog / RunLogItem** | What a background Claude Code session is doing (grill, generate, checks) | List: bg-surface-2, border, rounded-card, shadow-card, rows divided by 1px border. Row min-h 8.5 px-3.5 py-1: status icon 14 + one-line action in font-mono text-xs (`gh auth status`, `gh issue create #128`) + duration font-mono text-xs fg-subtle tabular-nums right. Running row: `loader` spinning, `status-running`. Passed row: `check`, success. Failed row: `danger` icon + one line error (text-sm text-danger). Rows can expand to show output in a font-mono block (bg-surface-3, rounded-md, max 12 lines, scroll). Newest at the bottom; auto-scroll unless the user scrolled up. |
 
 ### 6.3 Type icons in the tree (lucide)
 
