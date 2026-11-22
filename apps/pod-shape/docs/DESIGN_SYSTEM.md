@@ -1,4 +1,4 @@
-# Shape Board — Design System v1.1
+# Shape Board — Design System v1.2
 
 This file is the contract for every UI change in the app.
 Coding agents (Claude Code) and people follow it the same way.
@@ -115,7 +115,7 @@ Each has a `-soft` token for the badge background (`bg-status-pr-soft`).
 
 ## 2. Typography
 
-- **UI font:** Switzer by Indian Type Foundry, from Fontshare. Self-host the WOFF2 files in `src/assets/fonts/` (the app must work offline). Weights 400, 500, 600. Fallback: Inter, then system UI. Check the Fontshare (ITF Free Font) licence before release.
+- **UI font:** IBM Plex Sans (SIL Open Font License). Bundle it with `@fontsource/ibm-plex-sans` (weights 400, 500, 600) so the app works offline. UI is English only. Fallback: system UI.
 - **Code font:** JetBrains Mono (`@fontsource/jetbrains-mono`) for issue numbers, branch names, file paths, code, ids.
 - Base size is **13px**. This is a dense desktop tool.
 
@@ -325,5 +325,6 @@ The **orange node** (8px circle, `accent`) marks the single "you are here" item 
 Only when the user asks. Steps: update `tokens.css` and/or the component → update this file (tables above) → bump the version at the top → note it in the changelog below.
 
 ### Changelog
+- **v1.2** — UI font is IBM Plex Sans (chosen by the user after a side-by-side test). Switzer dropped: not loadable in previews and licence not verified. UI copy is English only.
 - **v1.1** — anti-slop update: Switzer replaces Inter; warm-tinted neutrals; `--branch` token and the branch-line signature (§6.4); banned patterns (§0.1); 60-30-10 color budget; `icons.ts` icon map with fixed size/stroke pairs; new PipelineSteps and RunLog; EmptyState left-aligned with BranchPattern.
 - **v1.0** — first version: colors aligned with the Shape Board logo; tokens, 17 primitives, 16 app parts, 5 screens.

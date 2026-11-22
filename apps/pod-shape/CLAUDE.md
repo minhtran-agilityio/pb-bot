@@ -45,5 +45,5 @@ Where things live:
 - Primitives (shadcn/ui): `src/components/ui/`
 - App parts: `src/components/app/`
 - Icon map: `src/components/app/icons.ts`
-- Fonts (Switzer WOFF2, JetBrains Mono): `src/assets/fonts/`
+- Fonts: IBM Plex Sans + JetBrains Mono, bundled via `@fontsource/ibm-plex-sans` and `@fontsource/jetbrains-mono` (no CDN; the app works offline)
 - Logo: `src/assets/brand/shape-board-icon.svg`, `shape-board-lockup.svg`, `branch-pattern.svg`
