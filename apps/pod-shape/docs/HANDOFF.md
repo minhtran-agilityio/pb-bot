@@ -146,7 +146,7 @@ The hook is part of the owner's personal config, and an older version is already
 ```bash
 #!/bin/bash
 # PostToolUse hook for the Artifact tool: archive each published HTML file and log it.
-# Output contract for Shape Board: see the design doc, section "Hook export".
+# Output contract for Shape Board: see apps/pod-shape/docs/HANDOFF.md, section 11 "Hook export".
 in=$(cat)
 action=$(jq -r '.tool_input.action // "publish"' <<<"$in")
 [ "$action" = "publish" ] || exit 0
