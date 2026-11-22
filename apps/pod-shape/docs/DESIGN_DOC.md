@@ -11,7 +11,7 @@
 
 # Shape Board — Thiết kế app V1
 
-Nov 22, 2026 · @KhoiTran
+Nov 22, 2026
 
 ## Tóm tắt
 

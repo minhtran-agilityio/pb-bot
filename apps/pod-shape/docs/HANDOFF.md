@@ -120,7 +120,7 @@ Each step is 1 small PR with a clear done point. Do not start step 1 until step 
 - Subscription usage limits can stop a grill mid-way. Show the real error, set the session to `failed`, and allow resume.
 - Never use `--dangerously-skip-permissions`. Allow only the tools each step needs, with `--allowedTools`.
 
-## 9. Working with the owner (KhoiTran)
+## 9. Working with the owner
 
 - Software QA/engineer in Da Nang. Writes Vietnamese in chat, so reply in Vietnamese with short, plain sentences.
 - **Ask before you build.** They dislike agents that rush ahead. If something important is unclear, ask a few short questions with your recommendation. Do not guess.
