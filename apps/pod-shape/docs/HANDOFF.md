@@ -33,7 +33,7 @@ Sources of truth:
 
 - **Design doc (architecture, protocol, data model, risks):** https://claude.ai/artifact/K47EPMgWrZgCv37Z7zSzyH (Vietnamese).
 - **Design system v1.3:** https://claude.ai/artifact/WRkcjobJX9VCEi74o3mVjN (same as `design-system/` in the zip).
-- **Clickable prototype:** https://claude.ai/artifact/FVACosM4PvP3syMpk9ngc1 (same as `prototype/shape-board-prototype.html`). It shows every screen and flow with fake data. Copy its screens and behavior. Do not copy its code: it is a single esbuild bundle, and its source files were not kept.
+- **Clickable prototype:** https://claude.ai/artifact/3xwd3RbWe9k1kyFMa8bgjo (same as `docs/prototype/shape-board-prototype.html`; replaces the earlier FVACosM4PvP3syMpk9ngc1, owner decision 2026-11-22). It shows every screen and flow with fake data. Copy its screens and behavior. Do not copy its code: it is a single esbuild bundle, and its source files were not kept.
 
 If the design doc and the design system disagree, follow the design doc for behavior and the design system for looks. One known conflict is listed in section 5.
 
@@ -98,6 +98,8 @@ Each step is 1 small PR with a clear done point. Do not start step 1 until step 
 5. **Tree + status.** The full tree, status from one GraphQL call per project, progress bars. Done when 2 projects with issues in different states show correctly.
 
 ## 7. Design system v1.3, fonts and logo (must follow)
+
+- **UI parts: ask the keeper first.** Before any UI work, ask the `Pb Bot Storehouse` session whether the part exists (`DESIGN_SYSTEM.md` §11, `docs/storehouse-keeper.md`). Only the keeper and the `ui-designer` agent change `src/components/ui/`, `src/components/app/` and `tokens.css`.
 
 - Read `DESIGN_SYSTEM.md` fully before any UI work. Paste `CLAUDE.md.snippet.md` into the app's `CLAUDE.md`.
 - Use only its tokens, components (§6), layouts (§7) and icons (§8). **Do not invent** a color, size, spacing, radius, shadow, component or variant. No hex or arbitrary Tailwind values. If something is missing, stop and ask the owner first.

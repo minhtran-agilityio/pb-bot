@@ -27,6 +27,8 @@ Read `docs/HANDOFF.md` first. The build plan is §6 there; one step per PR.
 
 The UI follows `docs/DESIGN_SYSTEM.md` and `src/styles/tokens.css`. Read both before any UI change.
 
+**Before UI work, ask `Pb Bot Storehouse`** (`ListAgents`, then `SendMessage` a `UI-ASK`; forms in `docs/storehouse-keeper.md`, flow in DESIGN_SYSTEM.md §11). Do not build or style a missing part in a screen; continue that part only after `UI-READY`.
+
 Rules:
 - Use only the tokens, components (§6), layouts (§7) and lucide icons (§8) listed there.
 - Do NOT create a new color, font size, spacing, radius, shadow, animation, component, or component variant. Do NOT add another UI or icon library.

@@ -23,6 +23,8 @@ CLAUDE.local.md
 # launch.json is shared: the Claude desktop Browser pane reads it to start the board.
 **/.claude/*
 !/.claude/launch.json
+# Project agents are shared: Claude Code loads them from <repo>/.claude/agents/ (Shape Board's ui-designer).
+!/.claude/agents/
 
 # Playwright plugin output: screenshots, snapshots and GIF evidence from verify runs (local only)
 .playwright-mcp/

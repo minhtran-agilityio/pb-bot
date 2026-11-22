@@ -1,4 +1,4 @@
-# Shape Board — Design System v1.3
+# Shape Board — Design System v1.4
 
 This file is the contract for every UI change in the app.
 Coding agents (Claude Code) and people follow it the same way.
@@ -15,7 +15,7 @@ Coding agents (Claude Code) and people follow it the same way.
 1. **Use only what is in this file.** Only the tokens in `tokens.css`, the components in §6, the layouts in §7 and the icons in §8.
 2. **Do not invent.** Do not add a new color, font size, radius, shadow, spacing value, component, component variant or icon set. Do not copy styles from another library.
 3. **No raw values.** No hex, `rgb()`, `px` or arbitrary Tailwind values (`bg-[#123]`, `p-[13px]`, `text-[15px]`) in components. The only `px` values allowed are the ones written in this file (for example `h-10` = 40px title bar).
-4. **Need something new? Stop and ask.** Say what is missing, which existing piece is closest, and propose the smallest addition. Wait for the user's yes. Then add it to `tokens.css` / `src/components/ui/` **and** to this file in the same change.
+4. **Need something new? Stop and ask.** Say what is missing, which existing piece is closest, and propose the smallest addition. Ask the `Pb Bot Storehouse` session first (§11); it files the request and gets the part built. Wait for the user's yes. Then the part is added to `tokens.css` / `src/components/ui/` **and** to this file in the same change.
 5. **Compose, don't fork.** Build screens from §6 components. If a screen needs a slight change, use a variant that exists. Do not copy a component into a new file to change it.
 6. **Both themes, every time.** Every change must look right in dark and light. Colors come only from tokens, so this is automatic if rule 3 is followed.
 7. **Status = color + icon + word.** Never show an issue status by color alone.
@@ -169,7 +169,7 @@ Common uses:
 ## 6. Components (the full list)
 
 Location: `src/components/ui/` (shadcn primitives) and `src/components/app/` (app parts).
-**This is the complete list for v1.3.** Nothing else may be created without the user's yes.
+**This is the complete list for v1.4.** Nothing else may be created without the user's yes.
 
 Shared states for every interactive component:
 
@@ -320,11 +320,27 @@ The **orange node** (8px circle, `accent`) marks the single "you are here" item 
 - [ ] Nothing from §0.1 (`grep -nE "gradient|backdrop-blur|Sparkles|Wand|rounded-(2xl|3xl)|shadow-xl" src/`).
 - [ ] Icons only via `icons.ts`, with the size/stroke pairs in §8.
 
-## 11. Changing this system
+## 11. Request flow for a UI part
+
+The keeper is a long-running session named `Pb Bot Storehouse`. Its role and message forms are in [`storehouse-keeper.md`](storehouse-keeper.md). The agent that builds parts is [`.claude/agents/ui-designer.md`](../../../.claude/agents/ui-designer.md) at the repo root. The request template is [`.github/ISSUE_TEMPLATE/ui-component-request.md`](../../../.github/ISSUE_TEMPLATE/ui-component-request.md). One request is one issue and one pull request.
+
+Shared parts are `src/components/ui/**`, `src/components/app/**` (with `icons.ts`), `src/styles/tokens.css` and the rows of §6. Only the keeper and the ui-designer agent change them, in a pull request with the label `design-system`. Screens (`src/screens/**`) belong to the feature agents. `AddProjectDialog` is screen-specific glue: its look is shared, its behaviour belongs to its feature (see the keeper file).
+
+1. Before UI work, the agent reads §6 and the files in `src/components/ui/` and `src/components/app/` for each part it needs, then asks the keeper: `ListAgents` to find `Pb Bot Storehouse`, then `SendMessage` with a `UI-ASK` message (the fields of the request template and its own session name). A session on the Mac also prints the UI-ASK in its own chat.
+2. The keeper answers `UI-EXISTS` with the part, its file, its import and the variant or state to use. The agent uses that part and builds its screen itself.
+3. For a missing part, the keeper answers `UI-QUEUED` and files a **UI component request** issue from the template (title `[UI-REQ] `, label `ui-component-request`) with a `Requested by:` line for each asking session. The agent stops its UI work for that part and goes on with the rest of its ticket. It does not build or style the missing part in a screen, not even as a temporary stand-in.
+4. The keeper runs the ui-designer agent on the issue. It builds the part with the tokens, components, layouts and icons of this file only, with every shared state (§6), passes the §10 checklist, and opens its own pull request with `Closes #<request>`, the label `design-system`, and light and dark screenshots on a `pr-assets/...` branch.
+5. The owner approves the design system change in that pull request and merges it.
+6. After the merge, the keeper sends `UI-READY` to every session on the issue's `Requested by:` lines. The agent pulls `main` and continues its UI work with the new part. If the pull request closes without a merge, the keeper sends `UI-BLOCKED` with the reason.
+
+If the keeper session is not running, the agent files the request issue itself, says so in its pull request, and still does not build the part in its screen.
+
+## 12. Changing this system
 
 Only when the user asks. Steps: update `tokens.css` and/or the component → update this file (tables above) → bump the version at the top → note it in the changelog below.
 
 ### Changelog
+- **v1.4** — Request flow for UI parts (§11): every agent asks the `Pb Bot Storehouse` keeper before UI work; only the keeper and the ui-designer agent change the shared parts, in a pull request with the label `design-system`. "Changing this system" moves to §12. No token, component or layout changes. The owner approves this in the setup pull request.
 - **v1.3** — No "running" issue status in V1 (owner decision): removed from §1.3, StatusBadge and StatusBar. New app part AddProjectDialog (§6.2), approved by the owner. The global `:focus-visible` rule in `tokens.css` moves into `@layer base`, so a component's `focus-visible:` utility can override it. EmptyState may use `max-w-140` and `max-w-85` (§6.2, §7), matching the prototype (owner decision). AddProjectDialog: input errors under the field, check failures on their RunLog row, and Cancel stays enabled during checks (owner decision).
 - **v1.2** — UI font is IBM Plex Sans (chosen by the user after a side-by-side test). Switzer dropped: not loadable in previews and licence not verified. UI copy is English only.
 - **v1.1** — anti-slop update: Switzer replaces Inter; warm-tinted neutrals; `--branch` token and the branch-line signature (§6.4); banned patterns (§0.1); 60-30-10 color budget; `icons.ts` icon map with fixed size/stroke pairs; new PipelineSteps and RunLog; EmptyState left-aligned with BranchPattern.
