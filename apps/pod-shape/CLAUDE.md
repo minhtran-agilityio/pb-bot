@@ -18,9 +18,8 @@ Read `docs/HANDOFF.md` first. The build plan is §6 there; one step per PR.
 
 ## Fonts
 
-- Switzer WOFF2 files in `src/assets/fonts/` (Fontshare, ITF Free Font licence: check it before any release).
-  `src/styles/fonts.css` wires 400 `Switzer-Regular`, 500 `Switzer-Medium`, 600 `Switzer-Semibold`.
-- JetBrains Mono comes from `@fontsource/jetbrains-mono` (OFL).
+- IBM Plex Sans (UI, 400/500/600) and JetBrains Mono (code, 400/500) come from `@fontsource/ibm-plex-sans`
+  and `@fontsource/jetbrains-mono` (both OFL), imported in `src/styles/globals.css`. Bundled, no CDN.
 - `lucide-react` is pinned to 0.577.x: 1.x removed the `Github` icon that `icons.ts` maps to `openGithub`.
 
 
