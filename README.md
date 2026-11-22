@@ -23,7 +23,7 @@ ticket -> /pd-bot:pd-intake -> verdict + depth -> build -> review -> ship
 ```
 
 - `/pd-bot:pd-intake` returns a verdict (READY, CONFIRM, GRILL or BLOCKED) and a depth (S, M or L).
-- Depth S goes straight to `implement`. Depth M adds `writing-plans`. Depth L adds `brainstorming` and `xia2` first.
+- Depth S goes straight to `implement`. Depth M adds `writing-plans`. Depth L adds `shape` (design) and `xia2` first.
 - A bug fix first runs `diagnosing-bugs`: the root cause is proved before any fix.
 - `/code-review` and `intent-review` check the diff. `finishing-a-development-branch` pushes and opens the PR.
 - `/pd-bot:pd-orchestrate` asks the owner every open question once, then runs one or more tickets with a fleet of Pod Bay sessions: one worker per ticket, a separate reviewer, and an advisor when stuck.

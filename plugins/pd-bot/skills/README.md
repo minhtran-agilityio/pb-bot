@@ -24,11 +24,11 @@ init-structure.sh --root <project>   (first-time setup; /pd-bot:pd-setup runs it
 intake  (readiness gate — run first on every ticket)
   → judges READY | CONFIRM | GRILL | BLOCKED and depth S | M | L; returns a short verdict block
   → writes specs/<slug>/intent.md; every depth gets the five flow files (see specs/README.md)
-  → GRILL hands off to the grilling skill · BLOCKED proposes a split or names the missing dependency
+  → GRILL hands off to the shape skill · BLOCKED proposes a split or names the missing dependency
   → Input-type: bug fix → diagnosing-bugs before the plan (see Bug Fix Path)
       ↓
-brainstorming  (depth L)
-  → explores options, converges on a design; depth L writes specs/<slug>/design.md and the design ADR in docs/adr/; no review rounds
+shape  (depth M and L)
+  → explores options, converges on a design; depth M and L write specs/<slug>/design.md (interactive and auto mode); depth L also records the design ADR in docs/adr/; no review rounds
       ↓
 xia2  (depth L; a short inline brief for M)
   → research before building; external docs only when the change has an external surface
@@ -36,7 +36,7 @@ xia2  (depth L; a short inline brief for M)
       ↓
 writing-plans  (every depth; one or two steps for S)
   → steps carry Files, Effort, Done-when, Parallel group → specs/<slug>/plan.md (local scratch)
-  → depth S and M: also a short specs/<slug>/design.md
+  → depth S: also a short specs/<slug>/design.md (shape writes it at M and L)
       ↓
 implement
   → one fresh implementer subagent per step, one step at a time on the working branch; runs Done-when; fix loop capped at 3
@@ -56,9 +56,9 @@ finishing-a-development-branch
 
 ```
 intake → writing-plans (depth S, one or two steps) → implement → finishing-a-development-branch
-intake → writing-plans → implement (depth M) · add brainstorming + xia2 first for depth L
+intake → writing-plans → implement (depth S) · add shape first for depth M, shape + xia2 for depth L
 
-Every change runs on its own branch. Skip brainstorming when the approach is clear.
+Every change runs on its own branch. Skip shape when the approach is clear.
 Apply asd-ste100 to agent prose you edit under skills/, rules/, or agents/.
 ```
 
@@ -99,17 +99,15 @@ compound  (when the root cause is a reusable learning — the bug track takes it
 
 | Skill | Trigger | Output |
 |---|---|---|
-| `pd-grilling` | **Intake- or user-invoked**. A ticket has open decisions that the owner must settle before design or planning. It maps the decisions as a design tree and asks the whole frontier in one numbered round, each with a recommended answer. Facts it looks up itself. `Mode: auto` is only for runs where the owner chose not to be asked | A "Confirmed decisions" comment on the ticket, the same list in `intent.md` and `decision.md`, + a short decision list for the caller |
-| `pd-brainstorming` | The goal is clear but the approach is not. The user weighs two or more ways, does not know how to start, or asks for a design or a recommendation. Not for a settled approach that only needs codebase or library knowledge (that is `xia2`). Depth L routes here | `specs/<slug>/design.md` and a design ADR in `docs/adr/` (depth L) |
-| `pd-own` | **User-invoked only** (`/pd-bot:pd-own <grill \| brainstorm> <target>`). Runs `grilling` or `brainstorming` in ownership mode: on at most 3 big decisions (hard to reverse, or low agent confidence) the owner answers first, then sees the agent's recommendation and a counter-argument, then decides. `brainstorm` adds the owner's sketch, design-breaking assumptions and an optional teach-back. Never with `Mode: auto` | The base skill's output, plus owner first answer, agent recommendation and counter-argument per big decision in `decision.md`; `## Owner reasoning` in `design.md` (brainstorm) |
-| `pd-xia2` | Find out how something actually works here before building on it. Examples: a feature on unexplained code, a library or API that the repo does not use yet, or how an existing part works. Not for a choice between approaches (that is `brainstorming`). No depth classifier | `specs/<slug>/research-brief.md` (depth L) or a short inline brief |
+| `pd-shape` | **User-, intake- or orchestrator-invoked** (`/pd-bot:pd-shape <prototype file \| #issue \| text>`). After the owner finalizes a prototype, for a GRILL ticket, or when the goal is clear but the approach is not. One loop: it grills each unclear requirement and brainstorms each approach with two or more viable options. On at most 3 big decisions the owner answers first, then sees the agent's recommendation and a counter-argument. For a prototype it checks 8 topics a prototype cannot show (goal, rules, edge cases, data, permissions, non-functional, out of scope, priority). It proposes an ADR only for a repo-level decision. `Mode: auto` is for a caller that cannot answer (`pd-orchestrate`, a worker session). Replaces `pd-grilling`, `pd-own` and `pd-brainstorming` | `specs/<slug>/brief.md` (local scratch, confirmed by the owner); `specs/<slug>/design.md` at depth M and L, plus the design ADR (`stage: design`) at depth L; for a ticket also a "Confirmed decisions" comment, `intent.md` and `decision.md`; an ADR pull request only when the owner accepts a repo-level decision |
+| `pd-xia2` | Find out how something actually works here before building on it. Examples: a feature on unexplained code, a library or API that the repo does not use yet, or how an existing part works. Not for a choice between approaches (that is `shape`). No depth classifier | `specs/<slug>/research-brief.md` (depth L) or a short inline brief |
 | `pd-diagnosing-bugs` | **User- or intake-invoked**. Run `/pd-bot:pd-diagnosing-bugs`, or `intake` routes an `Input-type: bug fix` here. The skill blocks model invocation, so intake uses the Read tool on its `SKILL.md`. It proves the root cause in six gated phases before any fix. Every depth runs all six phases. No "cause known" shortcut exists. `task-reviewer` reviews the diagnosis before the fix | `specs/<slug>/diagnosis.md` → red test + fix (depth S) or the M / L route |
 
 ### Planning
 
 | Skill | Trigger | Output |
 |---|---|---|
-| `pd-writing-plans` | After intake, at every depth | `specs/<slug>/plan.md`: steps with Files, Effort, Done-when and parallel group; a short `design.md` at depth S and M |
+| `pd-writing-plans` | After intake, at every depth | `specs/<slug>/plan.md`: steps with Files, Effort, Done-when and parallel group; a short `design.md` at depth S (`shape` writes it at M and L) |
 
 ### Execution
 
@@ -151,18 +149,17 @@ No fixed order: each skill states an outcome and a toolbox, and the agent decide
 ## Skill Handoff Map
 
 ```
-intake             ──► READY → depth S and M: writing-plans · L: brainstorming → xia2 → writing-plans
-                                GRILL: grilling skill · BLOCKED: split or wait
+intake             ──► READY → depth S: writing-plans · M: shape → writing-plans · L: shape → xia2 → writing-plans
+                                GRILL: shape skill · BLOCKED: split or wait
                                 Input-type: bug fix → diagnosing-bugs (before the plan)
-grilling                   ──► "Confirmed decisions" comment + decision list → caller (terminal)
-brainstorming              ──► xia2 → writing-plans
-own                        ──► same handoff as its base skill (grilling or brainstorming)
+shape                      ──► prototype or idea: brief.md → owner runs tickets
+                               ticket: "Confirmed decisions" comment + decision list → caller · depth L design: xia2 → writing-plans
 xia2                       ──► research brief → writing-plans
 writing-plans              ──► implement
 implement                  ──► /code-review → intent-review → finishing-a-development-branch
 intent-review              ──► (standalone — same pipeline; needs the verbatim request and a BASE..HEAD range)
 tickets                    ──► GitHub issues (optional milestone) → pd-orchestrate
-pd-orchestrate             ──► intake / grilling (owner) → pd-work (one session per ticket) ⇄ pd-review → check-request → pd-review (uat / qa-verifier, fleet-check.sh) → check-result → finishing-a-development-branch
+pd-orchestrate             ──► intake / shape (owner) → pd-work (one session per ticket) ⇄ pd-review → check-request → pd-review (uat / qa-verifier, fleet-check.sh) → check-result → finishing-a-development-branch
                                feat/* base: fleet-gate.sh → PR into feat/<slug> · milestone: feature test (tester session) → owner merges feat/<slug> into main
                                stuck: advisor (Opus) → pd-advise (Fable 5.2 session) → owner
 decision-record            ──► docs/adr/NNNN-*.md + PR `## Decisions` section (terminal)
@@ -190,7 +187,7 @@ writes ──► compound
                          module, tags, severity, applicable_when,
                          affects, supersedes, confidence, confirmed_at
 
-reads  ◄── brainstorming  (applicable decisions — avoid re-proposing rejected approaches)
+reads  ◄── shape          (applicable decisions — avoid re-proposing rejected approaches)
        ◄── xia2           (INDEX.md + critical-patterns.md, then at most three relevant records)
        ◄── compound       (related-docs pass — overlap by module + tags; high overlap is a recurrence)
 ```

@@ -10,7 +10,7 @@ report when a reader would expect it.
 | The ticket is vague, or two readings differ in what you would build | send `question` to the orchestrator with your recommendation; go on with the parts that do not depend on the answer |
 | Wrong behavior, cause not yet known | Read `${CLAUDE_PLUGIN_ROOT}/skills/pd-diagnosing-bugs/SKILL.md` and follow it (the Skill tool cannot load that skill): a failing repro test comes first |
 | You do not know how this part of the code or a library works | `pd-bot:pd-xia2`, or a `pd-bot:researcher` agent for a narrow lookup |
-| More than one sound approach, or depth L | `pd-bot:pd-brainstorming`; write the design note; ask the `pd-bot:advisor` agent to review it before code |
+| More than one sound approach, or depth L | `pd-bot:pd-shape` in auto mode; write the design note; ask the `pd-bot:advisor` agent to review it before code |
 | Work with more than two or three moving parts | `pd-bot:pd-writing-plans`, then `pd-bot:pd-implement` (one implementer per step, independent steps in parallel) |
 | Your branch already holds a commit `Add acceptance tests for #<n>` | those tests are your target and you never edit their directory. If one is wrong or cannot pass for a reason outside your code, send `question` with the evidence; the orchestrator can have it repaired |
 | The ticket is risky (protocol, last paragraph) | the `pd-bot:security-reviewer` agent on your diff before you ask for review; fix every critical and high finding. The reviewer runs its own security review; yours only saves a round |

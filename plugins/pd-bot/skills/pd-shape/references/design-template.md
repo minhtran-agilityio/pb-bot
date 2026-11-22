@@ -1,7 +1,7 @@
 # Design template
 
-A depth L design goes to two places. Write it to `specs/<slug>/design.md` (local scratch) from
-`${CLAUDE_PLUGIN_ROOT}/templates/specs/design.md`, which has the same fields. Return it as a
+A design at depth M and L goes to `specs/<slug>/design.md`; at depth L it also goes to the ADR. Write it to `specs/<slug>/design.md` (local scratch) from
+`${CLAUDE_PLUGIN_ROOT}/templates/specs/design.md`, which has the same fields. At depth L also return it as a
 `decisions[]` entry with `stage: design`; the ADR stage of `decision-record` writes
 `docs/adr/NNNN-*.md`. Keep each field short; drop one that has nothing to say.
 

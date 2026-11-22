@@ -12,7 +12,7 @@ At depth S it is one or two steps. `specs/` is local scratch and gitignored. Rea
 `specs/<slug>/design.md`, the design ADR in `docs/adr/` (`stage: design`) and `research-brief.md`
 when they exist.
 
-At depth S and M no design stage runs, so also write a short `specs/<slug>/design.md` from
+At depth S no design stage runs (`pd-shape` writes the design at depth M and L), so also write a short `specs/<slug>/design.md` from
 `${CLAUDE_PLUGIN_ROOT}/templates/specs/design.md`: one or two sentences each under Context,
 Options, Decision and Why; `none` under the other headings. Add each choice you make to
 `specs/<slug>/decision.md`.

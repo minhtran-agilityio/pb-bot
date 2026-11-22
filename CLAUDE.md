@@ -44,15 +44,15 @@ The plugin lives in `plugins/pd-bot/`; the marketplace file is `.claude-plugin/m
   - an agent reports BLOCKED or low confidence;
   - a worker session reports blocked or stops answering: Opus first; Fable 5.2 (`pd-advise`) only when the ticket is still blocked after Opus advice;
   - a decision would become an ADR with `needs_review`;
-  - a grilling session reaches a deep design tree.
+  - a `pd-shape` session reaches a deep design tree.
 - Per-role models, effort and tools live in each agent file's frontmatter, in `plugins/pd-bot/agents/`.
 
 ## Workflow
 
 ```
 intake   readiness gate: READY | CONFIRM | GRILL | BLOCKED, depth S | M | L
-  -> grilling    important tickets: interview the owner until the decisions are settled
-  -> brainstorming + xia2   depth L: pick the design, then research the code
+  -> shape       important tickets and finalized prototypes: grill and brainstorm with the owner until the decisions are settled
+  -> shape + xia2   depth M and L: shape writes specs/<slug>/design.md (depth L also the design ADR); depth L then researches the code with xia2
   -> writing-plans          every depth (one or two steps for S)
   -> qa-writer   depth M and L: blind acceptance tests before any code (the orchestrator starts it)
   -> implement   one implementer subagent per step, one step at a time on the working branch
@@ -100,7 +100,7 @@ Wired (✅) means registered in `plugins/pd-bot/hooks/hooks.json`. All hooks fai
 - One store per record type: decisions in `docs/adr/`, lessons in `docs/solutions/`. `docs/solutions/` holds solved problems and patterns. Start at `docs/solutions/INDEX.md`; read `docs/solutions/critical-patterns.md` when you plan. Entries carry `confirmed_at`: treat an entry older than 30 days as possibly stale.
 - `REVIEW.md` holds review-only rules that the reviewer session (`pd-review`) reads from the base branch. An agent never edits it inside a ticket PR; a new row needs the same miss in two PRs and owner approval in its own PR.
 - `docs/adr/` holds durable decisions and depth-L designs (an ADR with `stage: design`).
-- `specs/` is local scratch and is gitignored. Every ticket gets `specs/<slug>/` with five flow files: `intent.md`, `design.md`, `decision.md`, `plan.md`, `summary.md` (contract: `plugins/pd-bot/templates/structure/specs-README.md`). A durable design or decision also goes to `docs/adr/`. Do not commit under `specs/`.
+- `specs/` is local scratch and is gitignored. Every ticket gets `specs/<slug>/` with five flow files: `intent.md`, `design.md` (shape at depth M and L, writing-plans at depth S), `decision.md`, `plan.md`, `summary.md` (contract: `plugins/pd-bot/templates/structure/specs-README.md`). A durable design or decision also goes to `docs/adr/`. Do not commit under `specs/`.
 
 ## Gotchas
 

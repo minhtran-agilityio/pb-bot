@@ -12,7 +12,7 @@ Defaults, the brief, what to do when a ticket reports, and the final report. Par
   verdict, the depth and its questions; it does not ask the owner. Add the `Touches:` request of
   `${CLAUDE_PLUGIN_ROOT}/skills/pd-orchestrate/references/groups.md` to its prompt, so it also
   returns the paths it expects the ticket to change. You collect every CONFIRM
-  question and ask them in one batch, then run `pd-bot:pd-grilling` for each GRILL ticket. Record the
+  question and ask them in one batch, then run `pd-bot:pd-shape` for each GRILL ticket. Record the
   answers verbatim in the ledger and as a "Confirmed decisions" comment on the issue.
 - **Classify.** Write into the ledger for each ticket: `kind` (bug, feature, docs), `depth`, `app`
   (`fe`, `be` or `none`: is there a running app to test?), `risky` (protocol, last paragraph),

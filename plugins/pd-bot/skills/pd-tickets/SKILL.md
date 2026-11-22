@@ -56,7 +56,7 @@ Apply those `process.md` sections.
 
 Show one table: #, type, title, size, priority, deps, `Verify:`, status (`new` / `exists #n` / `overlap #n` / `wait #n`); then repo, visibility, counts, new labels, close label names, milestone or "none".
 
-Ask one AskUserQuestion: put the table rows in the "go" option `preview`, and `question`: at most 2 sentences, the repo (say PUBLIC if public), counts, milestone and overlap count, per `${CLAUDE_PLUGIN_ROOT}/skills/pd-grilling/references/review-layout.md`. The "go" option names the exact count, e.g. "Create 12 issues".
+Ask one AskUserQuestion: put the table rows in the "go" option `preview`, and `question`: at most 2 sentences, the repo (say PUBLIC if public), counts, milestone and overlap count, per `${CLAUDE_PLUGIN_ROOT}/skills/pd-shape/references/review-layout.md`. The "go" option names the exact count, e.g. "Create 12 issues".
 
 If the dialog is not available, or the reply is not the go option, stop and create nothing.
 

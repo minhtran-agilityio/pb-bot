@@ -52,7 +52,7 @@ Return `decisions[]` in your result. Each item has `ticket`, `stage`, `title`, `
 
 ## Other places
 
-Every decision is an entry in `specs/<slug>/decision.md`. A depth L design from `brainstorming` is a decision with `stage: design` and `adr: true`.
+Every decision is an entry in `specs/<slug>/decision.md`. A depth L design from `pd-shape` is a decision with `stage: design` and `adr: true`.
 
 ## The ADR stage
 
