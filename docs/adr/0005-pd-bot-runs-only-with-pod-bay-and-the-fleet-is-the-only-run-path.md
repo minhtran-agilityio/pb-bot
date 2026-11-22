@@ -7,7 +7,7 @@ decided_by: owner
 date: 2026-11-22
 ---
 
-# 0004. pd-bot runs only with Pod Bay, and the fleet is the only run path
+# 0005. pd-bot runs only with Pod Bay, and the fleet is the only run path
 
 ## Context
 

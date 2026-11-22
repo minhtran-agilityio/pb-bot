@@ -47,7 +47,8 @@ ambiguous.
 Use Conventional Commit subjects (`fix(hooks): ...`, `docs: ...`) and keep commits focused. A pull
 request states the workflow impact, the tests run and the linked issue. Never merge a pull request
 without human review: an agent merges into the base branch only after the owner approves that one
-PR in the confirmation prompt that `merge-guard.sh` raises.
+PR in the confirmation prompt that `merge-guard.sh` raises (ADR 0004: when in doubt it asks the owner; only
+a plain merge into `feat/*` runs without a question).
 
 Only the release PR changes `VERSION`, `plugin.json` and the versioned sections of `CHANGELOG.md`.
 Run the `release` workflow from `main` to open it; merging it makes `release-tag` create the tag and

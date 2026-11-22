@@ -30,7 +30,7 @@ ticket -> /pd-bot:pd-intake -> verdict + depth -> build -> review -> ship
 
 One principle drives it: **ceremony scales with the size of the change, and human interruption scales with ambiguity.**
 
-See [plugins/pd-bot/skills/README.md](plugins/pd-bot/skills/README.md) for every skill and handoff, and the Hooks table in [CLAUDE.md](CLAUDE.md) for what the five hooks enforce, including `merge-guard.sh`, which blocks any `gh pr merge` whose PR base is not `feat/*` and fails closed. For one plain `gh pr merge <n>` into the base from the main session, it asks the owner to approve that PR instead of blocking.
+See [plugins/pd-bot/skills/README.md](plugins/pd-bot/skills/README.md) for every skill and handoff, and the Hooks table in [CLAUDE.md](CLAUDE.md) for what the five hooks enforce, including `merge-guard.sh`, which lets a plain `gh pr merge <n>` into `feat/*` run and asks the owner about every other merge, a push to main or master, and an MCP merge tool; in a subagent, where nobody can answer, it denies (ADR 0004).
 
 ## Installation
 
@@ -48,7 +48,7 @@ Needs `git`, `python3` and Pod Bay (`podbay-dev`): pd-bot runs only with Pod Bay
 ### Known limits
 
 - Not verified yet: the hooks firing in a live session, and a git-sourced marketplace install.
-- Merge policy: a fleet run merges ticket PRs only into `feat/<slug>`; every PR into another base is a human merge, and `merge-guard.sh` enforces that. Setup offers no allow rule: to let the orchestrator merge into `feat/<slug>`, allow `gh pr merge` (for example `Bash(gh pr merge *)`; the guard still blocks other bases).
+- Merge policy: a fleet run merges ticket PRs only into `feat/<slug>`; `merge-guard.sh` lets a plain `gh pr merge <n>` into `feat/*` run and asks the owner about every other base (ADR 0004). Setup offers no allow rule: to let the orchestrator merge into `feat/<slug>`, allow `gh pr merge` (for example `Bash(gh pr merge *)`; the guard still asks about other bases).
 
 ### Develop on this repo
 

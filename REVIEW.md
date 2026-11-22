@@ -14,6 +14,7 @@ Report at most five Nits per review. Keep the five most useful and drop the rest
 
 - Anything CI already checks: shellcheck (`bash scripts/check-shellcheck.sh`), `claude plugin validate --strict` and the STE lint.
 - Files under `specs/` (local scratch, gitignored) and `tests/evals/*/runs/`.
+- A merge-guard bypass that needs a hidden command (escape, script, interpreter, token); out of scope per ADR 0004.
 
 ## Always check
 

@@ -1,497 +1,146 @@
 #!/bin/bash
-# Contract tests for hooks/merge-guard.sh (PreToolUse Bash; fails closed). A stub `gh` first on PATH
-# answers `pr view` / `repo view` from files and logs every call, so a test can assert gh was not called.
+# Contract tests for hooks/merge-guard.sh (ADR 0004: doubt means ask). A fake `gh` and `glab` first on
+# PATH answer `pr view` / `mr view` from files and log every call. Outcomes: pass (exit 0, no output),
+# ask (exit 0, permissionDecision "ask"), deny (exit 2, reason on stderr).
 source "$(dirname "$0")/../lib.sh"
 
 R=$(new_repo merge-guard.sh)
 D=$(mktemp -d); _CLEANUP_DIRS+=("$D")
-STUB="$D/bin"; mkdir -p "$STUB"
-LOG="$D/gh.log"
-cat > "$STUB/gh" <<'STUBEOF'
+STUB="$D/bin"; mkdir -p "$STUB"; LOG="$D/calls.log"
+cat > "$STUB/gh" <<'EOF'
 #!/bin/sh
-d=$(dirname "$0")/..
-echo "$*" >> "$d/gh.log"
-case "$1 $2" in
-  "pr view")
-    [ -f "$d/slow" ] && sleep 30
-    [ -f "$d/fail" ] && exit 1
-    f="$d/base.$3"; [ -f "$f" ] || f="$d/base"
-    h="$d/head"; [ -f "$h" ] || h="$d/headdefault"
-    case "$*" in *headRefOid*) printf '%s %s\n' "$(cat "$f")" "$(cat "$h")" ;; *) cat "$f" ;; esac ;;
-  "repo view")
-    [ -f "$d/deffail" ] && exit 1
-    cat "$d/default" ;;
-  *) exit 1 ;;
-esac
-STUBEOF
-chmod +x "$STUB/gh"
-# Tool dirs: TOOLS holds what the hook needs except gh and jq.
-TOOLS="$D/tools"; mkdir -p "$TOOLS"
-for x in cat sed awk grep sleep mktemp rm head tr cut; do ln -s "$(command -v $x)" "$TOOLS/$x"; done
-NOJQ="$D/nojq"; mkdir -p "$NOJQ"; cp -R "$TOOLS"/. "$NOJQ"/; ln -s "$STUB/gh" "$NOJQ/gh"
-NOGH="$D/nogh"; mkdir -p "$NOGH"; cp -R "$TOOLS"/. "$NOGH"/; ln -s "$(command -v jq)" "$NOGH/jq"
+d=$(dirname "$0")/..; echo "gh $*" >> "$d/calls.log"
+[ -f "$d/slow" ] && sleep 30
+[ "$1 $2" = "pr view" ] && [ -f "$d/base.$3" ] && cat "$d/base.$3" && exit 0
+exit 1
+EOF
+cat > "$STUB/glab" <<'EOF'
+#!/bin/sh
+d=$(dirname "$0")/..; echo "glab $*" >> "$d/calls.log"
+[ "$1 $2" = "mr view" ] && [ -f "$d/base.$3" ] && printf '{"target_branch":"%s"}\n' "$(cat "$d/base.$3")" && exit 0
+exit 1
+EOF
+chmod +x "$STUB/gh" "$STUB/glab"
+NOJQ="$D/nojq"; mkdir -p "$NOJQ"
+for x in cat grep tr cut head mktemp sleep rm; do ln -s "$(command -v $x)" "$NOJQ/$x"; done
 BASH_BIN=$(command -v bash)
-
-SHA=0123456789abcdef0123456789abcdef01234567
-reset() { rm -f "$D"/base "$D"/base.* "$D"/head "$D"/fail "$D"/slow "$D"/deffail "$LOG"; printf 'main\n' > "$D/default"; printf '%s\n' "$SHA" > "$D/headdefault"; }
-setbase() { printf '%s\n' "$1" > "$D/base"; }
-# g <command-string> [PATH-dir] : run the hook with a payload for that command
-g() {
-  local json; json=$(jq -n --arg c "$1" --arg m "${MODE-default}" --arg a "${AGENT-}" \
-    '{tool_input:{command:$c}} + (if $m == "" then {} else {permission_mode:$m} end) + (if $a == "" then {} else {agent_id:$a} end)')
-  local p="${2:-$STUB:$PATH}"
-  OUT=$(cd "$R" && printf '%s' "$json" | env PATH="$p" "$BASH_BIN" hooks/merge-guard.sh 2>&1); RC=$?
-}
-M='gh pr merge 7 --repo o/r --merge'
-MA="$M --match-head-commit $SHA"  # a merge into a protected base must pin the approved head
-
-reset; setbase feat/x
-t "base feat/x is allowed"; g "$M"; assert_rc 0
-t "base feat/x passes the gh pr view arguments (--repo and PR number)"
-if grep -q 'pr view 7 --repo o/r' "$LOG"; then pass; else fail "log: $(cat "$LOG" 2>/dev/null)"; fi
-t "-R o/r is read and passed to gh pr view"; reset; setbase feat/x; g 'gh pr merge 7 -R o/r --merge'
-if [ "$RC" = 0 ] && grep -q 'pr view 7 --repo o/r' "$LOG"; then pass; else fail "rc=$RC log: $(cat "$LOG" 2>/dev/null)"; fi
-t "--repo=o/r is read and passed to gh pr view"; reset; setbase feat/x; g 'gh pr merge 7 --repo=o/r --merge'
-if [ "$RC" = 0 ] && grep -q 'pr view 7 --repo o/r' "$LOG"; then pass; else fail "rc=$RC log: $(cat "$LOG" 2>/dev/null)"; fi
-t "a PR URL gives the PR number and the repo"; reset; setbase feat/x; g 'gh pr merge https://github.com/o/r/pull/7 --merge'
-if [ "$RC" = 0 ] && grep -q 'pr view 7 --repo o/r' "$LOG"; then pass; else fail "rc=$RC log: $(cat "$LOG" 2>/dev/null)"; fi
-t "a PR URL repo that differs from --repo (either order) is denied"; reset; setbase feat/x
-g 'gh pr merge https://github.com/evil/r/pull/7 --repo o/r --merge'; assert_rc_contains 2 "differ"
-g 'gh pr merge --repo o/r https://github.com/evil/r/pull/7 --merge'; assert_rc_contains 2 "differ"
-t "a PR URL repo equal to --repo is allowed"; reset; setbase feat/x
-g 'gh pr merge https://github.com/o/r/pull/7 --repo o/r --merge'; assert_rc 0
-t "env assignments before gh are skipped"; reset; setbase feat/x; g "FOO=1 $M"; assert_rc 0
-
-# Ticket #545 AC4 (each path stays denied) is covered in this file, not in tests/scripts/merge-deny.test.sh (that
-# file tests the setup script that writes permissions.deny). Cases below: --auto, bash -c / eval / xargs wraps,
-# gh api and GraphQL merges, gh alias with merge, no gh, no jq, no PR number, unreadable or empty base.
-# A plain single merge into a protected base is put to the owner (ask), not run and not denied.
-assert_ask() { if [ "$RC" = 0 ] && printf '%s' "$OUT" | jq -e --arg w "$1" '.hookSpecificOutput | .permissionDecision == "ask" and (.permissionDecisionReason | contains($w))' >/dev/null 2>&1; then pass; else fail "rc=$RC out=$OUT"; fi; }
-for b in main master develop staging production release/1 release-2; do
-  for md in default acceptEdits auto bypassPermissions; do
-    reset; setbase "$b"; t "base $b in mode $md: ask naming PR, base and head"; MODE=$md g "$MA"; assert_ask "Merge PR #7 of o/r into $b at $SHA?"
-  done
-done
-reset; setbase trunk; printf 'trunk\n' > "$D/default"
-t "base that is the default branch: ask"; g "$MA"; assert_ask "into trunk at $SHA"
-for b in integration hotfix/x phase3-ui; do
-  reset; setbase "$b"; t "base $b (not protected) is allowed without ask or deny"; g "$M"
-  if [ "$RC" = 0 ] && [ -z "$OUT" ]; then pass; else fail "rc=$RC out=$OUT"; fi
-done
-reset; setbase phase3-ui; t "base phase3-ui in a subagent is allowed"; AGENT=a1 g "$M"; assert_rc 0
-reset; setbase phase3-ui; touch "$D/deffail"; t "base phase3-ui with an unreadable default branch is denied"; g "$M"; assert_rc 2
-reset; setbase phase3-ui; printf 'phase3-ui\n' > "$D/default"
-t "base phase3-ui that is the default branch: ask"; g "$MA"; assert_ask "into phase3-ui at $SHA"
-reset; setbase main; t "base main in a subagent is still denied"; AGENT=a1 g "$MA"; assert_rc 2
-reset; setbase main
-for md in dontAsk plan bogus ""; do
-  t "mode '$md': ask is not possible, denied"; MODE=$md g "$MA"; assert_rc_contains 2 "confirmation prompt"
-done
-t "a subagent (agent_id) is denied"; AGENT=sub1 g "$MA"; assert_rc_contains 2 "subagent"
-t "ask output carries no permissionDecision allow"; g "$MA"; if printf '%s' "$OUT" | grep -q '"allow"'; then fail "$OUT"; else pass; fi
-t "ask without --match-head-commit: denied, the reason names the head to pin"; g "$M"; assert_rc_contains 2 "add --match-head-commit $SHA"
-t "ask with a --match-head-commit of another sha: denied"; g "$M --match-head-commit ffffffffffffffffffffffffffffffffffffffff"; assert_rc_contains 2 "add --match-head-commit $SHA"
-t "ask with --admin: the prompt names the bypass"; g "$MA --admin"; assert_ask "WITH --admin"
-t "ask with --delete-branch: the prompt names the branch deletion"; g "$MA --delete-branch"; assert_ask "deletes the head branch"
-t "ask with --admin=true: the prompt names the bypass"; g "$MA --admin=true"; assert_ask "WITH --admin"
-t "ask with bundled -sd: the prompt names the branch deletion"; g "$MA -sd"; assert_ask "deletes the head branch"
-t "ask with --delete-branch=true: the prompt names the branch deletion"; g "$MA --delete-branch=true"; assert_ask "deletes the head branch"
-no_note() { if [ "$RC" = 0 ] && printf '%s' "$OUT" | jq -e '.hookSpecificOutput | .permissionDecision == "ask" and (.permissionDecisionReason | (contains("WITH --admin") or contains("deletes the head branch")) | not)' >/dev/null 2>&1; then pass; else fail "rc=$RC out=$OUT"; fi; }
-for f in --admin=false --admin=0 --admin=F --delete-branch=false --delete-branch=0 -d=false; do
-  t "ask with $f: the flag is off, so the prompt names no bypass or deletion"; g "$MA $f"; no_note
-done
-t "ask with plain -s: no deletion note"; g "$MA -s"; no_note
-t "ask with attached body -bfixed: the value is not read as bundled flags"; g "$MA -bfixed"; no_note
-t "ask with attached subject -tAdam: the value is not read as bundled flags"; g "$MA -tAdam"; no_note
-t "ask with -b <value> containing d: no deletion note"; g "$MA -b dd"; no_note
-t "ask with --admin --admin=false: the later off flag wins, no bypass note"; g "$MA --admin --admin=false"; no_note
-t "ask with --admin=false --admin: the later on flag wins, the bypass is named"; g "$MA --admin=false --admin"; assert_ask "WITH --admin"
-t "ask with --delete-branch --delete-branch=false: no deletion note"; g "$MA --delete-branch --delete-branch=false"; no_note
-t "ask with --admin --admin: the bypass is named once"; g "$MA --admin --admin"
-if [ "$(printf '%s' "$OUT" | grep -o 'WITH --admin' | wc -l)" -eq 1 ]; then pass; else fail "$OUT"; fi  # -eq: macOS wc pads with spaces
-t "ask with --match-head-commit=<head>: put to the owner"; g "$M --match-head-commit=$SHA"; assert_ask "at $SHA?"
-t "ask merge chained with another command: denied, not put to the owner"; g "$MA && echo extra"; assert_rc_contains 2 "only command"
-t "ask merge after another command: denied"; g "echo x; $MA"; assert_rc_contains 2 "only command"
-t "ask merge piped into another command: denied"; g "$MA | cat"; assert_rc_contains 2 "only command"
-t "bad head sha: denied"; printf 'xyz\n' > "$D/head"; g "$MA"; assert_rc 2
-t "short head sha: denied"; printf 'abc123\n' > "$D/head"; g "$MA"; assert_rc 2
-rm -f "$D/head"
-t "two merges into main in one command: denied"; g 'gh pr merge 7 --repo o/r --merge && gh pr merge 8 --repo o/r --merge'; assert_rc 2
-t "two PR numbers in one merge into main: denied"; g 'gh pr merge 7 8 --repo o/r'; assert_rc 2
-t "gh api pulls merge into main: denied, no ask"; g 'gh api -X PUT repos/o/r/pulls/7/merge'; assert_rc 2
-setbase feat/x; printf 'main\n' > "$D/base.8"
-t "main merge next to a feat/* merge: denied"; g 'gh pr merge 7 --repo o/r --merge && gh pr merge 8 --repo o/r --merge'; assert_rc 2
-reset; setbase feat/x
-t "feat/x merge in mode dontAsk is still allowed (path unchanged)"; MODE=dontAsk g "$M"; assert_rc 0
-t "feat/x merge prints no ask"; g "$M"; if [ -z "$OUT" ]; then pass; else fail "$OUT"; fi
-reset; setbase feat/x; printf 'feat/x\n' > "$D/default"
-t "base feat/x that is also the default branch is denied"; g "$M"; assert_rc 2
-reset; setbase feat/x; touch "$D/deffail"
-t "unreadable default branch is denied"; g "$M"; assert_rc 2
-reset; setbase feat/x; touch "$D/fail"
-t "gh pr view exits nonzero: denied"; g "$M"; assert_rc 2
-reset; : > "$D/base"
-t "gh pr view prints nothing: denied"; g "$M"; assert_rc 2
-reset; setbase 'feat/x garbage'
-t "gh pr view prints a bad name: denied"; g "$M"; assert_rc 2
-reset; setbase feat/x
-t "no gh on PATH: denied"; g "$M" "$NOGH"; assert_rc 2
-t "no jq on PATH and a merge payload: denied"; g "$M" "$NOJQ"; assert_rc 2
-t "no jq on PATH and a non-merge payload: allowed"; g 'ls -la' "$NOJQ"; assert_rc 0
-t "no PR number: denied"; g 'gh pr merge --repo o/r --merge'; assert_rc 2
-t "a branch name instead of a PR number: denied"; g 'gh pr merge feat/x --repo o/r'; assert_rc 2
-t "no --repo: denied even when GH_REPO is set"; g 'GH_REPO=o/r gh pr merge 7 --merge'; assert_rc 2
-t "--auto is denied"; g 'gh pr merge 7 --repo o/r --auto --merge'; assert_rc 2
-reset; setbase main
-t "--auto on main is denied"; g 'gh pr merge 7 --repo o/r --auto'; assert_rc 2
-reset; setbase feat/x
-t "--match-head-commit is accepted"; g 'gh pr merge 7 --repo o/r --merge --match-head-commit abc123'; assert_rc 0
-
-reset; setbase feat/x
-t "gh api pulls/7/merge on feat/x is allowed"; g 'gh api -X PUT repos/o/r/pulls/7/merge'; assert_rc 0
-reset; setbase main
-t "gh api pulls/7/merge on main is denied"; g 'gh api -X PUT repos/o/r/pulls/7/merge'; assert_rc 2
-t "gh api with {owner}/{repo} placeholders is denied"; g 'gh api -X PUT repos/{owner}/{repo}/pulls/7/merge'; assert_rc 2
-t "gh api graphql mergePullRequest is denied"; g "gh api graphql -f query='mutation { mergePullRequest(input: {pullRequestId: \"x\"}) { clientMutationId } }'"; assert_rc 2
-t "bash -c with a merge inside is denied"; g 'bash -c "gh pr merge 7 --repo o/r"'; assert_rc 2
-t "eval with a merge inside is denied"; g "eval 'gh pr merge 7 --repo o/r'"; assert_rc 2
-t "xargs with a merge is denied"; g 'echo 7 | xargs gh pr merge --repo o/r'; assert_rc 2
-for c in 'command gh pr merge 7 --repo o/r' 'env gh pr merge 7 --repo o/r' 'exec gh pr merge 7 --repo o/r' 'nohup gh pr merge 7 --repo o/r' 'time gh pr merge 7 --repo o/r' '/usr/bin/gh pr merge 7 --repo o/r' '\gh pr merge 7 --repo o/r' 'x=`gh pr merge 7 --repo o/r`'; do
-  reset; setbase feat/x; t "merge not at command position is denied: $c"; g "$c"; assert_rc 2
-done
-t "gh alias set with merge is denied"; g "gh alias set mm 'pr merge'"; assert_rc 2
-
-# Issue #671: the word merge in a file name is not a merge when the command is not merge-like (no $ or
-# backtick before it) or has no wrapper. The known false positive (a $ before such a name, with a shell)
-# stays denied on purpose: an exemption for it was dropped after four security reviews.
-reset; setbase main
-for c in 'bash tests/hooks/post-merge-hooks.test.sh' 'echo $HOME; grep -n merge_pr tests/scripts/release.test.sh' \
-         'bash tests/hooks/post-merge-hooks.test.sh > /tmp/out.log; echo done'; do
-  t "#671: a merge-named file with no wrapper or no \$ before it is allowed: $c"; g "$c"; assert_rc 0
-done
-t "#671: the accepted false positive is denied, as documented"; g 'S=/tmp/x; bash $S/run.sh tests/hooks/post-merge-hooks.test.sh'; assert_rc 2
-# P1 (skill-coach): prose that mentions merge next to `bash x.sh` was reported as a false positive in three
-# sessions. Two security reviews broke both fixes tried (a script-run exemption, and gh as a word of its own),
-# so it stays denied and the denial names the workaround.
-t "P1: the wrapper denial names the script-file workaround"; g 'echo "highlight the merge order"; bash scripts/run-tests.sh'
-assert_rc_contains 2 "put it in a script file with the Write tool"
-# P9 (skill-coach): the pd-autopilot preflight step with `; echo "exit=$?"` appended was denied in four sessions
-# with no merge in the command: gh in "preflight", pr in "myprojects", then the $. It stays denied (no matching
-# change); the denial says what matched instead of "mentions merge in text".
-P9='bash /p/skills/pd-autopilot/scripts/preflight.sh --repo-dir /home/u/myprojects/app; echo "exit=$?"'
-t "P9: the preflight step with an appended echo \$? stays denied"; g "$P9"; assert_rc 2
-t "P9: the denial names the letters, not a merge in text"; g "$P9"
-if [ "$RC" = 2 ] && printf '%s' "$OUT" | grep -qF 'g-h..p-r..$' && printf '%s' "$OUT" | grep -q 'holds no merge' \
-   && printf '%s' "$OUT" | grep -q 'with nothing appended' && ! printf '%s' "$OUT" | grep -q 'mentions merge in text'; then pass; else fail "rc=$RC out=$OUT"; fi
-t "P9: the preflight step run exactly as written is allowed"; g 'bash /p/skills/pd-autopilot/scripts/preflight.sh --repo-dir /home/u/myprojects/app'; assert_rc 0
-t "P9: a wrapper denial with merge in the command keeps the merge-in-text message"; g 'echo "highlight the merge order"; bash scripts/run-tests.sh'
-if [ "$RC" = 2 ] && printf '%s' "$OUT" | grep -q 'mentions merge in text' && ! printf '%s' "$OUT" | grep -q 'holds no merge'; then pass; else fail "rc=$RC out=$OUT"; fi
-# A merge spelled with a glob, brace or escape has no plain "merge" either: it must never be told it holds none.
-for c in 'bash -c "gh pr mer?e 7"' "bash -c \$'gh pr \\155erge 7'" 'bash -c "gh pr mer[g]e 7"' 'bash -c "gh pr mer{g,}e 7"' 'ls *.log | bash' \
-         'bash -c "gh pr $X 7"' 'bash -c "gh pr `cat w` 7"' 'bash -c "gh pr $X 7"; echo $?'; do
-  t "P9: a spelled merge or a glob into a shell keeps the old message: $c"; g "$c"
-  if [ "$RC" = 2 ] && ! printf '%s' "$OUT" | grep -q 'holds no merge'; then pass; else fail "rc=$RC out=$OUT"; fi
-done
-# A plain script run next to real merge-like text stays the documented false positive (the fifth review broke
-# an exemption for it), and every way to run or write code in the same call stays denied.
-for c in "$(printf "python3 - <<'EOF'\nprint('gh: the merge order')\nEOF\nbash scripts/run-tests.sh")" \
-         "printf 'gh pr merge 7 --repo o/r --admin\n' > m.log; export BASH_ENV=m.log; bash scripts/run-tests.sh" \
-         "python3 -c \"open('m.s'+'h','w').write('gh pr merge 7 --repo o/r --admin')\"; bash m.sh" \
-         "node -e \"require('fs').writeFileSync('m.s'+'h','gh pr merge 7 --repo o/r --admin')\"; bash m.sh" \
-         "python3 -c \"open('m.sh','w').write('gh pr merge 7 --repo o/r --admin')\"; bash ./m.sh" \
-         "printf 'gh pr merge 7 --repo o/r --admin\n' > m.log; sed -n 'w m.sh' m.log; bash ./m.sh" \
-         "sed -i '1a gh pr merge 7 --repo o/r --admin' scripts/run-tests.s?; bash scripts/run-tests.sh" \
-         'bash scripts/passthru.sh gh pr -R o/r merge 7 --admin' \
-         'echo highlight; gh pr merge 7 --repo o/r --admin; bash scripts/run-tests.sh' \
-         'bash -c "/tmp/ghx pr merge 7 --repo o/r"' 'ghx(){ /usr/bin/gh pr merge 7 --repo o/r; }; bash -c ghx' \
-         "bash -c 'gh pr merge 1'" 'bash -c "gh pr merge 7 --repo o/r"; bash scripts/run-tests.sh' \
-         'gh api -X PUT repos/o/r/pulls/7/merge; bash scripts/run-tests.sh' \
-         'echo "gh pr merge 7" > f.sh; bash f.sh' 'S=/tmp/x; printf "gh pr merge 7" > $S/f.sh; bash $S/f.sh' \
-         'echo gh pr merge; nodejs w.js; bash scripts/run-tests.sh' 'echo gh pr merge; bash scripts/run-tests.sh; bash -s' \
-         "$(printf "bash <<'EOF'\ngh pr merge 7 --repo o/r\nEOF\nbash scripts/run-tests.sh")" \
-         "$(printf "python3 - <<'EOF'\nopen('scripts/a.sh','w').write('gh pr merge 7')\nEOF\nbash scripts/a.sh")" \
-         'echo gh pr merge; bash scripts/run-tests.sh -c "gh pr merge 7"' 'echo gh pr merge; bash scripts/$X.sh' \
-         'echo gh pr merge; bash scripts/run-tests.sh > f.sh' 'echo gh pr merge; source scripts/run-tests.sh' \
-         'echo gh pr merge; bash scripts/run-tests.sh < in.txt'; do
-  t "P1: a wrapper next to merge text that could carry or write a merge stays denied: ${c//$'\n'/ | }"; g "$c"; assert_rc 2
-done
-# A wrapper that runs code from a string or stdin stays denied, including merges built at run time
-# (the bypasses found in review of the first fix), and a script-file run that could carry a merge.
-for c in 'X="gh pr merge 7 --repo o/r"; bash -c "$X"' 'X=me; bash -c "gh pr ${X}rge 7 --repo o/r"' \
-         'C=$(echo gh); bash -c "$C pr merge 7"' 'Y=1; bash -c "echo $Y; gh pr merge 7 --repo o/r"' \
-         'U=x; bash -c "gh api -X PUT repos/o/r/pulls/7/merge $U"' 'P=7; eval "gh pr merge $P --repo o/r"' \
-         'N=7; bash $HOME/x.sh merge $N' \
-         'Y=ge; bash -c "gh api -X PUT repos/o/proj/pulls/7/mer$Y"' \
-         "bash -c \$'gh api -X PUT repos/o/r/pulls/7/merg\\x65'; echo post-merge" \
-         'X=pr; Y=mer; bash -c "gh $X ${Y}ge 7 --repo o/r"; bash post-merge-hooks.test.sh' \
-         'X=me-rge; bash -c "gh pr ${X//-/} 7"' \
-         'bash -c "$(printf %s Z2ggcHIgbWVyZ2Ug | base64 -d) 7 --repo o/r"; echo gh merge-base' \
-         'A=g; B=h; bash -c "$A$B pr $M 7"; echo post-merge' 'echo gh pr merge 7 | bash; echo $HOME' \
-         'S=/r; bash -s < $S/post-merge.sh' 'S=/r; env -S "bash $S/post-merge.sh"' \
-         'S=/r; bash $(echo $S)/post-merge.sh' 'S=/r; bash -ec "$S post-merge"' \
-         'S=/r; gh_cmd=1; bash $S/post-merge.sh $gh_cmd; gh api repos/o/r/pulls/7 -X PUT'; do
-  t "#671: a wrapper that can carry a PR merge is still denied: $c"; g "$c"; assert_rc 2
-done
-# The security review of the first fix: a merge built at run time from a word with an extra character,
-# fed to a shell through a pipe, heredoc, file or wrapper. Each one was denied on main and must stay so.
-for c in 'echo gh pr xmerge 7 --repo o/r | sed s/x// | bash' 'echo gh pr Xmerge 7 --repo o/r | tr -d X | sh' \
-         'echo gh api -X PUT repos/o/r/pulls/7/xmerge | sed s/x// | bash' \
-         'echo gh; v=xmerge; w=xpr; bash -c "gh ${w#x} ${v#x} 7 --repo o/r"' \
-         'echo gh; v=xmerge; w=xpr; eval "gh ${w#x} ${v#x} 7 --repo o/r"' \
-         "echo gh pr\$'\\x20'merge 7 --repo o/r | bash" \
-         'echo gh; source <(echo gh pr xmerge 7 --repo o/r | sed s/x//)' \
-         'echo gh pr xmerge 7 --repo o/r | sed s/x// > /tmp/p.sh; bash /tmp/p.sh' \
-         "$(printf 'tr -d x <<EOF | bash\ngh pr xmerge 7 --repo o/r\nEOF')" \
-         'echo gh; echo pr xmerge 7 --repo o/r | sed s/x// | xargs gh' 'IFS=_; v=gh_pr_merge_7_--repo_o/r; eval $v' \
-         'echo gh; v=xmerge; w=xpr; command gh ${w#x} ${v#x} 7 --repo o/r' \
-         'echo gh; v=xmerge; w=xpr; time gh ${w#x} ${v#x} 7 --repo o/r' \
-         'echo gh; v=xmerge; w=xpr; env -S "gh ${w#x} ${v#x} 7 --repo o/r"' \
-         'echo $HOME; echo gh pr xmerge 7 --repo o/r | sed s/x// | bash' \
-         'echo gh pr 0merge 7 --repo o/r | cut -c1-6,8- | bash' \
-         'echo GH PR XMERGE 7 --REPO O/R | sed s/X// | tr A-Z a-z | bash' \
-         'echo gh api -X POST repos/o/r/xmerges -f base=main -f head=x | sed s/x// | bash'; do
-  t "#671 review: a merge built at run time stays denied: $c"; g "$c"; assert_rc 2
-done
-# Second security review of #674: an option that takes a value hid a later -c, a variable operand, stdin
-# under another name, and an interpreter writing the script. Each was denied before #674.
-for c in "echo \$HOME/xmerge; bash -O extglob -c 'gh pr m{e..e}rge 7 --repo o/r'" \
-         "echo \$HOME/xmerge; bash +O extglob -c 'gh pr m{e..e}rge 7 --repo o/r'" \
-         "echo \$HOME/xmerge; bash -o posix -c 'gh pr m{e..e}rge 7 --repo o/r'" \
-         "echo \$HOME/xmerge; bash --init-file /dev/null -c 'gh pr m{e..e}rge 7 --repo o/r'" \
-         "echo \$HOME/xmerge; bash -eO extglob -c 'gh pr m{e..e}rge 7 --repo o/r'" \
-         "echo \$HOME/xmerge; zsh -o shwordsplit -c 'gh pr m{e..e}rge 7 --repo o/r'" \
-         "echo \$HOME/xmerge; sh -o errexit -c 'M=xmerge G=ig; \${G#i}h pr \${M#x} 7 --repo o/r'" \
-         "echo \$HOME/xmerge; F=-c; bash \$F 'gh pr m{e..e}rge 7 --repo o/r'" \
-         "echo \$HOME/xmerge; env -- bash -O extglob -c 'gh pr m{e..e}rge 7 --repo o/r'" \
-         "echo \$HOME/xmerge; nohup bash -O extglob -c 'gh pr m{e..e}rge 7 --repo o/r'" \
-         "echo \$HOME/xmerge; time -p bash -O extglob -c 'gh pr m{e..e}rge 7 --repo o/r'" \
-         "echo \$HOME/xmerge; bash -O extglob -c 'gh pr m{e..e}rge 7 --repo o/r' < /dev/null" \
-         "echo \$HOME/xmerge; sudo bash -O extglob -c 'gh pr m{e..e}rge 7 --repo o/r'" \
-         "echo \$HOME/xmerge; command -p bash -O extglob -c 'gh pr m{e..e}rge 7 --repo o/r'" \
-         "python3 -c \"open('f.sh','w').write('gh pr xmerge 7 --repo o/r'.replace('x',''))\"; bash f.sh" \
-         "echo \$HOME/xmerge; bash /dev/stdin" "echo \$HOME/xmerge; bash -- -c 'gh pr m{e..e}rge 7'"; do
-  t "#671 review 2: a shell run with options or a hidden script stays denied: $c"; g "$c"; assert_rc 2
-done
-# Third security review: an operand that expands to an option, and a writer that is not an interpreter.
-# Each was denied before #674 and must stay denied.
-for c in "echo \$HOME/xmerge; bash \\-c 'gh pr m{e..e}rge 7 --repo o/r'" \
-         "echo \$HOME/xmerge; bash [-]c 'gh pr m{e..e}rge 7 --repo o/r'" \
-         "echo \$HOME/xmerge; bash ?c 'gh pr m{e..e}rge 7 --repo o/r'" \
-         "echo \$HOME/xmerge; bash {-c,} 'gh pr m{e..e}rge 7 --repo o/r'" \
-         "echo \$HOME/xmerge; bash \${F:--c} 'gh pr m{e..e}rge 7 --repo o/r'" \
-         "echo \$HOME/xmerge; set -- -c; bash \$1 'gh pr m{e..e}rge 7 --repo o/r'" \
-         "echo \$HOME/xmerge; bash \$* 'gh pr m{e..e}rge 7 --repo o/r'" \
-         "echo \$HOME/xmerge; A=(-c x); bash \${A[0]} 'gh pr m{e..e}rge 7 --repo o/r'" \
-         "echo \$HOME/xmerge; bash \${F%x} 'gh pr m{e..e}rge 7 --repo o/r'" \
-         "echo \$HOME/xmerge; A=-; B=c; bash \$A\$B 'gh pr m{e..e}rge 7 --repo o/r'" \
-         "echo \$HOME/xmerge; sudo bash \\-c 'gh pr m{e..e}rge 7 --repo o/r'" \
-         "echo \$HOME/xmerge; cp /etc/hostname f.sh; sed -i 's/.*/gh pr xmerge 7 --repo o\\/r/;s/x//' f.sh; bash f.sh" \
-         "echo \$HOME/xmerge; sed -n 's/.*/gh pr xmerge 7/;s/x//;w f.sh' /etc/hostname; bash f.sh" \
-         "echo \$HOME/xmerge; sort -o f.sh g.txt; bash f.sh" "echo \$HOME/xmerge; nodejs w.js; bash f.sh" \
-         "echo \$HOME/xmerge; IFS=:; S='-c:g[h] pr m{e..e}rge 7 --repo o/r #'; bash \$S/run.sh"; do
-  t "#671 review 3: an option-like operand or a same-call writer stays denied: $c"; g "$c"; assert_rc 2
-done
-
-# Issue #677: a literal merge in a shell string behind a keyword, !, an unlisted wrapper, or a path or
-# backslash on the shell name was not denied (it reached gh pr merge with no owner prompt).
-reset; setbase main
-for c in 'if bash -c "gh pr merge 7 --repo o/r"; then :; fi' '! bash -c "gh pr merge 7 --repo o/r"' \
-         'while bash -c "gh pr merge 7 --repo o/r"; do break; done' 'until bash -c "gh pr merge 7 --repo o/r"; do :; done' \
-         'true; then bash -c "gh pr merge 7 --repo o/r"' \
-         'nice bash -c "gh pr merge 7 --repo o/r"' 'timeout 5 bash -c "gh pr merge 7 --repo o/r"' \
-         'stdbuf -o0 bash -c "gh pr merge 7 --repo o/r"' 'setsid bash -c "gh pr merge 7 --repo o/r"' \
-         'ionice -c2 bash -c "gh pr merge 7 --repo o/r"' 'taskset 1 bash -c "gh pr merge 7 --repo o/r"' \
-         '/bin/bash -c "gh pr merge 7 --repo o/r"' '\bash -c "gh pr merge 7 --repo o/r"' \
-         '/usr/bin/env bash -c "gh pr merge 7 --repo o/r"' 'if eval "gh pr merge 7 --repo o/r"; then :; fi' \
-         '! /bin/sh -c "gh pr merge 7 --repo o/r"' 'if ! bash -c "gh pr merge 7 --repo o/r"; then :; fi'; do
-  t "#677: a merge behind a keyword, wrapper or shell path is denied: $c"; g "$c"; assert_rc 2
-done
-t "#677: a keyword in front of an ordinary command is still allowed"; g 'if true; then echo merged; fi'; assert_rc 0
-
-# Security review of PR #679. F1: a merge next to a keyword is denied, not put to the owner.
-reset; setbase main
-for c in "! gh pr merge 7 --repo o/r --match-head-commit $SHA" \
-         "$(printf 'gh pr merge 7 --repo o/r --match-head-commit %s\nthen' "$SHA")" \
-         "$(printf 'gh pr merge 7 --repo o/r --match-head-commit %s\n!' "$SHA")" \
-         "if gh pr merge 7 --repo o/r --match-head-commit $SHA" "do gh pr merge 7 --repo o/r --match-head-commit $SHA" \
-         "X=1 if gh pr merge 7 --repo o/r --match-head-commit $SHA" \
-         "$(printf 'then\ngh pr merge 7 --repo o/r --match-head-commit %s' "$SHA")"; do
-  t "#679 review F1: a merge next to a keyword is denied, not asked: $c"; g "$c"; assert_rc 2
-done
-# F2-F6: an assignment after a keyword, a backslash, glob or = in the shell name, a redirection first,
-# zsh prefixes, and common wrappers not listed before. Each reached gh pr merge in a sandbox.
-for c in 'if X=1 bash -c "gh pr merge 7 --repo o/r"; then :; fi' '! X=1 bash -c "gh pr merge 7 --repo o/r"' \
-         'while X=1 eval "gh pr merge 7 --repo o/r"; do break; done' 'if true; then X=1 bash -c "gh pr merge 7 --repo o/r"; fi' \
-         '! X= /bin/bash -c "gh pr merge 7 --repo o/r"' \
-         'b\ash -c "gh pr merge 7 --repo o/r"' 'ev\al "gh pr merge 7 --repo o/r"' '/bin/bas[h] -c "gh pr merge 7 --repo o/r"' \
-         '/bin/bas? -c "gh pr merge 7 --repo o/r"' '=bash -c "gh pr merge 7 --repo o/r"' \
-         '>/dev/null bash -c "gh pr merge 7 --repo o/r"' '</dev/null bash -c "gh pr merge 7 --repo o/r"' \
-         '<<<"gh pr merge 7 --repo o/r" bash' 'if >/dev/null bash -c "gh pr merge 7 --repo o/r"; then :; fi' \
-         '> /dev/null bash -c "gh pr merge 7 --repo o/r"' '2>/dev/null bash -c "gh pr merge 7 --repo o/r"' \
-         'noglob bash -c "gh pr merge 7 --repo o/r"' 'nocorrect bash -c "gh pr merge 7 --repo o/r"' \
-         '- bash -c "gh pr merge 7 --repo o/r"' 'repeat 1 bash -c "gh pr merge 7 --repo o/r"' \
-         '! noglob eval "gh pr merge 7 --repo o/r"' 'coproc bash -c "gh pr merge 7 --repo o/r"; wait' \
-         '{bash,-c,"gh pr merge 7 --repo o/r"}' 'echo "gh pr merge 7 --repo o/r" | $SHELL' \
-         'rbash -c "gh pr merge 7 --repo o/r"' 'busybox sh -c "gh pr merge 7 --repo o/r"' \
-         'flock /tmp/l bash -c "gh pr merge 7 --repo o/r"' 'script -qc "gh pr merge 7 --repo o/r" /dev/null' \
-         'setpriv bash -c "gh pr merge 7 --repo o/r"' 'prlimit bash -c "gh pr merge 7 --repo o/r"' \
-         'chrt -o 0 bash -c "gh pr merge 7 --repo o/r"' 'strace -o /dev/null bash -c "gh pr merge 7 --repo o/r"' \
-         'fakeroot bash -c "gh pr merge 7 --repo o/r"'; do
-  t "#679 review F2-F6: a hidden wrapper is denied: $c"; g "$c"; assert_rc 2
-done
-reset
-t "#679 review: a redirection before an ordinary command is still allowed"; g '>/tmp/out echo merged'; assert_rc 0
-t "#679 review: test brackets next to the word merge are still allowed"; g '[ -n "$X" ] && echo merged'; assert_rc 0
-
-# Confirmation review of #679: a backslash inside the gh words, a redirection holding & or |, X+= and
-# a[0]= assignments, watch and unshare. Each reached gh pr merge with no prompt before this change.
-reset; setbase main
-for c in 'g\h pr merge 7 --repo o/r' 'gh pr mer\ge 7 --repo o/r' 'gh p\r merge 7 --repo o/r' \
-         '2>&1 bash -c "gh pr merge 7 --repo o/r"' '>&/dev/null bash -c "gh pr merge 7 --repo o/r"' \
-         '>| f bash -c "gh pr merge 7 --repo o/r"' 'X+=1 bash -c "gh pr merge 7 --repo o/r"' \
-         'a[0]=1 bash -c "gh pr merge 7 --repo o/r"' 'watch -g -n1 "gh pr merge 7 --repo o/r"' \
-         'unshare -r bash -c "gh pr merge 7 --repo o/r"'; do
-  t "#679 confirm: a hidden merge is denied: $c"; g "$c"; assert_rc 2
-done
-reset
-for c in 'if gh run list --workflow merge.yml; then :; fi' '! gh pr view 5 --json mergedAt' \
-         '>/tmp/o gh pr list --search merged' 'ls 2>&1 | grep merge'; do
-  t "#679 confirm: a gh read next to a keyword or redirection is allowed: $c"; g "$c"; assert_rc 0
-done
-
-# Fourth security review of the dropped #671 exemption: a $VAR/ operand that word-splits into -c, env's
-# split-string option in a form the old check missed, and $( assembled from pieces (PS4, test -v). Each ran
-# gh pr merge in a sandbox through the exemption; with no exemption they must be denied.
-for c in "S='-c \"\$@\" '; bash \$S/post-merge.sh gh pr m{e..e}rge 7 --repo o/r" \
-         "printf -v S %s '-c \"\$@\" '; bash \$S/post-merge.sh gh pr m{e..e}rge 7 --repo o/r" \
-         "env -vSbash -c '{gh,pr,m{e..e}rge,7,--repo=o/r}' bash tests/post-merge.sh" \
-         "env --split=bash -c '{gh,pr,m{e..e}rge,7,--repo=o/r}' bash tests/post-merge.sh" \
-         "PS4=\"\\\$\"'(gh pr m{e..e}rge 7 --repo o/r)' bash -x tests/post-merge.sh" \
-         "x='a['\"\\\$\"'(gh pr m{e..e}rge 7 --repo o/r)]'; test -v 'b[x]'; bash tests/post-merge.sh"; do
-  t "#671 review 4: a script run built to carry a merge is denied: $c"; g "$c"; assert_rc 2
-done
-
-reset; setbase feat/x; printf 'main\n' > "$D/base.8"
-t "chain: 7 on feat/x, 8 on main: the whole command is denied"; g 'gh pr merge 7 --repo o/r --merge && gh pr merge 8 --repo o/r --merge'; assert_rc 2
-t "chain: the denied PR comes first: denied"; g 'gh pr merge 8 --repo o/r --merge; gh pr merge 7 --repo o/r --merge'; assert_rc 2
-reset; setbase feat/x
-t "chain: both PRs on feat/x: allowed"; g 'gh pr merge 7 --repo o/r --merge && gh pr merge 8 --repo o/r --merge'; assert_rc 0
-t "both PRs of a chain were read"
-if grep -q 'pr view 7 ' "$LOG" && grep -q 'pr view 8 ' "$LOG"; then pass; else fail "log: $(cat "$LOG")"; fi
-t "a merge segment hidden behind a brace group is judged (put to the owner)"; reset; setbase main; g "{ gh pr merge 7 --repo o/r --match-head-commit $SHA; }"; assert_ask "into main"
-
-reset
-t "echo 'gh pr merge 7' is not a merge"; g "echo 'gh pr merge 7'"; assert_rc 0
-t "a heredoc commit message that mentions a merge is not a merge"
-g "$(printf 'git commit -F - <<'"'"'EOF'"'"'\nfix: gh pr merge 7 --repo o/r\nEOF')"; assert_rc 0
-t "a quoted commit message that mentions a merge is not a merge"; g 'git commit -m "docs: never run gh pr merge 7 by hand"'; assert_rc 0
-reset; setbase main
-t "an unclosed quote that swallows a later merge is denied"; g "$(printf "echo 'x\ngh pr merge 7 --repo o/r")"; assert_rc 2
-t "an apostrophe in a comment before a merge on main is denied"; g "$(printf "# don't\ngh pr merge 7 --repo o/r")"; assert_rc 2
-reset; setbase feat/x
-t "a multi-word quoted --body value does not swallow the PR number"; g 'gh pr merge --body "a b c" 7 --repo o/r --merge'
-if [ "$RC" = 0 ] && grep -q 'pr view 7 --repo o/r' "$LOG"; then pass; else fail "rc=$RC out=$OUT log: $(cat "$LOG" 2>/dev/null)"; fi
-t "a multi-word quoted --subject value before a PR on main is still put to the owner"; setbase main; g "gh pr merge -t 'x y' 7 --repo o/r --match-head-commit $SHA"; assert_ask "Merge PR #7"
-reset; setbase feat/x
-t "a quote-split gh word is still judged (main base put to the owner)"; setbase main; g "\"g\"\"h\" pr merge 7 --repo o/r --match-head-commit $SHA"; assert_ask "into main"
-t "an upper-case GraphQL-style spelling cannot skip the filter"; g 'gh api graphql -f query="mutation{enablePullRequestAutoMerge(input:{pullRequestId:\"X\"}){clientMutationId}}"'; assert_rc 2
-t "gh api graphql enablePullRequestAutoMerge is denied"; g 'gh api graphql -f query=@q.graphql -f x=enablePullRequestAutoMerge'; assert_rc 2
-t "gh api repos/o/r/merges is denied"; g 'gh api repos/o/r/merges -f base=main -f head=x'; assert_rc 2
-t "a variable-split subcommand is denied"; g 'm=mer; gh pr ${m}ge 7 --repo o/r'; assert_rc 2
-t "a split gh name g\${x}h is denied"; g 'x=""; g${x}h pr merge 7 --repo o/r'; assert_rc 2
-t "a command name from a variable is denied"; g 'GH=gh; $GH pr merge 7 --repo o/r'; assert_rc 2
-t "gh pr view with a variable argument is allowed"; g 'gh pr view $N --json state'; assert_rc 0
-t "a variable inside the pr word is denied"; g 'x=r; gh p$x merge 7 --repo o/r'; assert_rc 2
-t "a variable as the gh subcommand is denied"; g 'a=pr; gh $a merge 7 --repo o/r'; assert_rc 2
-
-reset
-t "ls exits 0"; g 'ls -la'; assert_rc 0
-t "ls does not call gh"; if [ ! -s "$LOG" ]; then pass; else fail "log: $(cat "$LOG")"; fi
-t "a gh call that is not a merge is allowed without a base read"; g 'gh pr view 7 --json state'; assert_rc 0
-t "gh pr view does not call gh from the guard"; if [ ! -s "$LOG" ]; then pass; else fail "log: $(cat "$LOG")"; fi
-
-reset; setbase feat/x; touch "$D/slow"
-t "a stalled gh is killed and the merge is denied within the time budget"
-s=$SECONDS; g "$M"; e=$((SECONDS - s))
-if [ "$RC" = 2 ] && [ "$e" -lt 20 ]; then pass; else fail "rc=$RC took ${e}s out=$OUT"; fi
-rm -f "$D/slow"
-
-# P5 (skill-coach): spellings that bash turns into gh or merge but the pre-filter did not see. Found by the
-# security review of P1 (2026-11-20); each one passed main with exit 0, so a merge into main ran with no prompt.
-reset; setbase main
 NL=$'\n'
-for c in '{g..g}h pr merge 7 --repo o/r --admin' 'g{h..h} pr merge 7 --repo o/r --admin' \
-         "g\\${NL}h pr merge 7 --repo o/r --admin" "gh pr mer\\${NL}ge 7 --repo o/r --admin" \
-         "printf '\\147h pr merge 7 --repo o/r' | bash" "printf '\\x67h pr m\\x65rge 7 --repo o/r' | bash" \
-         "\$'\\147h' pr \$'m\\145rge' 7 --repo o/r" \
-         'gh pr merg? 7 --repo o/r --admin' 'gh pr mer[g]e 7 --repo o/r --admin' '/usr/bin/g? pr merge 7 --repo o/r' \
-         'GH pr merge 7 --repo o/r --admin' 'Gh pr merge 7 --repo o/r'; do
-  t "P5: a spelling that bash turns into a gh merge is denied: ${c//$NL/<NL>}"; g "$c"; assert_rc 2
+printf 'feat/x\n' > "$D/base.2"; printf 'main\n' > "$D/base.1"   # PR 3 has no readable base
+
+# run <command> [tool_name] : run the hook; AGENT=<id> sets agent_id (a subagent); P=<dir> sets PATH
+run() {
+  local json; json=$(jq -n --arg c "$1" --arg t "${2:-Bash}" --arg a "${AGENT-}" \
+    '{tool_name:$t, tool_input:{command:$c}, permission_mode:"default"} + (if $a == "" then {} else {agent_id:$a} end)')
+  rm -f "$LOG"
+  OUT=$(cd "$R" && printf '%s' "$json" | env PATH="${P:-$STUB:$PATH}" "$BASH_BIN" hooks/merge-guard.sh 2>&1); RC=$?
+}
+# expect <pass|ask|deny> <command> [tool_name]
+expect() {
+  t "$1: ${2//$NL/<NL>}${3:+ ($3)}${AGENT:+ (subagent)}"; run "$2" "${3:-}"
+  local got=pass
+  if [ "$RC" = 2 ]; then got=deny
+  elif [ "$RC" = 0 ] && [ -n "$OUT" ] && printf '%s' "$OUT" | jq -e '.hookSpecificOutput.permissionDecision == "ask"' >/dev/null 2>&1; then got=ask
+  elif [ "$RC" != 0 ] || [ -n "$OUT" ]; then got="rc=$RC out=$OUT"; fi
+  if [ "$got" = "$1" ]; then pass; else fail "want $1, got $got: $OUT"; fi
+}
+
+echo "== the artifact table (23 cases) =="
+expect pass 'bash scripts/preflight.sh ~/myprojects/x; echo "exit=$?"'
+expect pass 'git merge feat/x'
+expect pass 'gh pr view 1 --json mergeable'
+expect pass 'gh pr list --state merged'
+expect pass 'gh pr merge 2 --squash --repo o/r'
+expect ask  'gh pr merge 1 --squash --repo o/r'
+expect ask  'gh pr merge 3 --repo o/r'
+expect ask  'cd x && gh pr merge 1 --repo o/r'
+expect ask  'gh api -X PUT repos/o/r/pulls/1/merge'
+expect ask  'bash -c "gh pr merge 1"'
+expect ask  'GH pr merge 1'
+expect ask  'gh pr comment 5 --body "ready to merge"'
+expect pass 'glab mr merge 2 --squash'
+expect ask  'glab mr merge 1'
+expect ask  'glab api -X PUT projects/5/merge_requests/1/merge'
+expect pass 'git push -u origin feat/x'
+expect pass 'git push origin fix/maintenance'
+expect ask  'git push origin HEAD:main'
+expect ask  'git push origin fix/1:refs/heads/main'
+expect ask  '' mcp__github__merge_pull_request
+expect deny 'gh pr merge 1 --auto --squash'
+expect deny 'gh pr merge 2 --admin'
+AGENT=a1 expect deny 'gh pr merge 1 --repo o/r'
+
+echo "== the merges that ship.js and the fleet run into feat/* (also from a subagent) =="
+SHA=0123456789abcdef0123456789abcdef01234567
+for a in "" a1; do
+  AGENT=$a expect pass 'gh pr merge 2 --repo o/r --merge'
+  AGENT=$a expect pass "gh pr merge 2 --repo o/r --merge --match-head-commit $SHA"
+  AGENT=$a expect pass 'gh pr merge 2 -R o/r --squash --delete-branch'
 done
-t "P5: no jq and a folded spelling of a merge (g\"\"h) is denied"; g 'g""h pr merge 7 --repo o/r --admin' "$NOJQ"; assert_rc 2
-t "P5: no jq and an upper-case GH merge is denied"; g 'GH pr merge 7 --repo o/r' "$NOJQ"; assert_rc 2
-# P5 code review: more spellings of the same kind, and the merge word in the payload's other fields.
-for c in 'gh pr mer{g..g}e 7 --repo o/r --admin' 'gh pr m{e..e}rge 7 --repo o/r' \
-         "\$'\\u67'h pr \$'m\\u65'rge 7 --repo o/r" "\$'\\U67'h pr \$'m\\U65'rge 7 --repo o/r" \
-         '/usr/bin/g? pr m?rge 7 --repo o/r --admin' "Bash -c 'gh pr merge 7 --repo o/r --admin'" \
-         'a=xghmerg; b=e; ${a:1:2} pr ${a:3}$b 7 --repo o/r --admin'; do
-  t "P5: a spelling that bash turns into a gh merge is denied: $c"; g "$c"; assert_rc 2
+expect ask  "gh pr merge 1 --repo o/r --merge --match-head-commit $SHA"
+t "the base is read for the PR number and repo of the command"; run 'gh pr merge 2 -R o/r --merge'
+if grep -q 'gh pr view 2 --repo o/r --json baseRefName' "$LOG"; then pass; else fail "log: $(cat "$LOG" 2>/dev/null)"; fi
+t "glab reads the base with the repo of the command"; run 'glab mr merge 2 --repo g/p'
+if grep -q 'glab mr view 2 --repo g/p --output json' "$LOG"; then pass; else fail "log: $(cat "$LOG" 2>/dev/null)"; fi
+
+echo "== doubt means ask; a subagent cannot ask, so it is denied =="
+expect ask  'gh pr merge 1'
+expect ask  'gh pr merge 2  --repo o/r'
+expect ask  'gh pr merge 2 --repo=o/r'
+expect ask  "gh pr merge 2 --repo o/r${NL}gh pr merge 1 --repo o/r"
+expect ask  'gh pr merge https://github.com/o/r/pull/2'
+expect ask  'gh api graphql -f query="mutation { mergePullRequest(input: {}) { clientMutationId } }"'
+expect ask  'git commit -m "docs: say when gh pr merge asks"'
+expect ask  'git push origin main'
+expect ask  'git push origin +main'
+t "a repeated repo flag reads the base in the last repo, the one gh uses"
+run 'gh pr merge 2 --repo o/r --merge -R x/main-repo'
+if grep -q 'gh pr view 2 --repo x/main-repo' "$LOG"; then pass; else fail "log: $(cat "$LOG" 2>/dev/null)"; fi
+expect ask  'git -C ../x push origin master; echo done'
+expect ask  'git push origin main && gh pr create'
+expect ask  '' mcp__gitlab__merge_merge_request
+expect ask  '' mcp__github__enable_pull_request_auto_merge
+AGENT=a1 expect deny 'git commit -m "docs: say when gh pr merge asks"'
+AGENT=a1 expect deny 'git push origin HEAD:main'
+AGENT=a1 expect deny '' mcp__github__merge_pull_request
+AGENT=a1 expect deny 'gh pr merge 3 --repo o/r'
+
+echo "== no false question on ordinary commands =="
+for a in "" a1; do  # ship.js commands (ADR 0004): the slug, title and body stay in files, so merge in them is not seen
+  AGENT=$a expect pass "gh api repos/o/r/pulls -X POST --input /tmp/pr.json --jq '{number, url: .html_url}'"
+  AGENT=$a expect pass 'gh issue comment 5 --repo o/r --body-file /tmp/c'
 done
-for c in 'printf "\033[1m" ; $EDITOR notes.txt' 'X=$HOME/bin; "$X/tool" && printf "\033[0m"'; do
-  t "P5: an escape next to a command built from a variable, with no merge word, is allowed: $c"; g "$c"; assert_rc 0
-done
-# (Without jq, a $ next to the word merge stays denied: the hook cannot tell a variable command name from text.)
-for c in 'ls *.md' 'git merge feat/x' 'printf "\033[0m"'; do
-  t "P5: no jq and a command that is not a gh merge is allowed: $c"; g "$c" "$NOJQ"; assert_rc 0
-done
-# P5 security review: a backslash line break in a comment or a quoted heredoc body is not joined by bash, so the
-# merge on the next line runs; joining it in the hook hid that merge. Escape-only spellings with no literal word.
-for c in "#a\\${NL}gh pr merge 7 --repo o/r" "echo hi # done\\${NL}gh pr merge 7 --repo o/r" \
-         "cat <<'X'${NL}foo\\${NL}X${NL}gh pr merge 7 --repo o/r${NL}X" \
-         "\$'\\x67\\x68' \$'\\x70\\x72' \$'\\x6d\\x65\\x72\\x67\\x65' 7 --repo o/r" \
-         "\$'\\147\\150' \$'\\160\\162' \$'\\155\\145\\162\\147\\145' 7" \
-         "echo -e '\\x67\\x68 \\x70\\x72 \\x6d\\x65\\x72\\x67\\x65 7 --repo o/r' | . /dev/stdin"; do
-  t "P5: a hidden or escape-only merge is denied: ${c//$NL/<NL>}"; g "$c"; assert_rc 2
-done
-for c in "printf '\\033[1mhi\\033[0m\\n'; bash scripts/run-tests.sh" "echo -e '\\x41' && sh build.sh" \
-         "grep -rlP '\\x00' . | xargs -n1 file"; do
-  t "P5: an escape that spells no merge, next to a wrapper, is allowed: $c"; g "$c"; assert_rc 0
-done
-# P5 security review 2: an escape-only merge handed to a wrapper in other forms.
-E1="\$'\\x67\\x68 \\x70\\x72 \\x6d\\x65\\x72\\x67\\x65 7 --repo o/r'"
-P1="printf '\\x67\\x68 \\x70\\x72 \\x6d\\x65\\x72\\x67\\x65 7 --repo o/r'"
-for c in "bash -c $E1" "eval $E1" "bash <<< $E1" "bash <($P1)" "$P1 | env bash" "$P1 | timeout 9 bash"; do
-  t "P5: an escape-only merge handed to a wrapper is denied: $c"; g "$c"; assert_rc 2
-done
-# Known limit: without jq, gh inside a word next to a glob and pr (ls high/pr*) is denied; jq is a listed dependency.
-# P5 security review 3: printf %b stops at \c, so a \c earlier in the command hid the decoded merge.
-for c in ": '\\c'; \$'\\x67\\x68' \$'\\x70\\x72' \$'\\x6d\\x65\\x72\\x67\\x65' 7 --repo o/r" \
-         "# \\c${NL}\$'\\x67\\x68' \$'\\x70\\x72' \$'\\x6d\\x65\\x72\\x67\\x65' 7 --repo o/r"; do
-  t "P5: a \\c before an escape-only merge does not hide it: ${c//$NL/<NL>}"; g "$c"; assert_rc 2
-done
-# ...and ordinary commands with braces, globs, escapes or a line break, and no merge, still run.
-for c in 'echo {a,b}.txt; ls *.md' "printf '\\x41\\n'" "git log --oneline \\${NL}  -3" 'echo Ghost'; do
-  t "P5: a command without a merge is allowed: ${c//$NL/<NL>}"; g "$c"; assert_rc 0
-done
+expect pass 'git commit -F /tmp/msg.txt'
+expect pass 'git commit -m "push the fix to main"'
+expect pass 'git push origin feat/main-x'
+expect pass 'git push origin maintenance'
+expect pass 'gh pr view 5 --json state,mergeStateStatus,mergedAt'
+expect pass 'gh pr create --base main --title "fix: guard" --body-file /tmp/b.md'
+expect pass 'git log --oneline --merges -3'
+expect pass 'echo merge'
+
+echo "== a stalled or missing tool =="
+t "a gh that stalls is cut after 15 s and the merge asks"; touch "$D/slow"; s=$SECONDS
+run 'gh pr merge 2 --repo o/r'; rm -f "$D/slow"
+if [ "$RC" = 0 ] && printf '%s' "$OUT" | grep -q '"ask"' && [ $((SECONDS - s)) -lt 25 ]; then pass; else fail "rc=$RC $((SECONDS - s))s out=$OUT"; fi
+P=$NOJQ expect deny 'gh pr merge 2 --repo o/r'
+P=$NOJQ expect deny 'git push origin feat/x'
+P=$NOJQ expect pass 'ls -la'
 
 # Probe (opt-in: it starts real `claude -p` sessions, needs a login and costs tokens): what Claude Code does
-# with permissionDecision "ask" under default, auto and bypassPermissions. Run with RUN_ASK_PROBE=1.
-# Result (ADR 0008, 0009): in each mode the Bash call is NOT run; headless, nobody can answer the prompt.
+# with permissionDecision "ask" in each mode. Run with RUN_ASK_PROBE=1. Result (ADR 0004): headless,
+# nobody can answer the prompt, so in each mode the Bash call is NOT run.
 ask_probe() {
   local mode="$1" pd
   pd=$(mktemp -d); _CLEANUP_DIRS+=("$pd"); mkdir -p "$pd/.claude"
-  cat > "$pd/hook.sh" <<'HOOKEOF'
-#!/bin/sh
-cat >/dev/null
-echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"probe ask"}}'
-HOOKEOF
+  printf '#!/bin/sh\ncat >/dev/null\necho %s\n' \
+    "'{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"probe\"}}'" > "$pd/hook.sh"
   chmod +x "$pd/hook.sh"
   printf '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"%s/hook.sh"}]}]}}' "$pd" > "$pd/.claude/settings.json"
   (cd "$pd" && claude -p --model haiku --permission-mode "$mode" --setting-sources project \
     "Run exactly this Bash command and nothing else: touch $pd/ran. Then say DONE." </dev/null >/dev/null 2>&1)
   if [ -f "$pd/ran" ]; then fail "ask was turned into an allow under $mode"; else pass; fi
 }
-for mode in default auto bypassPermissions; do
+for mode in default auto dontAsk bypassPermissions; do
   t "probe: ask is not turned into an allow under $mode (headless claude -p)"
   if [ "${RUN_ASK_PROBE:-}" != 1 ]; then skip "set RUN_ASK_PROBE=1 to run (starts a real claude session)"
   elif ! command -v claude >/dev/null 2>&1; then skip "claude is not installed"

@@ -63,7 +63,7 @@ intake   readiness gate: READY | CONFIRM | GRILL | BLOCKED, depth S | M | L
   -> finishing-a-development-branch   push and open a PR; a human merges
 ```
 
-**Fleet path (the only run path, `docs/adr/0004-pd-bot-runs-only-with-pod-bay-and-the-fleet-is-the-only-run-path.md`).** `/pd-bot:pd-orchestrate` runs the tickets with free agent
+**Fleet path (the only run path, `docs/adr/0005-pd-bot-runs-only-with-pod-bay-and-the-fleet-is-the-only-run-path.md`).** `/pd-bot:pd-orchestrate` runs the tickets with free agent
 sessions: the main session (Opus 5.5) assigns one worker session per ticket
 in a Pod Bay workspace (`pd-work`), a different session reviews (`pd-review`), and a Fable 5.2 session
 advises when the orchestrator is stuck (`pd-advise`). Order is free; the end state must show the
@@ -83,14 +83,14 @@ Decisions made on the way are recorded as ADRs in `docs/adr/`. The skills above 
 
 ## Hooks
 
-Wired (✅) means registered in `plugins/pd-bot/hooks/hooks.json`. All hooks fail open except `merge-guard.sh`, which fails closed, and `stop-evidence.sh` on its risk floor. The plugin cannot ship `permissions.deny`: the repo's `settings.json` carries it (`.env`, force-push, push to `main`/`master`), and `/pd-bot:pd-setup` merges it into a consuming project.
+Wired (✅) means registered in `plugins/pd-bot/hooks/hooks.json`. All hooks fail open except `stop-evidence.sh` on its risk floor; `merge-guard.sh` asks the owner when in doubt (ADR 0004). The plugin cannot ship `permissions.deny`: the repo's `settings.json` carries it (`.env`, force-push, push to `main`/`master`), and `/pd-bot:pd-setup` merges it into a consuming project.
 
 | Hook | Trigger | Action | Wired |
 |---|---|---|---|
 | `session-rules.sh` | SessionStart | Delivers `rules/behavior.md` as session context (a plugin has no rules component) | ✅ |
 | `session-role.sh` | SessionStart | In the Pod Bay session of the main workspace (`src`), adds the orchestrator role text (`hooks/orchestrator-role.md`): check, coordinate, decide, and delegate hands-on work; reads the tmux options Pod Bay sets (`@tn_context` has no `@NN` suffix in `src`); silent in `src-NN`, in a nested `claude -p` and outside Pod Bay; a set `PD_BOT_ROLE` decides before any tmux check: `PD_BOT_ROLE=orchestrator` gives the role, any other non-empty value (`worker`, `reviewer`, `tester`, `advisor`, `none`) gives none, and `fleet-settings.py` sets it for fleet sessions; off also with `{"orchestrator": "off"}` in `<repo>/.claude/pd-bot.json` | ✅ |
 | `secrets-scan.sh` | PreToolUse (Bash) | On `git commit`, blocks a staged secret pattern or a staged `.env` file | ✅ |
-| `merge-guard.sh` | PreToolUse (Bash) | Blocks `gh pr merge` and `gh api .../pulls/<n>/merge` unless the PR base is `feat/*`; one plain `gh pr merge <n> --repo o/r` into main or another base shows a confirmation prompt (`ask`) and runs only after the owner approves; it denies in a mode, subagent or `-p` run where nobody can answer, and still denies `--auto`, wrappers, `gh api`, GraphQL and every doubt path; fails closed (no env bypass); the owner's own `!` or terminal merge is not seen | ✅ |
+| `merge-guard.sh` | PreToolUse (Bash, MCP merge tools) | Doubt means ask (ADR 0004): a plain `gh pr merge <n>` or `glab mr merge <n>` whose base is `feat/*` runs; every other merge-like command (another base, an unreadable base, a chain, `gh api`, GraphQL, merge in a text), a `git push` that names main or master, and an MCP merge tool (PreToolUse `mcp__.*__(merge_.*\|enable_.*auto_merge.*)`) shows the owner a confirmation prompt (`ask`); in a subagent or workflow agent nobody can answer, so it denies; `--auto` and `--admin` are denied; it stops habitual merges, not hidden ones (escapes, scripts, interpreters); the owner's own `!` or terminal merge is not seen | ✅ |
 | `pr-opened.sh` | PostToolUse (Bash) | After a `gh pr create` command whose output holds a PR URL, reminds the main session to review the PR; the orchestrator session is told to hand the review to another session | ✅ |
 | `stop-evidence.sh` | Stop | When code changed and the transcript has no Bash output, blocks the end of the main session; a model judge (Opus 5.5) picks remind (blocks once) or force; an Opus main session skips the judge unless a bash risk floor matches (`hooks/`, `scripts/`, auth or secret words); fails open, except on the risk floor | ✅ |
 | `clean-worktrees.sh` | PostToolUse (Bash), SessionStart | After a merge, and at session start, fetches and removes the worktree and branch of merged branches (`git branch -D` only when a merged PR head equals the local tip); skips protected names (`develop`, `staging`, `release/*`, ...); the session-start sweep also skips a worktree a live process uses and stops after a 20 s budget | ✅ |
