@@ -71,5 +71,3 @@ export default function App() {
     </TooltipProvider>
   );
 }
-
-export const throwaway = "bg-red-500";
