@@ -26,26 +26,30 @@ export function Dialog({
     <D.Root open={open} onOpenChange={onOpenChange}>
       <D.Portal>
         <D.Overlay className="fixed inset-0 z-40 bg-overlay" />
-        <D.Content
-          aria-describedby={undefined}
-          className={cn(
-            "fixed top-1/2 left-1/2 z-50 flex max-w-full -translate-x-1/2 -translate-y-1/2 flex-col gap-4.5",
-            "rounded-dialog bg-surface-2 p-7 shadow-lg focus-visible:outline-none",
-            widths[size],
-          )}
-        >
-          <div className="flex min-h-7 items-center justify-between gap-2 pr-10">
-            <D.Title className="text-lg font-semibold text-fg">{title}</D.Title>
-          </div>
-          {children}
-          <div className="flex justify-end gap-2">{footer}</div>
-          {/* Last in the DOM so it is the last Tab stop; positioned where the header would hold it. */}
-          <D.Close asChild>
-            <Button variant="ghost" size="icon-sm" aria-label="Close" className="absolute top-6.5 right-6.5">
-              <Icon.close {...iconSize.default} aria-hidden />
-            </Button>
-          </D.Close>
-        </D.Content>
+        {/* Inset wrapper: the content never exceeds the viewport. It lets clicks through to the overlay. */}
+        <div className="pointer-events-none fixed inset-6 z-50 flex items-center justify-center">
+          <D.Content
+            aria-describedby={undefined}
+            className={cn(
+              "pointer-events-auto relative flex max-h-full max-w-full flex-col gap-4.5",
+              "rounded-dialog bg-surface-2 p-7 shadow-lg focus-visible:outline-none",
+              widths[size],
+            )}
+          >
+            <div className="flex min-h-7 flex-none items-center justify-between gap-2 pr-10">
+              <D.Title className="text-lg font-semibold text-fg">{title}</D.Title>
+            </div>
+            {/* Only the body scrolls; the padding keeps focus rings at its edges from being clipped. */}
+            <div className="-m-1.5 min-h-0 flex-1 overflow-y-auto p-1.5">{children}</div>
+            <div className="flex flex-none justify-end gap-2">{footer}</div>
+            {/* Last in the DOM so it is the last Tab stop; positioned where the header would hold it. */}
+            <D.Close asChild>
+              <Button variant="ghost" size="icon-sm" aria-label="Close" className="absolute top-6.5 right-6.5">
+                <Icon.close {...iconSize.default} aria-hidden />
+              </Button>
+            </D.Close>
+          </D.Content>
+        </div>
       </D.Portal>
     </D.Root>
   );
