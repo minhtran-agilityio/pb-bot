@@ -40,7 +40,7 @@ function Field({
   children: (describedBy: string | undefined) => ReactNode;
 }) {
   const noteId = `${id}-note`;
-  const note = error ?? helper;
+  const note = error || helper;
   return (
     <div className="flex flex-col gap-1.5">
       <label htmlFor={id} className="text-xs font-medium text-fg-muted">
@@ -138,7 +138,6 @@ export function AddArtifactDialog({
             <Textarea
               id={ids.html}
               variant="code"
-              rows={4}
               placeholder="<!doctype html>…"
               value={values.html}
               invalid={!!errors.html}
