@@ -232,8 +232,16 @@ fn main() {
                        "claude_text": d.messages.iter().filter(|m| m.role == "claude").map(|m| &m.text).collect::<Vec<_>>()}));
             std::process::exit(if pass { 0 } else { 1 });
         }
+        "dump" => {
+            // The data the Grill screen gets, for screenshots against the prototype (no Claude call).
+            let c = db.lock().unwrap();
+            let id: i64 = c.query_row("SELECT MAX(id) FROM grill_sessions", [], |r| r.get(0)).unwrap();
+            let detail = store::detail(&c, id).unwrap();
+            let sessions = store::list_sessions(&c, detail.session.artifact_id).unwrap();
+            println!("{}", json!({"detail": detail, "sessions": sessions}));
+        }
         _ => {
-            eprintln!("usage: grill_e2e start|resume|inject --db <file> [--repo <clone> --prototype <html> --hold-at-turn N] [--tmp <dir>]");
+            eprintln!("usage: grill_e2e start|resume|inject|dump --db <file> [--repo <clone> --prototype <html> --hold-at-turn N] [--tmp <dir>]");
             std::process::exit(2);
         }
     }

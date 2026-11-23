@@ -80,6 +80,14 @@ export interface OpenBlock {
   drafts: Record<string, string>;
 }
 
+/** A prepared ADR that waits for the owner to read it; nothing is pushed before "Push and open pull request". */
+export interface AdrReview {
+  branch: string;
+  base: string;
+  prTitle: string;
+  files: { path: string; text: string }[];
+}
+
 export interface GrillDetail {
   session: GrillSessionSummary;
   error: string | null;
@@ -91,6 +99,7 @@ export interface GrillDetail {
   brief: GrillBrief | null;
   feature: GrillFeature | null;
   openBlock: OpenBlock | null;
+  adrReview: AdrReview | null;
 }
 
 export const GRILL_CHANGED = "grill-changed";
@@ -107,6 +116,8 @@ export const grillApi = {
   confirmBrief: (sessionId: number) => invoke<void>("grill_confirm_brief", { sessionId }),
   stop: (sessionId: number) => invoke<void>("grill_stop", { sessionId }),
   resume: (sessionId: number) => invoke<void>("grill_resume", { sessionId }),
+  /** After the owner read the ADR: push adr/<slug> and open the PR, or discard it. Returns the chat note. */
+  adrDecide: (sessionId: number, publish: boolean) => invoke<string>("grill_adr_decide", { sessionId, publish }),
 };
 
 export {

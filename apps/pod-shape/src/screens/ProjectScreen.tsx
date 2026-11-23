@@ -8,8 +8,10 @@ import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { notify } from "../components/ui/toast";
-import { shortPath, type ArtifactSummary, type Project } from "../lib/api";
+import { api, shortPath, type ArtifactSummary, type Project } from "../lib/api";
 import { useAddArtifact, useProjectArtifacts } from "../lib/artifacts";
+import { grillApi } from "../lib/grill";
+import { useLatestGrills } from "../lib/useGrill";
 import { count, formatWhen } from "../lib/time";
 import { ArtifactPreviewDialog } from "./ArtifactPreviewDialog";
 
@@ -17,8 +19,35 @@ type Tab = "artifacts" | "overview" | "history";
 
 // DESIGN_SYSTEM.md §7.1 screen 2, Project -> Artifacts. Tabs: Artifacts · Overview · Grill history.
 // Step 2 makes Artifacts work; Overview (step 5) and Grill history (step 3) are EmptyStates.
-export function ProjectScreen({ project, home }: { project: Project; home: string | null }) {
+export function ProjectScreen({
+  project,
+  home,
+  onOpenGrill,
+}: {
+  project: Project;
+  home: string | null;
+  /** Opens the Grill screen on one session (build step 3). */
+  onOpenGrill: (sessionId: number, artifactId: number) => void;
+}) {
   const [tab, setTab] = useState<Tab>("artifacts");
+  const grills = useLatestGrills(project.id);
+  const [starting, setStarting] = useState<number | null>(null);
+  // Start grill: a new session on the newest version; Open grill: the newest session.
+  async function grill(a: ArtifactSummary) {
+    const s = grills[a.id];
+    if (s) return onOpenGrill(s.id, a.id);
+    setStarting(a.id);
+    try {
+      const versions = await api.listVersions(a.id);
+      const newest = versions.reduce((m, v) => (v.n > m.n ? v : m), versions[0]);
+      if (!newest) throw new Error("This artifact has no version yet.");
+      onOpenGrill(await grillApi.start(newest.id), a.id);
+    } catch (e) {
+      notify.error("Could not start the grill", String(e));
+    } finally {
+      setStarting(null);
+    }
+  }
   const { artifacts, reload } = useProjectArtifacts(project.id);
   const [preview, setPreview] = useState<ArtifactSummary | null>(null);
   const [adding, setAdding] = useState(false);
@@ -93,19 +122,18 @@ export function ProjectScreen({ project, home }: { project: Project; home: strin
                   name={a.name}
                   updatedAt={formatWhen(a.latestAt)}
                   summary={summary(a)}
-                  step="prototype"
+                  step={!grills[a.id] ? "prototype" : grills[a.id].state === "confirmed" ? "generate" : "grill"}
                   chips={
                     <>
-                      <Badge>Not grilled</Badge>
+                      <Badge>{!grills[a.id] ? "Not grilled" : grills[a.id].state === "confirmed" ? "Grilled" : "Grill open"}</Badge>
                       {a.updated && <Badge variant="accent">Updated</Badge>}
                       <Badge variant="outline">v{a.versions}</Badge>
                     </>
                   }
                   onPreview={() => setPreview(a)}
                   grillAction={
-                    // Grill is build step 3.
-                    <Button variant="ghost" size="sm" icon="grill" disabled>
-                      Start grill
+                    <Button variant="ghost" size="sm" icon="grill" loading={starting === a.id} onClick={() => void grill(a)}>
+                      {grills[a.id] ? "Open grill" : "Start grill"}
                     </Button>
                   }
                 />
