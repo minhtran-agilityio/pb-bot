@@ -48,7 +48,7 @@ export function NewArtifactsBox({ meta, rows, projects, onProjectChange, onAdd, 
             <div className="w-48 shrink-0">
               <Select
                 options={projects}
-                value={r.projectId}
+                value={projects.some((p) => p.value === r.projectId) ? r.projectId : undefined}
                 placeholder="Choose a project"
                 disabled={r.busy}
                 aria-label={`Project for ${r.title}`}
