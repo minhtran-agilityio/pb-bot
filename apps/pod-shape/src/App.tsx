@@ -71,3 +71,5 @@ export default function App() {
     </TooltipProvider>
   );
 }
+
+export const throwaway: number = "a";
