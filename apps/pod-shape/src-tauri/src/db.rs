@@ -6,7 +6,10 @@ use serde::Serialize;
 use std::path::Path;
 
 /// Every migration, in order. Append new files here; never edit one that has shipped.
-const MIGRATIONS: &[&str] = &[include_str!("../migrations/0001_projects.sql")];
+const MIGRATIONS: &[&str] = &[
+    include_str!("../migrations/0001_projects.sql"),
+    include_str!("../migrations/0002_artifacts.sql"),
+];
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -105,6 +108,27 @@ mod tests {
         assert_eq!(all.len(), 1);
         assert_eq!(all[0].repo, "minhtran-agilityio/pb-bot");
         assert_eq!(all[0].path, "/tmp/pb-bot");
+    }
+
+    #[test]
+    fn a_step_1_database_migrates_to_step_2_and_keeps_its_projects() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("t.db");
+        {
+            // A database as build step 1 left it: only 0001 ran.
+            let mut conn = Connection::open(&file).unwrap();
+            let tx = conn.transaction().unwrap();
+            tx.execute_batch(MIGRATIONS[0]).unwrap();
+            tx.pragma_update(None, "user_version", 1).unwrap();
+            tx.commit().unwrap();
+            insert_project(&conn, "a/b", "b", "/x").unwrap();
+        }
+        let conn = open(&file).unwrap();
+        let v: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
+        assert_eq!(v, 2);
+        assert_eq!(list_projects(&conn).unwrap().len(), 1);
+        let n: i64 = conn.query_row("SELECT COUNT(*) FROM artifacts", [], |r| r.get(0)).unwrap();
+        assert_eq!(n, 0);
     }
 
     #[test]
