@@ -2,7 +2,7 @@
 name: pd-session-retro
 description: Retrospective on one session's record — traces where the agent struggled to a missing or misplaced piece of the repo environment (check, pointer, rule, tool, access) and proposes ranked fixes for the user to approve. Use when the user asks for a retro or post-mortem of a session that had visible friction.
 disable-model-invocation: true
-allowed-tools: Read, Grep, Glob, Bash(git log *), Bash(git diff *)
+allowed-tools: Read, Grep, Glob
 ---
 
 # Session Retro — change the environment, not the code

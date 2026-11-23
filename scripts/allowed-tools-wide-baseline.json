@@ -1,0 +1,143 @@
+{
+  "_note": "Wide allowed-tools entries that existed before issue #123, kept for the owner to decide. scripts/check_allowed_tools_wide.py fails on any wide entry not listed here and on a listed entry that is gone, so this file only shrinks. Never add an entry to make the check pass.",
+  "pd-advise": [
+    "Read",
+    "Write",
+    "Edit",
+    "Grep",
+    "Glob",
+    "Bash(git *)"
+  ],
+  "pd-asd-ste100": [
+    "Read"
+  ],
+  "pd-compound": [
+    "Read",
+    "Write",
+    "Grep",
+    "Glob"
+  ],
+  "pd-decision-record": [
+    "Read",
+    "Write",
+    "Bash"
+  ],
+  "pd-diagnosing-bugs": [
+    "Read",
+    "Write",
+    "Edit",
+    "Grep",
+    "Glob",
+    "Bash"
+  ],
+  "pd-finishing-a-development-branch": [
+    "Read",
+    "Write",
+    "Grep",
+    "Glob",
+    "Bash"
+  ],
+  "pd-implement": [
+    "Read",
+    "Write",
+    "Grep",
+    "Glob",
+    "Bash"
+  ],
+  "pd-intake": [
+    "Read",
+    "Write",
+    "Grep",
+    "Glob"
+  ],
+  "pd-intent-review": [
+    "Read",
+    "Grep",
+    "Glob"
+  ],
+  "pd-orchestrate": [
+    "Read",
+    "Write",
+    "Edit",
+    "Grep",
+    "Glob",
+    "Bash(git *)",
+    "Bash(gh issue *)",
+    "Bash(gh pr *)"
+  ],
+  "pd-recall": [
+    "Read",
+    "Grep",
+    "Glob"
+  ],
+  "pd-release-notes": [
+    "Read",
+    "Write",
+    "Grep",
+    "Glob"
+  ],
+  "pd-release-summary": [
+    "Read",
+    "Write",
+    "Glob"
+  ],
+  "pd-review": [
+    "Read",
+    "Grep",
+    "Glob",
+    "Bash(git *)"
+  ],
+  "pd-session-retro": [
+    "Read",
+    "Grep",
+    "Glob"
+  ],
+  "pd-setup": [
+    "Read",
+    "Write",
+    "Edit",
+    "Bash"
+  ],
+  "pd-tickets": [
+    "Read",
+    "Glob",
+    "Grep",
+    "Bash(gh label create *)",
+    "Bash(gh issue create *)",
+    "Bash(gh api repos/{owner}/{repo}/milestones -f title=*)"
+  ],
+  "pd-uat": [
+    "Read",
+    "Grep",
+    "Glob",
+    "Bash"
+  ],
+  "pd-verify": [
+    "Read",
+    "Write",
+    "Edit",
+    "Grep",
+    "Glob",
+    "Bash"
+  ],
+  "pd-work": [
+    "Read",
+    "Write",
+    "Edit",
+    "Grep",
+    "Glob",
+    "Bash(git *)"
+  ],
+  "pd-writing-plans": [
+    "Read",
+    "Write",
+    "Grep",
+    "Glob"
+  ],
+  "pd-xia2": [
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ]
+}

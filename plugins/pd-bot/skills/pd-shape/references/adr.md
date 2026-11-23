@@ -13,15 +13,23 @@ Propose an ADR only when the decision meets all 3:
 
 ## When the owner says yes
 
-1. Put each accepted decision in a decisions file
-   `{"run": "<slug>", "decisions": [...]}` with `stage: grilling`, `adr: true`,
+The skill pre-allows none of the commands below. Claude Code asks the owner once for each command
+(`git fetch`, `git worktree add`, `write_adrs.py`, `git add`, `git commit`, `git push`,
+`gh pr create`, `git worktree remove`), and the owner approves or denies each one. Show the owner
+the exact command; do not combine commands into one call or wrap them in a script to get fewer
+prompts. A denied command stops the ADR step: say which command was denied and keep the decision
+in the brief. Why: a wide rule such as `Bash(git -C *)` or `Bash(git push *)` also matches
+`git -c core.fsmonitor=<cmd>` or a push to the default branch (issue #123).
+
+1. Put each accepted decision in the decisions file `specs/<slug>/adr-decisions.json`
+   (`{"run": "<slug>", "decisions": [...]}`) with `stage: grilling`, `adr: true`,
    `owner_confirmed: true`, `decided_by: owner` and the fields of
    `${CLAUDE_PLUGIN_ROOT}/skills/pd-decision-record/SKILL.md` ("How an agent returns it").
 2. Branch from the fetched default branch, not from the current HEAD. Use a separate worktree:
    `git fetch origin <default>`, then
    `git worktree add -b adr/<slug> <scratch path>/adr-<slug> origin/<default>`. Number the ADR there:
    `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/write_adrs.py --input <file> --adr-dir <worktree>/docs/adr`
-   (run from the worktree). Exit 2 means bad input: fix the file.
+   (run from the worktree: `cd` into it; never `git -C`). Exit 2 means bad input: fix the file.
 3. In the worktree: `git add docs/adr`, `git commit`, `git push -u origin adr/<slug>`, then
    `gh pr create` into the default branch. Never push to the default branch. Then remove the worktree
    (`git worktree remove <path>`); your own branch and working tree stay as they were.
