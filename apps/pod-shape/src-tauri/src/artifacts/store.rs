@@ -293,13 +293,17 @@ pub struct ArtifactSummary {
     pub source: String,
     pub updated: bool,
     pub versions: i64,
+    /// Publish time for a hook artifact, else the time of the newest version.
     pub latest_at: String,
 }
 
 pub fn list_artifacts(conn: &Connection, project_id: i64) -> rusqlite::Result<Vec<ArtifactSummary>> {
     let mut st = conn.prepare(
         "SELECT a.id, a.name, a.title, a.link, a.cwd, a.source, a.updated,
-                COUNT(v.id), COALESCE(MAX(v.created_at), a.created_at)
+                COUNT(v.id),
+                -- A hook artifact shows when it was published; a manual one when its newest version was saved.
+                CASE WHEN a.source = 'hook' AND a.published_at IS NOT NULL THEN a.published_at
+                     ELSE COALESCE(MAX(v.created_at), a.created_at) END
          FROM artifacts a LEFT JOIN artifact_versions v ON v.artifact_id = a.id
          WHERE a.project_id = ?1 GROUP BY a.id ORDER BY 9 DESC, a.id DESC",
     )?;
@@ -656,6 +660,7 @@ pub(crate) mod tests {
         ignore(&c, b).unwrap();
         assert!(list_inbox(&c).unwrap().is_empty());
         assert_eq!(list_artifacts(&c, p.id).unwrap()[0].name, "hook-test-page");
+        assert_eq!(list_artifacts(&c, p.id).unwrap()[0].latest_at, "2026-11-22T11:13:40Z", "publish time, not import time");
         assert!(add_to_project(&c, a, p.id).is_err(), "already in a project");
         assert!(add_to_project(&c, b, 999).is_err(), "unknown project");
         // An ignored artifact stays hidden when a new version arrives.

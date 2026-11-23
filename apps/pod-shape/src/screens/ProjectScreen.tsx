@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { ArtifactCard } from "../components/app/ArtifactCard";
 import { PageHeader } from "../components/app/PageHeader";
 import { EmptyState } from "../components/app/EmptyState";
+import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { notify } from "../components/ui/toast";
-import { shortPath, type Project } from "../lib/api";
+import { shortPath, type ArtifactSummary, type Project } from "../lib/api";
 import { useProjectArtifacts } from "../lib/artifacts";
-import { count } from "../lib/time";
+import { count, formatWhen } from "../lib/time";
+import { ArtifactPreviewDialog } from "./ArtifactPreviewDialog";
 
 type Tab = "artifacts" | "overview" | "history";
 
@@ -15,7 +18,14 @@ type Tab = "artifacts" | "overview" | "history";
 // Step 2 makes Artifacts work; Overview (step 5) and Grill history (step 3) are EmptyStates.
 export function ProjectScreen({ project, home }: { project: Project; home: string | null }) {
   const [tab, setTab] = useState<Tab>("artifacts");
-  const { artifacts } = useProjectArtifacts(project.id);
+  const { artifacts, reload } = useProjectArtifacts(project.id);
+  const [preview, setPreview] = useState<ArtifactSummary | null>(null);
+
+  // Row 2 of the card: the artifact's own title and where it was published from.
+  function summary(a: ArtifactSummary): string {
+    const parts = [a.title !== a.name ? a.title : null, a.cwd ? `from ${shortPath(a.cwd, home)}` : a.source === "manual" ? "added by hand" : null];
+    return parts.filter(Boolean).join(" · ");
+  }
   const url = `https://github.com/${project.repo}`;
   async function openGithub() {
     try {
@@ -56,6 +66,33 @@ export function ProjectScreen({ project, home }: { project: Project; home: strin
           <TabsTrigger value="history">Grill history</TabsTrigger>
         </TabsList>
         <TabsContent value="artifacts">
+          {artifacts !== null && artifacts.length > 0 && (
+            <div className="flex flex-col gap-4">
+              {artifacts.map((a) => (
+                <ArtifactCard
+                  key={a.id}
+                  name={a.name}
+                  updatedAt={formatWhen(a.latestAt)}
+                  summary={summary(a)}
+                  step="prototype"
+                  chips={
+                    <>
+                      <Badge>Not grilled</Badge>
+                      {a.updated && <Badge variant="accent">Updated</Badge>}
+                      <Badge variant="outline">v{a.versions}</Badge>
+                    </>
+                  }
+                  onPreview={() => setPreview(a)}
+                  grillAction={
+                    // Grill is build step 3.
+                    <Button variant="ghost" size="sm" icon="grill" disabled>
+                      Start grill
+                    </Button>
+                  }
+                />
+              ))}
+            </div>
+          )}
           {artifacts !== null && artifacts.length === 0 && (
             <EmptyState
               icon="artifact"
@@ -94,6 +131,7 @@ export function ProjectScreen({ project, home }: { project: Project; home: strin
           />
         </TabsContent>
       </Tabs>
+      <ArtifactPreviewDialog artifact={preview} onClose={() => setPreview(null)} onSeen={reload} />
     </div>
   );
 }

@@ -3,7 +3,8 @@ import { ArtifactPreviewFrame } from "../components/app/ArtifactPreviewFrame";
 import { Button } from "../components/ui/button";
 import { Dialog } from "../components/ui/dialog";
 import { Select } from "../components/ui/select";
-import { api, previewUrl, type ArtifactSummary, type VersionInfo } from "../lib/api";
+import { listen } from "@tauri-apps/api/event";
+import { api, ARTIFACTS_CHANGED, previewUrl, type ArtifactSummary, type VersionInfo } from "../lib/api";
 import { formatWhen } from "../lib/time";
 
 // The artifact preview (prototype: "Preview" on an ArtifactCard; HANDOFF §5: a Dialog, not a screen).
@@ -45,6 +46,20 @@ export function ArtifactPreviewDialog({
       live = false;
     };
     // Reload only when another artifact opens.
+  }, [artifact?.id]);
+
+  // A version that arrives while the dialog is open joins the list; the shown version stays.
+  useEffect(() => {
+    if (!artifact) return;
+    let stop: (() => void) | undefined;
+    let gone = false;
+    listen(ARTIFACTS_CHANGED, () => {
+      api.listVersions(artifact.id).then((v) => !gone && setVersions(v), () => {});
+    }).then((un) => (gone ? un() : (stop = un)), () => {});
+    return () => {
+      gone = true;
+      stop?.();
+    };
   }, [artifact?.id]);
 
   const current = versions?.find((v) => String(v.id) === selected) ?? null;
