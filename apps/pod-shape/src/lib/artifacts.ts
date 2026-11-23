@@ -70,10 +70,10 @@ export interface AddArtifactValues {
   name: string;
   html: string;
   /** Set when the HTML came from a dropped file. */
-  fileName: string | null;
+  file: { name: string; size: number } | null;
 }
 
-export const EMPTY_VALUES: AddArtifactValues = { link: "", name: "", html: "", fileName: null };
+export const EMPTY_VALUES: AddArtifactValues = { link: "", name: "", html: "", file: null };
 
 const LINK_RE = /^https:\/\/claude\.ai\/(code\/)?artifact\/[A-Za-z0-9_-]{1,64}$/;
 const NAME_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
@@ -90,11 +90,12 @@ export function slugFrom(text: string): string {
     .replace(/-+$/, "");
 }
 
-/** The same field checks Rust runs (store.rs `check_manual`), so errors show before the save. */
-export function checkFields(v: AddArtifactValues): FieldErrors {
+/** The same field checks Rust runs (store.rs `check_manual` and `import_manual`), so errors show before
+ * the save. A paste that makes a new artifact needs the link; a drop or a new version does not. */
+export function checkFields(v: AddArtifactValues, isNewVersion = false): FieldErrors {
   const e: FieldErrors = {};
   const link = v.link.trim();
-  if (link ? !LINK_RE.test(link) : v.fileName === null) {
+  if (link ? !LINK_RE.test(link) : v.file === null && !isNewVersion) {
     e.link = "Paste a claude.ai artifact link, for example https://claude.ai/artifact/…";
   }
   if (!NAME_RE.test(v.name.trim())) e.name = "Use lower-case letters, digits and dashes, for example settings-page.";
@@ -149,6 +150,13 @@ export function useAddArtifact(projectId: number, onSaved: (n: number, created: 
     };
   }, [projectId, values.link, values.name]);
 
+  /** "Add version" from the preview: the link and name of that artifact are filled in. */
+  const prefill = useCallback((link: string | null, name: string) => {
+    setValues({ ...EMPTY_VALUES, link: link ?? "", name });
+    setErrors({});
+    setDropError(null);
+  }, []);
+
   const reset = useCallback(() => {
     setValues(EMPTY_VALUES);
     setErrors({});
@@ -157,7 +165,7 @@ export function useAddArtifact(projectId: number, onSaved: (n: number, created: 
   }, []);
 
   function change(field: "link" | "name" | "html", value: string) {
-    setValues((v) => ({ ...v, [field]: value, ...(field === "html" ? { fileName: null } : {}) }));
+    setValues((v) => ({ ...v, [field]: value, ...(field === "html" ? { file: null } : {}) }));
     setErrors((e) => ({ ...e, [field]: undefined }));
   }
 
@@ -166,18 +174,18 @@ export function useAddArtifact(projectId: number, onSaved: (n: number, created: 
     setDropError(bad);
     if (bad) return;
     const html = await file.text();
-    setValues((v) => ({ ...v, html, fileName: file.name, name: v.name || slugFrom(file.name) }));
-    setErrors((e) => ({ ...e, html: undefined, link: undefined }));
+    setValues((v) => ({ ...v, html, file: { name: file.name, size: file.size }, name: v.name || slugFrom(file.name) }));
+    setErrors((e) => ({ ...e, html: undefined, link: undefined, name: undefined }));
   }
 
   async function submit() {
-    const e = checkFields(values);
+    const e = checkFields(values, nextVersion > 1);
     setErrors(e);
     if (Object.keys(e).length) return;
     setBusy(true);
     try {
       const link = values.link.trim() || null;
-      const r = await api.importManual(projectId, link, values.name.trim(), values.html, values.fileName ? "drop" : "paste");
+      const r = await api.importManual(projectId, link, values.name.trim(), values.html, values.file ? "drop" : "paste");
       if ("Err" in r) {
         setErrors(r.Err);
         return;
@@ -192,5 +200,5 @@ export function useAddArtifact(projectId: number, onSaved: (n: number, created: 
   }
 
   const primaryLabel = nextVersion > 1 ? `Save version ${nextVersion}` : "Add artifact";
-  return { values, errors, dropError, busy, primaryLabel, change, drop, submit, reset };
+  return { values, errors, dropError, busy, nextVersion, primaryLabel, change, drop, submit, reset, prefill };
 }

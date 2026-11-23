@@ -448,13 +448,13 @@ pub struct ManualResult {
     pub created: bool,
 }
 
-/// Checks the fields of a manual import. A paste needs the link; a drop may leave it empty.
-pub fn check_manual(link: Option<&str>, name: &str, html: &str, source: &str) -> FieldErrors {
+/// Checks the fields of a manual import. A link, when given, must be a claude.ai artifact link. A paste
+/// that makes a new artifact needs one (`import_manual` checks that once it knows the target); a drop,
+/// or a new version of an artifact the project already has, may leave it empty.
+pub fn check_manual(link: Option<&str>, name: &str, html: &str) -> FieldErrors {
     let mut e = FieldErrors::default();
-    match link {
-        Some(l) if link_id(l).is_none() => e.link = Some(LINK_ERROR.into()),
-        None if source == "paste" => e.link = Some(LINK_ERROR.into()),
-        _ => {}
+    if link.is_some_and(|l| link_id(l).is_none()) {
+        e.link = Some(LINK_ERROR.into());
     }
     if !valid_name(name) {
         e.name = Some(NAME_ERROR.into());
@@ -480,7 +480,7 @@ pub fn import_manual(
     if source != "paste" && source != "drop" {
         return Err(FieldErrors { html: Some("Unknown source.".into()), ..Default::default() });
     }
-    let errors = check_manual(link, name, html, source);
+    let errors = check_manual(link, name, html);
     if !errors.is_empty() {
         return Err(errors);
     }
@@ -493,6 +493,9 @@ pub fn import_manual(
         return Err(FieldErrors { html: Some("This project no longer exists.".into()), ..Default::default() });
     }
     let target = find_manual_target(&tx, project_id, link, name)?;
+    if target.artifact_id.is_none() && link.is_none() && source == "paste" {
+        return Err(FieldErrors { link: Some(LINK_ERROR.into()), ..Default::default() });
+    }
     let artifact_id = match target.artifact_id {
         Some(id) => {
             // A hook artifact from the inbox that the owner adds by hand joins this project.
@@ -720,7 +723,10 @@ pub(crate) mod tests {
         assert_eq!(e.link.unwrap(), "This artifact is in project r.");
 
         let e = import_manual(&mut c, p.id, None, "x", "<p>", "paste").unwrap_err();
-        assert_eq!(e.link.as_deref(), Some(LINK_ERROR), "a paste needs the link");
+        assert_eq!(e.link.as_deref(), Some(LINK_ERROR), "a paste that makes a new artifact needs the link");
+        // A pasted new version of an artifact the project has (found by name) does not.
+        let r4 = import_manual(&mut c, p.id, None, "settings-page", "<p>3</p>", "paste").unwrap();
+        assert_eq!((r4.artifact_id, r4.n), (r.artifact_id, 3));
         let e = import_manual(&mut c, p.id, Some("https://evil.example/artifact/x"), "Bad Name", "no tags", "paste").unwrap_err();
         assert_eq!((e.link.is_some(), e.name.is_some(), e.html.as_deref()), (true, true, Some(HTML_ERROR)));
         let big = format!("<p>{}", "a".repeat(MAX_HTML_BYTES as usize));

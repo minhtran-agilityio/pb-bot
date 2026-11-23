@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { AddArtifactDialog } from "../components/app/AddArtifactDialog";
 import { ArtifactCard } from "../components/app/ArtifactCard";
 import { PageHeader } from "../components/app/PageHeader";
 import { EmptyState } from "../components/app/EmptyState";
@@ -8,7 +9,7 @@ import { Button } from "../components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { notify } from "../components/ui/toast";
 import { shortPath, type ArtifactSummary, type Project } from "../lib/api";
-import { useProjectArtifacts } from "../lib/artifacts";
+import { useAddArtifact, useProjectArtifacts } from "../lib/artifacts";
 import { count, formatWhen } from "../lib/time";
 import { ArtifactPreviewDialog } from "./ArtifactPreviewDialog";
 
@@ -20,6 +21,25 @@ export function ProjectScreen({ project, home }: { project: Project; home: strin
   const [tab, setTab] = useState<Tab>("artifacts");
   const { artifacts, reload } = useProjectArtifacts(project.id);
   const [preview, setPreview] = useState<ArtifactSummary | null>(null);
+  const [adding, setAdding] = useState(false);
+  const add = useAddArtifact(project.id, (n, created, name) => {
+    setAdding(false);
+    reload();
+    if (!created) notify.success(`No change: same as version ${n}`, name);
+    else notify.success(n > 1 ? `Saved version ${n}` : "Artifact added", name);
+  });
+  function openAdd(from?: ArtifactSummary) {
+    if (from) add.prefill(from.link, from.name);
+    else add.reset();
+    setPreview(null);
+    setAdding(true);
+  }
+  const v = add.values;
+  const htmlHelper = v.file
+    ? undefined
+    : v.html
+      ? `${v.html.length.toLocaleString()} characters`
+      : "The preview runs in a sandbox with no access to the app.";
 
   // Row 2 of the card: the artifact's own title and where it was published from.
   function summary(a: ArtifactSummary): string {
@@ -52,8 +72,7 @@ export function ProjectScreen({ project, home }: { project: Project; home: strin
             <Button variant="secondary" icon="openGithub" onClick={openGithub}>
               Open in GitHub
             </Button>
-            {/* Enabled when the Add artifact dialog (Storehouse #78) is merged. */}
-            <Button variant="secondary" icon="add" disabled>
+            <Button variant="secondary" icon="add" onClick={() => openAdd()}>
               Add artifact
             </Button>
           </>
@@ -99,7 +118,7 @@ export function ProjectScreen({ project, home }: { project: Project; home: strin
               title="No artifacts yet"
               text="Publish an artifact from Claude Code in this repo, or add its HTML by hand."
               action={
-                <Button variant="secondary" icon="add" disabled>
+                <Button variant="secondary" icon="add" onClick={() => openAdd()}>
                   Add artifact
                 </Button>
               }
@@ -131,7 +150,27 @@ export function ProjectScreen({ project, home }: { project: Project; home: strin
           />
         </TabsContent>
       </Tabs>
-      <ArtifactPreviewDialog artifact={preview} onClose={() => setPreview(null)} onSeen={reload} />
+      <ArtifactPreviewDialog artifact={preview} onClose={() => setPreview(null)} onSeen={reload} onAddVersion={openAdd} />
+      <AddArtifactDialog
+        open={adding}
+        onOpenChange={(o) => {
+          setAdding(o);
+          if (!o) add.reset();
+        }}
+        values={{ link: v.link, name: v.name, html: v.html }}
+        onChange={add.change}
+        file={v.file}
+        onFile={(f) => void add.drop(f)}
+        errors={{ file: add.dropError ?? undefined, ...add.errors }}
+        helpers={{
+          link: v.file ? "Optional for a dropped file." : add.nextVersion > 1 ? "Optional for a new version." : undefined,
+          name: add.nextVersion > 1 ? `This adds version ${add.nextVersion} of ${v.name.trim()}.` : "Short name, shown on the card.",
+          html: htmlHelper,
+        }}
+        primaryLabel={add.primaryLabel}
+        busy={add.busy}
+        onSubmit={() => void add.submit()}
+      />
     </div>
   );
 }
