@@ -72,7 +72,7 @@ NATIVE_EQUIVALENT = {"grep": "Grep", "rg": "Grep", "ls": "Glob", "cat": "Read"}
 # `git diff`, `git show`, `git branch --show-current` and `git describe` ran). That check also
 # refuses their writing flags (`git log --output=<file>` was denied), which a `Bash(git log *)`
 # rule would let through. So a skill instructs these with no grant, and must not add a wide one.
-READ_ONLY_GIT = ("log", "diff", "show", "status", "describe", "rev-parse", "ls-files", "blame")
+READ_ONLY_GIT = ("log", "diff", "show", "describe")
 
 # A skill can name commands that it leaves to the owner's permission prompt on purpose, because
 # no allow rule for them is narrow enough (scripts/check_allowed_tools_wide.py). The marker is an
@@ -197,7 +197,12 @@ def permitted(
         return True
 
     # Claude Code's own read-only check runs these without a grant (see READ_ONLY_GIT).
-    if len(words) >= 2 and words[0] == "git" and words[1] in READ_ONLY_GIT:
+    if (
+        len(words) >= 2
+        and words[0] == "git"
+        and (words[1] in READ_ONLY_GIT or words[1:] == ["branch", "--show-current"])
+        and not any(w.startswith("--output") for w in words)
+    ):
         return True
 
     # A bare script name in prose (`write_adrs.py`) refers to the script that a pattern grants

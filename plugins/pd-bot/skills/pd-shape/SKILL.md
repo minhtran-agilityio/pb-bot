@@ -2,7 +2,7 @@
 name: pd-shape
 description: "Grill and brainstorm with the owner, in one loop, until both share one understanding of a prototype, an idea or a ticket; then write a feature brief. Use after the owner finalizes a prototype, for a GRILL ticket, or when the approach is not clear."
 argument-hint: "<prototype file | #issue | issue URL | file path | free text>"
-allowed-tools: Read(./**), Read(~/.claude/plugins/**), Grep(./**), Glob(./**), Edit(./specs/**), Agent, AskUserQuestion, Bash(gh issue view *)
+allowed-tools: Read(./**), Read(~/.claude/plugins/cache/*/pd-bot/**), Grep(./**), Glob(./**), Edit(./specs/**), Agent, AskUserQuestion, Bash(gh issue view *)
 ---
 
 # Shape: one understanding before any code
@@ -57,7 +57,7 @@ or write (issue #123).
    The slug rule is in `${CLAUDE_PLUGIN_ROOT}/templates/specs/intent.md`.
 3. Ask: "Does this brief say what you mean?" Fix it until the owner says yes. That yes is the stop.
 4. A ticket: also post the decisions as ONE comment titled "Confirmed decisions"
-   (`gh issue comment <n> --body-file <file>`), and update `specs/<slug>/intent.md` and
+   (`gh issue comment <n> --body-file <file>`); show the owner the file's full text before that command, and update `specs/<slug>/intent.md` and
    `specs/<slug>/decision.md` (`${CLAUDE_PLUGIN_ROOT}/templates/specs/decision.md`).
 5. Next: a prototype or idea goes to `/pd-bot:pd-tickets specs/<slug>/brief.md`;
    a ticket returns the decision list to the caller; a depth L design goes to `pd-bot:pd-xia2`, then

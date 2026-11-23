@@ -404,3 +404,9 @@ def test_bare_script_name_needs_a_grant_of_that_script(tmp_path):
         skill("Read, Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/other.py *)", "Run `write_adrs.py`."),
     )
     assert run(tmp_path).returncode == 1
+
+
+def test_read_only_git_with_output_flag_still_needs_a_grant(tmp_path):
+    """Claude Code refuses `git log --output=<file>` without a rule (probe), so it is an under-grant."""
+    build(tmp_path, skill("Read", "Run `git log --output=x.txt`."))
+    assert run(tmp_path).returncode == 1

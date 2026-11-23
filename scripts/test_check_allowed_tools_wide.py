@@ -88,6 +88,22 @@ WIDE = [
     "Read(**)",
     "Read(//**)",
     "Edit(~/**)",
+    # from the security review of this change
+    "Read(~/.claude/plugins/**)",
+    "Bash(tmux send-keys *)",
+    "Bash(find *)",
+    "Bash(env git *)",
+    "Bash(/usr/bin/git *)",
+    "Bash(gh auth status *)",
+    "Bash(python3 -m pkg *)",
+    "Bash (git *)",
+    "Read(~/.ssh/**)",
+    "Read(../**)",
+    "Read(./../x/**)",
+    "Read(/home/**)",
+    "Edit(./**)",
+    "Edit(./.git/**)",
+    "Edit(./.claude/**)",
 ]
 
 NARROW = [
@@ -102,9 +118,12 @@ NARROW = [
     "Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-check.sh *)",
     "Bash(git status)",
     "Read(./**)",
-    "Read(~/.claude/plugins/**)",
+    "Read(~/.claude/plugins/cache/*/pd-bot/**)",
     "Edit(./specs/**)",
     "Grep(./**)",
+    "Bash(bash ${CLAUDE_SKILL_DIR}/scripts/publish-check.sh *)",
+    "Bash(test -n *)",
+    "Bash(gh api user --jq .login)",
 ]
 
 
@@ -155,3 +174,38 @@ def test_never_wide_skill_cannot_be_baselined(tmp_path):
 def test_no_skills_fails_closed(tmp_path):
     (tmp_path / "skills").mkdir()
     assert run(tmp_path).returncode == 2
+
+
+def test_quoted_value_fails_closed():
+    assert wide.why_wide(wide.entries('allowed-tools: "Bash, Read"')[0])
+
+
+def test_continued_value_fails_closed():
+    block = "allowed-tools: Read(./**),\n  Bash\nname: x"
+    assert [e for e in wide.entries(block) if wide.why_wide(e)]
+
+
+def test_repeated_key_fails_closed():
+    block = "allowed-tools: Read(./**)\nallowed-tools: Bash"
+    assert [e for e in wide.entries(block) if wide.why_wide(e)]
+
+
+def test_baseline_entry_missing_on_the_base_ref_fails(tmp_path):
+    """The baseline only shrinks: an entry the base ref does not list fails, even when added
+    in the same change as the wide rule."""
+    git = ["git", "-C", str(tmp_path), "-c", "user.email=t@t", "-c", "user.name=t"]
+    subprocess.run([*git, "init", "-q", "-b", "main"], check=True)
+    build(tmp_path, {"alpha": "Read(./**), Bash(git *)"})
+    (tmp_path / "baseline.json").write_text(json.dumps({"alpha": ["Bash(git *)"]}))
+    subprocess.run([*git, "add", "-A"], check=True)
+    subprocess.run([*git, "commit", "-q", "-m", "base"], check=True)
+    build(tmp_path, {"alpha": "Read(./**), Bash(git *), Bash(tmux send-keys *)"})
+    grown = {"alpha": ["Bash(git *)", "Bash(tmux send-keys *)"]}
+    (tmp_path / "baseline.json").write_text(json.dumps(grown))
+    result = subprocess.run(
+        [sys.executable, str(CHECKER), "--root", str(tmp_path),
+         "--baseline", str(tmp_path / "baseline.json"), "--base-ref", "main"],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 1
+    assert "only shrinks" in result.stderr

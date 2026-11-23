@@ -25,6 +25,7 @@ Run: python3 scripts/check_allowed_tools_wide.py [--root DIR] [--baseline FILE] 
 import argparse
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -35,19 +36,24 @@ DEFAULT_BASELINE = HERE / "allowed-tools-wide-baseline.json"
 # Skills that must never pre-allow a wide rule, baseline or not (issue #123).
 NEVER_WIDE = {"pd-shape"}
 
-# Commands that run code given as an argument, or run another command.
-INTERPRETERS = {
-    "python", "python3", "bash", "sh", "zsh", "node", "perl", "ruby", "env", "xargs",
-    "eval", "exec", "sudo", "npx", "uv", "deno",
-}
+# Fail closed: a Bash rule with a `*` is wide unless it has one of these reviewed shapes.
+# 1. A command that only reads and has no flag that runs code or writes a file.
+SAFE_STAR_COMMANDS = {"ls", "test"}
+# 2. `gh <group> <verb> *` with a verb that only reads. Any other gh verb with a `*` can post a
+#    local file (`--body-file ~/.ssh/id_rsa`) or change the remote; `gh auth` can print the token.
+GH_READ_VERBS = {"view", "list", "diff", "checks"}
+# 3. An interpreter, then a fixed script path, then ` *`: the script parses the arguments. The
+#    interpreter itself sees no option (probe: `Bash(python3 /abs/x.py *)` did not match
+#    `python3 -c '<code>' /abs/x.py`).
+INTERPRETERS = {"python", "python3", "bash", "sh", "node"}
 
-# gh verbs that only read. Any other gh verb with a `*` can post a local file
-# (`--body-file ~/.ssh/id_rsa`) or change the remote.
-GH_READ_VERBS = {"view", "list", "status", "diff", "checks"}
-
-# File tools: bare, or with a path pattern that covers the whole disk, means any file.
+# File tools: a bare name means every file on the disk. A path rule passes only inside the repo
+# (`./...`, no `..`), and a write rule must not cover the repo root, `.git/` or `.claude/`
+# (git config and settings run commands). READ_OUTSIDE lists reviewed reads outside the repo.
 FILE_TOOLS = {"Read", "Write", "Edit", "MultiEdit", "NotebookEdit", "Grep", "Glob"}
-WHOLE_DISK = {"*", "**", "/**", "//**", "~/**", "~/*", "/*", "//*"}
+WRITE_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit"}
+# Probed: it reads the installed pd-bot's files and denies another plugin's files.
+READ_OUTSIDE = {"Read(~/.claude/plugins/cache/*/pd-bot/**)"}
 
 
 def frontmatter(text: str):
@@ -61,12 +67,21 @@ def frontmatter(text: str):
 
 
 def entries(block: str) -> list[str]:
-    """The comma-separated `allowed-tools` entries; a comma inside (...) does not split."""
-    match = re.search(r"^allowed-tools:(.*)$", block, re.MULTILINE)
-    if match is None:
+    """The comma-separated `allowed-tools` entries; a comma inside (...) does not split.
+
+    A value this parser cannot read safely (quoted, a [list], continued on the next line, or
+    given twice) comes back as one entry that why_wide() reports, so it fails closed.
+    """
+    matches = list(re.finditer(r"^allowed-tools:(.*)$", block, re.MULTILINE))
+    if not matches:
         return []
+    raw = matches[0].group(1).strip()
+    rest = block[matches[0].end():].split("\n")
+    continued = len(rest) > 1 and rest[1][:1] in (" ", "\t")
+    if len(matches) > 1 or continued or raw[:1] in ("'", '"', "[", "|", ">") or not raw:
+        return [f"<unparsed allowed-tools: {raw}>"]
     out, depth, cur = [], 0, ""
-    for ch in match.group(1).strip():
+    for ch in raw:
         depth += ch == "("
         depth -= ch == ")"
         if ch == "," and depth == 0:
@@ -81,47 +96,61 @@ def entries(block: str) -> list[str]:
 
 def why_wide(entry: str):
     """Return the reason an entry is wide, or None when it is narrow."""
+    if entry.startswith("<unparsed"):
+        return "the allowed-tools value is quoted, a list, continued or repeated; write it on one plain line"
     if entry == "Bash":
         return "bare Bash pre-allows every command"
     tool = re.match(r"^(\w+)(?:\((.*)\))?$", entry, re.DOTALL)
     if tool is None:
-        return None
+        return "entry does not parse as Tool or Tool(rule)"
     name, arg = tool.group(1), tool.group(2)
     if name in FILE_TOOLS:
-        if arg is None:
-            return f"bare {name} pre-allows every file on the disk"
-        if arg.strip() in WHOLE_DISK:
-            return f"{name}({arg}) covers every file on the disk"
-        return None
+        return file_rule_wide(entry, name, arg)
     if name != "Bash" or arg is None:
         return None
+    return bash_rule_wide(arg.strip())
 
-    rule = arg.strip()
+
+def file_rule_wide(entry: str, name: str, arg):
+    if arg is None:
+        return f"bare {name} pre-allows every file on the disk"
+    if entry in READ_OUTSIDE:
+        return None
+    path = arg.strip()
+    if not path.startswith("./") or ".." in path.split("/"):
+        return f"{entry} reaches outside the repo; use a ./ path"
+    if name in WRITE_TOOLS:
+        top = path[2:].split("/")[0]
+        if top in ("*", "**", ".git", ".claude") or top.startswith("*"):
+            return f"{entry} can write the repo root, .git/ or .claude/, where config runs commands"
+    return None
+
+
+def bash_rule_wide(rule: str):
     words = rule.split()
     if not words or "*" not in rule:
         return None
-    if words[0] == "*":
-        return "a leading * matches every command"
+    head = words[0]
     # A `*` joined to a word (`run-tests.sh*`, `docs/adr*`) matches other files and extra words.
     for word in words:
         if word != "*" and word.endswith("*") and not word.endswith("=*"):
             return f"`{word}`: a * joined to a word matches other paths and extra arguments"
-    head = words[0]
+    tail_only = words[-1] == "*" and "*" not in " ".join(words[:-1])
+    if head in SAFE_STAR_COMMANDS and tail_only:
+        return None
+    if head == "gh" and tail_only and len(words) == 4 and words[1] not in ("auth", "api") \
+            and words[2] in GH_READ_VERBS:
+        return None
+    if head in INTERPRETERS and tail_only and len(words) == 3 and "/" in words[1] \
+            and not words[1].startswith("-"):
+        return None
     if head == "git":
         return "git with a *: options such as -c core.fsmonitor=<cmd>, --output=<file> or --upload-pack=<cmd> run commands or write files"
-    if head in INTERPRETERS:
-        nxt = words[1] if len(words) > 1 else "*"
-        if "*" in nxt or nxt.startswith("-"):
-            return f"{head} followed by * or an option runs any code"
-        return None
     if head == "gh":
-        if len(words) < 3 or "*" in words[1] or "*" in words[2]:
-            return "gh with a * in place of the command group or verb"
-        if words[1] == "api":
-            return "gh api with a * can send any request"
-        if words[2] not in GH_READ_VERBS:
-            return f"gh {words[1]} {words[2]} with a * can post a local file (--body-file) or change the remote"
-    return None
+        return "gh with a * other than `gh <group> view|list|diff|checks *` can post a local file (--body-file) or change the remote"
+    if head in INTERPRETERS:
+        return f"{head} with a * other than `{head} <script path> *` runs any code"
+    return f"{head} with a * is not a reviewed shape (ls, test, gh read verbs, interpreter plus script path)"
 
 
 def scan(root: Path) -> dict[str, list[tuple[str, str]]]:
@@ -137,11 +166,34 @@ def scan(root: Path) -> dict[str, list[tuple[str, str]]]:
     return found
 
 
+def base_baseline(ref: str, path: Path):
+    """The baseline file at `ref`, or None when git, the ref or the file is missing."""
+    try:
+        top = subprocess.run(["git", "-C", str(path.parent), "rev-parse", "--show-toplevel"],
+                             capture_output=True, text=True, timeout=10)
+        if top.returncode != 0:
+            return None
+        rel = path.resolve().relative_to(Path(top.stdout.strip()).resolve())
+        shown = subprocess.run(["git", "-C", top.stdout.strip(), "show", f"{ref}:{rel.as_posix()}"],
+                               capture_output=True, text=True, timeout=10)
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return None
+    if shown.returncode != 0:
+        return None
+    try:
+        data = json.loads(shown.stdout)
+    except json.JSONDecodeError:
+        return None
+    return {k: v for k, v in data.items() if not k.startswith("_")}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT)
     parser.add_argument("--baseline", type=Path, default=DEFAULT_BASELINE)
     parser.add_argument("--list", action="store_true", help="print every wide entry, baseline or not")
+    parser.add_argument("--base-ref", default="origin/main",
+                        help="a baseline entry must also be in this ref's baseline (skipped when the ref or file is missing)")
     args = parser.parse_args()
 
     if not list((args.root / "skills").glob("*/SKILL.md")):
@@ -168,6 +220,12 @@ def main() -> int:
         for entry, reason in wide:
             if entry not in allowed:
                 problems.append(f"{skill}: `{entry}` is wide ({reason})")
+    base = base_baseline(args.base_ref, args.baseline)
+    if base is not None:
+        for skill, listed in baseline.items():
+            for entry in listed:
+                if entry not in base.get(skill, []):
+                    problems.append(f"{skill}: baseline entry `{entry}` is not in {args.base_ref}; the baseline only shrinks")
     for skill, listed in baseline.items():
         have = {e for e, _ in found.get(skill, [])}
         for entry in listed:
