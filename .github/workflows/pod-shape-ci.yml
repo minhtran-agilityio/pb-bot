@@ -1,0 +1,81 @@
+name: pod-shape-ci
+
+# Checks for the Shape Board app (apps/pod-shape). Separate from pd-bot-ci so a plugin-only PR does
+# not pay for a Rust build, and an app PR does not wait for the plugin suite.
+#
+# Runner: ubuntu-latest only. The product ships on macOS, but no Rust or TypeScript source here is
+# macOS-only (no cfg(target_os)), and a macOS runner costs about ten times a Linux minute. The
+# Tauri system libraries are installed below. Add macos-latest when macOS-only code appears.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/pod-shape/**"
+      - "scripts/check-pod-shape-ds.sh"
+      - ".github/workflows/pod-shape-ci.yml"
+  pull_request:
+    paths:
+      - "apps/pod-shape/**"
+      - "scripts/check-pod-shape-ds.sh"
+      - ".github/workflows/pod-shape-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pod-shape-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+  CARGO_TERM_COLOR: always
+
+jobs:
+  app:
+    name: app checks (ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/pod-shape
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/pod-shape/package-lock.json
+      - name: Install Tauri system libraries
+        working-directory: .
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
+            librsvg2-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev patchelf
+      - uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            apps/pod-shape/src-tauri/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('apps/pod-shape/src-tauri/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+      - name: Design system greps (DESIGN_SYSTEM §10)
+        working-directory: .
+        run: bash scripts/check-pod-shape-ds.sh
+      - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Node tests
+        run: node --test $(find src -name '*.test.mjs')
+      - name: Build
+        run: npm run build
+      - name: cargo test
+        working-directory: apps/pod-shape/src-tauri
+        run: cargo test --locked
+      - name: cargo clippy
+        working-directory: apps/pod-shape/src-tauri
+        run: cargo clippy --locked --all-targets -- -D warnings

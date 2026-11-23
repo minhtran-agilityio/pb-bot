@@ -3,7 +3,7 @@
 #
 # Verifies:        shellcheck exits 0 for plugins/pd-bot/hooks/*.sh, plugins/pd-bot/scripts/*.sh,
 #                  the three scripts/check-plugin-*.sh, and scripts/release.sh, scripts/release-tag.sh
-#                  and scripts/release-guard.sh.
+#                  scripts/release-guard.sh and scripts/check-pod-shape-ds.sh.
 # Does not verify: any other shell file, or the shell inside skill markdown (see
 #                  lint-skill-bash.sh).
 #
@@ -25,4 +25,4 @@ fi
 shellcheck --version
 shellcheck plugins/pd-bot/hooks/*.sh plugins/pd-bot/scripts/*.sh \
   scripts/check-plugin-install.sh scripts/check-plugin-version.sh scripts/check-plugin-validate.sh \
-  scripts/release.sh scripts/release-tag.sh scripts/release-guard.sh
+  scripts/release.sh scripts/release-tag.sh scripts/release-guard.sh scripts/check-pod-shape-ds.sh
