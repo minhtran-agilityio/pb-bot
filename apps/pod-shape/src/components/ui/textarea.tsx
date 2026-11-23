@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useLayoutEffect, useRef, type TextareaHTMLAttributes } from "react";
+import { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, type TextareaHTMLAttributes } from "react";
 import { cn } from "../../lib/cn";
 
 // DESIGN_SYSTEM.md §6.1 Textarea: auto-grows from 1 to 10 rows, then scrolls. `variant="code"` = font-mono text-xs.
@@ -39,8 +39,24 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
     el.style.overflowY = wanted > max ? "auto" : "hidden";
   }, []);
 
-  // Re-measure after every render: covers a controlled value, a reset and a font or width change.
+  // Re-measure after every render: covers a controlled value and a reset.
   useLayoutEffect(resize);
+
+  // A width change with no render (window resize, a panel opening) rewraps the text; a late font load changes line widths.
+  useEffect(() => {
+    const el = inner.current;
+    if (!el) return;
+    let alive = true;
+    const ro = new ResizeObserver(() => resize());
+    ro.observe(el);
+    void document.fonts?.ready.then(() => {
+      if (alive) resize();
+    });
+    return () => {
+      alive = false;
+      ro.disconnect();
+    };
+  }, [resize]);
 
   return (
     <textarea
