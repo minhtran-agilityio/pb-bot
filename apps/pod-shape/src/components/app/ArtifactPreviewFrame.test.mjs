@@ -103,3 +103,22 @@ test("no message channel to the page", () => {
   assert.ok(!/addEventListener\(\s*["']message["']/.test(src), 'addEventListener("message" found');
   for (const w of ["onMessage", "postMessage", "contentWindow"]) assert.ok(!src.includes(w), `${w} found`);
 });
+
+// Allowlist: the part is one exported function with a single return of JSX, and nothing else.
+const trimmed = src.replace(/^\s*import\s+type\b[^\n]*\n?/gm, "").trim();
+test("allowlist: one exported function whose body is a single return", () => {
+  assert.match(
+    trimmed,
+    /^export function ArtifactPreviewFrame\(\{ src, title \}: \{ src: string; title: string \}\) \{\s*return \([\s\S]*\);\s*\}$/,
+  );
+});
+test("allowlist: the only JSX expressions are {src || undefined} and {title}", () => {
+  const jsx = trimmed.slice(trimmed.indexOf("return (") + "return (".length);
+  assert.deepEqual((jsx.match(/\{[^{}]*\}/g) ?? []).sort(), ["{src || undefined}", "{title}"]);
+});
+test("the help text is present", () => {
+  assert.ok(
+    trimmed.includes("Sandboxed: scripts run, but the page cannot reach the app, files or Tauri commands."),
+    "help text missing",
+  );
+});
