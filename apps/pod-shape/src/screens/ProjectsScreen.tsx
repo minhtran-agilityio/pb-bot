@@ -2,14 +2,16 @@ import { PageHeader } from "../components/app/PageHeader";
 import { EmptyState } from "../components/app/EmptyState";
 import { StatusBar } from "../components/app/StatusBar";
 import { Icon, iconSize } from "../components/app/icons";
+import { Banner } from "../components/ui/banner";
 import { Button } from "../components/ui/button";
 import { clickableCard } from "../components/ui/card";
 import { shortPath, type Project } from "../lib/api";
 import { count, formatWhen } from "../lib/time";
+import { hookMissing, useHookInbox } from "../lib/artifacts";
 
 // DESIGN_SYSTEM.md §7.1 screen 1, Projects (home): PageHeader + grid of project Cards (grid-cards, gap-4):
 // repo name, path (UI font, tabular), artifact count, StatusBar of all issues.
-// Artifacts and issues arrive in steps 2 and 4, so every count is 0 for now.
+// Step 2 adds the artifact hook banners and the real artifact counts; issues arrive in step 4.
 const NO_ISSUES = { merged: 0, pr: 0, open: 0, closed: 0 };
 
 export function ProjectsScreen({
@@ -23,8 +25,19 @@ export function ProjectsScreen({
   onOpen: (p: Project) => void;
   onAdd: () => void;
 }) {
+  const { status, counts } = useHookInbox();
   return (
     <div className="flex flex-col gap-6">
+      {hookMissing(status) && (
+        <Banner>Artifact hook not found. Add artifacts by hand with Add artifact on a project.</Banner>
+      )}
+      {status && status.badLines > 0 && (
+        <Banner>
+          {status.badLines === 1
+            ? "1 line of the artifact log could not be read and was skipped."
+            : `${status.badLines} lines of the artifact log could not be read and were skipped.`}
+        </Banner>
+      )}
       <PageHeader
         title="Projects"
         meta={`${count(projects.length, "repo")} · ${count(0, "issue")}`}
@@ -59,7 +72,7 @@ export function ProjectsScreen({
             <StatusBar counts={NO_ISSUES} />
             <div className="mt-auto flex items-center justify-between gap-2 text-sm leading-4 text-fg-muted tabular-nums">
               <span>
-                {count(0, "artifact")} · {count(0, "issue")}
+                {count(counts[String(p.id)] ?? 0, "artifact")} · {count(0, "issue")}
               </span>
               <span>{formatWhen(p.createdAt)}</span>
             </div>
