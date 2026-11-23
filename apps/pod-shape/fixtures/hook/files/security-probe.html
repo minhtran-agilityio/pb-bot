@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Security probe</title>
+<style>
+  body { font: 14px/1.5 system-ui, sans-serif; margin: 16px; color: #222; background: #fff; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { border: 1px solid #ccc; padding: 4px 8px; text-align: left; vertical-align: top; }
+  .blocked { color: #1a6b2f; font-weight: 600; }
+  .reachable { color: #b00020; font-weight: 600; }
+  .manual { color: #8a5a00; font-weight: 600; }
+  button { margin: 4px 4px 4px 0; }
+</style>
+</head>
+<body>
+<h1>Security probe</h1>
+<p>Shape Board test fixture (design.md §8). Every automatic row must say <b>blocked</b>.
+Rows marked <b>check</b> need a look at the app: it must stay on its own page.</p>
+<p id="summary">Running…</p>
+<table><thead><tr><th>Probe</th><th>Result</th><th>Detail</th></tr></thead><tbody id="rows"></tbody></table>
+<h2>Probes that leave this page</h2>
+<p>Each button tries to navigate. Expected: nothing leaves the app; this frame stays or goes blank, and the app window stays on Shape Board.</p>
+<button id="nav-self">location = https://example.com</button>
+<button id="nav-top">top.location = https://example.com</button>
+<button id="nav-link">click &lt;a target=_top&gt;</button>
+<button id="nav-file">location = file:///etc/passwd</button>
+<p>File drop: drop any file on the app outside a drop zone. Expected: the app does not open the file.</p>
+<script>
+(function () {
+  var rows = document.getElementById("rows");
+  var results = [];
+  function row(name, status, detail) {
+    results.push(status);
+    var tr = document.createElement("tr");
+    tr.innerHTML = "<td></td><td></td><td></td>";
+    tr.children[0].textContent = name;
+    tr.children[1].textContent = status;
+    tr.children[1].className = status === "blocked" ? "blocked" : status === "check" ? "manual" : "reachable";
+    tr.children[2].textContent = detail || "";
+    rows.appendChild(tr);
+    summary();
+  }
+  function summary() {
+    var bad = results.filter(function (s) { return s === "REACHABLE"; }).length;
+    document.getElementById("summary").textContent =
+      results.length + " probes, " + bad + " reachable" + (bad ? " (FAIL)" : " (all automatic probes blocked)");
+  }
+  function within(ms, p) {
+    return Promise.race([p, new Promise(function (_, rej) { setTimeout(function () { rej(new Error("timeout")); }, ms); })]);
+  }
+
+  // CSP violations prove the policy is applied (the header and the meta copy).
+  var violations = [];
+  document.addEventListener("securitypolicyviolation", function (e) { violations.push(e.violatedDirective); });
+
+  // 1. Origin: the header and the iframe sandbox make it opaque.
+  row("origin is opaque (sandbox)", String(self.origin) === "null" ? "blocked" : "REACHABLE", "self.origin = " + self.origin);
+
+  // 2. Tauri globals in this frame.
+  ["__TAURI_INTERNALS__", "__TAURI__", "__TAURI_IPC__", "ipc"].forEach(function (k) {
+    var has = false;
+    try { has = typeof window[k] !== "undefined" && window[k] !== null; } catch (e) { has = false; }
+    row("window." + k, has ? "REACHABLE" : "blocked", has ? "present" : "absent");
+  });
+
+  // 3. The parent document and its Tauri globals.
+  try {
+    var pd = window.parent.document;
+    row("parent.document", "REACHABLE", "readable: " + (pd && pd.title));
+  } catch (e) { row("parent.document", "blocked", e.name); }
+  try {
+    var pi = window.parent.__TAURI_INTERNALS__;
+    row("parent.__TAURI_INTERNALS__", pi ? "REACHABLE" : "blocked", pi ? "present" : "undefined");
+  } catch (e) { row("parent.__TAURI_INTERNALS__", "blocked", e.name); }
+
+  // 4. WebKit message handler with a fake invoke key (macOS/Linux WebKit).
+  try {
+    var mh = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.ipc;
+    if (!mh) {
+      row("webkit.messageHandlers.ipc", "blocked", "absent in this frame");
+    } else {
+      mh.postMessage(JSON.stringify({ cmd: "list_projects", callback: 1, error: 2, payload: {}, options: { headers: { "Tauri-Invoke-Key": "fake" } } }));
+      row("webkit.messageHandlers.ipc", "check", "present; a fake-key message was sent. The app log must show it rejected (missing or wrong invoke key)");
+    }
+  } catch (e) { row("webkit.messageHandlers.ipc", "blocked", e.name + ": " + e.message); }
+
+  // 5. Popups.
+  try {
+    var w = window.open("https://example.com/");
+    row("window.open", w ? "REACHABLE" : "blocked", w ? "a window opened" : "returned null");
+  } catch (e) { row("window.open", "blocked", e.name); }
+
+  // 6. Storage in an opaque origin.
+  try { localStorage.setItem("x", "1"); row("localStorage", "REACHABLE", "writable"); }
+  catch (e) { row("localStorage", "blocked", e.name + " (expected: prototypes that use localStorage throw here)"); }
+
+  // 7. Network: fetch, XHR, beacon, WebSocket, EventSource, image; and the IPC endpoint.
+  var probes = [
+    ["fetch https://claude.ai", function () { return fetch("https://claude.ai/"); }],
+    ["fetch https://example.com", function () { return fetch("https://example.com/"); }],
+    ["fetch ipc://localhost/list_projects", function () { return fetch("ipc://localhost/list_projects", { method: "POST", body: "{}" }); }],
+    ["fetch http://ipc.localhost/list_projects", function () { return fetch("http://ipc.localhost/list_projects", { method: "POST", body: "{}" }); }],
+    ["fetch another version preview://localhost/v/1", function () { return fetch("preview://localhost/v/1"); }],
+    ["XHR https://example.com", function () {
+      return new Promise(function (res, rej) {
+        try {
+          var x = new XMLHttpRequest();
+          x.open("GET", "https://example.com/");
+          x.onload = function () { res(x); };
+          x.onerror = function () { rej(new Error("xhr error")); };
+          x.send();
+        } catch (e) { rej(e); }
+      });
+    }],
+    ["WebSocket wss://example.com", function () {
+      return new Promise(function (res, rej) {
+        try {
+          var s = new WebSocket("wss://example.com/");
+          s.onopen = function () { res(s); };
+          s.onerror = function () { rej(new Error("ws error")); };
+        } catch (e) { rej(e); }
+      });
+    }],
+    ["EventSource https://example.com", function () {
+      return new Promise(function (res, rej) {
+        try {
+          var s = new EventSource("https://example.com/");
+          s.onopen = function () { res(s); };
+          s.onerror = function () { s.close(); rej(new Error("eventsource error")); };
+        } catch (e) { rej(e); }
+      });
+    }],
+    ["img https://example.com/x.png", function () {
+      return new Promise(function (res, rej) {
+        var i = new Image();
+        i.onload = function () { res(i); };
+        i.onerror = function () { rej(new Error("image error")); };
+        i.src = "https://example.com/favicon.ico";
+      });
+    }],
+    ["script src=preview://localhost/v/1", function () {
+      return new Promise(function (res, rej) {
+        var s = document.createElement("script");
+        s.onload = function () { res(s); };
+        s.onerror = function () { rej(new Error("script error")); };
+        s.src = "preview://localhost/v/1";
+        document.head.appendChild(s);
+      });
+    }]
+  ];
+  probes.forEach(function (p) {
+    within(4000, Promise.resolve().then(p[1])).then(
+      function () { row(p[0], "REACHABLE", "loaded"); },
+      function (e) { row(p[0], "blocked", (e && (e.name + ": " + e.message)) || "error"); }
+    );
+  });
+  try {
+    var sent = navigator.sendBeacon("https://example.com/beacon", "x");
+    row("sendBeacon https://example.com", sent ? "check" : "blocked", sent ? "queued; CSP must block the request (see violations row)" : "returned false");
+  } catch (e) { row("sendBeacon https://example.com", "blocked", e.name); }
+
+  // 8. A nested frame of another version.
+  var f = document.createElement("iframe");
+  f.style.display = "none";
+  f.src = "preview://localhost/v/1";
+  var loaded = false;
+  f.onload = function () {
+    try { loaded = !!(f.contentDocument && f.contentDocument.body && f.contentDocument.body.innerHTML.length); } catch (e) { loaded = false; }
+  };
+  document.body.appendChild(f);
+  setTimeout(function () { row("iframe preview://localhost/v/1", loaded ? "REACHABLE" : "blocked", loaded ? "loaded" : "not loaded (frame-src 'none')"); }, 2500);
+
+  // 9. A blob download.
+  try {
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob(["probe"], { type: "text/plain" }));
+    a.download = "probe.txt";
+    document.body.appendChild(a);
+    a.click();
+    row("blob download", "check", "attempted; no file may appear in Downloads (sandbox without allow-downloads, on_download false)");
+  } catch (e) { row("blob download", "blocked", e.name); }
+
+  // 10. The CSP is applied.
+  setTimeout(function () {
+    row("CSP violation events", violations.length > 0 ? "blocked" : "REACHABLE",
+      violations.length + " seen: " + Array.from(new Set(violations)).join(", "));
+  }, 5000);
+
+  // Navigation buttons (manual).
+  document.getElementById("nav-self").onclick = function () { location = "https://example.com/"; };
+  document.getElementById("nav-top").onclick = function () {
+    try { top.location = "https://example.com/"; row("top.location", "check", "no exception; the app must not navigate"); }
+    catch (e) { row("top.location", "blocked", e.name); }
+  };
+  document.getElementById("nav-link").onclick = function () {
+    var l = document.createElement("a");
+    l.href = "https://example.com/";
+    l.target = "_top";
+    document.body.appendChild(l);
+    l.click();
+    row("<a target=_top>", "check", "clicked; the app must not navigate");
+  };
+  document.getElementById("nav-file").onclick = function () { location = "file:///etc/passwd"; };
+
+  // Unattended runs: a fragment like #auto=nav-top presses that button after the other probes ran.
+  var auto = /^#auto=(nav-[a-z]+)$/.exec(location.hash);
+  if (auto && document.getElementById(auto[1])) {
+    setTimeout(function () { document.getElementById(auto[1]).click(); }, 6000);
+  }
+})();
+</script>
+</body>
+</html>
