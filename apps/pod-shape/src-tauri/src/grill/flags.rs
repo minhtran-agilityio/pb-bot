@@ -35,10 +35,11 @@ pub fn first_message(skill_md: &str, plugin_root: &Path, prototype: &Path) -> St
     let body = strip_frontmatter(skill_md).replace("${CLAUDE_PLUGIN_ROOT}", &plugin_root.display().to_string());
     let body = body.replace("$ARGUMENTS", &prototype.display().to_string());
     format!(
-        "{FIRST_PREFIX} (Mode: interactive) on the prototype {proto}. Its files are under {root}; read them with the Read tool. \
+        "{FIRST_PREFIX} (Mode: interactive) on the prototype {proto}. The skill's own files are in {skill}: a path such as \
+         `references/questions.md` in the text means {skill}/references/questions.md. Read them with the Read tool. \
          The skill text is between the two lines.\n\n----\n{body}\n----\n\nARGUMENTS: {proto}",
         proto = prototype.display(),
-        root = plugin_root.display(),
+        skill = plugin_root.join("skills/pd-shape").display(),
         body = body.trim()
     )
 }
@@ -319,6 +320,7 @@ mod tests {
         assert!(!m.contains("allowed-tools"), "the frontmatter grant must not reach Claude as an instruction");
         assert!(m.contains("Read `/home/u/.claude/plugins/cache/pd-bot/pd-bot/0.6.0/references/adr.md`."));
         assert!(m.contains("Args: /t/proto/prototype.html"));
+        assert!(m.contains("means /home/u/.claude/plugins/cache/pd-bot/pd-bot/0.6.0/skills/pd-shape/references/questions.md"));
         assert!(m.ends_with("ARGUMENTS: /t/proto/prototype.html"));
         assert!(!m.starts_with('/'), "never a slash command: the skill's grant would apply");
         assert_eq!(strip_frontmatter("no frontmatter"), "no frontmatter");
