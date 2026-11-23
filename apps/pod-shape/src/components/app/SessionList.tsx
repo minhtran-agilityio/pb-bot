@@ -6,12 +6,17 @@ import { Icon, iconSize } from "./icons";
 // Dumb: the screen owns the sessions and the selection. Status = icon or dot + word, never colour alone.
 export type SessionState = "failed" | "running" | "waiting_owner" | "brief_ready" | "stopped" | "confirmed";
 
+// The pulsing "running" dot alone (SessionStatus and Composer share it).
+export function RunningDot() {
+  return <span aria-hidden="true" className="size-2 shrink-0 animate-pulse rounded-full bg-status-running motion-reduce:animate-none" />;
+}
+
 export function SessionStatus({ status }: { status: SessionState }) {
   switch (status) {
     case "running":
       return (
         <span className="inline-flex h-5.5 shrink-0 items-center gap-1.5 whitespace-nowrap text-xs font-medium text-fg-muted">
-          <span aria-hidden="true" className="size-2 shrink-0 animate-pulse rounded-full bg-status-running motion-reduce:animate-none" />
+          <RunningDot />
           Claude is working
         </span>
       );
