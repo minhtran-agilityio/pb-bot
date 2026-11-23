@@ -10,27 +10,30 @@ export function BriefCard({
   meta,
   actions,
   replaced = false,
+  label = "Brief source",
   className,
 }: {
   source: string;
   meta: ReactNode;
   actions?: ReactNode;
   replaced?: boolean;
+  label?: string;
   className?: string;
 }) {
-  if (replaced) return <p className={cn("text-sm text-fg-muted", className)}>{meta}</p>;
+  if (replaced) return <div className={cn("text-sm text-fg-muted", className)}>{meta}</div>;
   return (
     <div className={cn("flex flex-col gap-3", className)}>
       <pre
         tabIndex={0}
-        aria-label="Brief source"
-        className="max-h-70 overflow-auto whitespace-pre-wrap break-words rounded-md bg-surface-3 p-3 font-mono text-xs text-fg focus-visible:outline-none focus-visible:shadow-focus"
+        role="region"
+        aria-label={label}
+        className="max-h-70 overflow-auto whitespace-pre-wrap break-words rounded-md bg-surface-3 p-3 font-mono text-xs text-fg"
       >
         {source}
       </pre>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border pt-3">
         <span className="min-w-0 text-sm text-fg-muted">{meta}</span>
-        {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
+        {actions ? <div className="flex shrink-0 items-center gap-1">{actions}</div> : null}
       </div>
     </div>
   );
