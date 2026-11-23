@@ -22,7 +22,7 @@ export function Banner({ variant = "warning", children, action, onDismiss }: Ban
       className="flex items-center gap-2 rounded-box bg-warning-soft px-4 py-2.5 text-sm text-fg"
     >
       <Icon.warning {...iconSize.default} aria-hidden className="shrink-0 text-warning" />
-      <p className="min-w-0 flex-1">{children}</p>
+      <div className="min-w-0 flex-1">{children}</div>
       {action}
       {onDismiss && (
         <Tooltip content="Dismiss">
