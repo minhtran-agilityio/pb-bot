@@ -118,7 +118,7 @@ fn folder_files(db: &Mutex<Connection>, root: &Path, id: &str, report: &mut Sync
 }
 
 /// Reads a guarded file and stores it as a version of `artifact_id`; records the file as handled.
-fn import_file(db: &Mutex<Connection>, artifact_id: i64, f: &GuardedFile, report: &mut SyncReport) {
+fn import_file(db: &Mutex<Connection>, artifact_id: i64, f: &GuardedFile, at: Option<&str>, report: &mut SyncReport) {
     let html = match read_guarded(f) {
         Ok(h) => h,
         Err(why) => {
@@ -135,7 +135,7 @@ fn import_file(db: &Mutex<Connection>, artifact_id: i64, f: &GuardedFile, report
     };
     let path = f.path.to_string_lossy();
     let conn = lock(db);
-    match store::add_version(&conn, artifact_id, &html, "hook", Some(&path)) {
+    match store::add_version_at(&conn, artifact_id, &html, "hook", Some(&path), at) {
         Ok(Some(_)) => report.new_versions += 1,
         Ok(None) => {}
         Err(e) => {
@@ -319,8 +319,20 @@ fn scan_folder(db: &Mutex<Connection>, paths: &HookPaths, report: &mut SyncRepor
                 }
             }
         };
+        // A version counts from the hook's publish time, not from the import time (issue #100): the
+        // newest file of the folder gets the artifact's publish time (column 1 of the log, the time the
+        // card shows); an older file gets its own file time.
+        let newest = files.last().map(|f| f.path.clone());
+        let published: Option<String> = lock(db)
+            .query_row("SELECT published_at FROM artifacts WHERE id = ?1", [artifact_id], |r| r.get(0))
+            .ok()
+            .flatten();
         for f in todo {
-            import_file(db, artifact_id, f, report);
+            let at = match (&published, newest.as_ref() == Some(&f.path)) {
+                (Some(p), true) => p.clone(),
+                _ => iso_utc(f.mtime),
+            };
+            import_file(db, artifact_id, f, Some(&at), report);
         }
     }
 }
@@ -414,6 +426,29 @@ mod tests {
         assert_eq!(inbox[0].cwd.as_deref(), Some("/u/code/pb-bot"));
         assert_eq!(inbox[0].published_at.as_deref(), Some("2026-11-22T11:13:40Z"));
         assert_eq!(f.sync().new_versions, 0);
+    }
+
+    #[test]
+    fn a_version_counts_from_the_hook_publish_time_not_the_import_time() {
+        let f = fx();
+        let file = f.file("Hook1", "20261122T111340Z_hook-test.html", "<h1>v1</h1>");
+        f.log(&f.line6("Hook1", "Hook Test Page", "/u/code/pb-bot", &file));
+        f.sync();
+        let a = f.inbox()[0].id;
+        let v = list_versions(&f.db.lock().unwrap(), a).unwrap();
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].created_at, "2026-11-22T11:13:40Z", "column 1 of the log, as the card shows");
+    }
+
+    #[test]
+    fn a_hook_file_with_no_log_line_uses_its_file_time() {
+        let f = fx();
+        f.file_at("NoLog1", "a.html", "<p>a</p>", 10);
+        f.sync();
+        let a = f.inbox()[0].id;
+        let v = list_versions(&f.db.lock().unwrap(), a).unwrap();
+        assert!(v[0].created_at.starts_with("20") && v[0].created_at != "2026-11-22T11:13:40Z");
+        assert_eq!(v[0].created_at, f.inbox()[0].published_at.clone().unwrap());
     }
 
     #[test]

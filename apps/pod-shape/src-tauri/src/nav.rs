@@ -14,6 +14,21 @@
 use crate::artifacts::preview::preview_path;
 use tauri::Url;
 
+/// One line to stderr and, in a debug build, to `<dir>/debug.log`. A `.app` started from Finder has no
+/// visible stderr, so a `tauri build --debug` check (blocked navigation, preview request) reads this
+/// file. Release builds write nothing to disk. Never takes a page-controlled string beyond a scheme.
+pub fn debug_log(dir: Option<&std::path::Path>, line: &str) {
+    eprintln!("shape-board: {line}");
+    if cfg!(debug_assertions) {
+        if let Some(dir) = dir {
+            use std::io::Write;
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("debug.log")) {
+                let _ = writeln!(f, "{line}");
+            }
+        }
+    }
+}
+
 /// True when `url` may load in the main window (top frame or, where the engine asks, a subframe).
 /// `dev_url` is the Vite dev server, passed only in debug builds.
 pub fn allowed(url: &Url, dev_url: Option<&Url>) -> bool {
@@ -75,6 +90,15 @@ mod tests {
         ] {
             assert!(!ok(u), "{u}");
         }
+    }
+
+    #[test]
+    fn a_debug_log_line_reaches_the_file_in_a_debug_build() {
+        let d = tempfile::tempdir().unwrap();
+        debug_log(Some(d.path()), "blocked navigation to https");
+        debug_log(None, "no dir, stderr only");
+        let text = std::fs::read_to_string(d.path().join("debug.log")).unwrap_or_default();
+        assert_eq!(text.contains("blocked navigation to https"), cfg!(debug_assertions));
     }
 
     #[test]

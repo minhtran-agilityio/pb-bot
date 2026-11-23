@@ -206,6 +206,6 @@ Done check for the hook: after the owner approves, publish one test artifact. Th
 6. Fallback: drag-and-drop an `.html` file, or paste link + HTML.
 7. Edge cases: missing folder or log → banner "Artifact hook not found", and the fallback still works. Bad log line → skip it and log a warning. Show "Last hook write: N days ago". Read only `.html` files, up to 5 MB.
 8. Limit: artifacts made on claude.ai or in cloud sessions do not pass through this hook. They need the fallback.
-9. Known limit of the preview (owner decision, 2026-11-23, build step 2): each preview URL works once, so a prototype that reloads itself (`location.reload()`, a "Restart" button) goes blank. The "Reload" button above the frame loads it again with a new URL.
+9. Known limit of the preview (owner decision, 2026-11-23, build step 2): each preview URL works once, so a prototype that reloads itself (`location.reload()`, a "Restart" button) does not load again. On WKWebView (Mac check of #99) the frame keeps showing the old page, and the extra request gets a 404; it does not go blank. The "Reload" button above the frame loads it again with a new URL.
 
 All UI uses the design system (English copy, existing components only). Ask the owner if a component is missing.

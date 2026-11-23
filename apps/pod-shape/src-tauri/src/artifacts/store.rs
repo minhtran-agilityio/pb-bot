@@ -105,6 +105,20 @@ pub fn add_version(
     source: &str,
     file: Option<&str>,
 ) -> rusqlite::Result<Option<(i64, i64)>> {
+    add_version_at(conn, artifact_id, html, source, file, None)
+}
+
+/// `add_version` with the time the version counts from: the hook's publish time when known (HANDOFF
+/// §11.3 column 1), else the import time. `at` is `YYYY-MM-DDTHH:MM:SSZ` (checked); a bad value is ignored.
+pub fn add_version_at(
+    conn: &Connection,
+    artifact_id: i64,
+    html: &str,
+    source: &str,
+    file: Option<&str>,
+    at: Option<&str>,
+) -> rusqlite::Result<Option<(i64, i64)>> {
+    let at = at.filter(|t| super::log::valid_utc(t));
     let html = strip_bom(html);
     let hash = sha256_hex(html);
     if let Some(f) = file {
@@ -122,8 +136,9 @@ pub fn add_version(
         |r| r.get(0),
     )?;
     conn.execute(
-        "INSERT INTO artifact_versions (artifact_id, n, html, sha256, source, file) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        params![artifact_id, n, html, hash, source, file],
+        "INSERT INTO artifact_versions (artifact_id, n, html, sha256, source, file, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, COALESCE(?7, strftime('%Y-%m-%dT%H:%M:%SZ', 'now')))",
+        params![artifact_id, n, html, hash, source, file, at],
     )?;
     let vid = conn.last_insert_rowid();
     if n > 1 {
