@@ -7,7 +7,7 @@ const MAX_ROWS = 10;
 
 export interface TextareaProps extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "rows"> {
   invalid?: boolean;
-  /** `bare`: no border, background, padding or own focus ring, text-base; for a field inside a box that shows the focus (Composer). */
+  /** `bare`: no border, background, side padding or own focus ring, text-base 14/20 with py-1; for a field inside a box that shows the focus (Composer). */
   variant?: "default" | "code" | "bare";
   /** The height never goes below this many lines (default 1). */
   minRows?: number;
@@ -113,7 +113,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
       className={
         variant === "bare"
           ? cn(
-              "block w-full min-w-0 resize-none border-0 bg-transparent p-0 text-base text-fg",
+              "block w-full min-w-0 resize-none border-0 bg-transparent px-0 py-1 text-base leading-5 text-fg",
               "placeholder:text-fg-subtle disabled:pointer-events-none disabled:opacity-50",
               "focus-visible:outline-none",
               className,
