@@ -79,7 +79,8 @@
   --foot-sh:        0 -10px 24px -16px rgba(90, 58, 30, 0.25); /* sticky footer bar */
   --elev-sm:        0 8px 24px rgba(10, 6, 3, 0.35), 0 1px 0 rgba(255, 240, 220, 0.04) inset;
   --elev-lg:        0 28px 64px rgba(10, 6, 3, 0.50);
-  --focus-halo:     0 0 0 4px var(--accent-soft); /* focused input, composer */
+  --focus-halo:     0 0 0 4px var(--accent-soft); /* focused input */
+  --focus-halo-card: 0 0 0 4px var(--accent-soft), var(--card-sh); /* focused composer: halo plus the card shadow */
 
   /* Type */
   --font-ui: "Outfit", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -238,6 +239,7 @@
   --shadow-sm: var(--elev-sm);
   --shadow-lg: var(--elev-lg);
   --shadow-focus: var(--focus-halo);
+  --shadow-focus-card: var(--focus-halo-card);
 
   --ease-*: initial;
   --ease-out: var(--ease-out);
