@@ -31,16 +31,16 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
   ref,
 ) {
   return (
-    <S.Root value={value} onValueChange={onValueChange} disabled={disabled} name={name}>
+    <S.Root value={value ?? ""} onValueChange={onValueChange} disabled={disabled} name={name}>
       <S.Trigger
         ref={ref}
         aria-invalid={invalid || undefined}
         className={cn(
           "relative flex h-9.5 w-full min-w-0 items-center rounded-full border bg-surface-2 pl-4 pr-9 text-left text-base text-fg",
-          "hover:bg-surface-3 data-[placeholder]:text-fg-subtle",
+          "data-[placeholder]:text-fg-subtle",
           "disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none",
           // Same focus rule as Input: only a valid select turns accent; an invalid one keeps border-danger.
-          invalid ? "border-danger" : "border-border focus-visible:border-accent focus-visible:shadow-focus",
+          invalid ? "border-danger" : "border-border hover:border-border-strong focus-visible:border-accent focus-visible:shadow-focus",
           className,
         )}
         {...rest}
@@ -57,7 +57,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
           position="popper"
           sideOffset={6}
           style={{ minWidth: "var(--radix-select-trigger-width)", maxHeight: "var(--radix-select-content-available-height)" }}
-          className="z-50 max-w-96 overflow-hidden rounded-box border border-border bg-surface-2 p-1.5 text-fg shadow-sm"
+          className="z-50 max-w-140 overflow-hidden rounded-box border border-border bg-surface-2 p-1.5 text-fg shadow-sm"
         >
           <S.Viewport>
             {options.map((o) => (
