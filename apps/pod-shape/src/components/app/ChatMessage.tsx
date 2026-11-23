@@ -3,8 +3,9 @@ import { cn } from "../../lib/cn";
 import { Icon, iconSize } from "./icons";
 
 // DESIGN_SYSTEM.md §6.2 ChatMessage + ChatNote (grill chat). Dumb parts: the screen owns the thread.
-// Long words wrap (wrap-anywhere); code spans are font-mono on surface-3 (real code only).
-const code = "[&_code]:rounded-xs [&_code]:bg-surface-3 [&_code]:px-1 [&_code]:font-mono [&_code]:text-sm";
+// The thread is a flex column (the user bubble needs self-end); the claude body is a block with
+// pre-wrap, so inline code stays in the line and "\n" keeps its breaks. Long words wrap (wrap-anywhere); code spans are font-mono on surface-3 (real code only).
+const code = "[&_code]:rounded-xs [&_code]:bg-surface-3 [&_code]:px-1.5 [&_code]:py-px [&_code]:font-mono [&_code]:text-xs";
 
 export interface ChatMessageProps {
   role: "claude" | "user";
@@ -22,16 +23,20 @@ export function ChatMessage({ role, children }: ChatMessageProps) {
           code,
         )}
       >
+        <span className="sr-only">You: </span>
         {children}
       </div>
     );
   }
   return (
     <div data-role="claude" className="flex gap-3">
+      <span className="sr-only">Claude: </span>
       <span aria-hidden className="grid size-7.5 shrink-0 place-items-center rounded-full bg-accent-soft">
         <span className="size-2 rounded-full bg-accent" />
       </span>
-      <div className={cn("flex min-w-0 flex-1 flex-col gap-2 text-md wrap-anywhere", code)}>{children}</div>
+      <div className={cn("min-w-0 flex-1 space-y-2 whitespace-pre-wrap text-md wrap-anywhere", code)}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -50,7 +55,7 @@ export function ChatNote({ tone, children }: ChatNoteProps) {
       data-tone={tone}
       className={cn(
         "flex items-start gap-2 wrap-anywhere",
-        tone === "error" ? "text-sm text-danger" : "text-xs text-fg-muted",
+        tone === "error" ? "text-sm leading-5.5 text-danger" : "text-xs text-fg-muted",
         code,
       )}
     >
