@@ -86,7 +86,3 @@ mod tests {
         assert!(!allowed(&Url::parse("http://localhost:1430/").unwrap(), None));
     }
 }
-
-#[cfg(test)]
-#[test]
-fn throwaway_fails() { assert_eq!(1, 2); }
