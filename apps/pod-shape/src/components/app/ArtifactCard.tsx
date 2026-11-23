@@ -40,10 +40,10 @@ export function ArtifactCard({
     <Card className={cn("flex flex-col gap-2.5", className)}>
       <div className="flex items-center gap-2">
         <Icon.artifact {...iconSize.default} aria-hidden className="flex-none text-fg-muted" />
-        <h3 title={name} className="min-w-0 flex-1 truncate text-md font-semibold text-fg">
+        <h3 title={name} className="min-w-0 flex-1 truncate text-md leading-5 font-semibold text-fg">
           {name}
         </h3>
-        <span className="flex-none whitespace-nowrap text-sm text-fg-subtle">{updatedAt}</span>
+        <span className="flex-none whitespace-nowrap text-xs text-fg-subtle">{updatedAt}</span>
       </div>
       {summary ? <p className="line-clamp-2 text-base text-fg-muted">{summary}</p> : null}
       <PipelineSteps current={step} />
@@ -55,7 +55,7 @@ export function ArtifactCard({
           </div>
         ) : null}
         <div className="ml-auto flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={onPreview} aria-label={`Preview ${name}`}>
+          <Button variant="ghost" size="sm" icon="artifact" onClick={onPreview} aria-label={`Preview ${name}`}>
             Preview
           </Button>
           {grillAction}

@@ -15,7 +15,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       ref={ref}
       aria-invalid={invalid || undefined}
       className={cn(
-        "h-9.5 w-full min-w-0 rounded-full border bg-surface-2 px-4 text-base text-fg",
+        "h-9.5 w-full min-w-0 rounded-full border bg-surface-2 px-4 text-sm text-fg",
         "placeholder:text-fg-subtle disabled:pointer-events-none disabled:opacity-50",
         "focus-visible:outline-none",
         // An invalid field keeps its danger border on focus and gets no accent halo; only a valid one turns accent.
