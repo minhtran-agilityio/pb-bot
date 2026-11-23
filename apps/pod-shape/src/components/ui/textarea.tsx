@@ -11,7 +11,7 @@ export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElemen
 }
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function Textarea(
-  { invalid = false, variant = "default", className, rows = 1, onInput, ...rest },
+  { invalid = false, variant = "default", className, rows = 1, onInput, value, ...rest },
   forwardedRef,
 ) {
   const inner = useRef<HTMLTextAreaElement | null>(null);
@@ -25,22 +25,57 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
     [forwardedRef],
   );
 
+  // One hidden mirror measures the content height, so the visible element is never collapsed and the scroll ancestor is never clamped.
+  const mirror = useRef<HTMLTextAreaElement | null>(null);
+
   const resize = useCallback(() => {
     const el = inner.current;
     if (!el) return;
+    let m = mirror.current;
+    if (!m) {
+      m = document.createElement("textarea");
+      m.setAttribute("aria-hidden", "true");
+      m.tabIndex = -1;
+      m.rows = 1;
+      m.readOnly = true;
+      m.style.cssText = "position:absolute;top:0;left:-9999px;visibility:hidden;pointer-events:none;height:0;min-height:0;overflow:hidden;resize:none;";
+      document.body.appendChild(m);
+      mirror.current = m;
+    }
     const cs = getComputedStyle(el);
     const line = parseFloat(cs.lineHeight) || 22;
     const border = parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
     const pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
     const max = line * MAX_ROWS + pad + border;
-    el.style.height = "auto";
-    const wanted = el.scrollHeight + border;
-    el.style.height = `${Math.min(wanted, max)}px`;
-    el.style.overflowY = wanted > max ? "auto" : "hidden";
+    m.style.boxSizing = "border-box";
+    m.style.width = `${el.clientWidth + parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth)}px`;
+    m.style.font = cs.font;
+    m.style.letterSpacing = cs.letterSpacing;
+    m.style.lineHeight = cs.lineHeight;
+    m.style.padding = cs.padding;
+    m.style.borderWidth = cs.borderWidth;
+    m.style.borderStyle = "solid";
+    m.style.tabSize = cs.tabSize;
+    m.style.whiteSpace = cs.whiteSpace;
+    m.style.overflowWrap = cs.overflowWrap;
+    m.value = el.value;
+    const wanted = m.scrollHeight + border;
+    const height = `${Math.min(wanted, max)}px`;
+    const overflow = wanted > max ? "auto" : "hidden";
+    if (el.style.height !== height) el.style.height = height;
+    if (el.style.overflowY !== overflow) el.style.overflowY = overflow;
   }, []);
 
-  // Re-measure after every render: covers a controlled value and a reset.
-  useLayoutEffect(resize);
+  useEffect(
+    () => () => {
+      mirror.current?.remove();
+      mirror.current = null;
+    },
+    [],
+  );
+
+  // Re-measure when the value changes (controlled value, reset). Typing is handled by onInput.
+  useLayoutEffect(resize, [value, resize]);
 
   // A width change with no render (window resize, a panel opening) rewraps the text; a late font load changes line widths.
   useEffect(() => {
@@ -62,6 +97,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
     <textarea
       ref={setRef}
       rows={rows}
+      value={value}
       aria-invalid={invalid || undefined}
       onInput={(e) => {
         resize();
