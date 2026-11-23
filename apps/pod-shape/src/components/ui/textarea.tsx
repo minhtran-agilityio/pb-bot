@@ -7,7 +7,8 @@ const MAX_ROWS = 10;
 
 export interface TextareaProps extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "rows"> {
   invalid?: boolean;
-  variant?: "default" | "code";
+  /** `bare`: no border, background, padding or own focus ring, text-base; for a field inside a box that shows the focus (Composer). */
+  variant?: "default" | "code" | "bare";
   /** The height never goes below this many lines (default 1). */
   minRows?: number;
 }
@@ -109,15 +110,24 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
         resize();
         onInput?.(e);
       }}
-      className={cn(
-        "block w-full min-w-0 resize-none rounded-box border bg-surface-2 px-4 py-2.5 text-fg",
-        variant === "code" ? "font-mono text-xs" : "text-sm",
-        "placeholder:text-fg-subtle disabled:pointer-events-none disabled:opacity-50",
-        "focus-visible:outline-none",
-        // An invalid field keeps its danger border on focus and gets no accent halo; only a valid one turns accent.
-        invalid ? "border-danger" : "border-border focus-visible:border-accent focus-visible:shadow-focus",
-        className,
-      )}
+      className={
+        variant === "bare"
+          ? cn(
+              "block w-full min-w-0 resize-none border-0 bg-transparent p-0 text-base text-fg",
+              "placeholder:text-fg-subtle disabled:pointer-events-none disabled:opacity-50",
+              "focus-visible:outline-none",
+              className,
+            )
+          : cn(
+              "block w-full min-w-0 resize-none rounded-box border bg-surface-2 px-4 py-2.5 text-fg",
+              variant === "code" ? "font-mono text-xs" : "text-sm",
+              "placeholder:text-fg-subtle disabled:pointer-events-none disabled:opacity-50",
+              "focus-visible:outline-none",
+              // An invalid field keeps its danger border on focus and gets no accent halo; only a valid one turns accent.
+              invalid ? "border-danger" : "border-border focus-visible:border-accent focus-visible:shadow-focus",
+              className,
+            )
+      }
       {...rest}
     />
   );
