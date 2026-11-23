@@ -81,6 +81,24 @@ test("no other sandbox token anywhere", () => {
 });
 test("no srcDoc", () => assert.ok(!/srcDoc/i.test(src)));
 test("no props spread anywhere in the part", () => assert.ok(!/\{\s*\.\.\./.test(src)));
+// The part is pure JSX: nothing may run at runtime that could change the iframe or listen to it.
+test("no runtime import (only import type)", () => {
+  const imports = src.match(/^\s*import\b[^\n]*/gm) ?? [];
+  for (const l of imports) assert.ok(/^\s*import\s+type\b/.test(l), `runtime import: ${l.trim()}`);
+});
+test("no hook call, ref, document. or window.", () => {
+  assert.ok(!/\buse[A-Z]\w*\s*\(/.test(src), "hook call found");
+  assert.ok(!/\bref\s*=/.test(src), "ref= found");
+  assert.ok(!/\bdocument\./.test(src), "document. found");
+  assert.ok(!/\bwindow\./.test(src), "window. found");
+});
+test("the word sandbox appears exactly once in the file", () => assert.equal((src.match(/sandbox/g) ?? []).length, 1));
+test("no onmessage in any case", () => assert.ok(!/onmessage/i.test(src)));
+test('the first iframe referrerPolicy is the string literal "no-referrer"', () => {
+  const r = frame.attrs.find((a) => a.name === "referrerPolicy");
+  assert.equal(r.kind, "string");
+  assert.equal(r.value, "no-referrer");
+});
 test("no message channel to the page", () => {
   assert.ok(!/addEventListener\(\s*["']message["']/.test(src), 'addEventListener("message" found');
   for (const w of ["onMessage", "postMessage", "contentWindow"]) assert.ok(!src.includes(w), `${w} found`);
