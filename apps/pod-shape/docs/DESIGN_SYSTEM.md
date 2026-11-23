@@ -241,7 +241,7 @@ Shared states for every interactive component:
 | **Separator** | horizontal / vertical | 1px border-border |
 | **ScrollArea** | — | Radix ScrollArea, thin 6px thumb bg-border-strong |
 | **Skeleton** | — | bg-surface-3 rounded-sm animate-pulse; match the size of the real content |
-| **Kbd** | — | UI font, text-xs tabular-nums, border-border, rounded-xs, px-1 |
+| **Kbd** | `tone`: default · accent | Renders `<kbd>` for a key the owner can press ("1", "Enter", "Shift"). UI font (not mono), text-xs tabular-nums, 1px border, rounded-xs, px-1, whitespace-nowrap. default: border-border, text-fg-muted. accent: border-accent-soft, text-accent-text, for a key inside an accent chip. Static, no interaction. Props: children, `tone`, className. |
 | **DropZone** | states: idle · hover · drag-over · filled · error · disabled | Drop target for one file (default `accept=".html"`). `rounded-box`, 1px dashed `border-border-strong`, bg-surface-2, px-4 py-3, min-h-16, `text-sm text-fg-muted`, `artifact` icon 16 left of the label. Hover bg-surface-3. Drag-over `border-accent bg-accent-soft`. Filled shows the file name (`text-fg`, truncates) + `· 48 KB`. Error `border-danger` + `text-danger text-xs` line under it. Disabled `opacity-50`. `role="button"`, focusable; Enter or Space opens the hidden file input. Reports the `File` (drop or pick) and does not validate; the screen validates and passes the error text. |
 
 ### 6.2 App parts (`src/components/app/`)
