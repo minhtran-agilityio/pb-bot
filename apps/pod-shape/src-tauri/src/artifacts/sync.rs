@@ -169,6 +169,10 @@ fn handle_entry(db: &Mutex<Connection>, paths: &HookPaths, e: &LogEntry) {
 
 /// True when the bytes right before `offset` are `tail` + newline: the log is the one read before.
 fn same_log(file: &mut File, offset: u64, tail: &[u8]) -> bool {
+    // With no stored tail only the newline would be compared, which every log matches: read again.
+    if tail.is_empty() {
+        return false;
+    }
     let mut want = tail.to_vec();
     want.push(b'\n');
     let n = want.len() as u64;
@@ -199,7 +203,14 @@ fn read_log(db: &Mutex<Connection>, paths: &HookPaths, bad: &mut usize) {
     let (mut offset, last) = {
         let conn = lock(db);
         let off = store::get_state(&conn, OFFSET).ok().flatten().and_then(|v| v.parse::<u64>().ok()).unwrap_or(0);
-        let tail = store::get_state(&conn, LAST_TAIL_HEX).ok().flatten().and_then(|h| unhex(&h)).unwrap_or_default();
+        // A state written before the tail was kept as bytes has only the text line: use its bytes, so the
+        // first sync after the upgrade does not read the whole log again (round 2 nit).
+        let tail = store::get_state(&conn, LAST_TAIL_HEX)
+            .ok()
+            .flatten()
+            .and_then(|h| unhex(&h))
+            .or_else(|| store::get_state(&conn, LAST_LINE).ok().flatten().map(|t| tail_of(t.as_bytes()).to_vec()))
+            .unwrap_or_default();
         (off, tail)
     };
     // The log was replaced or cut when it is shorter than the offset or the line before the offset
@@ -632,6 +643,36 @@ mod tests {
         f.log("junk again\n");
         assert_eq!(f.sync().bad_lines, 3, "a reread from the start would give 3 only if it did not reset");
         assert_eq!(store::get_state(&f.db.lock().unwrap(), OFFSET).unwrap().map(|o| o > off.clone().unwrap()), Some(true));
+    }
+
+    #[test]
+    fn a_state_with_only_the_text_line_still_recognises_its_log() {
+        let f = fx();
+        let a = f.file("Up2", "a.html", "<p>a</p>");
+        let line = f.line6("Up2", "From the log", "", &a);
+        f.log(&line);
+        f.sync();
+        // As an older state would look: no tail hex, only the text line. A marker shows a reread.
+        let drop_hex = |f: &Fx| {
+            let c = f.db.lock().unwrap();
+            c.execute("DELETE FROM hook_state WHERE key = ?1", [LAST_TAIL_HEX]).unwrap();
+            c.execute("UPDATE artifacts SET title = 'Marker' WHERE claude_id = 'Up2'", []).unwrap();
+        };
+        drop_hex(&f);
+        f.log("junk\n");
+        f.sync();
+        assert_eq!(f.inbox()[0].title, "Marker", "the same log is not read again from the start");
+        // A replaced log of the same shape (a newline right before the old offset) is noticed.
+        drop_hex(&f);
+        let offset: usize = store::get_state(&f.db.lock().unwrap(), OFFSET).unwrap().unwrap().parse().unwrap();
+        let other = line.replace("From the log", "Replaced log");
+        let mut body = other.clone();
+        while body.len() < offset {
+            body.push_str(&other);
+        }
+        fs::write(&f.paths.log, body).unwrap();
+        f.sync();
+        assert_eq!(f.inbox()[0].title, "Replaced log", "a different log is read from the start");
     }
 
     #[test]

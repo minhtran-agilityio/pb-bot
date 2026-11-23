@@ -64,20 +64,25 @@ export function ArtifactPreviewDialog({
 
   const current = versions?.find((v) => String(v.id) === selected) ?? null;
 
-  // Each load of the frame gets a fresh single-use URL from Rust (review F6).
+  // Each load of the frame gets a fresh single-use URL from Rust (review F6). A page that reloads
+  // itself then goes blank (known limit); "Reload" mints a new URL (owner decision 2026-11-23, round 2 N2).
   const [src, setSrc] = useState<{ id: number; url: string } | null>(null);
+  const [loads, setLoads] = useState(0);
+  const [minting, setMinting] = useState(false);
   useEffect(() => {
     setSrc(null);
+    setError(null);
     if (!current) return;
     let live = true;
+    setMinting(true);
     api.previewUrl(current.id).then(
       (url) => live && setSrc({ id: current.id, url }),
       (e) => live && setError(String(e)),
-    );
+    ).finally(() => live && setMinting(false));
     return () => {
       live = false;
     };
-  }, [current?.id]);
+  }, [current?.id, loads]);
   return (
     <Dialog
       open={artifact !== null}
@@ -106,6 +111,9 @@ export function ArtifactPreviewDialog({
           placeholder="Version"
         />
         {artifact?.link && <span className="min-w-0 flex-1 truncate text-sm text-fg-subtle tabular-nums">{artifact.link}</span>}
+        <Button variant="ghost" size="sm" icon="regenerate" loading={minting} disabled={!current} onClick={() => setLoads((n) => n + 1)}>
+          Reload
+        </Button>
       </div>
       {error ? (
         <p className="text-sm text-danger">{error}</p>

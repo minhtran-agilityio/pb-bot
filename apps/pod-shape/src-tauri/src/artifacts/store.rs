@@ -359,6 +359,11 @@ pub fn mark_seen(conn: &Connection, artifact_id: i64) -> rusqlite::Result<()> {
     Ok(())
 }
 
+/// True when the version exists (no HTML is loaded).
+pub fn version_exists(conn: &Connection, version_id: i64) -> rusqlite::Result<bool> {
+    Ok(conn.query_row("SELECT 1 FROM artifact_versions WHERE id = ?1", params![version_id], |_| Ok(())).optional()?.is_some())
+}
+
 /// The stored HTML of one version, for the preview scheme.
 pub fn version_html(conn: &Connection, version_id: i64) -> rusqlite::Result<Option<String>> {
     conn.query_row("SELECT html FROM artifact_versions WHERE id = ?1", params![version_id], |r| r.get(0))
@@ -435,7 +440,9 @@ pub fn find_manual_target(
                 });
             }
             let real: String = conn.query_row("SELECT name FROM artifacts WHERE id = ?1", params![id], |r| r.get(0)).map_err(db)?;
-            return Ok(ManualTarget { artifact_id: Some(id), name: Some(real), next_version: next(id).map_err(db)? });
+            // An artifact from the inbox gets a free name in this project when it moves (`-2` ...): show that one.
+            let shown = if pid.is_none() { free_name(conn, project_id, &real, id).map_err(db)? } else { real };
+            return Ok(ManualTarget { artifact_id: Some(id), name: Some(shown), next_version: next(id).map_err(db)? });
         }
     }
     let by_name: Option<(i64, Option<String>)> = conn
@@ -779,6 +786,13 @@ pub(crate) mod tests {
         assert_eq!((r.artifact_id, r.n, r.name.as_str()), (d.artifact_id, 2, "dropped"));
         let cid: Option<String> = c.query_row("SELECT claude_id FROM artifacts WHERE id = ?1", [d.artifact_id], |r| r.get(0)).unwrap();
         assert_eq!(cid.as_deref(), Some("LinkC"));
+        // An inbox artifact whose name is taken here: the target name is the one it will get.
+        let h = upsert_hook_artifact(&c, &meta("LinkD", "Dropped", None)).unwrap();
+        add_version(&c, h, "<p>h</p>", "hook", None).unwrap();
+        let t = find_manual_target(&c, p.id, Some("https://claude.ai/artifact/LinkD"), "").unwrap();
+        assert_eq!(t.name.as_deref(), Some("dropped-2"));
+        let r = import_manual(&mut c, p.id, Some("https://claude.ai/artifact/LinkD"), "dropped-2", "<p>h2</p>", "paste").unwrap();
+        assert_eq!(r.name, "dropped-2");
         // The link now finds it under its real name, whatever name is typed.
         let t = find_manual_target(&c, p.id, Some("https://claude.ai/artifact/LinkC"), "typed-other").unwrap();
         assert_eq!((t.artifact_id, t.name.as_deref(), t.next_version), (Some(d.artifact_id), Some("dropped"), 3));

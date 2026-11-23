@@ -28,3 +28,14 @@ Security probe: add it to a project, open its preview, and check that every auto
 the preview frame: the app must stay on its own page. The app log prints
 `preview request, sec-fetch-dest = ...` for each frame load; note whether the engine sends it. Check it
 on Linux and on macOS (dev and `tauri build --debug`).
+
+Mac check list (step 2):
+
+- The probe: every automatic row says **blocked**; the navigation buttons and both drops leave the app on
+  its page. Note the `sec-fetch-dest` value the log prints.
+- One frame load makes one `preview request` log line. If WKWebView requests a URL twice for one load, the
+  second request gets the 404 of a used URL and the frame goes blank: report it.
+- "Reload" above the frame loads the version again (a new URL each time).
+- A real file drop from Finder on the Add artifact drop zone fills the dialog.
+- The HTML textarea in the Add artifact dialog grows to 10 rows, then scrolls.
+- A new file written by the real hook shows up without a restart (FSEvents).

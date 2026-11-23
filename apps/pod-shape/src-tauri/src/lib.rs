@@ -104,14 +104,20 @@ async fn hook_status(hook: tauri::State<'_, Hook>) -> Result<HookStatus, String>
         .map_err(err)
 }
 
-/// A single-use URL for one stored version, for the sandboxed preview frame (review F6).
+/// A single-use URL for one stored version, for the sandboxed preview frame (review F6). Async, and it
+/// loads no HTML (round 2 nit).
 #[tauri::command]
-fn preview_url(db: tauri::State<'_, Db>, tokens: tauri::State<'_, Previews>, version_id: i64) -> Result<String, String> {
-    if store::version_html(&lock(&db.0), version_id).map_err(err)?.is_none() {
-        return Err("This version no longer exists.".into());
-    }
-    let nonce = tokens.0.mint(version_id).map_err(err)?;
-    Ok(format!("preview://localhost/v/{version_id}/{nonce}"))
+async fn preview_url(db: tauri::State<'_, Db>, tokens: tauri::State<'_, Previews>, version_id: i64) -> Result<String, String> {
+    let (db, tokens) = (db.0.clone(), tokens.0.clone());
+    tauri::async_runtime::spawn_blocking(move || {
+        if !store::version_exists(&lock(&db), version_id).map_err(err)? {
+            return Err("This version no longer exists.".to_string());
+        }
+        let nonce = tokens.mint(version_id).map_err(err)?;
+        Ok(format!("preview://localhost/v/{version_id}/{nonce}"))
+    })
+    .await
+    .map_err(err)?
 }
 
 /// Runs one sync now (also what the watcher runs on each change).
@@ -206,7 +212,9 @@ pub fn run() {
                 let uri = req.uri();
                 let dest = req.headers().get("sec-fetch-dest").and_then(|v| v.to_str().ok());
                 // Whether the engine sends Sec-Fetch-Dest to a custom scheme (the Mac check reads this).
-                eprintln!("shape-board: preview request, sec-fetch-dest = {}", dest.unwrap_or("(absent)"));
+                if cfg!(debug_assertions) {
+                    eprintln!("shape-board: preview request, sec-fetch-dest = {}", dest.unwrap_or("(absent)"));
+                }
                 let r = match (db, tokens) {
                     (Some(db), Some(tokens)) => {
                         let conn = lock(&db);

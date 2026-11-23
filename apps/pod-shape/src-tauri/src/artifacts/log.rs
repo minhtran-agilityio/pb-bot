@@ -54,10 +54,15 @@ pub fn link_id(link: &str) -> Option<&str> {
     valid_id(rest).then_some(rest)
 }
 
-/// Bidirectional and zero-width format characters that can make a title read differently than it is
-/// (U+061C, U+200B-U+200F, U+202A-U+202E, U+2060-U+2069, U+FEFF).
+/// Invisible format characters that can make a title read differently than it is: bidirectional
+/// controls, zero-width and joiner characters, the soft hyphen, line and paragraph separators,
+/// interlinear annotation marks, tag characters, variation selectors and the Hangul fillers.
 fn is_format_char(c: char) -> bool {
-    matches!(c, '\u{061C}' | '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2060}'..='\u{2069}' | '\u{FEFF}')
+    matches!(c,
+        '\u{00AD}' | '\u{034F}' | '\u{061C}' | '\u{115F}' | '\u{1160}' | '\u{17B4}' | '\u{17B5}' | '\u{180B}'..='\u{180E}'
+        | '\u{200B}'..='\u{200F}' | '\u{2028}'..='\u{202E}' | '\u{2060}'..='\u{206F}' | '\u{3164}'
+        | '\u{FE00}'..='\u{FE0F}' | '\u{FEFF}' | '\u{FFA0}' | '\u{FFF9}'..='\u{FFFB}' | '\u{E0000}'..='\u{E007F}'
+        | '\u{E0100}'..='\u{E01EF}')
 }
 
 fn clean_title(s: &str) -> String {
@@ -151,6 +156,10 @@ mod tests {
     fn bidi_and_zero_width_characters_are_removed_from_titles() {
         let e = parse_line("2026-11-20T08:00:00Z\thttps://claude.ai/artifact/a\tsafe\u{202E}lmth.exe\u{200B} page\u{2066}\t/x").unwrap();
         assert_eq!(e.title, "safelmth.exe page");
+        let e = parse_line("2026-11-20T08:00:00Z\thttps://claude.ai/artifact/a\tso\u{00AD}ft\u{2028}x\u{E0041}y\u{FFF9}\t/x").unwrap();
+        assert_eq!(e.title, "softxy");
+        let e = parse_line("2026-11-20T08:00:00Z\thttps://claude.ai/artifact/a\ta\u{FE0F}b\u{3164}c\u{115F}d\u{E0100}\t/x").unwrap();
+        assert_eq!(e.title, "abcd");
     }
 
     #[test]

@@ -126,9 +126,10 @@ pub fn preview_path(path: &str) -> Option<(i64, &str)> {
     Some((d.parse().ok()?, nonce))
 }
 
-/// Runs first in every served page, before any of its own scripts: a file dropped on the frame does
-/// nothing, so the drop can never navigate a frame or the app (review F6). Registered in the capture
-/// phase on the window, so the page cannot run a handler before it.
+/// Runs first in every served page, before any of its own scripts: it cancels the default action of a
+/// drop on the frame (opening the dropped file or link), so a drop on the frame does not navigate
+/// (review F6). It is registered first, in the capture phase on the window; the page's own handlers run
+/// after it and cannot undo `preventDefault`. It does not stop the page from handling drops itself.
 const DROP_GUARD: &str = "<script>(function(){function s(e){e.preventDefault()}addEventListener('dragover',s,true);addEventListener('drop',s,true)})()</script>";
 
 /// Puts the meta CSP and the drop guard at the top of the document, after a leading doctype so the

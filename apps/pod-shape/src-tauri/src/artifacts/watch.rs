@@ -31,10 +31,15 @@ fn mtime(p: &Path) -> Option<i64> {
     std::fs::metadata(p).ok()?.modified().ok()?.duration_since(UNIX_EPOCH).ok().map(|d| d.as_secs() as i64)
 }
 
-/// True when a watcher event can mean new hook output: a change (create, modify, remove, rename) under
-/// the artifact folder or to the log file. Access events (open, read, close without a write) and
-/// unknown ones are ignored, because the app's own reads cause them (review F4).
+/// True when a watcher event can mean new hook output: a rescan notice (events were lost: FSEvents
+/// MustScanSubDirs, an inotify queue overflow; they come as `Other` with no paths, review round 2 N1),
+/// or a change (create, modify, remove, rename) under the artifact folder or to the log file. Access
+/// events (open, read, close without a write) and other unknown ones are ignored, because the app's own
+/// reads cause them (review F4).
 pub fn relevant(ev: &Event, root: &Path, log_name: Option<&std::ffi::OsStr>) -> bool {
+    if ev.need_rescan() {
+        return true;
+    }
     if matches!(ev.kind, EventKind::Access(_) | EventKind::Other) {
         return false;
     }
@@ -74,7 +79,9 @@ fn run(db: Arc<Mutex<Connection>>, paths: HookPaths, on_sync: impl Fn(SyncReport
                     let _ = tx.send(());
                 }
             };
-            // Symlinks under the folder are never followed (review F9); the guard rejects them anyway.
+            // Symlinks under the folder are not followed (review F9) where the backend supports it (inotify).
+            // FSEvents (macOS) ignores this setting, so the real control is the guard in paths.rs, which
+            // rejects a symlinked folder or file whatever the watcher reports.
             let mut w = RecommendedWatcher::new(handler, Config::default().with_follow_symlinks(false)).ok()?;
             let mut any = false;
             if root.is_dir() {
@@ -148,6 +155,9 @@ mod tests {
         ] {
             assert!(!relevant(&e, root, log), "{e:?}");
         }
+        // Lost events: a rescan notice with no paths must trigger a sync (round 2 N1).
+        let rescan = Event::new(EventKind::Other).set_flag(notify::event::Flag::Rescan);
+        assert!(relevant(&rescan, root, log));
         for e in [
             ev(EventKind::Create(CreateKind::File), file),
             ev(EventKind::Modify(ModifyKind::Any), "/h/.claude/artifact-log.tsv"),

@@ -174,6 +174,12 @@ export function useAddArtifact(projectId: number, onSaved: (n: number, created: 
         if (!live) return;
         setNextVersion("Ok" in r ? r.Ok.nextVersion : 1);
         setTargetName("Ok" in r ? r.Ok.name : null);
+        // A link that found an artifact while the name is still empty: fill in its name, so the button
+        // "Save version N" does not end in a name error (round 2 nit).
+        if ("Ok" in r && r.Ok.artifactId !== null && r.Ok.name && !name) {
+          const found = r.Ok.name;
+          setValues((v) => (v.name.trim() ? v : { ...v, name: found }));
+        }
       },
       () => live && (setNextVersion(1), setTargetName(null)),
     );

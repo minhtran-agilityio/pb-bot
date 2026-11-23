@@ -66,10 +66,11 @@ pub enum Rejected {
 }
 
 impl Rejected {
-    /// The file itself is the problem (too large, a symlink, a hard link, not a file); it stays so until
-    /// its size or mtime changes. `Missing` and `Changed` may pass on the next sync.
+    /// The file itself is the problem (too large, a symlink, not a file); it stays so until its size or
+    /// mtime changes. `Missing`, `Changed` and `HardLinked` may pass on a later sync: removing the other
+    /// link changes neither size nor mtime, so it is never recorded (review round 2 N3).
     pub fn is_permanent(&self) -> bool {
-        matches!(self, Rejected::Symlink | Rejected::NotHtml | Rejected::NotAFile | Rejected::HardLinked | Rejected::TooLarge)
+        matches!(self, Rejected::Symlink | Rejected::NotHtml | Rejected::NotAFile | Rejected::TooLarge)
     }
 }
 
@@ -296,7 +297,7 @@ mod tests {
     #[test]
     fn permanent_rejections() {
         assert!(Rejected::TooLarge.is_permanent());
-        assert!(Rejected::HardLinked.is_permanent());
+        assert!(!Rejected::HardLinked.is_permanent());
         assert!(!Rejected::Changed.is_permanent());
         assert!(!Rejected::Missing.is_permanent());
     }
