@@ -71,7 +71,7 @@ export function DropZone({ label, accept = ".html", file, error, disabled = fals
         onDrop={onDrop}
         className={cn(
           "flex min-h-16 min-w-0 cursor-pointer items-center justify-center gap-2 rounded-box border border-dashed px-4 py-3 text-sm",
-          "transition-colors",
+          "transition-colors duration-160 ease-out",
           disabled && "pointer-events-none opacity-50",
           dragOver
             ? "border-accent bg-accent-soft text-fg"
