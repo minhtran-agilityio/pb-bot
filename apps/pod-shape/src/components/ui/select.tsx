@@ -36,7 +36,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
         ref={ref}
         aria-invalid={invalid || undefined}
         className={cn(
-          "relative flex h-9.5 w-full min-w-0 items-center rounded-full border bg-surface-2 pl-4 pr-9 text-left text-base text-fg",
+          "relative flex h-9.5 w-full min-w-0 items-center rounded-full border bg-surface-2 pl-4 pr-9 text-left text-sm text-fg",
           "data-[placeholder]:text-fg-subtle",
           "disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none",
           // Same focus rule as Input: only a valid select turns accent; an invalid one keeps border-danger.
@@ -66,7 +66,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
                 value={o.value}
                 disabled={o.disabled}
                 className={cn(
-                  "relative flex h-9 cursor-default select-none items-center rounded-sm pl-3 pr-9 text-base outline-none",
+                  "relative flex h-9 cursor-default select-none items-center rounded-sm pl-3 pr-9 text-sm outline-none",
                   "data-[highlighted]:bg-surface-3 data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
                 )}
               >

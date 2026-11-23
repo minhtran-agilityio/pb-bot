@@ -269,7 +269,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 /* Mono is for real code only (run log, brief source, inline code). Paths, repos and #numbers use the UI font. */
-code, kbd, pre, .font-mono { font-family: var(--font-code); }
+code, pre, .font-mono { font-family: var(--font-code); }
 @layer base {
   :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 }

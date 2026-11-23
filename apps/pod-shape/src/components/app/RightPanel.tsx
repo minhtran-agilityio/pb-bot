@@ -6,7 +6,7 @@ import { cn } from "../../lib/cn";
 
 // DESIGN_SYSTEM.md §6.2 RightPanel: 372px, bg-surface-2, rounded-panel, shadow-card. Header h-13 with the
 // title and a close icon button, border-b; body p-5 gap-4.5 that scrolls (the header stays).
-// Below 1180px (`max-panel:`, §7) it is an overlay sheet: absolute, inset 12px from the right edge, shadow-lg.
+// Below 1180px (`max-panel:`, §7) it is an overlay sheet: absolute, top 0, right and bottom 12px, shadow-lg.
 // The parent must be `relative` and sets the height; the screen or App decides when the panel shows.
 export function RightPanel({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
@@ -25,7 +25,7 @@ export function RightPanel({ title, onClose, children }: { title: string; onClos
           </Button>
         </Tooltip>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-4.5 overflow-auto p-5">{children}</div>
+      <div className="flex min-h-0 flex-1 flex-col gap-4.5 overflow-auto p-5 *:shrink-0">{children}</div>
     </aside>
   );
 }
