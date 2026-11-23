@@ -124,6 +124,12 @@ gets no answer, it asks the owner, not a second time by message only.
    `--admin` or any other way around that prompt, never merge on CI alone, and never push to `main`.
    The owner may also merge it directly. Watch the pull request in the background (for example
    `gh pr view <pr> --json state` on a long interval), not in the foreground.
+   Clean up (owner rule, 2026-11-23: the disk was nearly full): after each pull request's checks, the
+   ui-designer agent stops its dev server and deletes its harness files, its Chrome profile folders and
+   `dist`, `node_modules` and `src-tauri/target` in its worktree. After the merge, the keeper removes
+   that worktree and its local branch, but only when the worktree has no local changes and its HEAD
+   equals the merged pull request's head. The keeper also deletes stale build output in its own checkout
+   and scratchpad. Never delete anything that belongs to another session.
 6. When it is merged, pull `main` and send this to every session on the issue's `Requested by:` lines:
 
    ```

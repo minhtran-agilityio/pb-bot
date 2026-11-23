@@ -1,4 +1,4 @@
-# Shape Board — Design System v2.3 "Cozy"
+# Shape Board — Design System v2.4 "Cozy"
 
 This file is the contract for every UI change in the app.
 Coding agents (Claude Code) and people follow it the same way.
@@ -90,7 +90,7 @@ All colors are CSS variables in `tokens.css`, mapped to Tailwind classes (`bg-su
 
 ### 1.3 Issue status
 
-V1 has **four** issue statuses. "Running" is not an issue status: pd-bot gives no clear signal for it (owner decision, HANDOFF question 5, confirmed again for v2.0 although the v2.0 design system artifact shows five). The `status-running` tokens stay, and only RunLog uses them for a run that is in progress.
+V1 has **four** issue statuses. "Running" is not an issue status: pd-bot gives no clear signal for it (owner decision, HANDOFF question 5, confirmed again for v2.0 although the v2.0 design system artifact shows five). The `status-running` tokens stay for a run that is in progress, never for an issue: RunLog (a running row), and the running dot (`RunningDot`) in SessionStatus ("Claude is working") and the Composer ("Claude is thinking…").
 
 | Status | Meaning | Token | Dark | Light | Icon (lucide) | Label |
 |---|---|---|---|---|---|---|
@@ -98,7 +98,7 @@ V1 has **four** issue statuses. "Running" is not an issue status: pd-bot gives n
 | has PR | A pull request is linked and open | `status-pr` | #7FC1B7 | #29726B | `git-pull-request` | Has PR |
 | merged | PR merged | `status-merged` | #C2A3D6 | #7A559C | `git-merge` | Merged |
 | closed | Closed without merge | `status-closed` | #B3A595 | #6E6156 | `circle-slash` | Closed |
-| (run in progress, RunLog only) | — | `status-running` | #8EB6D9 | #376B99 | `loader` (spins) | — |
+| (run in progress: RunLog, RunningDot) | — | `status-running` | #8EB6D9 | #376B99 | `loader` (spins) | — |
 
 Each has a `-soft` token for the badge background (`bg-status-pr-soft`): 16% of the color in dark, a flat tint in light.
 "Draft" (not yet on GitHub, only in the review screen) is not a status: use the neutral `Badge` with label "Draft".
@@ -207,7 +207,7 @@ Common uses:
 ## 6. Components (the full list)
 
 Location: `src/components/ui/` (shadcn primitives) and `src/components/app/` (app parts).
-**This is the complete list for v2.3.** Nothing else may be created without the user's yes (§11).
+**This is the complete list for v2.4.** Nothing else may be created without the user's yes (§11).
 
 Shared states for every interactive component:
 
@@ -395,6 +395,7 @@ If the keeper session is not running, the agent files the request issue itself, 
 Only when the user asks. Steps: update `tokens.css` and/or the component → update this file (tables above) → bump the version at the top → note it in the changelog below.
 
 ### Changelog
+- **v2.4** — The parts for build step 3 (Grill), each from its own request and pull request: Kbd (#103, PR #114; `kbd` now uses the UI font, as §2 says), ChatMessage and ChatNote (#104, PR #117), BriefCard (#105, PR #113; the brief shows as markdown SOURCE by the owner's decision "Nguồn trước, render sau", rendered view deferred in #119), SessionList and SessionStatus with the running dot (#106, PR #115), RightPanel and ReadyBox (#107, PR #118; new breakpoint token `--breakpoint-panel` 1180px), the PageHeader `steps` slot (#108, PR #116), SuggestedAnswers with multiSelect (#109 and #124, PR #121; option preview deferred to step 4 by the owner) and Composer (#110, PR #125; new shadow token `--focus-halo-card` / `shadow-focus-card`, and the Textarea `bare` variant). §1.3: `status-running` is also used by the running dot. §11 / the keeper role: clean up build output after checks (owner rule, the disk was nearly full).
 - **v2.3** — Type sizes matched to the Cozy prototype after the owner's Mac check (#100): Button sm 12px, PipelineSteps 12/16, ArtifactCard time 12px and title 15/20 with the Preview icon (#101); Input, Select and Textarea text 13px; Textarea `minRows`, and AddArtifactDialog's HTML field starts at 8 rows (#102). No token changed.
 - **v2.2** — The parts for build step 2 (Artifact), each from its own request and pull request: Tabs (#68, PR #79), Badge (#71, PR #80), Textarea (#73, PR #81), PipelineSteps (#70, PR #84), Select (#72, PR #86), and the NEW parts DropZone (§6.1, #75, PR #82), Banner (§6.1, #76, PR #83), ArtifactPreviewFrame (§6.2, #77, PR #85: the iframe sandbox is fixed to `allow-scripts` and guarded by `ArtifactPreviewFrame.test.mjs`), NewArtifactsBox (§6.2, #74, PRs #90 and #94) and AddArtifactDialog (§6.2, #78, PRs #91 and #95). ArtifactCard's §6.2 row now lists its props (#69, PR #89). The shared Dialog now fits the window: the title and footer stay and only the body scrolls (#92, PR #95). §11 step 5: the merge rule for design pull requests (owner decision). No token changed.
 - **v2.1** — Review fixes on the Cozy redesign (PR #67). Light tokens darkened again so every text pair is ≥4.5:1 over all surfaces including `side` and `accent-soft` on surface-3 (§1.5 re-measured): `accent-text` #A23F15, `status-open` and `success` #387346, `status-pr` #29726B, `warning` #8C5C0B. Button gets the `side` variant (ghost on the sidebar) and the `icon-sm` (30px, dialog close) and `icon-lg` (38px, sidebar theme button) sizes (§6.1). Input: an invalid field keeps `border-danger` on focus with no accent halo (§6). Sidebar: the list padding keeps focus rings from being clipped.

@@ -82,6 +82,13 @@ file, and stop. Do not build a copy.
    merge: the keeper merges only under its merge rule (CI green, no conflict, an independent reviewer's
    PASS for that head, through the merge-guard prompt). Then mark it ready for review.
 
+## Clean up
+
+After your pull request is pushed and your checks are done (owner rule: the disk was nearly full): stop
+your dev server, and delete your harness files, your Chrome profile folders, and `apps/pod-shape/dist`,
+`apps/pod-shape/node_modules` and `apps/pod-shape/src-tauri/target` in your worktree. Delete nothing
+outside your worktree and your scratch folder. If you are resumed for fixes, run `npm ci` again first.
+
 ## Never
 
 - Never edit a screen, and never answer two requests in one pull request.

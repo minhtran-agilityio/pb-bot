@@ -46,7 +46,7 @@
   --accent-soft:    rgba(235, 125, 76, 0.16); /* selected tint, focus halo, chips */
   --accent-text:    #F29B70; /* accent used as text/link */
 
-  /* Issue status (also used for milestones). "running" is used only by RunLog in V1. */
+  /* Issue status (also used for milestones). "running" is never an issue status in V1: only RunLog and the running dot (SessionStatus, Composer) use it. */
   --status-open:          #8DBF8A;
   --status-open-soft:     rgba(141, 191, 138, 0.16);
   --status-running:       #8EB6D9;
