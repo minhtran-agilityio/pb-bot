@@ -1,7 +1,13 @@
-//! Navigation guard of the main window (design.md §8, advisor item 2). Untrusted HTML must never become
-//! a main-frame document, because the main frame holds the IPC invoke key. The window allows only the
-//! app itself, the preview scheme and `about:blank` / `about:srcdoc`; everything else (`file:`,
-//! `data:`, `https:` ...) is denied. New windows and downloads are denied in `lib.rs`.
+//! Navigation guard of the main window (design.md §8, advisor item 2). It allows only the app itself,
+//! the preview scheme and `about:blank` / `about:srcdoc`; everything else (`file:`, `data:`, `https:` ...)
+//! is denied, in the main frame and (on WebKit) in the preview frame. New windows and downloads are
+//! denied in `lib.rs`.
+//!
+//! Limit (security review L2): the callback gets only the URL, not the frame, so it cannot refuse
+//! `preview://localhost/v/<n>` in the main frame. What keeps untrusted HTML out of the main frame (which
+//! holds the IPC invoke key) is: the frame's sandbox has no top-navigation token, the app never
+//! navigates its main frame, drops cannot navigate (`main.tsx`), and the preview scheme answers only a
+//! request whose `Sec-Fetch-Dest`, when the engine sends one, is `iframe` (`artifacts/preview.rs`).
 
 use crate::artifacts::preview::version_id;
 use tauri::Url;
@@ -12,12 +18,13 @@ pub fn allowed(url: &Url, dev_url: Option<&Url>) -> bool {
     let host = url.host_str();
     match url.scheme() {
         "about" => matches!(url.path(), "blank" | "srcdoc"),
-        // The app: tauri://localhost on macOS and Linux, http(s)://tauri.localhost on Windows.
+        // The app: tauri://localhost on macOS and Linux. The http(s)://*.localhost forms are Windows-only
+        // (security review L3): elsewhere they could be a real local server.
         "tauri" => host == Some("localhost"),
-        "http" | "https" if host == Some("tauri.localhost") => true,
+        "http" | "https" if cfg!(windows) && host == Some("tauri.localhost") => true,
         // One stored version in the preview frame; no query, so nothing extra rides along.
         "preview" => host == Some("localhost") && preview_path(url),
-        "http" if host == Some("preview.localhost") => preview_path(url),
+        "http" if cfg!(windows) && host == Some("preview.localhost") => preview_path(url),
         _ => dev_url.is_some_and(|d| d.origin() == url.origin()),
     }
 }
@@ -39,10 +46,8 @@ mod tests {
         for u in [
             "tauri://localhost",
             "tauri://localhost/index.html",
-            "http://tauri.localhost/",
             "preview://localhost/v/1",
             "preview://localhost/v/42",
-            "http://preview.localhost/v/7",
             "about:blank",
             "about:srcdoc",
         ] {
@@ -72,6 +77,13 @@ mod tests {
             "ipc://localhost/list_projects",
         ] {
             assert!(!ok(u), "{u}");
+        }
+    }
+
+    #[test]
+    fn windows_only_origins_follow_the_platform() {
+        for u in ["http://tauri.localhost/", "https://tauri.localhost/", "http://preview.localhost/v/7"] {
+            assert_eq!(ok(u), cfg!(windows), "{u}");
         }
     }
 

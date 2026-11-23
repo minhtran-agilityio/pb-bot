@@ -191,6 +191,7 @@ pub fn run() {
                             path: uri.path(),
                             query: uri.query(),
                             webview_label: &label,
+                            fetch_dest: req.headers().get("sec-fetch-dest").and_then(|v| v.to_str().ok()),
                         };
                         artifacts::preview::respond(&conn, &pr)
                     }

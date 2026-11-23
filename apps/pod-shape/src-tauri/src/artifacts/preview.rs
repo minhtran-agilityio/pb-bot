@@ -7,8 +7,10 @@
 //! frame. The barriers are:
 //! (a) the invoke key never enters the frame: Tauri injects the IPC bootstrap and the key into the
 //!     main frame only, and rejects any request without the key;
-//! (b) untrusted HTML never becomes a main-frame document: the main window's navigation guard
-//!     (`nav.rs`) allows only the app and `preview://localhost/v/<n>`.
+//! (b) untrusted HTML never becomes a main-frame document: the frame's sandbox has no top-navigation
+//!     token, the app never navigates its main frame, and this handler refuses a request whose
+//!     `Sec-Fetch-Dest` is present and not `iframe`. The navigation guard (`nav.rs`) blocks every other
+//!     URL but cannot tell frames apart (security review L2).
 //! Rule: the app has no `message` listener. If one is ever added, its data is untrusted and it never
 //! replies with anything derived from IPC.
 //! `connect-src 'none'` and `img-src` without hosts also block fetch, XHR, WebSocket, beacons and
@@ -54,6 +56,8 @@ pub struct PreviewRequest<'a> {
     pub path: &'a str,
     pub query: Option<&'a str>,
     pub webview_label: &'a str,
+    /// The `Sec-Fetch-Dest` header, when the engine sends one.
+    pub fetch_dest: Option<&'a str>,
 }
 
 fn security_headers() -> Vec<(&'static str, String)> {
@@ -94,16 +98,21 @@ pub fn with_meta_csp(html: &str) -> String {
     format!("{meta}{html}")
 }
 
-/// Answers one request. Only GET or HEAD of `preview://localhost/v/<n>` (or the Windows form
-/// `http://preview.localhost/v/<n>`), with no query, from the `main` webview, for a stored version,
-/// returns HTML. Everything else is a 404 with an empty body.
+/// Answers one request. Only GET or HEAD of `preview://localhost/v/<n>` (or, on Windows only, the form
+/// `http://preview.localhost/v/<n>`), with no query, from the `main` webview, not as a top-level
+/// document (`Sec-Fetch-Dest` absent or `iframe`), for a stored version, returns HTML. Everything else
+/// is a 404 with an empty body.
 pub fn respond(conn: &Connection, req: &PreviewRequest) -> PreviewResponse {
     let head = match req.method {
         "GET" => false,
         "HEAD" => true,
         _ => return not_found(),
     };
-    if !matches!(req.host, Some("localhost") | Some("preview.localhost")) || req.query.is_some() || req.webview_label != "main" {
+    let host_ok = req.host == Some("localhost") || (cfg!(windows) && req.host == Some("preview.localhost"));
+    if !host_ok || req.query.is_some() || req.webview_label != "main" {
+        return not_found();
+    }
+    if req.fetch_dest.is_some_and(|d| !d.eq_ignore_ascii_case("iframe")) {
         return not_found();
     }
     let Some(id) = version_id(req.path) else { return not_found() };
@@ -128,7 +137,7 @@ mod tests {
     }
 
     fn get(path: &str) -> PreviewRequest<'_> {
-        PreviewRequest { method: "GET", host: Some("localhost"), path, query: None, webview_label: "main" }
+        PreviewRequest { method: "GET", host: Some("localhost"), path, query: None, webview_label: "main", fetch_dest: None }
     }
 
     fn stored(c: &Connection, html: &str) -> i64 {
@@ -204,7 +213,12 @@ mod tests {
         assert_eq!(respond(&c, &PreviewRequest { host: None, ..get(&good) }).status, 404);
         assert_eq!(respond(&c, &PreviewRequest { webview_label: "other", ..get(&good) }).status, 404);
         assert_eq!(respond(&c, &get(&good)).status, 200);
-        assert_eq!(respond(&c, &PreviewRequest { host: Some("preview.localhost"), ..get(&good) }).status, 200);
+        let win = respond(&c, &PreviewRequest { host: Some("preview.localhost"), ..get(&good) }).status;
+        assert_eq!(win, if cfg!(windows) { 200 } else { 404 }, "the Windows host form only on Windows");
+        // Only a frame load: a top-level document request is refused.
+        assert_eq!(respond(&c, &PreviewRequest { fetch_dest: Some("iframe"), ..get(&good) }).status, 200);
+        assert_eq!(respond(&c, &PreviewRequest { fetch_dest: Some("document"), ..get(&good) }).status, 404);
+        assert_eq!(respond(&c, &PreviewRequest { fetch_dest: Some("script"), ..get(&good) }).status, 404);
     }
 
     #[test]

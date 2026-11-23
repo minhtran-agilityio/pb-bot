@@ -4,11 +4,13 @@
 //! 5 MiB. Neither the `<artifactId>` folder nor the file may be a symlink (a symlinked root is fine).
 //! The path is built from the root, a checked id and one file name, never from a log column.
 //! Files are opened with `O_NOFOLLOW | O_NONBLOCK` and checked again on the open handle, so a swap to
-//! a symlink or a FIFO between the check and the read cannot redirect or hang the reader.
+//! a symlink or a FIFO between the check and the read cannot redirect or hang the reader. The handle
+//! must also be the same file (device and inode) the guard saw, so swapping the `<id>` folder for a
+//! symlink after the check cannot redirect the read either (security review L1).
 
 use std::fs::{File, OpenOptions};
 use std::io::Read;
-use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 
 /// The largest HTML file or paste the app accepts (HANDOFF §11.4.7).
@@ -67,6 +69,9 @@ pub struct GuardedFile {
     pub path: PathBuf,
     pub size: u64,
     pub mtime: i64,
+    /// Device and inode the guard saw; the open handle must match them.
+    pub dev: u64,
+    pub ino: u64,
 }
 
 /// True when the file name ends in `.html` (any case) and is not a `.tmp` file.
@@ -120,7 +125,7 @@ pub fn guard(root: &Path, id: &str, name: &str) -> Result<GuardedFile, Rejected>
     if meta.len() > MAX_HTML_BYTES {
         return Err(Rejected::TooLarge);
     }
-    Ok(GuardedFile { path, size: meta.len(), mtime: mtime_of(&meta) })
+    Ok(GuardedFile { path, size: meta.len(), mtime: mtime_of(&meta), dev: meta.dev(), ino: meta.ino() })
 }
 
 /// Reads a guarded file as text. The handle is opened without following a symlink and without
@@ -138,6 +143,10 @@ pub fn read_guarded(f: &GuardedFile) -> Result<String, Rejected> {
     }
     if before.len() > MAX_HTML_BYTES {
         return Err(Rejected::TooLarge);
+    }
+    if before.dev() != f.dev || before.ino() != f.ino {
+        // Not the file the guard checked: a folder or file was swapped in between.
+        return Err(Rejected::Changed);
     }
     if before.len() != f.size || mtime_of(&before) != f.mtime {
         return Err(Rejected::Changed);
@@ -235,8 +244,26 @@ mod tests {
         assert_eq!(unsafe { libc::mkfifo(c.as_ptr(), 0o600) }, 0);
         assert_eq!(guard(&root, "AbC123", "pipe.html").unwrap_err(), Rejected::NotAFile);
         // Even if a guarded file became a FIFO, the open does not block and the read is refused.
-        let fake = GuardedFile { path: p, size: 0, mtime: 0 };
+        let fake = GuardedFile { path: p, size: 0, mtime: 0, dev: 0, ino: 0 };
         assert_eq!(read_guarded(&fake).unwrap_err(), Rejected::NotAFile);
+    }
+
+    #[test]
+    fn an_id_folder_swapped_for_a_symlink_after_the_guard_is_not_read() {
+        let (d, root) = setup();
+        let f = root.join("AbC123/same.html");
+        fs::write(&f, "real").unwrap();
+        let g = guard(&root, "AbC123", "same.html").unwrap();
+        // Elsewhere: a file with the same name, size and mtime.
+        let other = d.path().join("other");
+        fs::create_dir_all(&other).unwrap();
+        fs::write(other.join("same.html"), "evil").unwrap();
+        let mtime = fs::metadata(&f).unwrap().modified().unwrap();
+        fs::File::options().write(true).open(other.join("same.html")).unwrap().set_modified(mtime).unwrap();
+        // Swap the id folder for a symlink to it.
+        fs::rename(root.join("AbC123"), d.path().join("moved")).unwrap();
+        std::os::unix::fs::symlink(&other, root.join("AbC123")).unwrap();
+        assert_eq!(read_guarded(&g).unwrap_err(), Rejected::Changed);
     }
 
     #[test]

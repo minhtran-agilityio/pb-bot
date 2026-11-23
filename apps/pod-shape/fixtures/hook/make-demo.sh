@@ -9,9 +9,22 @@ dest=${1:?usage: make-demo.sh <dest> [project folder]}
 here=$(cd "$(dirname "$0")" && pwd)
 app=$(cd "$here/../.." && pwd)
 project=${2:-$(cd "$app/../.." && pwd)}
-case "$dest" in
-  "$HOME/claude-artifacts"* | "$HOME/.claude"*) echo "refusing to write into the real hook folders" >&2; exit 1 ;;
+
+# Safety: this script deletes and rewrites <dest>/claude-artifacts. Resolve <dest> first, so no spelling of
+# the home folder (~, ~/, ~/., a symlink) can make that the real ~/claude-artifacts. Then only a new or empty
+# folder, or one this script made before (it holds the marker file), is used.
+marker=".shape-board-demo"
+mkdir -p "$dest"
+dest=$(cd "$dest" && pwd -P)
+home=$(cd ~ && pwd -P)
+case "$dest/" in
+  "$home/" | "$home/.claude/"* | "$home/claude-artifacts/"* | "/") echo "refusing: $dest is the home folder or a real hook folder" >&2; exit 1 ;;
 esac
+if [ -n "$(ls -A "$dest")" ] && [ ! -f "$dest/$marker" ]; then
+  echo "refusing: $dest is not empty and was not made by this script" >&2
+  exit 1
+fi
+touch "$dest/$marker"
 
 root="$dest/claude-artifacts"
 log="$dest/artifact-log.tsv"

@@ -92,10 +92,10 @@ export const MAX_HTML_BYTES = 5 * 1024 * 1024;
 /** The event Rust emits after each hook sync. */
 export const ARTIFACTS_CHANGED = "artifacts-changed";
 
-/** URL of one stored version for the sandboxed preview frame (served by Rust with its own CSP). */
+/** URL of one stored version for the sandboxed preview frame (served by Rust with its own CSP).
+ * macOS only (owner decision); Windows would need http://preview.localhost, which Rust allows only there. */
 export function previewUrl(versionId: number): string {
-  // macOS and Linux use <scheme>://localhost; Windows uses http://<scheme>.localhost.
-  return navigator.userAgent.includes("Windows") ? `http://preview.localhost/v/${versionId}` : `preview://localhost/v/${versionId}`;
+  return `preview://localhost/v/${versionId}`;
 }
 
 export const api = {
