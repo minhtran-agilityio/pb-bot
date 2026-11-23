@@ -75,3 +75,7 @@ at a throwaway clone with a dead push URL.
   `origin` is a local bare repo, not GitHub, because the app pushes `adr/<slug>`. Only `adr/<slug>`
   reaches the remote, it holds only new `docs/adr/NNNN-*.md` files, and the owner's branch and
   uncommitted files are unchanged.
+- Auto-memory (not verified on Linux either): before a grill, list `~/.claude/projects/<the repo's folder name>/`. After a
+  few turns, list it again. Claude Code writes its own session transcript there, which is expected. Report any other
+  new or changed file, for example under `memory/`, because the owner's rule is that the grill writes nothing under
+  `~/.claude`.
