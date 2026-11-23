@@ -143,11 +143,11 @@ Owner decision (v2.0, corrected in v2.1): the light theme darkens these tokens f
 | `text-xl` | 26 / 34 | 600, `tracking-title` (-0.01em) | Page title (PageHeader) |
 | `text-lg` | 18 / 26 | 600 | Section title, dialog title, EmptyState title |
 | `text-md` | 15 / 24 | 500–600 | Card title, chat message text |
-| `text-base` | 14 / 22 | 400–500 | Default body, buttons, inputs, sidebar items |
-| `text-sm` | 13 / 20 | 400–500 | Meta, paths, counts, tooltips, tree secondary text |
-| `text-xs` | 12 / 16 | 500–600 | Field labels and help text, sidebar section label, kbd, RunLog rows |
+| `text-base` | 14 / 22 | 400–500 | Default body, md buttons, sidebar items |
+| `text-sm` | 13 / 20 | 400–500 | Meta, paths, counts, tooltips, tree secondary text; Input, Select and Textarea (default variant) text |
+| `text-xs` | 12 / 16 | 400–600 | Field labels and help text, sidebar section label, kbd, badges, RunLog rows; sm Button labels, PipelineSteps labels, the ArtifactCard time |
 
-Inside a project card, the title uses `leading-5` (20px) and the path and footer `leading-4` (16px), as in the prototype.
+Inside a project card, the title uses `leading-5` (20px) and the path and footer `leading-4` (16px), as in the prototype. The ArtifactCard title also uses `leading-5`.
 Weights allowed: 400, 500, 600. No 700+. No italic except quoted user text. No uppercase labels and no letter-spacing changes other than `tracking-title`.
 Numbers in columns use `tabular-nums`.
 
