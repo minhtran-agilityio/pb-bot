@@ -230,9 +230,10 @@ pub fn list_inbox(conn: &Connection) -> rusqlite::Result<Vec<InboxItem>> {
 }
 
 /// A name that no other artifact of the project uses: `name`, else `name-2`, `name-3` ...
+/// The suffix keeps the name within the 63-character limit of `valid_name`.
 fn free_name(conn: &Connection, project_id: i64, name: &str, except: i64) -> rusqlite::Result<String> {
     let mut candidate = name.to_string();
-    let mut i = 2;
+    let mut i = 2u32;
     loop {
         let taken: i64 = conn.query_row(
             "SELECT COUNT(*) FROM artifacts WHERE project_id = ?1 AND name = ?2 AND id <> ?3",
@@ -242,7 +243,9 @@ fn free_name(conn: &Connection, project_id: i64, name: &str, except: i64) -> rus
         if taken == 0 {
             return Ok(candidate);
         }
-        candidate = format!("{name}-{i}");
+        let suffix = format!("-{i}");
+        let base = name[..name.len().min(63 - suffix.len())].trim_end_matches('-');
+        candidate = format!("{base}{suffix}");
         i += 1;
     }
 }
@@ -374,8 +377,14 @@ pub const SIZE_ERROR: &str = "The HTML is larger than 5 MB. Shape Board stores f
 #[serde(rename_all = "camelCase")]
 pub struct ManualTarget {
     pub artifact_id: Option<i64>,
+    /// The name of the artifact that gets the version (it can differ from the typed name when the link
+    /// matched), shown in the dialog's helper and the toast.
+    pub name: Option<String>,
     pub next_version: i64,
 }
+
+/// Shown when the typed name belongs to an artifact with another claude.ai link.
+pub const NAME_TAKEN_ERROR: &str = "This name belongs to an artifact with another link. Use another name.";
 
 /// Field errors of the manual import; empty when the input is fine.
 #[derive(Debug, Clone, Default, Serialize, PartialEq)]
@@ -425,16 +434,23 @@ pub fn find_manual_target(
                     ..Default::default()
                 });
             }
-            return Ok(ManualTarget { artifact_id: Some(id), next_version: next(id).map_err(db)? });
+            let real: String = conn.query_row("SELECT name FROM artifacts WHERE id = ?1", params![id], |r| r.get(0)).map_err(db)?;
+            return Ok(ManualTarget { artifact_id: Some(id), name: Some(real), next_version: next(id).map_err(db)? });
         }
     }
-    let by_name: Option<i64> = conn
-        .query_row("SELECT id FROM artifacts WHERE project_id = ?1 AND name = ?2", params![project_id, name], |r| r.get(0))
+    let by_name: Option<(i64, Option<String>)> = conn
+        .query_row("SELECT id, claude_id FROM artifacts WHERE project_id = ?1 AND name = ?2", params![project_id, name], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        })
         .optional()
         .map_err(db)?;
     match by_name {
-        Some(id) => Ok(ManualTarget { artifact_id: Some(id), next_version: next(id).map_err(db)? }),
-        None => Ok(ManualTarget { artifact_id: None, next_version: 1 }),
+        // A link that matched nothing may not add to an artifact that has another link (review F2).
+        Some((_, Some(other))) if link.and_then(link_id).is_some_and(|cid| cid != other) => {
+            Err(FieldErrors { name: Some(NAME_TAKEN_ERROR.into()), ..Default::default() })
+        }
+        Some((id, _)) => Ok(ManualTarget { artifact_id: Some(id), name: Some(name.to_string()), next_version: next(id).map_err(db)? }),
+        None => Ok(ManualTarget { artifact_id: None, name: None, next_version: 1 }),
     }
 }
 
@@ -442,6 +458,8 @@ pub fn find_manual_target(
 #[serde(rename_all = "camelCase")]
 pub struct ManualResult {
     pub artifact_id: i64,
+    /// The name of the artifact that got the version.
+    pub name: String,
     pub version_id: i64,
     pub n: i64,
     /// False when the HTML equals the latest version (nothing new was saved).
@@ -504,6 +522,14 @@ pub fn import_manual(
             if pid.is_none() {
                 add_to_project(&tx, id, project_id).map_err(|m| FieldErrors { html: Some(m), ..Default::default() })?;
             }
+            // A name match with no link of its own takes the pasted link (review F2).
+            if let Some(cid) = link.and_then(link_id) {
+                tx.execute(
+                    "UPDATE artifacts SET claude_id = ?2, link = ?3 WHERE id = ?1 AND claude_id IS NULL",
+                    params![id, cid, link],
+                )
+                .map_err(db)?;
+            }
             id
         }
         None => {
@@ -517,11 +543,12 @@ pub fn import_manual(
             tx.last_insert_rowid()
         }
     };
+    let real: String = tx.query_row("SELECT name FROM artifacts WHERE id = ?1", params![artifact_id], |r| r.get(0)).map_err(db)?;
     let result = match add_version(&tx, artifact_id, html, source, None).map_err(db)? {
-        Some((vid, n)) => ManualResult { artifact_id, version_id: vid, n, created: true },
+        Some((vid, n)) => ManualResult { artifact_id, name: real, version_id: vid, n, created: true },
         None => {
             let (vid, n, _) = latest_version(&tx, artifact_id).map_err(db)?.ok_or_else(|| db(rusqlite::Error::QueryReturnedNoRows))?;
-            ManualResult { artifact_id, version_id: vid, n, created: false }
+            ManualResult { artifact_id, name: real, version_id: vid, n, created: false }
         }
     };
     // The owner just saved it by hand, so there is nothing "updated" to point out.
@@ -733,6 +760,44 @@ pub(crate) mod tests {
         assert_eq!(import_manual(&mut c, p.id, None, "big", &big, "drop").unwrap_err().html.as_deref(), Some(SIZE_ERROR));
         assert!(import_manual(&mut c, p.id, None, "x", "<p>", "evil").is_err());
         assert!(import_manual(&mut c, 999, None, "x", "<p>", "drop").is_err());
+    }
+
+    #[test]
+    fn a_link_that_matches_nothing_never_adds_to_an_artifact_with_another_link() {
+        let (_d, mut c) = conn();
+        let p = db::insert_project(&c, "o/r", "r", "/r").unwrap();
+        let a = upsert_hook_artifact(&c, &meta("LinkA", "Proto", None)).unwrap();
+        add_version(&c, a, "<p>a</p>", "hook", None).unwrap();
+        add_to_project(&c, a, p.id).unwrap();
+        // Same name "proto", another link: refused on the name field.
+        let e = import_manual(&mut c, p.id, Some("https://claude.ai/artifact/LinkB"), "proto", "<p>b</p>", "paste").unwrap_err();
+        assert_eq!(e.name.as_deref(), Some(NAME_TAKEN_ERROR));
+        assert_eq!(list_versions(&c, a).unwrap().len(), 1);
+        // A dropped artifact with no link takes the link of a pasted new version.
+        let d = import_manual(&mut c, p.id, None, "dropped", "<p>1</p>", "drop").unwrap();
+        let r = import_manual(&mut c, p.id, Some("https://claude.ai/artifact/LinkC"), "dropped", "<p>2</p>", "paste").unwrap();
+        assert_eq!((r.artifact_id, r.n, r.name.as_str()), (d.artifact_id, 2, "dropped"));
+        let cid: Option<String> = c.query_row("SELECT claude_id FROM artifacts WHERE id = ?1", [d.artifact_id], |r| r.get(0)).unwrap();
+        assert_eq!(cid.as_deref(), Some("LinkC"));
+        // The link now finds it under its real name, whatever name is typed.
+        let t = find_manual_target(&c, p.id, Some("https://claude.ai/artifact/LinkC"), "typed-other").unwrap();
+        assert_eq!((t.artifact_id, t.name.as_deref(), t.next_version), (Some(d.artifact_id), Some("dropped"), 3));
+    }
+
+    #[test]
+    fn suffixed_names_stay_within_63_characters() {
+        let (_d, c) = conn();
+        let p = db::insert_project(&c, "o/r", "r", "/r").unwrap();
+        let long = "x".repeat(80);
+        for id in ["L1", "L2", "L3"] {
+            let a = upsert_hook_artifact(&c, &meta(id, &long, None)).unwrap();
+            add_version(&c, a, id, "hook", None).unwrap();
+            add_to_project(&c, a, p.id).unwrap();
+        }
+        let names: Vec<String> = list_artifacts(&c, p.id).unwrap().into_iter().map(|a| a.name).collect();
+        assert_eq!(names.len(), 3);
+        assert!(names.iter().all(|n| valid_name(n)), "{names:?}");
+        assert!(names.iter().any(|n| n.ends_with("-2")) && names.iter().any(|n| n.ends_with("-3")));
     }
 
     #[test]

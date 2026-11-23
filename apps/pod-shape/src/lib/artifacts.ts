@@ -40,15 +40,40 @@ export function useHookInbox() {
   return { status, inbox, counts, reload };
 }
 
-/** The artifacts of one project, refreshed on every hook change. */
+/** The artifacts of one project, refreshed on every hook change. Only the newest request may write the
+ * list, so a slow answer for the previous project never shows up here (review F8). */
 export function useProjectArtifacts(projectId: number) {
   const [artifacts, setArtifacts] = useState<ArtifactSummary[] | null>(null);
+  const latest = useRef(0);
   const reload = useCallback(() => {
-    api.listArtifacts(projectId).then(setArtifacts, () => setArtifacts([]));
+    const ticket = ++latest.current;
+    api.listArtifacts(projectId).then(
+      (a) => ticket === latest.current && setArtifacts(a),
+      () => ticket === latest.current && setArtifacts([]),
+    );
   }, [projectId]);
-  useHookRefresh(reload);
-  useEffect(reload, [reload]);
+  // A new project starts empty, then loads (once; useHookEvent only listens).
+  useEffect(() => {
+    setArtifacts(null);
+    reload();
+  }, [reload]);
+  useHookEvent(reload);
   return { artifacts, reload };
+}
+
+/** Calls `fn` each time the hook sync reports a change, without an initial call. */
+export function useHookEvent(fn: () => void) {
+  const ref = useRef(fn);
+  ref.current = fn;
+  useEffect(() => {
+    let stop: (() => void) | undefined;
+    let gone = false;
+    listen(ARTIFACTS_CHANGED, () => ref.current()).then((un) => (gone ? un() : (stop = un)), () => {});
+    return () => {
+      gone = true;
+      stop?.();
+    };
+  }, []);
 }
 
 /** True when the hook is missing: the banner "Artifact hook not found" shows (HANDOFF §11.4.7). */
@@ -90,12 +115,12 @@ export function slugFrom(text: string): string {
     .replace(/-+$/, "");
 }
 
-/** The same field checks Rust runs (store.rs `check_manual` and `import_manual`), so errors show before
- * the save. A paste that makes a new artifact needs the link; a drop or a new version does not. */
-export function checkFields(v: AddArtifactValues, isNewVersion = false): FieldErrors {
+/** The field checks of store.rs `check_manual`, so errors show before the save. Whether a paste needs the
+ * link (only for a new artifact) is left to Rust, which knows the target at save time (review F8). */
+export function checkFields(v: AddArtifactValues): FieldErrors {
   const e: FieldErrors = {};
   const link = v.link.trim();
-  if (link ? !LINK_RE.test(link) : v.file === null && !isNewVersion) {
+  if (link && !LINK_RE.test(link)) {
     e.link = "Paste a claude.ai artifact link, for example https://claude.ai/artifact/…";
   }
   if (!NAME_RE.test(v.name.trim())) e.name = "Use lower-case letters, digits and dashes, for example settings-page.";
@@ -131,19 +156,26 @@ export function useAddArtifact(projectId: number, onSaved: (n: number, created: 
   const [dropError, setDropError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [nextVersion, setNextVersion] = useState(1);
+  const [targetName, setTargetName] = useState<string | null>(null);
 
   // Ask Rust which artifact this would add to, so the button says "Save version N".
   useEffect(() => {
     const name = values.name.trim();
-    if (!NAME_RE.test(name)) {
+    const link0 = values.link.trim();
+    if (!NAME_RE.test(name) && !LINK_RE.test(link0)) {
       setNextVersion(1);
+      setTargetName(null);
       return;
     }
     let live = true;
     const link = values.link.trim() || null;
     api.findManualTarget(projectId, link && LINK_RE.test(link) ? link : null, name).then(
-      (r) => live && setNextVersion("Ok" in r ? r.Ok.nextVersion : 1),
-      () => live && setNextVersion(1),
+      (r) => {
+        if (!live) return;
+        setNextVersion("Ok" in r ? r.Ok.nextVersion : 1);
+        setTargetName("Ok" in r ? r.Ok.name : null);
+      },
+      () => live && (setNextVersion(1), setTargetName(null)),
     );
     return () => {
       live = false;
@@ -179,7 +211,7 @@ export function useAddArtifact(projectId: number, onSaved: (n: number, created: 
   }
 
   async function submit() {
-    const e = checkFields(values, nextVersion > 1);
+    const e = checkFields(values);
     setErrors(e);
     if (Object.keys(e).length) return;
     setBusy(true);
@@ -190,7 +222,7 @@ export function useAddArtifact(projectId: number, onSaved: (n: number, created: 
         setErrors(r.Err);
         return;
       }
-      onSaved(r.Ok.n, r.Ok.created, values.name.trim());
+      onSaved(r.Ok.n, r.Ok.created, r.Ok.name);
       reset();
     } catch (err) {
       setErrors({ html: String(err) });
@@ -200,5 +232,5 @@ export function useAddArtifact(projectId: number, onSaved: (n: number, created: 
   }
 
   const primaryLabel = nextVersion > 1 ? `Save version ${nextVersion}` : "Add artifact";
-  return { values, errors, dropError, busy, nextVersion, primaryLabel, change, drop, submit, reset, prefill };
+  return { values, errors, dropError, busy, nextVersion, targetName, primaryLabel, change, drop, submit, reset, prefill };
 }

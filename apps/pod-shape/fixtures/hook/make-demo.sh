@@ -1,6 +1,8 @@
 #!/bin/bash
 # Builds a fake artifact-hook output (HANDOFF §11.3) in a folder, for the step 2 demo and the Mac check.
 # Usage: bash apps/pod-shape/fixtures/hook/make-demo.sh <dest> [<project folder for auto-select>]
+#   <dest> must be a new or empty folder, or one this script made before; a private one is best:
+#   eval "$(bash apps/pod-shape/fixtures/hook/make-demo.sh "$(mktemp -d)")"
 # Then run a debug build of the app with the two variables it prints (release builds ignore them).
 # It never touches ~/claude-artifacts or ~/.claude.
 set -euo pipefail
@@ -63,5 +65,6 @@ tab=$'\t'
   echo "2026-11-22T12:00:00Z${tab}https://claude.ai/artifact/SecProbe9Kc${tab}Security probe${tab}$root/SecProbe9Kc${tab}$project${tab}$root/SecProbe9Kc/20261122T120000Z_security-probe.html"
 } >"$log"
 
-echo "export SHAPE_BOARD_ARTIFACTS_DIR='$root'"
-echo "export SHAPE_BOARD_ARTIFACT_LOG='$log'"
+# Quoted for the shell, so any folder name is safe to eval.
+printf 'export SHAPE_BOARD_ARTIFACTS_DIR=%q\n' "$root"
+printf 'export SHAPE_BOARD_ARTIFACT_LOG=%q\n' "$log"

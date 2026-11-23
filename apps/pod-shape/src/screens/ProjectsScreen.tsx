@@ -67,7 +67,12 @@ export function ProjectsScreen({
       )}
       <PageHeader
         title="Projects"
-        meta={`${count(projects.length, "repo")} · ${count(0, "issue")}`}
+        meta={
+          // §11.4.7: "Last hook write" stays visible when the New artifacts box is hidden (review F5).
+          [count(projects.length, "repo"), count(0, "issue"), rows.length === 0 ? lastHookWrite(status) : null]
+            .filter(Boolean)
+            .join(" · ")
+        }
         actions={
           <Button variant="secondary" icon="add" onClick={onAdd}>
             Add project

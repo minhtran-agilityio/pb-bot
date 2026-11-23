@@ -17,9 +17,16 @@ use tauri::{Emitter, Manager, WebviewWindowBuilder};
 
 struct Db(Arc<Mutex<Connection>>);
 struct Hook(HookPaths);
+struct Previews(Arc<artifacts::preview::PreviewTokens>);
 
 /// Event the UI listens to: the hook brought something (or the folder or log appeared or went away).
 const ARTIFACTS_CHANGED: &str = "artifacts-changed";
+
+/// The database lock. A panic while it was held must not brick the app until a restart (review F1):
+/// SQLite keeps each statement atomic, so the connection is still usable.
+fn lock(db: &Mutex<Connection>) -> std::sync::MutexGuard<'_, Connection> {
+    db.lock().unwrap_or_else(|p| p.into_inner())
+}
 
 fn err(e: impl std::fmt::Display) -> String {
     e.to_string()
@@ -27,7 +34,7 @@ fn err(e: impl std::fmt::Display) -> String {
 
 #[tauri::command]
 fn list_projects(db: tauri::State<'_, Db>) -> Result<Vec<Project>, String> {
-    let conn = db.0.lock().map_err(err)?;
+    let conn = lock(&db.0);
     db::list_projects(&conn).map_err(err)
 }
 
@@ -78,7 +85,7 @@ async fn add_project(db: tauri::State<'_, Db>, repo: String, path: String) -> Re
     let repo = folder.detail;
     let abs = dir.canonicalize().unwrap_or(dir).to_string_lossy().into_owned();
     let name = repo.rsplit('/').next().unwrap_or(&repo).to_string();
-    let conn = db.0.lock().map_err(err)?;
+    let conn = lock(&db.0);
     if db::find_by_repo(&conn, &repo).map_err(err)?.is_some() {
         return Err("This repo is already added.".to_string());
     }
@@ -88,9 +95,23 @@ async fn add_project(db: tauri::State<'_, Db>, repo: String, path: String) -> Re
 
 // ---------- step 2: artifacts ----------
 
+/// Async: it stats files and must never hold up the UI thread (review F3).
 #[tauri::command]
-fn hook_status(hook: tauri::State<'_, Hook>) -> HookStatus {
-    artifacts::watch::status(&hook.0, artifacts::sync::bad_lines(&hook.0))
+async fn hook_status(hook: tauri::State<'_, Hook>) -> Result<HookStatus, String> {
+    let paths = hook.0.clone();
+    tauri::async_runtime::spawn_blocking(move || artifacts::watch::status(&paths, artifacts::sync::bad_lines(&paths)))
+        .await
+        .map_err(err)
+}
+
+/// A single-use URL for one stored version, for the sandboxed preview frame (review F6).
+#[tauri::command]
+fn preview_url(db: tauri::State<'_, Db>, tokens: tauri::State<'_, Previews>, version_id: i64) -> Result<String, String> {
+    if store::version_html(&lock(&db.0), version_id).map_err(err)?.is_none() {
+        return Err("This version no longer exists.".into());
+    }
+    let nonce = tokens.0.mint(version_id).map_err(err)?;
+    Ok(format!("preview://localhost/v/{version_id}/{nonce}"))
 }
 
 /// Runs one sync now (also what the watcher runs on each change).
@@ -102,39 +123,39 @@ async fn rescan_hook(db: tauri::State<'_, Db>, hook: tauri::State<'_, Hook>) -> 
 
 #[tauri::command]
 fn list_inbox(db: tauri::State<'_, Db>) -> Result<Vec<InboxItem>, String> {
-    store::list_inbox(&*db.0.lock().map_err(err)?).map_err(err)
+    store::list_inbox(&lock(&db.0)).map_err(err)
 }
 
 #[tauri::command]
 fn add_inbox_artifact(db: tauri::State<'_, Db>, artifact_id: i64, project_id: i64) -> Result<(), String> {
-    store::add_to_project(&*db.0.lock().map_err(err)?, artifact_id, project_id)
+    store::add_to_project(&lock(&db.0), artifact_id, project_id)
 }
 
 #[tauri::command]
 fn ignore_artifact(db: tauri::State<'_, Db>, artifact_id: i64) -> Result<(), String> {
-    store::ignore(&*db.0.lock().map_err(err)?, artifact_id).map_err(err)
+    store::ignore(&lock(&db.0), artifact_id).map_err(err)
 }
 
 #[tauri::command]
 fn list_artifacts(db: tauri::State<'_, Db>, project_id: i64) -> Result<Vec<ArtifactSummary>, String> {
-    store::list_artifacts(&*db.0.lock().map_err(err)?, project_id).map_err(err)
+    store::list_artifacts(&lock(&db.0), project_id).map_err(err)
 }
 
 /// Artifact count per project id, for the project cards.
 #[tauri::command]
 fn artifact_counts(db: tauri::State<'_, Db>) -> Result<HashMap<i64, i64>, String> {
-    Ok(store::artifact_counts(&*db.0.lock().map_err(err)?).map_err(err)?.into_iter().collect())
+    Ok(store::artifact_counts(&lock(&db.0)).map_err(err)?.into_iter().collect())
 }
 
 #[tauri::command]
 fn list_versions(db: tauri::State<'_, Db>, artifact_id: i64) -> Result<Vec<VersionInfo>, String> {
-    store::list_versions(&*db.0.lock().map_err(err)?, artifact_id).map_err(err)
+    store::list_versions(&lock(&db.0), artifact_id).map_err(err)
 }
 
 /// Opening the preview clears the "Updated" mark (owner decision 2026-11-23).
 #[tauri::command]
 fn mark_artifact_seen(db: tauri::State<'_, Db>, artifact_id: i64) -> Result<(), String> {
-    store::mark_seen(&*db.0.lock().map_err(err)?, artifact_id).map_err(err)
+    store::mark_seen(&lock(&db.0), artifact_id).map_err(err)
 }
 
 fn opt(s: Option<String>) -> Option<String> {
@@ -150,7 +171,7 @@ fn find_manual_target(
     name: String,
 ) -> Result<Result<ManualTarget, FieldErrors>, String> {
     let link = opt(link);
-    Ok(store::find_manual_target(&*db.0.lock().map_err(err)?, project_id, link.as_deref(), name.trim()))
+    Ok(store::find_manual_target(&lock(&db.0), project_id, link.as_deref(), name.trim()))
 }
 
 /// Saves pasted or dropped HTML (`source` is `paste` or `drop`). Field errors come back as data.
@@ -164,7 +185,7 @@ fn import_manual(
     source: String,
 ) -> Result<Result<ManualResult, FieldErrors>, String> {
     let link = opt(link);
-    let mut conn = db.0.lock().map_err(err)?;
+    let mut conn = lock(&db.0);
     Ok(store::import_manual(&mut conn, project_id, link.as_deref(), name.trim(), &html, &source))
 }
 
@@ -180,22 +201,26 @@ pub fn run() {
         .register_asynchronous_uri_scheme_protocol("preview", |ctx, req, responder| {
             let label = ctx.webview_label().to_string();
             let db = ctx.app_handle().try_state::<Db>().map(|d| d.0.clone());
+            let tokens = ctx.app_handle().try_state::<Previews>().map(|t| t.0.clone());
             tauri::async_runtime::spawn_blocking(move || {
                 let uri = req.uri();
-                let r = match db {
-                    Some(db) => {
-                        let conn = db.lock().unwrap_or_else(|p| p.into_inner());
+                let dest = req.headers().get("sec-fetch-dest").and_then(|v| v.to_str().ok());
+                // Whether the engine sends Sec-Fetch-Dest to a custom scheme (the Mac check reads this).
+                eprintln!("shape-board: preview request, sec-fetch-dest = {}", dest.unwrap_or("(absent)"));
+                let r = match (db, tokens) {
+                    (Some(db), Some(tokens)) => {
+                        let conn = lock(&db);
                         let pr = artifacts::preview::PreviewRequest {
                             method: req.method().as_str(),
                             host: uri.host(),
                             path: uri.path(),
                             query: uri.query(),
                             webview_label: &label,
-                            fetch_dest: req.headers().get("sec-fetch-dest").and_then(|v| v.to_str().ok()),
+                            fetch_dest: dest,
                         };
-                        artifacts::preview::respond(&conn, &pr)
+                        artifacts::preview::respond(&conn, &tokens, &pr)
                     }
-                    None => artifacts::preview::not_found(),
+                    _ => artifacts::preview::not_found(),
                 };
                 let mut b = tauri::http::Response::builder().status(r.status);
                 for (k, v) in r.headers {
@@ -211,6 +236,7 @@ pub fn run() {
             let paths = HookPaths::for_home(&app.path().home_dir()?);
             app.manage(Db(conn.clone()));
             app.manage(Hook(paths.clone()));
+            app.manage(Previews(Arc::new(artifacts::preview::PreviewTokens::default())));
             // The main window is built here, not from the config, so it gets the navigation guard
             // (nav.rs): untrusted HTML never becomes a main-frame document. New windows and downloads
             // are denied.
@@ -256,6 +282,7 @@ pub fn run() {
             artifact_counts,
             list_versions,
             mark_artifact_seen,
+            preview_url,
             find_manual_target,
             import_manual
         ])

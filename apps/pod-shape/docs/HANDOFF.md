@@ -201,7 +201,7 @@ Done check for the hook: after the owner approves, publish one test artifact. Th
 1. The Rust backend watches `~/claude-artifacts/` and the log with the `notify` crate, and does a full scan when the app starts. Store the last log line read in SQLite.
 2. An artifactId that is not in any project shows in a "New artifacts" box on the Projects screen: title, publish time, "Add to project", "Ignore".
 3. Project auto-select: if column 5 is inside a project's clone folder (the longest match wins), pre-select that project. Otherwise the owner picks it.
-4. HTML = the column 6 file if present, else the newest file in the artifact folder. Save the content into SQLite (`artifact_versions`) at once, and skip it if the hash is the same.
+4. HTML: every `.html` file in the artifact folder is a version, imported in (file time, name) order, so version numbers follow time; column 6 is metadata only. Save the content into SQLite (`artifact_versions`) at once, and skip it if the hash is the same as the latest version's (a revert A, B, A is still three versions). *Owner-approved (advisor change), 2026-11-23, build step 2: this replaces "the column 6 file if present, else the newest file", which numbered versions out of order on a first scan.*
 5. A new file for an artifact already in a project = a new version, marked "updated". Do not re-run the grill.
 6. Fallback: drag-and-drop an `.html` file, or paste link + HTML.
 7. Edge cases: missing folder or log → banner "Artifact hook not found", and the fallback still works. Bad log line → skip it and log a warning. Show "Last hook write: N days ago". Read only `.html` files, up to 5 MB.

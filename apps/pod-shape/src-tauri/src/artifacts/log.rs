@@ -54,8 +54,18 @@ pub fn link_id(link: &str) -> Option<&str> {
     valid_id(rest).then_some(rest)
 }
 
+/// Bidirectional and zero-width format characters that can make a title read differently than it is
+/// (U+061C, U+200B-U+200F, U+202A-U+202E, U+2060-U+2069, U+FEFF).
+fn is_format_char(c: char) -> bool {
+    matches!(c, '\u{061C}' | '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2060}'..='\u{2069}' | '\u{FEFF}')
+}
+
 fn clean_title(s: &str) -> String {
-    let t: String = s.chars().map(|c| if c.is_control() { ' ' } else { c }).collect();
+    let t: String = s
+        .chars()
+        .filter(|c| !is_format_char(*c))
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect();
     t.trim().chars().take(MAX_TITLE_CHARS).collect()
 }
 
@@ -135,6 +145,12 @@ mod tests {
         let e = parse_line(&format!("2026-11-20T08:00:00Z\thttps://claude.ai/artifact/a\t a\u{7}b {long}\t/x")).unwrap();
         assert!(e.title.starts_with("a b "));
         assert_eq!(e.title.chars().count(), 200);
+    }
+
+    #[test]
+    fn bidi_and_zero_width_characters_are_removed_from_titles() {
+        let e = parse_line("2026-11-20T08:00:00Z\thttps://claude.ai/artifact/a\tsafe\u{202E}lmth.exe\u{200B} page\u{2066}\t/x").unwrap();
+        assert_eq!(e.title, "safelmth.exe page");
     }
 
     #[test]

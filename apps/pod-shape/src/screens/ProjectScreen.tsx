@@ -164,7 +164,10 @@ export function ProjectScreen({ project, home }: { project: Project; home: strin
         errors={{ file: add.dropError ?? undefined, ...add.errors }}
         helpers={{
           link: v.file ? "Optional for a dropped file." : add.nextVersion > 1 ? "Optional for a new version." : undefined,
-          name: add.nextVersion > 1 ? `This adds version ${add.nextVersion} of ${v.name.trim()}.` : "Short name, shown on the card.",
+          name:
+            add.nextVersion > 1 && add.targetName
+              ? `This adds version ${add.nextVersion} of ${add.targetName}.`
+              : "Short name, shown on the card.",
           html: htmlHelper,
         }}
         primaryLabel={add.primaryLabel}

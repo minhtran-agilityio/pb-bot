@@ -72,11 +72,15 @@ export interface FieldErrors {
 
 export interface ManualTarget {
   artifactId: number | null;
+  /** The name of the artifact that would get the version (can differ from the typed name). */
+  name: string | null;
   nextVersion: number;
 }
 
 export interface ManualResult {
   artifactId: number;
+  /** The name of the artifact that got the version. */
+  name: string;
   versionId: number;
   n: number;
   /** False when the HTML equals the latest version (nothing new was saved). */
@@ -91,12 +95,6 @@ export const MAX_HTML_BYTES = 5 * 1024 * 1024;
 
 /** The event Rust emits after each hook sync. */
 export const ARTIFACTS_CHANGED = "artifacts-changed";
-
-/** URL of one stored version for the sandboxed preview frame (served by Rust with its own CSP).
- * macOS only (owner decision); Windows would need http://preview.localhost, which Rust allows only there. */
-export function previewUrl(versionId: number): string {
-  return `preview://localhost/v/${versionId}`;
-}
 
 export const api = {
   listProjects: () => invoke<Project[]>("list_projects"),
@@ -118,6 +116,8 @@ export const api = {
   artifactCounts: () => invoke<Record<string, number>>("artifact_counts"),
   listVersions: (artifactId: number) => invoke<VersionInfo[]>("list_versions", { artifactId }),
   markArtifactSeen: (artifactId: number) => invoke<void>("mark_artifact_seen", { artifactId }),
+  /** A single-use preview://localhost/v/<id>/<nonce> URL for the sandboxed frame; mint one per load. */
+  previewUrl: (versionId: number) => invoke<string>("preview_url", { versionId }),
   findManualTarget: (projectId: number, link: string | null, name: string) =>
     invoke<Checked<ManualTarget>>("find_manual_target", { projectId, link, name }),
   importManual: (projectId: number, link: string | null, name: string, html: string, source: "paste" | "drop") =>

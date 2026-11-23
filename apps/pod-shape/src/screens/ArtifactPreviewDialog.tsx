@@ -4,7 +4,7 @@ import { Button } from "../components/ui/button";
 import { Dialog } from "../components/ui/dialog";
 import { Select } from "../components/ui/select";
 import { listen } from "@tauri-apps/api/event";
-import { api, ARTIFACTS_CHANGED, previewUrl, type ArtifactSummary, type VersionInfo } from "../lib/api";
+import { api, ARTIFACTS_CHANGED, type ArtifactSummary, type VersionInfo } from "../lib/api";
 import { formatWhen } from "../lib/time";
 
 // The artifact preview (prototype: "Preview" on an ArtifactCard; HANDOFF §5: a Dialog, not a screen).
@@ -63,6 +63,21 @@ export function ArtifactPreviewDialog({
   }, [artifact?.id]);
 
   const current = versions?.find((v) => String(v.id) === selected) ?? null;
+
+  // Each load of the frame gets a fresh single-use URL from Rust (review F6).
+  const [src, setSrc] = useState<{ id: number; url: string } | null>(null);
+  useEffect(() => {
+    setSrc(null);
+    if (!current) return;
+    let live = true;
+    api.previewUrl(current.id).then(
+      (url) => live && setSrc({ id: current.id, url }),
+      (e) => live && setError(String(e)),
+    );
+    return () => {
+      live = false;
+    };
+  }, [current?.id]);
   return (
     <Dialog
       open={artifact !== null}
@@ -96,8 +111,8 @@ export function ArtifactPreviewDialog({
         <p className="text-sm text-danger">{error}</p>
       ) : (
         <ArtifactPreviewFrame
-          key={current?.id ?? "none"}
-          src={current ? previewUrl(current.id) : ""}
+          key={src?.url ?? "none"}
+          src={src?.url ?? ""}
           title={artifact && current ? `Preview of ${artifact.name}, version ${current.n}` : "Preview"}
         />
       )}

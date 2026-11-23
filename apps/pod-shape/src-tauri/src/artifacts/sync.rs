@@ -7,7 +7,8 @@ use super::paths::{artifact_dir, guard, is_html_name, read_guarded, valid_id, Gu
 use super::store::{self, HookMeta};
 use rusqlite::Connection;
 use serde::Serialize;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
+use std::os::unix::fs::OpenOptionsExt;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -28,13 +29,30 @@ const LAST_LINE: &str = "log_last_line";
 /// How much of the last line read is kept to recognise the log next time.
 const LAST_LINE_TAIL: usize = 4096;
 
-/// One sync at a time (watcher, start-up and `rescan_hook` share it). It also holds the bad-line
-/// count per log file, in memory.
-static SYNC: Mutex<BTreeMap<PathBuf, usize>> = Mutex::new(BTreeMap::new());
+/// One sync at a time (watcher, start-up and `rescan_hook` share it).
+static SYNC: Mutex<()> = Mutex::new(());
+/// Bad lines per log file since the app started, in memory. Its own lock, held only to read or write
+/// the number, so `hook_status` never waits for a running sync (review F3).
+static BAD: Mutex<BTreeMap<PathBuf, usize>> = Mutex::new(BTreeMap::new());
+/// The last bytes of the last line read, hex, to recognise the log next time (review F10: bytes, not
+/// lossy text).
+const LAST_TAIL_HEX: &str = "log_last_tail_hex";
 
 /// Bad lines read from this log since the app started.
 pub fn bad_lines(paths: &HookPaths) -> usize {
-    SYNC.lock().unwrap_or_else(|p| p.into_inner()).get(&paths.log).copied().unwrap_or(0)
+    BAD.lock().unwrap_or_else(|p| p.into_inner()).get(&paths.log).copied().unwrap_or(0)
+}
+
+fn hex(b: &[u8]) -> String {
+    b.iter().map(|x| format!("{x:02x}")).collect()
+}
+
+fn unhex(s: &str) -> Option<Vec<u8>> {
+    let b = s.as_bytes();
+    if !b.len().is_multiple_of(2) {
+        return None;
+    }
+    b.chunks(2).map(|p| std::str::from_utf8(p).ok().and_then(|h| u8::from_str_radix(h, 16).ok())).collect()
 }
 
 fn lock(db: &Mutex<Connection>) -> std::sync::MutexGuard<'_, Connection> {
@@ -60,32 +78,41 @@ pub fn iso_utc(secs: i64) -> String {
 
 /// One pass: new log lines (metadata only), then the folder scan (all HTML imports).
 pub fn sync(db: &Mutex<Connection>, paths: &HookPaths) -> SyncReport {
-    let mut counts = SYNC.lock().unwrap_or_else(|p| p.into_inner());
-    let bad = counts.entry(paths.log.clone()).or_insert(0);
+    let _one = SYNC.lock().unwrap_or_else(|p| p.into_inner());
+    let mut bad = bad_lines(paths);
     let mut report = SyncReport::default();
-    read_log(db, paths, bad);
+    read_log(db, paths, &mut bad);
+    BAD.lock().unwrap_or_else(|p| p.into_inner()).insert(paths.log.clone(), bad);
     scan_folder(db, paths, &mut report);
-    report.bad_lines = *bad;
+    report.bad_lines = bad;
     report
 }
 
 /// The guarded `.html` files of one artifact folder, oldest first (mtime, then name).
-fn folder_files(root: &Path, id: &str, report: &mut SyncReport) -> Vec<GuardedFile> {
+/// Files already handled, or rejected for a reason that holds until they change (size, mtime), are
+/// skipped without another check (review F10).
+fn folder_files(db: &Mutex<Connection>, root: &Path, id: &str, report: &mut SyncReport) -> Vec<GuardedFile> {
     let Ok(dir) = artifact_dir(root, id) else { return Vec::new() };
-    let Ok(entries) = std::fs::read_dir(dir) else { return Vec::new() };
-    let mut files: Vec<GuardedFile> = entries
-        .flatten()
-        .filter_map(|e| e.file_name().to_str().map(str::to_string))
-        .filter(|n| is_html_name(n))
-        .filter_map(|name| match guard(root, id, &name) {
-            Ok(g) => Some(g),
+    let Ok(entries) = std::fs::read_dir(&dir) else { return Vec::new() };
+    let mut files = Vec::new();
+    for name in entries.flatten().filter_map(|e| e.file_name().to_str().map(str::to_string)).filter(|n| is_html_name(n)) {
+        let path = dir.join(&name);
+        let Ok(meta) = std::fs::symlink_metadata(&path) else { continue };
+        let (key, size, mtime) = (path.to_string_lossy().into_owned(), meta.len(), file_mtime(&meta));
+        if store::file_seen(&lock(db), &key, size, mtime).unwrap_or(false) {
+            continue;
+        }
+        match guard(root, id, &name) {
+            Ok(g) => files.push(g),
             Err(why) => {
                 eprintln!("shape-board: skipped hook file {id}/{name}: {why:?}");
                 report.skipped_files += 1;
-                None
+                if why.is_permanent() {
+                    let _ = store::mark_file(&lock(db), &key, size, mtime);
+                }
             }
-        })
-        .collect();
+        }
+    }
     files.sort_by(|a, b| (a.mtime, &a.path).cmp(&(b.mtime, &b.path)));
     files
 }
@@ -95,11 +122,14 @@ fn import_file(db: &Mutex<Connection>, artifact_id: i64, f: &GuardedFile, report
     let html = match read_guarded(f) {
         Ok(h) => h,
         Err(why) => {
-            // `Changed` is tried again on the next sync: the file is not marked as handled.
+            // `Changed` and `Missing` are tried again on the next sync; the others are recorded.
             if why != Rejected::Changed {
                 eprintln!("shape-board: skipped hook file {:?}: {why:?}", f.path);
             }
             report.skipped_files += 1;
+            if why.is_permanent() {
+                let _ = store::mark_file(&lock(db), &f.path.to_string_lossy(), f.size, f.mtime);
+            }
             return;
         }
     };
@@ -138,25 +168,29 @@ fn handle_entry(db: &Mutex<Connection>, paths: &HookPaths, e: &LogEntry) {
 }
 
 /// True when the bytes right before `offset` are `tail` + newline: the log is the one read before.
-fn same_log(file: &mut File, offset: u64, tail: &str) -> bool {
-    let want = format!("{tail}\n");
+fn same_log(file: &mut File, offset: u64, tail: &[u8]) -> bool {
+    let mut want = tail.to_vec();
+    want.push(b'\n');
     let n = want.len() as u64;
     let mut buf = vec![0; want.len()];
-    offset > 0 && n <= offset && file.seek(SeekFrom::Start(offset - n)).is_ok() && file.read_exact(&mut buf).is_ok() && buf == want.as_bytes()
+    offset > 0 && n <= offset && file.seek(SeekFrom::Start(offset - n)).is_ok() && file.read_exact(&mut buf).is_ok() && buf == want
 }
 
-fn tail_of(line: &[u8]) -> String {
-    let start = line.len().saturating_sub(LAST_LINE_TAIL);
-    // Keep whole UTF-8 characters: step forward to a char boundary.
-    let mut s = start;
-    while s < line.len() && (line[s] & 0xC0) == 0x80 {
-        s += 1;
-    }
-    String::from_utf8_lossy(&line[s..]).into_owned()
+fn file_mtime(meta: &std::fs::Metadata) -> i64 {
+    meta.modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
+
+fn tail_of(line: &[u8]) -> &[u8] {
+    &line[line.len().saturating_sub(LAST_LINE_TAIL)..]
 }
 
 fn read_log(db: &Mutex<Connection>, paths: &HookPaths, bad: &mut usize) {
-    let Ok(mut file) = File::open(&paths.log) else { return };
+    // O_NONBLOCK: a FIFO at the log path must not block the open (review F3); fstat then refuses it.
+    let Ok(mut file) = OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK).open(&paths.log) else { return };
     let Ok(meta) = file.metadata() else { return };
     if !meta.is_file() {
         return;
@@ -165,7 +199,8 @@ fn read_log(db: &Mutex<Connection>, paths: &HookPaths, bad: &mut usize) {
     let (mut offset, last) = {
         let conn = lock(db);
         let off = store::get_state(&conn, OFFSET).ok().flatten().and_then(|v| v.parse::<u64>().ok()).unwrap_or(0);
-        (off, store::get_state(&conn, LAST_LINE).ok().flatten().unwrap_or_default())
+        let tail = store::get_state(&conn, LAST_TAIL_HEX).ok().flatten().and_then(|h| unhex(&h)).unwrap_or_default();
+        (off, tail)
     };
     // The log was replaced or cut when it is shorter than the offset or the line before the offset
     // is not the one stored. Then read it again from the start; the dedupe keeps that safe.
@@ -178,7 +213,7 @@ fn read_log(db: &Mutex<Connection>, paths: &HookPaths, bad: &mut usize) {
     }
     let mut reader = BufReader::new(file);
     let mut pos = offset;
-    let mut last_tail: Option<String> = None;
+    let mut last_tail: Option<Vec<u8>> = None;
     loop {
         // Every read is bounded: at most one line of MAX_LINE_BYTES plus its newline.
         let mut line = Vec::new();
@@ -198,7 +233,7 @@ fn read_log(db: &Mutex<Connection>, paths: &HookPaths, bad: &mut usize) {
                     }
                 }
             }
-            last_tail = Some(tail_of(&line[..line.len() - 1]));
+            last_tail = Some(tail_of(&line[..line.len() - 1]).to_vec());
             continue;
         }
         if n <= MAX_LINE_BYTES {
@@ -228,12 +263,14 @@ fn read_log(db: &Mutex<Connection>, paths: &HookPaths, bad: &mut usize) {
         pos += skipped;
         *bad += 1;
         eprintln!("shape-board: skipped an over-long artifact log line ending at byte {pos}");
-        last_tail = Some(tail_of(&tail[..tail.len() - 1]));
+        last_tail = Some(tail_of(&tail[..tail.len() - 1]).to_vec());
     }
     if let Some(t) = last_tail {
         let conn = lock(db);
         let _ = store::set_state(&conn, OFFSET, &pos.to_string());
-        let _ = store::set_state(&conn, LAST_LINE, &t);
+        // The last line as text (HANDOFF §11.4.1) and its tail as bytes for the next comparison.
+        let _ = store::set_state(&conn, LAST_LINE, &String::from_utf8_lossy(&t));
+        let _ = store::set_state(&conn, LAST_TAIL_HEX, &hex(&t));
     }
 }
 
@@ -246,7 +283,7 @@ fn scan_folder(db: &Mutex<Connection>, paths: &HookPaths, report: &mut SyncRepor
         .collect();
     ids.sort();
     for id in ids {
-        let files = folder_files(&paths.root, &id, report);
+        let files = folder_files(db, &paths.root, &id, report);
         let todo: Vec<&GuardedFile> = {
             let conn = lock(db);
             files
@@ -549,6 +586,52 @@ mod tests {
         let c = f.db.lock().unwrap();
         assert_eq!(store::get_state(&c, LAST_LINE).unwrap().unwrap(), line.trim_end_matches('\n'));
         assert_eq!(store::get_state(&c, OFFSET).unwrap().unwrap(), line.len().to_string());
+    }
+
+    #[test]
+    fn a_fifo_at_the_log_path_neither_blocks_nor_counts() {
+        let f = fx();
+        let c = std::ffi::CString::new(f.paths.log.to_str().unwrap()).unwrap();
+        assert_eq!(unsafe { libc::mkfifo(c.as_ptr(), 0o600) }, 0);
+        f.file("Fifo2", "a.html", "<p>a</p>");
+        // On a thread with a deadline, so a regression fails the test instead of hanging it.
+        let (tx, rx) = std::sync::mpsc::channel();
+        let f = std::sync::Arc::new(f);
+        let f2 = f.clone();
+        std::thread::spawn(move || {
+            let _ = tx.send(f2.sync());
+        });
+        let r = rx.recv_timeout(std::time::Duration::from_secs(5)).expect("sync must not block on a FIFO log");
+        assert_eq!((r.new_versions, r.bad_lines), (1, 0));
+        // hook_status reads the count without waiting for a sync.
+        assert_eq!(bad_lines(&f.paths), 0);
+    }
+
+    #[test]
+    fn rejected_files_are_recorded_and_not_counted_again() {
+        let f = fx();
+        f.file("Rej1", "big.html", &"a".repeat(super::super::paths::MAX_HTML_BYTES as usize + 1));
+        assert_eq!(f.sync().skipped_files, 1);
+        assert_eq!(f.sync().skipped_files, 0, "a permanent rejection is not checked again");
+        // Once the file changes it is checked again.
+        f.file_at("Rej1", "big.html", "<p>now small</p>", 5);
+        assert_eq!(f.sync().new_versions, 1);
+    }
+
+    #[test]
+    fn a_non_utf8_last_line_does_not_make_every_sync_reread_the_log() {
+        let f = fx();
+        f.log("junk \u{0}\n");
+        let mut raw = fs::OpenOptions::new().append(true).open(&f.paths.log).unwrap();
+        raw.write_all(&[b'x', 0xff, 0xfe, b'\n']).unwrap();
+        assert_eq!(f.sync().bad_lines, 2);
+        // A second sync reads nothing new: the count stays (a reread from 0 would reset and recount the
+        // same 2, so also check the offset did not move back).
+        let off = store::get_state(&f.db.lock().unwrap(), OFFSET).unwrap();
+        assert_eq!(f.sync().bad_lines, 2);
+        f.log("junk again\n");
+        assert_eq!(f.sync().bad_lines, 3, "a reread from the start would give 3 only if it did not reset");
+        assert_eq!(store::get_state(&f.db.lock().unwrap(), OFFSET).unwrap().map(|o| o > off.clone().unwrap()), Some(true));
     }
 
     #[test]

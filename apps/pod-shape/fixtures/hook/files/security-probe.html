@@ -25,7 +25,8 @@ Rows marked <b>check</b> need a look at the app: it must stay on its own page.</
 <button id="nav-top">top.location = https://example.com</button>
 <button id="nav-link">click &lt;a target=_top&gt;</button>
 <button id="nav-file">location = file:///etc/passwd</button>
-<p>File drop: drop any file on the app outside a drop zone. Expected: the app does not open the file.</p>
+<p>File drop: drop any file on the app outside a drop zone, and drop a file (or this page's URL) onto this
+frame. Expected: the app does not open the file and stays on Shape Board.</p>
 <script>
 (function () {
   var rows = document.getElementById("rows");
@@ -181,7 +182,21 @@ Rows marked <b>check</b> need a look at the app: it must stay on its own page.</
     row("blob download", "check", "attempted; no file may appear in Downloads (sandbox without allow-downloads, on_download false)");
   } catch (e) { row("blob download", "blocked", e.name); }
 
-  // 10. The CSP is applied.
+  // 10. The drop guard Shape Board puts first in every preview page (a drop on this frame does nothing).
+  try {
+    var d = new Event("drop", { bubbles: true, cancelable: true });
+    document.body.dispatchEvent(d);
+    row("drop guard on this frame", d.defaultPrevented ? "blocked" : "REACHABLE",
+      d.defaultPrevented ? "a drop is cancelled before the page sees it" : "a drop is not cancelled");
+  } catch (e) { row("drop guard on this frame", "REACHABLE", e.name); }
+
+  // 11. This URL works once: loading it again (here, from inside the frame) gets nothing.
+  fetch(location.href).then(
+    function () { row("load this preview URL again", "REACHABLE", "loaded"); },
+    function (e) { row("load this preview URL again", "blocked", e.name + " (connect-src 'none'; the URL is also single-use)"); }
+  );
+
+  // 12. The CSP is applied.
   setTimeout(function () {
     row("CSP violation events", violations.length > 0 ? "blocked" : "REACHABLE",
       violations.length + " seen: " + Array.from(new Set(violations)).join(", "));

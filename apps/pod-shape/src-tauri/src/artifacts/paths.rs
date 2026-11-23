@@ -58,9 +58,19 @@ pub enum Rejected {
     Symlink,
     NotHtml,
     NotAFile,
+    /// More than one hard link: the same bytes could be reached from outside the folder.
+    HardLinked,
     TooLarge,
     /// Size or mtime changed while it was read: try again on the next sync.
     Changed,
+}
+
+impl Rejected {
+    /// The file itself is the problem (too large, a symlink, a hard link, not a file); it stays so until
+    /// its size or mtime changes. `Missing` and `Changed` may pass on the next sync.
+    pub fn is_permanent(&self) -> bool {
+        matches!(self, Rejected::Symlink | Rejected::NotHtml | Rejected::NotAFile | Rejected::HardLinked | Rejected::TooLarge)
+    }
 }
 
 /// A hook file that passed the guard: its path, size and mtime (seconds).
@@ -122,6 +132,9 @@ pub fn guard(root: &Path, id: &str, name: &str) -> Result<GuardedFile, Rejected>
     if !meta.is_file() {
         return Err(Rejected::NotAFile);
     }
+    if meta.nlink() > 1 {
+        return Err(Rejected::HardLinked);
+    }
     if meta.len() > MAX_HTML_BYTES {
         return Err(Rejected::TooLarge);
     }
@@ -140,6 +153,9 @@ pub fn read_guarded(f: &GuardedFile) -> Result<String, Rejected> {
     let before = file.metadata().map_err(|_| Rejected::Missing)?;
     if !before.is_file() {
         return Err(Rejected::NotAFile);
+    }
+    if before.nlink() > 1 {
+        return Err(Rejected::HardLinked);
     }
     if before.len() > MAX_HTML_BYTES {
         return Err(Rejected::TooLarge);
@@ -264,6 +280,25 @@ mod tests {
         fs::rename(root.join("AbC123"), d.path().join("moved")).unwrap();
         std::os::unix::fs::symlink(&other, root.join("AbC123")).unwrap();
         assert_eq!(read_guarded(&g).unwrap_err(), Rejected::Changed);
+    }
+
+    #[test]
+    fn a_hard_linked_file_is_rejected() {
+        let (d, root) = setup();
+        let outside = d.path().join("secret.html");
+        fs::write(&outside, "secret").unwrap();
+        fs::hard_link(&outside, root.join("AbC123/link.html")).unwrap();
+        assert_eq!(guard(&root, "AbC123", "link.html").unwrap_err(), Rejected::HardLinked);
+    }
+
+    /// True when the rejection is about the file itself and will not change until the file does,
+    /// so the scan may record it and skip it next time.
+    #[test]
+    fn permanent_rejections() {
+        assert!(Rejected::TooLarge.is_permanent());
+        assert!(Rejected::HardLinked.is_permanent());
+        assert!(!Rejected::Changed.is_permanent());
+        assert!(!Rejected::Missing.is_permanent());
     }
 
     #[test]

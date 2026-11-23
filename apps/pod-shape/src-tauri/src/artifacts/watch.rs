@@ -5,7 +5,7 @@
 
 use super::paths::HookPaths;
 use super::sync::{sync, SyncReport};
-use notify::{RecommendedWatcher, RecursiveMode, Watcher};
+use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use rusqlite::Connection;
 use serde::Serialize;
 use std::path::Path;
@@ -29,6 +29,16 @@ pub struct HookStatus {
 
 fn mtime(p: &Path) -> Option<i64> {
     std::fs::metadata(p).ok()?.modified().ok()?.duration_since(UNIX_EPOCH).ok().map(|d| d.as_secs() as i64)
+}
+
+/// True when a watcher event can mean new hook output: a change (create, modify, remove, rename) under
+/// the artifact folder or to the log file. Access events (open, read, close without a write) and
+/// unknown ones are ignored, because the app's own reads cause them (review F4).
+pub fn relevant(ev: &Event, root: &Path, log_name: Option<&std::ffi::OsStr>) -> bool {
+    if matches!(ev.kind, EventKind::Access(_) | EventKind::Other) {
+        return false;
+    }
+    ev.paths.iter().any(|p| p.starts_with(root) || (log_name.is_some() && p.file_name() == log_name))
 }
 
 pub fn status(paths: &HookPaths, bad_lines: usize) -> HookStatus {
@@ -59,16 +69,13 @@ fn run(db: Arc<Mutex<Connection>>, paths: HookPaths, on_sync: impl Fn(SyncReport
             let tx = tx.clone();
             let root_c = root.clone();
             let log_name = log_name.clone();
-            let mut w = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
-                let Ok(ev) = res else { return };
-                let relevant = ev.paths.iter().any(|p| {
-                    p.starts_with(&root_c) || (log_name.is_some() && p.file_name() == log_name.as_deref())
-                });
-                if relevant {
+            let handler = move |res: notify::Result<Event>| {
+                if res.is_ok_and(|ev| relevant(&ev, &root_c, log_name.as_deref())) {
                     let _ = tx.send(());
                 }
-            })
-            .ok()?;
+            };
+            // Symlinks under the folder are never followed (review F9); the guard rejects them anyway.
+            let mut w = RecommendedWatcher::new(handler, Config::default().with_follow_symlinks(false)).ok()?;
             let mut any = false;
             if root.is_dir() {
                 any |= w.watch(&root, RecursiveMode::Recursive).is_ok();
@@ -123,6 +130,34 @@ mod tests {
     use std::fs;
     use std::io::Write;
     use std::sync::mpsc;
+
+    #[test]
+    fn only_change_events_count() {
+        use notify::event::{AccessKind, AccessMode, CreateKind, ModifyKind, RemoveKind};
+        let root = Path::new("/h/claude-artifacts");
+        let log = Some(std::ffi::OsStr::new("artifact-log.tsv"));
+        let ev = |kind, p: &str| Event { kind, paths: vec![p.into()], attrs: Default::default() };
+        let file = "/h/claude-artifacts/A1/v1_a.html";
+        // A stream as inotify gives it while sync reads the folder and the log: no change at all.
+        for e in [
+            ev(EventKind::Access(AccessKind::Open(AccessMode::Read)), file),
+            ev(EventKind::Access(AccessKind::Close(AccessMode::Read)), file),
+            ev(EventKind::Access(AccessKind::Read), "/h/.claude/artifact-log.tsv"),
+            ev(EventKind::Other, file),
+            ev(EventKind::Create(CreateKind::File), "/h/.claude/settings.json"),
+        ] {
+            assert!(!relevant(&e, root, log), "{e:?}");
+        }
+        for e in [
+            ev(EventKind::Create(CreateKind::File), file),
+            ev(EventKind::Modify(ModifyKind::Any), "/h/.claude/artifact-log.tsv"),
+            ev(EventKind::Remove(RemoveKind::File), file),
+            ev(EventKind::Access(AccessKind::Close(AccessMode::Write)), file),
+        ] {
+            let want = !matches!(e.kind, EventKind::Access(_));
+            assert_eq!(relevant(&e, root, log), want, "{e:?}");
+        }
+    }
 
     #[test]
     fn status_reports_missing_parts() {

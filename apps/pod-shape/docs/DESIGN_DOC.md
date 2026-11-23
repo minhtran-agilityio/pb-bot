@@ -144,6 +144,13 @@ Một file SQLite trong thư mục dữ liệu của app (ví dụ `~/Library/Ap
 
 Trạng thái issue lưu trong SQLite chỉ là cache để mở app nhanh. Nguồn đúng luôn là GitHub.
 
+> **Owner-approved (advisor change), 2026-11-23, build step 2** (`src-tauri/migrations/0002_artifacts.sql`):
+>
+> - `artifacts.project_id` may be NULL: an artifact the hook saved that is in no project yet is in the "New artifacts" box (HANDOFF §11.4.2).
+> - `artifacts.claude_id` (the last part of the claude.ai link) may be NULL: an artifact added by dropping a file has no link until one is pasted.
+> - `artifacts.state` is `new` (in the box), `added` (in a project) or `ignored`, with `CHECK ((state = 'added') = (project_id IS NOT NULL))`. Also `source` (`hook` or `manual`), `updated` (a new version arrived; cleared when the owner opens the preview), `title`, `cwd` and `published_at` from the log.
+> - `artifact_versions` stores `n`, `html` (at most 5 MB), `sha256`, `source` (`hook`, `drop`, `paste`) and the hook `file` (unique when set). Two more tables, `hook_files` and `hook_state`, remember which hook files were read and the last log line read.
+
 ## Màn hình
 
 V1 có 4 màn hình. Giao diện theo design system của thread design; tài liệu này chỉ nói nội dung.
