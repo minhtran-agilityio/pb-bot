@@ -1,0 +1,91 @@
+import { useEffect, useState } from "react";
+import { ArtifactPreviewFrame } from "../components/app/ArtifactPreviewFrame";
+import { Button } from "../components/ui/button";
+import { Dialog } from "../components/ui/dialog";
+import { Select } from "../components/ui/select";
+import { api, previewUrl, type ArtifactSummary, type VersionInfo } from "../lib/api";
+import { formatWhen } from "../lib/time";
+
+// The artifact preview (prototype: "Preview" on an ArtifactCard; HANDOFF §5: a Dialog, not a screen).
+// Dialog lg: Version Select + link, the sandboxed frame (Storehouse part, sandbox fixed), footer
+// "Add version" + "Close". The frame loads preview://localhost/v/<id>, which Rust serves with its own CSP.
+// Opening it clears the "Updated" mark (owner decision 2026-11-23).
+export function ArtifactPreviewDialog({
+  artifact,
+  onClose,
+  onAddVersion,
+  onSeen,
+}: {
+  artifact: ArtifactSummary | null;
+  onClose: () => void;
+  /** Opens the Add artifact dialog for a new version; undefined disables the button. */
+  onAddVersion?: (a: ArtifactSummary) => void;
+  onSeen?: () => void;
+}) {
+  const [versions, setVersions] = useState<VersionInfo[] | null>(null);
+  const [selected, setSelected] = useState<string | undefined>(undefined);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setVersions(null);
+    setSelected(undefined);
+    setError(null);
+    if (!artifact) return;
+    let live = true;
+    api.listVersions(artifact.id).then(
+      (v) => {
+        if (!live) return;
+        setVersions(v);
+        setSelected(v[0] ? String(v[0].id) : undefined);
+      },
+      (e) => live && setError(String(e)),
+    );
+    if (artifact.updated) api.markArtifactSeen(artifact.id).then(() => onSeen?.(), () => {});
+    return () => {
+      live = false;
+    };
+    // Reload only when another artifact opens.
+  }, [artifact?.id]);
+
+  const current = versions?.find((v) => String(v.id) === selected) ?? null;
+  return (
+    <Dialog
+      open={artifact !== null}
+      onOpenChange={(o) => !o && onClose()}
+      size="lg"
+      title={artifact ? `Preview: ${artifact.name}` : "Preview"}
+      footer={
+        <>
+          <Button variant="ghost" icon="add" disabled={!onAddVersion || !artifact} onClick={() => artifact && onAddVersion?.(artifact)}>
+            Add version
+          </Button>
+          <Button variant="secondary" onClick={onClose}>
+            Close
+          </Button>
+        </>
+      }
+    >
+      <div className="flex min-w-0 items-center gap-3">
+        <Select
+          className="min-w-0 flex-1"
+          aria-label="Version"
+          value={selected}
+          onValueChange={setSelected}
+          disabled={!versions || versions.length < 2}
+          options={(versions ?? []).map((v) => ({ value: String(v.id), label: `Version ${v.n} · ${formatWhen(v.createdAt)}` }))}
+          placeholder="Version"
+        />
+        {artifact?.link && <span className="min-w-0 flex-1 truncate text-sm text-fg-subtle tabular-nums">{artifact.link}</span>}
+      </div>
+      {error ? (
+        <p className="text-sm text-danger">{error}</p>
+      ) : (
+        <ArtifactPreviewFrame
+          key={current?.id ?? "none"}
+          src={current ? previewUrl(current.id) : ""}
+          title={artifact && current ? `Preview of ${artifact.name}, version ${current.n}` : "Preview"}
+        />
+      )}
+    </Dialog>
+  );
+}
