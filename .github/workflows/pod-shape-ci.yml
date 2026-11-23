@@ -9,7 +9,7 @@ name: pod-shape-ci
 
 on:
   push:
-    branches: [main]
+    branches: [main, ci/pod-shape-checks]
     paths:
       - "apps/pod-shape/**"
       - "scripts/check-pod-shape-ds.sh"
