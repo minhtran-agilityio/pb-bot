@@ -504,7 +504,13 @@ impl Engine {
                     Event::ToolUse { name, summary, .. } => {
                         let _ = store::add_message(&conn, id, turn, "tool", format!("{name} {summary}").trim(), None);
                     }
-                    Event::Result(r) => result = Some(r),
+                    Event::Result(r) => {
+                        // A denied tool call is part of the history (and the proof that the fence held).
+                        for d in &r.denials {
+                            let _ = store::add_message(&conn, id, turn, "tool", &format!("Denied: {d}"), None);
+                        }
+                        result = Some(r);
+                    }
                 }
                 drop(conn);
                 self.changed(id);

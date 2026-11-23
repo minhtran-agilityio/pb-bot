@@ -1,6 +1,6 @@
 mod artifacts;
 mod checks;
-mod db;
+pub mod db;
 pub mod grill;
 mod nav;
 
