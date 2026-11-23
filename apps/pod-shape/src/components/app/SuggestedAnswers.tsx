@@ -2,7 +2,7 @@
 // Dumb: props in, events out. The screen owns the answers, says which card is `active` and
 // fills the Composer. Keys 1–4 pick (or toggle) only while the card is active and not
 // disabled, and never while the owner types in an input or a textarea.
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { Kbd } from "../ui/kbd";
 import { Icon, iconSize } from "./icons";
 import { cn } from "../../lib/cn";
@@ -17,7 +17,7 @@ export interface SuggestedAnswersProps {
   total: number;
   header: string;
   question: string;
-  options: SuggestedOption[]; // up to 4 are shown and numbered
+  options: SuggestedOption[]; // the screen sends at most 4; the part shows and numbers the first 4
   multiSelect?: boolean; // chips toggle; the screen joins the chosen labels with ", "
   selected?: number[]; // multiSelect only: chosen option indexes, controlled by the screen
   answered?: boolean; // the line and the question only, no chips
@@ -31,14 +31,16 @@ export interface SuggestedAnswersProps {
 
 const MAX_OPTIONS = 4;
 
-function isTyping(target: EventTarget | null): boolean {
+// Keys typed in a field, or on something inside a dialog or an open listbox, are not answers.
+function ignoresKey(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
   if (!el || !el.tagName) return false;
-  return el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable;
+  if (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable) return true;
+  return el.closest('[role="dialog"], [role="alertdialog"], [role="listbox"]') !== null;
 }
 
 const chip = cn(
-  "inline-flex min-h-8.5 max-w-full items-center gap-2 rounded-full border px-4 py-1 text-base",
+  "inline-flex min-h-8.5 max-w-full items-center gap-2 rounded-full border px-4 py-1 text-sm",
   "transition duration-160 ease-out active:scale-97 motion-safe:hover:-translate-y-px",
   "disabled:pointer-events-none disabled:opacity-50",
 );
@@ -67,7 +69,7 @@ export function SuggestedAnswers({
   useEffect(() => {
     if (!listening) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || isTyping(e.target)) return;
+      if (e.defaultPrevented || e.repeat || e.metaKey || e.ctrlKey || e.altKey || ignoresKey(e.target)) return;
       const n = Number(e.key);
       const cur = live.current;
       if (!Number.isInteger(n) || n < 1 || n > cur.count) return;
@@ -79,6 +81,8 @@ export function SuggestedAnswers({
     return () => document.removeEventListener("keydown", onKey);
   }, [listening]);
 
+  const uid = useId();
+  const descId = (i: number) => `${uid}-d${i}`;
   const described = shown.some((o) => o.description);
 
   return (
@@ -98,6 +102,7 @@ export function SuggestedAnswers({
                   type="button"
                   disabled={disabled}
                   aria-pressed={multiSelect ? on : undefined}
+                  aria-describedby={o.description ? descId(i) : undefined}
                   onClick={() => (multiSelect ? onToggle?.(i) : onPick(i))}
                   className={cn(
                     chip,
@@ -132,7 +137,7 @@ export function SuggestedAnswers({
               {shown.map(
                 (o, i) =>
                   o.description && (
-                    <li key={i}>
+                    <li key={i} id={descId(i)}>
                       {i + 1}. {o.description}
                     </li>
                   ),
