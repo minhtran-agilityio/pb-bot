@@ -20,7 +20,7 @@ export interface ArtifactCardProps {
   /** Mini StatusBar, shown only when given. */
   counts?: StatusCounts;
   onPreview: () => void;
-  /** The screen's own grill button (disabled in step 2). */
+  /** The screen's own Start grill button. */
   grillAction?: ReactNode;
   className?: string;
 }

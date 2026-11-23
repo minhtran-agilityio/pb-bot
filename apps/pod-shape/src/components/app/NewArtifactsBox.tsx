@@ -59,14 +59,14 @@ export function NewArtifactsBox({ meta, rows, projects, onProjectChange, onAdd, 
               size="sm"
               variant="secondary"
               icon="add"
-              aria-label={`Add ${r.title} to a project`}
-              disabled={!r.projectId}
+              aria-label={`Add to project: ${r.title}`}
+              disabled={!r.projectId || !projects.some((p) => p.value === r.projectId)}
               loading={r.busy}
               onClick={() => onAdd(r.id)}
             >
               Add to project
             </Button>
-            <Button size="sm" variant="ghost" aria-label={`Ignore ${r.title}`} disabled={r.busy} onClick={() => onIgnore(r.id)}>
+            <Button size="sm" variant="ghost" aria-label={`Ignore: ${r.title}`} disabled={r.busy} onClick={() => onIgnore(r.id)}>
               Ignore
             </Button>
           </li>
