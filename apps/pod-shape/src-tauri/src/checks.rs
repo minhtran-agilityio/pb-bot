@@ -301,7 +301,7 @@ fn wait_ready(state: &(Mutex<bool>, Condvar), timeout: Duration) -> bool {
 
 /// A `Command` with the shell's PATH. Waits for the lookup if it is still running; when it
 /// does not finish in time, the child gets the app's own PATH.
-fn command(program: &str) -> Command {
+pub(crate) fn command(program: &str) -> Command {
     if PATH_STARTED.load(Ordering::SeqCst) {
         wait_ready(&PATH_READY, SHELL_PATH_TIMEOUT + Duration::from_secs(1));
     }

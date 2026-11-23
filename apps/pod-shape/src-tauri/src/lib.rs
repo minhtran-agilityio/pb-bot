@@ -1,6 +1,7 @@
 mod artifacts;
 mod checks;
 mod db;
+pub mod grill;
 mod nav;
 
 use artifacts::paths::HookPaths;
@@ -13,7 +14,7 @@ use rusqlite::Connection;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::webview::NewWindowResponse;
-use tauri::{Emitter, Manager, WebviewWindowBuilder};
+use tauri::{Emitter, Manager, RunEvent, WebviewWindowBuilder};
 
 struct Db(Arc<Mutex<Connection>>);
 struct Hook(HookPaths);
@@ -243,6 +244,20 @@ pub fn run() {
             let conn = Arc::new(Mutex::new(db::open(&dir.join("shape-board.db"))?));
             let paths = HookPaths::for_home(&app.path().home_dir()?);
             app.manage(Db(conn.clone()));
+            // Step 3: the grill engine. Before the window opens: kill a claude group a crash left
+            // behind, then show every session that was running as stopped (Resume continues it).
+            let grill_handle = app.handle().clone();
+            let engine = grill::engine::Engine::new(
+                conn.clone(),
+                app.path().home_dir()?,
+                Arc::new(move |id| {
+                    let _ = grill_handle.emit(grill::GRILL_CHANGED, serde_json::json!({ "sessionId": id }));
+                }),
+            );
+            if let Err(e) = engine.recover() {
+                eprintln!("shape-board: grill recovery failed: {e}");
+            }
+            app.manage(grill::Grill(engine));
             app.manage(Hook(paths.clone()));
             app.manage(Previews(Arc::new(artifacts::preview::PreviewTokens::default())));
             // The main window is built here, not from the config, so it gets the navigation guard
@@ -292,8 +307,25 @@ pub fn run() {
             mark_artifact_seen,
             preview_url,
             find_manual_target,
-            import_manual
+            import_manual,
+            grill::grill_start,
+            grill::grill_sessions,
+            grill::grill_latest,
+            grill::grill_detail,
+            grill::grill_answer,
+            grill::grill_send,
+            grill::grill_confirm_brief,
+            grill::grill_stop,
+            grill::grill_resume
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Shape Board");
+        .build(tauri::generate_context!())
+        .expect("error while building Shape Board")
+        .run(|app, event| {
+            // Cmd+Q and the last window closing: no claude group may outlive the app (advisor must-fix 3).
+            if let RunEvent::Exit = event {
+                if let Some(g) = app.try_state::<grill::Grill>() {
+                    g.0.shutdown();
+                }
+            }
+        });
 }
