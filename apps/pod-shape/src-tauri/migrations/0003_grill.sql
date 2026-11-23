@@ -18,6 +18,7 @@ CREATE TABLE grill_sessions (
   draft_answers       TEXT,                        -- answers given so far to the open block (JSON object)
   adr_pending         INTEGER NOT NULL DEFAULT 0,  -- the owner confirmed an ADR; the app runs git after the turn
   app_note            TEXT,                        -- told to Claude at the start of the next message (ADR result)
+  adr_review          TEXT,                        -- a prepared ADR (JSON) that waits for the owner to read it
   error               TEXT,                        -- the last real error, shown as is
   created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
   updated_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),

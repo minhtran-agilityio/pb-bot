@@ -316,7 +316,8 @@ pub fn run() {
             grill::grill_send,
             grill::grill_confirm_brief,
             grill::grill_stop,
-            grill::grill_resume
+            grill::grill_resume,
+            grill::grill_adr_decide
         ])
         .build(tauri::generate_context!())
         .expect("error while building Shape Board")

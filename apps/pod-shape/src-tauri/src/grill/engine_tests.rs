@@ -67,6 +67,11 @@ fn setup() -> T {
     conn.execute("INSERT INTO artifact_versions (artifact_id, n, html, sha256, source) VALUES (1, 1, '<p>proto</p>', 'h', 'paste')", []).unwrap();
     let mut engine = Engine::new(Arc::new(Mutex::new(conn)), dir.path().to_path_buf(), Arc::new(|_| {}));
     engine.claude = claude.to_string_lossy().into_owned();
+    // A stand-in pd-bot plugin: its SKILL.md frontmatter grants bare Write, which must never reach Claude.
+    let plugin = dir.path().join("plugin");
+    std::fs::create_dir_all(plugin.join("skills/pd-shape")).unwrap();
+    std::fs::write(plugin.join("skills/pd-shape/SKILL.md"), "---\nname: pd-shape\nallowed-tools: Read, Write, Edit\n---\n# Shape\nRead ${CLAUDE_PLUGIN_ROOT}/references/questions.md\n").unwrap();
+    engine.plugin_root = Some(plugin);
     engine.tmp_root = tmp.canonicalize().unwrap();
     engine.env = vec![("FAKE_DIR".into(), fake_dir.to_string_lossy().into_owned())];
     T { _dir: dir, fake_dir, engine, version: 1 }
@@ -126,13 +131,17 @@ fn a_grill_runs_from_question_to_brief_to_confirmed() {
     assert!(d.messages.iter().any(|m| m.role == "tool" && m.text == "Read prototype.html"));
     let a = &t.args()[0];
     assert!(has(a, "--session-id") && !has(a, "--resume"));
-    assert!(a.last().unwrap().starts_with("/pd-bot:pd-shape "));
-    assert!(a.last().unwrap().ends_with("/proto/prototype.html"));
+    // The skill text, never the slash command (its allowed-tools would widen the fence).
+    let first = a.last().unwrap();
+    assert!(first.starts_with(super::flags::FIRST_PREFIX), "{first}");
+    assert!(!first.contains("allowed-tools"));
+    assert!(first.contains("/plugin/references/questions.md"));
+    assert!(first.ends_with("/proto/prototype.html"));
     // The prototype was written for Claude.
-    let proto = PathBuf::from(a.last().unwrap().trim_start_matches("/pd-bot:pd-shape "));
+    let proto = PathBuf::from(first.rsplit("ARGUMENTS: ").next().unwrap());
     assert_eq!(std::fs::read_to_string(&proto).unwrap(), "<p>proto</p>");
     assert_eq!(d.runs.len(), 1);
-    assert!(d.runs[0].command.starts_with("claude -p /pd-bot:pd-shape --session-id"));
+    assert!(d.runs[0].command.starts_with("claude -p pd-shape --session-id"));
 
     // The answer goes back as {"answers": ...} with --resume; the turn writes the brief.
     t.mode("brief");
@@ -209,7 +218,7 @@ fn stop_kills_the_whole_group_and_resume_continues() {
     assert_eq!(t.wait(id), "waiting_owner");
     let a = t.args().last().unwrap().clone();
     assert!(has(&a, "--resume"));
-    assert!(a.last().unwrap().starts_with("/pd-bot:pd-shape "));
+    assert!(a.last().unwrap().starts_with(super::flags::FIRST_PREFIX));
 }
 
 fn alive(pid: i32) -> bool {
@@ -297,11 +306,13 @@ fn an_adr_yes_runs_an_adr_turn_and_the_app_reports_the_result() {
     t.engine.answer(id, "Make phone-only an ADR?", "Yes (Recommended)", true).unwrap();
     t.wait(id);
     let a = t.args().last().unwrap().clone();
-    assert!(a.iter().any(|x| x.starts_with("Write(//") && x.ends_with("/decisions/**)")), "{a:?}");
+    assert!(a.iter().any(|x| x.starts_with("Edit(//") && x.ends_with("/decisions/**)")), "{a:?}");
     assert!(a.iter().any(|x| x == "Bash"), "Bash stays denied");
     // The stand-in wrote no decisions file: the app makes no ADR and says so, and tells Claude next turn.
     let d = t.detail(id);
     assert!(!d.adr_pending);
+    assert!(d.adr_review.is_none());
+    assert!(t.engine.adr_decide(id, true).unwrap_err().contains("no ADR waiting"));
     let note = d.messages.iter().rev().find(|m| m.role == "note").unwrap().text.clone();
     assert!(note.starts_with("ADR step failed"), "{note}");
     t.engine.answer(id, "Which sign-up methods?", "Phone only", false).unwrap();

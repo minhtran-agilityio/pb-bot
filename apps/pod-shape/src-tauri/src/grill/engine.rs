@@ -40,6 +40,8 @@ pub struct Engine {
     /// The `claude` program (a stand-in in tests).
     pub claude: String,
     pub home: PathBuf,
+    /// The pd-bot plugin whose pd-shape SKILL.md starts a grill (pinned marketplace, adr::plugin_root).
+    pub plugin_root: Option<PathBuf>,
     pub turn_timeout: Duration,
     /// Extra environment for the child (tests).
     pub env: Vec<(String, String)>,
@@ -128,7 +130,7 @@ pub fn next_state(block: Option<&Value>, brief_exists: bool, brief_confirmed: bo
 /// word, because Claude may have recorded or acted on them.
 pub fn resume_message(pending: Option<&str>) -> String {
     match pending {
-        Some(p) if p.starts_with("/pd-bot:") => p.to_string(),
+        Some(p) if p.starts_with(flags::FIRST_PREFIX) => p.to_string(),
         Some(p) => format!(
             "The last turn was interrupted before it finished. My message was:\n{p}\nIf you already acted on it, continue from where you were."
         ),
@@ -141,7 +143,9 @@ impl Engine {
         Engine {
             db,
             tmp_root: default_tmp_root(),
-            claude: std::env::var("SHAPE_BOARD_CLAUDE").unwrap_or_else(|_| "claude".into()),
+            // A test stand-in only in a debug build.
+            claude: std::env::var("SHAPE_BOARD_CLAUDE").ok().filter(|_| cfg!(debug_assertions)).unwrap_or_else(|| "claude".into()),
+            plugin_root: super::adr::plugin_root(&home),
             home,
             turn_timeout: TURN_TIMEOUT,
             env: vec![],
@@ -180,7 +184,10 @@ impl Engine {
     pub fn start(&self, version_id: i64) -> Result<i64, String> {
         let uuid = new_uuid()?;
         let d = dirs(&self.tmp_root, &uuid);
-        let message = format!("/pd-bot:pd-shape {}", d.proto.join("prototype.html").display());
+        // Never the slash command: its allowed-tools would widen the fence (security review finding 1).
+        let root = self.plugin_root.clone().ok_or("pd-bot's pd-shape skill was not found under ~/.claude/plugins. Install or update the pd-bot plugin.")?;
+        let skill = std::fs::read_to_string(root.join("skills/pd-shape/SKILL.md")).map_err(|x| format!("pd-shape's SKILL.md could not be read: {x}"))?;
+        let message = flags::first_message(&skill, &root, &d.proto.join("prototype.html"));
         let l = {
             let conn = lock(&self.db);
             self.check_free(&conn)?;
@@ -517,6 +524,8 @@ impl Engine {
             }
         }
         let status = child.wait().ok();
+        // The group is gone: no later Stop or exit may signal its (reusable) id (security review finding 5).
+        *lock(&self.live) = None;
         let _ = done_tx.send(());
         let _ = watchdog.join();
         let _ = err_h.join();
@@ -563,7 +572,10 @@ impl Engine {
                         id,
                         turn,
                         "error",
-                        &format!("Claude sent a question block the app could not read: {}. Answer in the box below.", f.errors[0]),
+                        &format!(
+                            "Claude sent a question block the app could not read: {}. Answer in the box below.",
+                            f.errors.first().map(String::as_str).unwrap_or("unreadable block")
+                        ),
                         None,
                     );
                 }
@@ -594,35 +606,77 @@ impl Engine {
             next
         };
         if step == Step::Adr {
-            // The session stays running while the app does the git work.
+            // The session stays running while the app prepares the ADR; nothing is pushed before the
+            // owner read it (security review finding 3).
             self.changed(id);
-            let note = self.run_adr(id, project, d);
+            let (note, review) = self.prepare_adr(id, project, d);
             let conn = lock(&self.db);
             let _ = store::add_message(&conn, id, turn, "note", &note, None);
             let _ = conn.execute(
-                "UPDATE grill_sessions SET adr_pending = 0, app_note = ?2 WHERE id = ?1",
-                rusqlite::params![id, note],
+                "UPDATE grill_sessions SET adr_pending = 0, adr_review = ?2, app_note = CASE WHEN ?2 IS NULL THEN ?3 ELSE NULL END WHERE id = ?1",
+                rusqlite::params![id, review, note],
             );
             let _ = store::set_state(&conn, id, next);
         }
     }
 
-    fn run_adr(&self, id: i64, project: &Path, d: &Dirs) -> String {
-        let tools = match super::adr::Tools::find(&self.home) {
-            Ok(t) => t,
-            Err(err) => return super::adr::note(&Err(err)),
-        };
+    fn adr_log(&self, id: i64) -> impl FnMut(&super::adr::Step) + '_ {
         let db = self.db.clone();
-        let mut log = |s: &super::adr::Step| {
+        move |s: &super::adr::Step| {
             let conn = lock(&db);
             if let Ok(run) = store::start_run(&conn, id, "adr", &s.display, &s.argv) {
                 let err = if s.out.ok() { None } else { Some(s.out.error_tail()) };
                 let _ = store::end_run(&conn, run, s.out.code, err.as_deref(), None, s.out.ms);
             }
+        }
+    }
+
+    /// (note, prepared ADR as JSON when one waits for the owner).
+    fn prepare_adr(&self, id: i64, project: &Path, d: &Dirs) -> (String, Option<String>) {
+        let tools = match super::adr::Tools::find(&self.home) {
+            Ok(t) => t,
+            Err(err) => return (super::adr::note(&Err(err)), None),
         };
-        super::adr::note(&super::adr::run(project, &d.scratch, &d.decisions_file, &tools, &mut log))
+        let mut log = self.adr_log(id);
+        match super::adr::prepare(project, &d.scratch, &d.decisions_file, &tools, &mut log) {
+            Ok(Some(p)) => (
+                format!("ADR ready for you to read: {}. Nothing is pushed until you say yes.", p.files.iter().map(|f| f.0.as_str()).collect::<Vec<_>>().join(", ")),
+                serde_json::to_string(&p).ok(),
+            ),
+            Ok(None) => (super::adr::NOTE_NO_FILE.to_string(), None),
+            Err(err) => (super::adr::note(&Err(err)), None),
+        }
+    }
+
+    /// The owner read the prepared ADR: publish it (push `adr/<slug>`, open the PR) or discard it.
+    /// The result is a note in the chat and is told to Claude at the start of the next message.
+    pub fn adr_decide(&self, id: i64, publish: bool) -> Result<String, String> {
+        let review: Option<String> = {
+            let conn = lock(&self.db);
+            self.check_free(&conn)?;
+            conn.query_row("SELECT adr_review FROM grill_sessions WHERE id = ?1", [id], |r| r.get(0)).map_err(e)?
+        };
+        let p: super::adr::Prepared = serde_json::from_str(&review.ok_or("There is no ADR waiting for you.")?).map_err(e)?;
+        let tools = super::adr::Tools::find(&self.home)?;
+        let note = {
+            let mut log = self.adr_log(id);
+            if publish {
+                super::adr::note(&super::adr::publish(&p, &tools, &mut log))
+            } else {
+                super::adr::discard(&p, &tools, &mut log);
+                "ADR not published: you chose not to push it. The ADR file was removed.".to_string()
+            }
+        };
+        let conn = lock(&self.db);
+        let turn = store::turn_context(&conn, id)?.turns;
+        store::add_message(&conn, id, turn, "note", &note, None).map_err(e)?;
+        conn.execute("UPDATE grill_sessions SET adr_review = NULL, app_note = ?2 WHERE id = ?1", rusqlite::params![id, note]).map_err(e)?;
+        drop(conn);
+        self.changed(id);
+        Ok(note)
     }
 }
+
 
 /// The session uuid is the scratch folder's name.
 fn dirs_uuid(d: &Dirs) -> String {
@@ -748,7 +802,8 @@ mod tests {
 
     #[test]
     fn an_interrupted_answer_is_wrapped_and_a_first_command_is_sent_again() {
-        assert_eq!(resume_message(Some("/pd-bot:pd-shape /t/prototype.html")), "/pd-bot:pd-shape /t/prototype.html");
+        let first = format!("{} (Mode: interactive) on the prototype /t/prototype.html.", flags::FIRST_PREFIX);
+        assert_eq!(resume_message(Some(&first)), first);
         let m = resume_message(Some("{\"answers\":{\"Q?\":\"A\"}}"));
         assert!(m.starts_with("The last turn was interrupted"));
         assert!(m.contains("{\"answers\":{\"Q?\":\"A\"}}"));

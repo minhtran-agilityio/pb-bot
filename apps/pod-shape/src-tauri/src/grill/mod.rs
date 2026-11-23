@@ -84,3 +84,11 @@ pub async fn grill_resume(g: tauri::State<'_, Grill>, session_id: i64) -> Result
     let e = g.0.clone();
     tauri::async_runtime::spawn_blocking(move || e.resume(session_id)).await.map_err(|x| x.to_string())?
 }
+
+/// The owner read the prepared ADR: `publish` pushes `adr/<slug>` and opens the pull request; otherwise
+/// the ADR is discarded. Returns the note shown in the chat.
+#[tauri::command]
+pub async fn grill_adr_decide(g: tauri::State<'_, Grill>, session_id: i64, publish: bool) -> Result<String, String> {
+    let e = g.0.clone();
+    tauri::async_runtime::spawn_blocking(move || e.adr_decide(session_id, publish)).await.map_err(|x| x.to_string())?
+}

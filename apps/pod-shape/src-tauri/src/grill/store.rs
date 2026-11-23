@@ -91,6 +91,23 @@ pub struct SessionDetail {
     pub brief: Option<BriefRow>,
     pub feature: Option<Feature>,
     pub open_block: Option<OpenBlock>,
+    /// A prepared ADR waiting for the owner to read it: branch, PR title and the new files.
+    pub adr_review: Option<AdrReview>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AdrReview {
+    pub branch: String,
+    pub base: String,
+    pub pr_title: String,
+    pub files: Vec<AdrFile>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct AdrFile {
+    pub path: String,
+    pub text: String,
 }
 
 /// What a turn needs from the database.
@@ -276,14 +293,20 @@ pub fn open_block(conn: &Connection, id: i64) -> rusqlite::Result<Option<OpenBlo
 pub fn detail(conn: &Connection, id: i64) -> Result<SessionDetail, String> {
     let e = |e: rusqlite::Error| e.to_string();
     let session = summary(conn, id).map_err(e)?.ok_or("This grill session no longer exists.")?;
-    let (error, pending, adr, path): (Option<String>, Option<String>, i64, String) = conn
+    let (error, pending, adr, path, review): (Option<String>, Option<String>, i64, String, Option<String>) = conn
         .query_row(
-            "SELECT s.error, s.pending_message, s.adr_pending, p.path FROM grill_sessions s
+            "SELECT s.error, s.pending_message, s.adr_pending, p.path, s.adr_review FROM grill_sessions s
              JOIN artifacts a ON a.id = s.artifact_id JOIN projects p ON p.id = a.project_id WHERE s.id = ?1",
             [id],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
         )
         .map_err(e)?;
+    let adr_review = review.and_then(|j| serde_json::from_str::<crate::grill::adr::Prepared>(&j).ok()).map(|p| AdrReview {
+        pr_title: format!("ADR: {}", p.title),
+        branch: p.branch,
+        base: p.base,
+        files: p.files.into_iter().map(|(path, text)| AdrFile { path, text }).collect(),
+    });
     Ok(SessionDetail {
         session,
         error,
@@ -295,6 +318,7 @@ pub fn detail(conn: &Connection, id: i64) -> Result<SessionDetail, String> {
         brief: latest_brief(conn, id).map_err(e)?,
         feature: feature(conn, id).map_err(e)?,
         open_block: open_block(conn, id).map_err(e)?,
+        adr_review,
     })
 }
 

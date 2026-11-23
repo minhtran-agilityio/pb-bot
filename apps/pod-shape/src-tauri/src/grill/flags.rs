@@ -1,10 +1,16 @@
 //! The `claude -p` command line of one grill turn: the flag set of `spike/README.md`, ported, with the
 //! read rules narrowed and the ADR git work moved to the app (specs design §3, advisor must-fix 1 and 5).
 //!
-//! Probes in this build (haiku, `--permission-mode dontAsk`):
+//! Probes in this build (haiku, `--permission-mode dontAsk`; outputs in the PR):
 //! - a bare `Read` reads any file, so the read tools are scoped to the repo, the prototype folder and
 //!   the plugin folder; `Read(//<abs>/**)` is the absolute form;
-//! - a `*` inside a Bash rule also matches extra arguments, so no Bash rule is given to Claude at all.
+//! - a `*` inside a Bash rule also matches extra arguments, so no Bash rule is given to Claude at all;
+//! - a skill's `allowed-tools` (pd-shape lists bare `Read, Write, Edit`) DOES widen the fence when the
+//!   turn starts with its slash command, even under dontAsk; so the app never types `/pd-bot:pd-shape`.
+//!   It sends the skill's text as the first message (`first_message`) and denies the `Skill` tool;
+//! - `Write(./specs/**)` matches nothing; `Edit(./specs/**)` allows Write and Edit there and nowhere else;
+//! - allow rules in a trusted repo's `.claude/settings.json` or the user's settings would widen the fence,
+//!   so the turn loads no settings file (`--setting-sources ""`).
 
 use std::path::Path;
 
@@ -19,6 +25,32 @@ pub const EFFORT: &str = "medium";
 pub const HEADER_BRIEF: &str = "Brief";
 pub const HEADER_ADR: &str = "ADR";
 
+/// The start of the first message; Resume sends a first message again unchanged.
+pub const FIRST_PREFIX: &str = "Run the pd-bot skill pd-shape below";
+
+/// The first message: pd-shape's own SKILL.md text (frontmatter dropped, so its `allowed-tools` grant
+/// nothing), with `${CLAUDE_PLUGIN_ROOT}` filled in, and the prototype path as its argument. The skill is
+/// reused, not rewritten (HANDOFF §3).
+pub fn first_message(skill_md: &str, plugin_root: &Path, prototype: &Path) -> String {
+    let body = strip_frontmatter(skill_md).replace("${CLAUDE_PLUGIN_ROOT}", &plugin_root.display().to_string());
+    let body = body.replace("$ARGUMENTS", &prototype.display().to_string());
+    format!(
+        "{FIRST_PREFIX} (Mode: interactive) on the prototype {proto}. Its files are under {root}; read them with the Read tool. \
+         The skill text is between the two lines.\n\n----\n{body}\n----\n\nARGUMENTS: {proto}",
+        proto = prototype.display(),
+        root = plugin_root.display(),
+        body = body.trim()
+    )
+}
+
+/// The text after a leading `---` frontmatter block.
+pub fn strip_frontmatter(md: &str) -> &str {
+    let Some(rest) = md.strip_prefix("---\n") else { return md };
+    match rest.find("\n---\n") {
+        Some(i) => &rest[i + 5..],
+        None => md,
+    }
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Step {
     /// Every grill turn.
@@ -64,11 +96,10 @@ pub fn allowed_tools(step: Step, proto_dir: &Path, decisions_dir: &Path) -> Vec<
     v.push(abs_rule("Read", proto_dir));
     // pd-shape reads its own references/*.md from the installed plugin.
     v.push("Read(~/.claude/plugins/**)".into());
-    v.push("Write(./specs/**)".into());
+    // An Edit rule covers Write too (probe 7); a Write rule matches nothing.
     v.push("Edit(./specs/**)".into());
     if step == Step::Adr {
         v.push(abs_rule("Read", decisions_dir));
-        v.push(abs_rule("Write", decisions_dir));
         v.push(abs_rule("Edit", decisions_dir));
     }
     v
@@ -83,18 +114,22 @@ pub fn disallowed_tools() -> Vec<String> {
         "WebFetch",
         "WebSearch",
         "NotebookEdit",
-        // Secrets in the repo (deny beats allow; Grep and Glob path rules are best effort).
-        "Read(./.env*)",
-        "Read(./**/.env*)",
-        "Grep(./.env*)",
-        "Grep(./**/.env*)",
-        "Glob(./.env*)",
-        "Glob(./**/.env*)",
+        // A model-invoked skill would bring its own allowed-tools grant (probe 5).
+        "Skill",
     ]
     .iter()
     .map(|s| s.to_string())
+    // Secrets in the repo (deny beats allow; Grep and Glob path rules are best effort).
+    .chain(SECRET_GLOBS.iter().flat_map(|g| ["Read", "Grep", "Glob"].map(|t| format!("{t}(./{g})"))))
     .collect()
 }
+
+/// Files a grill never needs: env files, the git folder (a remote URL can hold a token), keys and
+/// credential files.
+pub const SECRET_GLOBS: &[&str] = &[
+    ".env*", "**/.env*", ".git/**", "**/*.pem", "**/*.key", "**/id_rsa*", "**/id_ed25519*", "**/id_ecdsa*",
+    "**/credentials*", "**/.npmrc", "**/.netrc", "**/.pypirc",
+];
 
 /// What one turn needs to build its command line.
 pub struct TurnSpec<'a> {
@@ -117,6 +152,9 @@ pub fn turn_args(t: &TurnSpec) -> Vec<String> {
         "stream-json".into(),
         "--verbose".into(),
         "--strict-mcp-config".into(),
+        // No settings file: no allow rule, hook or plugin from the user's or the repo's settings.
+        "--setting-sources".into(),
+        "".into(),
         // Pinned: the user's or the repo's defaultMode (auto in this checkout) must not decide.
         "--permission-mode".into(),
         "dontAsk".into(),
@@ -146,8 +184,8 @@ pub fn turn_args(t: &TurnSpec) -> Vec<String> {
 /// One line for the RunLog: `claude -p /pd-bot:pd-shape … --session-id 1a2b3c4d`.
 pub fn display_command(t: &TurnSpec) -> String {
     let short = &t.session_uuid[..t.session_uuid.len().min(8)];
-    let what = if t.message.starts_with('/') {
-        t.message.split_whitespace().next().unwrap_or("").to_string()
+    let what = if t.message.starts_with(FIRST_PREFIX) {
+        "pd-shape".to_string()
     } else {
         "(answers)".to_string()
     };
@@ -230,7 +268,7 @@ mod tests {
             allow,
             vec![
                 "Read(./**)", "Glob(./**)", "Grep(./**)", "Read(//private/var/T/shape-board/u/proto/**)",
-                "Read(~/.claude/plugins/**)", "Write(./specs/**)", "Edit(./specs/**)"
+                "Read(~/.claude/plugins/**)", "Edit(./specs/**)"
             ]
         );
         // No bare tool name that would allow every path, and no Bash rule.
@@ -239,10 +277,14 @@ mod tests {
             assert!(!t.starts_with("Bash"), "{t}");
         }
         let deny = list(&a, "--disallowedTools");
-        for t in ["AskUserQuestion", "Bash", "Agent", "WebFetch", "WebSearch", "NotebookEdit", "Read(./.env*)", "Read(./**/.env*)", "Grep(./**/.env*)"] {
+        for t in ["AskUserQuestion", "Bash", "Agent", "WebFetch", "WebSearch", "NotebookEdit", "Skill", "Read(./.env*)", "Read(./**/.env*)",
+                  "Grep(./**/.env*)", "Read(./.git/**)", "Grep(./.git/**)", "Read(./**/id_rsa*)", "Read(./**/*.pem)"] {
             assert!(deny.contains(&t), "{t} not denied");
         }
         assert_eq!(after(&a, "--add-dir"), "/private/var/T/shape-board/u/proto");
+        assert_eq!(after(&a, "--setting-sources"), "", "no settings file may add allow rules");
+        // Nothing allows a write outside specs/.
+        assert!(!allow.iter().any(|t| t.starts_with("Write")));
     }
 
     #[test]
@@ -254,11 +296,7 @@ mod tests {
         let extra: Vec<&str> = allow.iter().copied().filter(|t| !grill.iter().any(|g| g == t)).collect();
         assert_eq!(
             extra,
-            vec![
-                "Read(//private/var/T/shape-board/u/decisions/**)",
-                "Write(//private/var/T/shape-board/u/decisions/**)",
-                "Edit(//private/var/T/shape-board/u/decisions/**)"
-            ]
+            vec!["Read(//private/var/T/shape-board/u/decisions/**)", "Edit(//private/var/T/shape-board/u/decisions/**)"]
         );
         assert!(list(&a, "--disallowedTools").contains(&"Bash"));
         assert!(!allow.iter().any(|t| t.contains("docs/adr") || t.starts_with("Bash")));
@@ -274,12 +312,23 @@ mod tests {
     }
 
     #[test]
+    fn the_first_message_is_the_skill_text_without_its_frontmatter() {
+        let md = "---\nname: pd-shape\nallowed-tools: Read, Write, Edit, Bash(git push *)\n---\n\n# Shape\nRead `${CLAUDE_PLUGIN_ROOT}/references/adr.md`.\nArgs: $ARGUMENTS\n";
+        let m = first_message(md, Path::new("/home/u/.claude/plugins/cache/pd-bot/pd-bot/0.6.0"), Path::new("/t/proto/prototype.html"));
+        assert!(m.starts_with(FIRST_PREFIX));
+        assert!(!m.contains("allowed-tools"), "the frontmatter grant must not reach Claude as an instruction");
+        assert!(m.contains("Read `/home/u/.claude/plugins/cache/pd-bot/pd-bot/0.6.0/references/adr.md`."));
+        assert!(m.contains("Args: /t/proto/prototype.html"));
+        assert!(m.ends_with("ARGUMENTS: /t/proto/prototype.html"));
+        assert!(!m.starts_with('/'), "never a slash command: the skill's grant would apply");
+        assert_eq!(strip_frontmatter("no frontmatter"), "no frontmatter");
+    }
+
+    #[test]
     fn display_command_is_one_short_line() {
         let (p, d, f) = dirs();
-        assert_eq!(
-            display_command(&spec(true, Step::Grill, &p, &d, &f, "/pd-bot:pd-shape /x/prototype.html")),
-            "claude -p /pd-bot:pd-shape --session-id 11111111"
-        );
+        let first = first_message("---\nname: x\n---\nbody", Path::new("/r"), Path::new("/x/prototype.html"));
+        assert_eq!(display_command(&spec(true, Step::Grill, &p, &d, &f, &first)), "claude -p pd-shape --session-id 11111111");
         assert_eq!(display_command(&spec(false, Step::Adr, &p, &d, &f, "{}")), "claude -p (answers) --resume 11111111 (ADR turn)");
     }
 }
