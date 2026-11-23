@@ -1,17 +1,19 @@
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, type TextareaHTMLAttributes } from "react";
 import { cn } from "../../lib/cn";
 
-// DESIGN_SYSTEM.md §6.1 Textarea: auto-grows from 1 to 10 rows, then scrolls. `variant="code"` = font-mono text-xs.
+// DESIGN_SYSTEM.md §6.1 Textarea: auto-grows from `minRows` (default 1; clamped to 1-10) to 10 rows, then scrolls. Default text-sm; `variant="code"` = font-mono text-xs.
 // Focus and `invalid` follow Input exactly. The screen owns the value, the helper text and the error text.
 const MAX_ROWS = 10;
 
-export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
+export interface TextareaProps extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "rows"> {
   invalid?: boolean;
   variant?: "default" | "code";
+  /** The height never goes below this many lines (default 1). */
+  minRows?: number;
 }
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function Textarea(
-  { invalid = false, variant = "default", className, rows = 1, onInput, value, ...rest },
+  { invalid = false, variant = "default", className, minRows = 1, onInput, value, ...rest },
   forwardedRef,
 ) {
   const inner = useRef<HTMLTextAreaElement | null>(null);
@@ -47,6 +49,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
     const border = parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
     const pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
     const max = line * MAX_ROWS + pad + border;
+    const min = Math.min(line * (Number.isFinite(minRows) ? Math.min(Math.max(1, minRows), MAX_ROWS) : 1) + pad + border, max);
     m.style.boxSizing = "border-box";
     m.style.width = `${el.clientWidth + parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth)}px`;
     m.style.fontFamily = cs.fontFamily;
@@ -63,11 +66,11 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
     m.style.overflowWrap = cs.overflowWrap;
     m.value = el.value;
     const wanted = m.scrollHeight + border;
-    const height = `${Math.min(wanted, max)}px`;
+    const height = `${Math.max(min, Math.min(wanted, max))}px`;
     const overflow = wanted > max ? "auto" : "hidden";
     if (el.style.height !== height) el.style.height = height;
     if (el.style.overflowY !== overflow) el.style.overflowY = overflow;
-  }, []);
+  }, [minRows]);
 
   useEffect(
     () => () => {
@@ -99,7 +102,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
   return (
     <textarea
       ref={setRef}
-      rows={rows}
+      rows={1}
       value={value}
       aria-invalid={invalid || undefined}
       onInput={(e) => {
@@ -108,7 +111,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
       }}
       className={cn(
         "block w-full min-w-0 resize-none rounded-box border bg-surface-2 px-4 py-2.5 text-fg",
-        variant === "code" ? "font-mono text-xs" : "text-base",
+        variant === "code" ? "font-mono text-xs" : "text-sm",
         "placeholder:text-fg-subtle disabled:pointer-events-none disabled:opacity-50",
         "focus-visible:outline-none",
         // An invalid field keeps its danger border on focus and gets no accent halo; only a valid one turns accent.

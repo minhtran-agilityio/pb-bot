@@ -138,6 +138,7 @@ export function AddArtifactDialog({
             <Textarea
               id={ids.html}
               variant="code"
+              minRows={8}
               placeholder="<!doctype html>…"
               value={values.html}
               invalid={!!errors.html}
