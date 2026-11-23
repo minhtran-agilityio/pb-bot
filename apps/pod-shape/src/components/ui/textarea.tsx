@@ -38,7 +38,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
       m.tabIndex = -1;
       m.rows = 1;
       m.readOnly = true;
-      m.style.cssText = "position:absolute;top:0;left:-9999px;visibility:hidden;pointer-events:none;height:0;min-height:0;overflow:hidden;resize:none;";
+      m.style.cssText = "position:absolute;top:0;left:0;visibility:hidden;pointer-events:none;height:0;min-height:0;overflow:hidden;resize:none;";
       document.body.appendChild(m);
       mirror.current = m;
     }
@@ -49,7 +49,10 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
     const max = line * MAX_ROWS + pad + border;
     m.style.boxSizing = "border-box";
     m.style.width = `${el.clientWidth + parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth)}px`;
-    m.style.font = cs.font;
+    m.style.fontFamily = cs.fontFamily;
+    m.style.fontSize = cs.fontSize;
+    m.style.fontWeight = cs.fontWeight;
+    m.style.fontStyle = cs.fontStyle;
     m.style.letterSpacing = cs.letterSpacing;
     m.style.lineHeight = cs.lineHeight;
     m.style.padding = cs.padding;
