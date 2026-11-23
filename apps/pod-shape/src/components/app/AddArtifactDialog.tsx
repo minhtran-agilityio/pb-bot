@@ -97,9 +97,9 @@ export function AddArtifactDialog({
         }}
       >
         <p className="text-sm text-fg-muted">
-          Drop an HTML file, paste an artifact link, or paste the HTML. Use one of the three.
+          Shape Board cannot read claude.ai. Drop an .html file, or paste the link and the HTML; the app keeps a copy. Pasting again with the same name adds a new version.
         </p>
-        <DropZone label="Drop an .html file here, or click to choose" file={file} error={errors.file} disabled={busy} onFile={onFile} />
+        <DropZone label="Drop an .html file here, or paste the link and HTML below" file={file} error={errors.file} disabled={busy} onFile={onFile} />
         <Field id={ids.link} label="Artifact link" error={errors.link} helper={helpers.link}>
           {(d) => (
             <Input
@@ -121,7 +121,7 @@ export function AddArtifactDialog({
           {(d) => (
             <Input
               id={ids.name}
-              placeholder="hook-test"
+              placeholder="settings-page"
               value={values.name}
               invalid={!!errors.name}
               disabled={busy}
