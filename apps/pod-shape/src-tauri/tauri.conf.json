@@ -20,11 +20,13 @@
         "minHeight": 640,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
-        "trafficLightPosition": { "x": 14, "y": 22 }
+        "trafficLightPosition": { "x": 14, "y": 22 },
+        "create": false,
+        "dragDropEnabled": false
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' data: asset:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; connect-src ipc: http://ipc.localhost"
+      "csp": "default-src 'self'; img-src 'self' data: asset:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; connect-src ipc: http://ipc.localhost; frame-src preview://localhost"
     }
   },
   "bundle": {
