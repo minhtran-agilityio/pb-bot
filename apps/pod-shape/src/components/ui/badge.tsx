@@ -22,7 +22,7 @@ export function Badge({ variant = "neutral", icon, className, children, ...rest 
   return (
     <span
       className={cn(
-        "inline-flex h-5.5 items-center gap-1 whitespace-nowrap rounded-full px-2.5 text-xs font-medium",
+        "inline-flex h-5.5 shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2.5 text-xs font-medium",
         variants[variant],
         className,
       )}
