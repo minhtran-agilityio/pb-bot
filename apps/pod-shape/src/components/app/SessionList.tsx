@@ -30,6 +30,8 @@ export function SessionStatus({ status }: { status: SessionState }) {
       return <Badge variant="outline">Stopped</Badge>;
     case "confirmed":
       return <Badge variant="neutral">Confirmed</Badge>;
+    default:
+      return <Badge variant="outline">{String(status)}</Badge>;
   }
 }
 
@@ -60,15 +62,15 @@ export function SessionList({
               aria-current={selected ? "true" : undefined}
               onClick={() => onSelect(s.id)}
               className={cn(
-                "flex min-h-12 w-full flex-col justify-center rounded-box px-3 py-2 text-left transition duration-160 ease-out hover:bg-surface-3",
-                selected && "bg-surface-2 shadow-card hover:bg-surface-2",
+                "flex min-h-12 w-full flex-col justify-center rounded-box px-3 py-2 text-left transition duration-160 ease-out",
+                selected ? "bg-surface-2 shadow-card" : "hover:bg-surface-3",
               )}
             >
               <span className="flex items-center gap-2">
-                <span className="min-w-0 flex-1 truncate text-sm font-medium text-fg">{s.title}</span>
+                <span className="min-w-0 flex-1 truncate text-base text-fg">{s.title}</span>
                 <SessionStatus status={s.status} />
               </span>
-              <span className="truncate text-xs text-fg-subtle">{s.meta}</span>
+              <span className="truncate text-xs text-fg-muted">{s.meta}</span>
             </button>
           </li>
         );
