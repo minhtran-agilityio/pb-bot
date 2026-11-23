@@ -237,6 +237,7 @@ Shared states for every interactive component:
 | **DropdownMenu** | one style | bg-surface-2, border, shadow-sm, rounded-box, p-1.5; items h-9 rounded-sm px-3; danger item text-danger |
 | **Dialog** | `sm` 420px · `md` 560px · `lg` 800px | bg-surface-2, rounded-dialog, shadow-lg, p-7, gap-4.5, no border, overlay bg-overlay. Title text-lg. Close = ghost `icon-sm` button. Footer: buttons right-aligned, primary last. |
 | **Toast** | `default` · `success` · `error` | sonner, bottom-right, 4s; error stays until closed. bg-surface-2, border, rounded-card, px-4 py-3.5, shadow-sm. |
+| **Banner** | `warning` (only variant) | One-line notice above the page content (Projects: "Artifact hook not found…"). bg-warning-soft, text-fg, text-sm, rounded-box, px-4 py-2.5, flex gap-2. Icon.warning 16px in text-warning, then the text (wraps, never truncated). Optional `action` (ghost `sm` Button) and optional `onDismiss` (ghost `icon-sm` Button, `aria-label="Dismiss"`, Icon.close, Tooltip). `role="status"`, not an alert. The screen owns the data and whether it is dismissed. |
 | **Separator** | horizontal / vertical | 1px border-border |
 | **ScrollArea** | — | Radix ScrollArea, thin 6px thumb bg-border-strong |
 | **Skeleton** | — | bg-surface-3 rounded-sm animate-pulse; match the size of the real content |
