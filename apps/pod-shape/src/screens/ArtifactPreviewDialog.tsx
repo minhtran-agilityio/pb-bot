@@ -91,7 +91,7 @@ export function ArtifactPreviewDialog({
       title={artifact ? `Preview: ${artifact.name}` : "Preview"}
       footer={
         <>
-          <Button variant="ghost" icon="add" disabled={!onAddVersion || !artifact} onClick={() => artifact && onAddVersion?.(artifact)}>
+          <Button variant="ghost" disabled={!onAddVersion || !artifact} onClick={() => artifact && onAddVersion?.(artifact)}>
             Paste new version
           </Button>
           <Button variant="secondary" onClick={onClose}>

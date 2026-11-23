@@ -165,6 +165,12 @@ fn handle_entry(db: &Mutex<Connection>, paths: &HookPaths, e: &LogEntry) {
     if let Err(err) = store::upsert_hook_artifact(&conn, &meta) {
         eprintln!("shape-board: could not store artifact {}: {err}", e.id);
     }
+    // The line's time belongs to the version of its own file (column 6), also when that file came first.
+    if let Some(file) = &e.file {
+        if let Err(err) = store::set_file_time(&conn, file, &e.published_at) {
+            eprintln!("shape-board: could not store the time of {file}: {err}");
+        }
+    }
 }
 
 /// True when the bytes right before `offset` are `tail` + newline: the log is the one read before.
@@ -319,21 +325,14 @@ fn scan_folder(db: &Mutex<Connection>, paths: &HookPaths, report: &mut SyncRepor
                 }
             }
         };
-        // A version counts from the hook's publish time, not from the import time (issue #100): the
-        // newest file of the folder gets the artifact's publish time (column 1 of the log, the time the
-        // card shows); an older file gets its own file time.
-        let newest = files.last().map(|f| f.path.clone());
-        let published: Option<String> = lock(db)
-            .query_row("SELECT published_at FROM artifacts WHERE id = ?1", [artifact_id], |r| r.get(0))
-            .ok()
-            .flatten();
+        // A version counts from the publish time of the log line that names its file (column 6), else
+        // from its file time (issue #100); never from the import time, and never later than a newer
+        // version (`monotonic_times`).
         for f in todo {
-            let at = match (&published, newest.as_ref() == Some(&f.path)) {
-                (Some(p), true) => p.clone(),
-                _ => iso_utc(f.mtime),
-            };
+            let at = store::file_time(&lock(db), &f.path.to_string_lossy()).ok().flatten().unwrap_or_else(|| iso_utc(f.mtime));
             import_file(db, artifact_id, f, Some(&at), report);
         }
+        let _ = store::monotonic_times(&lock(db), artifact_id);
     }
 }
 
@@ -438,6 +437,55 @@ mod tests {
         let v = list_versions(&f.db.lock().unwrap(), a).unwrap();
         assert_eq!(v.len(), 1);
         assert_eq!(v[0].created_at, "2026-11-22T11:13:40Z", "column 1 of the log, as the card shows");
+    }
+
+    #[test]
+    fn a_rejected_newer_file_does_not_lend_its_time_to_an_older_version() {
+        let f = fx();
+        let max = super::super::paths::MAX_HTML_BYTES as usize;
+        let l = |t: &str, file: &str| format!("{t}\thttps://claude.ai/artifact/Hook1\tT\t{}\t/c\t{file}\n", f.paths.root.join("Hook1").display());
+        let v1 = f.file_at("Hook1", "1.html", "<p>1</p>", 1);
+        let v2 = f.file_at("Hook1", "2.html", "<p>2</p>", 2);
+        let d = f.paths.root.join("Hook1");
+        let v3 = d.join("3.html").to_string_lossy().into_owned();
+        fs::write(&v3, vec![b'a'; max + 1]).unwrap();
+        f.log(&(l("2026-11-22T10:00:00Z", &v1) + &l("2026-11-22T11:00:00Z", &v2) + &l("2026-11-22T12:00:00Z", &v3)));
+        f.sync();
+        let a = f.inbox()[0].id;
+        let v = list_versions(&f.db.lock().unwrap(), a).unwrap();
+        let times: Vec<_> = v.iter().map(|x| (x.n, x.created_at.as_str())).collect();
+        assert_eq!(times, vec![(2, "2026-11-22T11:00:00Z"), (1, "2026-11-22T10:00:00Z")]);
+        assert_eq!(f.inbox()[0].published_at.as_deref(), Some("2026-11-22T12:00:00Z"), "the card keeps the newest line");
+    }
+
+    #[test]
+    fn a_line_that_arrives_after_its_file_sets_that_versions_time() {
+        let f = fx();
+        let v1 = f.file_at("Hook1", "1.html", "<p>1</p>", 1);
+        f.sync();
+        let a = f.inbox()[0].id;
+        assert!(list_versions(&f.db.lock().unwrap(), a).unwrap()[0].created_at.starts_with("2026-11-1"), "the file time first");
+        f.log(&f.line6("Hook1", "T", "/c", &v1));
+        f.sync();
+        assert_eq!(list_versions(&f.db.lock().unwrap(), a).unwrap()[0].created_at, "2026-11-22T11:13:40Z");
+    }
+
+    #[test]
+    fn files_without_a_line_use_their_own_time_and_the_order_never_goes_backwards() {
+        let f = fx();
+        let p1 = f.file_at("Hook1", "1.html", "<p>1</p>", 10);
+        let p2 = f.file_at("Hook1", "2.html", "<p>2</p>", 20);
+        // No line: each version has its own file time.
+        f.sync();
+        let a = f.inbox()[0].id;
+        let t = |n: usize| list_versions(&f.db.lock().unwrap(), a).unwrap()[n].created_at.clone();
+        assert_eq!(t(1), iso_utc(1_795_000_010));
+        assert_eq!(t(0), iso_utc(1_795_000_020));
+        // A line for v1 whose clock is far ahead: v1 is capped at v2's time.
+        f.log(&format!("2030-01-01T00:00:00Z\thttps://claude.ai/artifact/Hook1\tT\t{}\t/c\t{p1}\n", f.paths.root.join("Hook1").display()));
+        f.sync();
+        assert!(t(1) <= t(0), "{} then {}", t(1), t(0));
+        let _ = p2;
     }
 
     #[test]

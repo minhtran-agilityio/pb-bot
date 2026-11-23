@@ -261,6 +261,7 @@ pub fn run() {
             // debug assertions, but no dev server (issue #100).
             let dev_url = if tauri::is_dev() { app.config().build.dev_url.clone() } else { None };
             let log_dir = app.path().app_data_dir().ok();
+            nav::reset_debug_log(log_dir.as_deref());
             WebviewWindowBuilder::from_config(app.handle(), &config)?
                 .on_navigation(move |url| {
                     let ok = nav::allowed(url, dev_url.as_ref());

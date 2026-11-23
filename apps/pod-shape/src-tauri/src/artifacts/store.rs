@@ -169,6 +169,46 @@ pub fn set_state(conn: &Connection, key: &str, value: &str) -> rusqlite::Result<
     Ok(())
 }
 
+/// The publish time (column 1) of the log line that names this hook file (column 6), kept in
+/// `hook_state` so a line that arrives before or after its file is matched either way.
+pub fn file_time(conn: &Connection, file: &str) -> rusqlite::Result<Option<String>> {
+    get_state(conn, &format!("ftime:{file}"))
+}
+
+/// Records the time of the log line for `file` and, when the file is already a version, sets that
+/// version's time (the folder was seen before the line, issue #100). Times stay in version order.
+pub fn set_file_time(conn: &Connection, file: &str, at: &str) -> rusqlite::Result<()> {
+    set_state(conn, &format!("ftime:{file}"), at)?;
+    let artifact: Option<i64> = conn
+        .query_row("SELECT artifact_id FROM artifact_versions WHERE file = ?1", params![file], |r| r.get(0))
+        .optional()?;
+    if let Some(a) = artifact {
+        conn.execute("UPDATE artifact_versions SET created_at = ?2 WHERE file = ?1", params![file, at])?;
+        monotonic_times(conn, a)?;
+    }
+    Ok(())
+}
+
+/// A version's time never exceeds a newer version's: clocks of the log and of the files can differ, so
+/// each time is capped at the next version's time.
+pub fn monotonic_times(conn: &Connection, artifact_id: i64) -> rusqlite::Result<()> {
+    let rows: Vec<(i64, String)> = {
+        let mut st = conn.prepare("SELECT id, created_at FROM artifact_versions WHERE artifact_id = ?1 ORDER BY n DESC")?;
+        let r = st.query_map(params![artifact_id], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        r.collect::<rusqlite::Result<_>>()?
+    };
+    let mut cap: Option<String> = None;
+    for (id, at) in rows {
+        match &cap {
+            Some(c) if at > *c => {
+                conn.execute("UPDATE artifact_versions SET created_at = ?2 WHERE id = ?1", params![id, c])?;
+            }
+            _ => cap = Some(at),
+        }
+    }
+    Ok(())
+}
+
 /// True when this file was handled before with the same size and mtime.
 pub fn file_seen(conn: &Connection, path: &str, size: u64, mtime: i64) -> rusqlite::Result<bool> {
     let n: i64 = conn.query_row(
