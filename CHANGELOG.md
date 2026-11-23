@@ -1,0 +1,70 @@
+# Changelog
+
+All notable changes to this harness are recorded here. Format follows
+[Keep a Changelog](https://keepachangelog.com/); versions are tracked in the root `VERSION`
+file. Versions change only in the release PR (see the release section of `AGENTS.md`); the bump (**patch** for fixes and docs,
+**minor** for a new skill or hook or a changed contract, **major** for a breaking change) is chosen when releasing.
+
+## [Unreleased]
+
+## [0.6.0] — 2026-11-22
+
+- Changed: one skill, `pd-shape`, replaces `pd-grilling`, `pd-own` and `pd-brainstorming`. It grills each unclear requirement and brainstorms each approach with two or more viable options in one loop. On at most 3 big decisions and on every approach choice the owner answers first, then sees the agent's recommendation and a counter-argument. For a finalized prototype it checks 8 topics a prototype cannot show (goal, rules, edge cases, data, permissions, non-functional, out of scope, priority) and writes `specs/<slug>/brief.md` for `pd-tickets`; the owner confirms the brief before anything else happens. It proposes an ADR only for a repo-level decision (hard to reverse, beyond the feature, two real options) and, after the owner says yes, opens an ADR-only pull request. At depth M and L it writes `specs/<slug>/design.md` in interactive and in auto mode (depth L also the design ADR). `pd-intake` (GRILL), `pd-orchestrate`, `pd-work` and `pd-advise` now name `pd-shape`. Dropped from `pd-own`: the teach-back step.
+- Removed (breaking): pd-bot runs only with Pod Bay, and `/pd-bot:pd-orchestrate` (the fleet) is the only way to run tickets with agents (`docs/adr/0005-pd-bot-runs-only-with-pod-bay-and-the-fleet-is-the-only-run-path.md`). Removed `workflows/ship.js`, the `pd-autopilot` skill (profile, preflight, board start), the run board `plugins/pd-bot/board/`, `run_report.py`, `ship-worktree-cleanup.sh`, the `pd-using-git-worktrees` skill and their tests. `plan_groups.py` and `groups.md` moved to `pd-orchestrate`. `pd-implement` runs its steps one at a time on the working branch instead of one git worktree per step. `pd-tickets` names `/pd-bot:pd-orchestrate` as the next command. The Pod Bay session board is `apps/pod-board/`.
+- Added: Pod Board marks a session that finished. A session that worked for at least 2 minutes and then stays idle for 8 seconds gets one notification with no sound, a green `finished` tag at the top of the Idle lane, a line in the summary row, a group in the menu bar popover and `✓n` beside the menu bar icon. The mark goes when the owner opens the session, peeks at it or clicks its notification, when it works again, or after 12 hours.
+- Added: Pod Board cards show a session's pull requests, issues and artifacts as buttons that open the page in the browser. The app opens only an `https://` address that the current Pod Bay read holds.
+- Added: a click on a Pod Board notification opens its session in the Claude app. Checked with real clicks on macOS.
+- Changed: `merge-guard.sh` is rewritten around "doubt means ask" (ADR 0004): 63 lines instead of 407, no bash parser. A plain `gh pr merge <n>` or `glab mr merge <n>` whose base is `feat/*` runs; every other merge-like command, a `git push` that names main or master, and an MCP merge tool (new `hooks.json` matcher) ask the owner. In a subagent or workflow agent an ask is a denial. Only `feat/*` passes without a question (the protected-base list is gone), `--match-head-commit` is no longer required, and a base that cannot be read in 15 s asks. Hidden merges (escapes, scripts, interpreters) are out of scope. A text that holds the word merge in a gh command asks; put it in a file (`git commit -F`, `--body-file`). ship.js now opens each PR with `gh api repos/<o>/<r>/pulls -X POST --input <json file>` (title, branch and body in the file, no command substitution) and posts the verify comment with `--body-file`, and merges the final PR on its own only into a `feat/*` base.
+- feat(pod-board): mark finished sessions, link buttons, notification click (PR #56)
+- feat(hooks): merge-guard v2, doubt means ask (ADR 0004) (PR #57)
+- docs(review): out-of-scope hidden-command guard bypasses (after #57) (PR #58)
+- chore!: remove ship.js, pd-autopilot, the run board and git worktree isolation (PR #60)
+- feat(skills): merge grilling, own and brainstorming into pd-shape (PR #59)
+
+## [0.5.0] — 2026-11-21
+
+- Added: the board's `/fleet` page and `/fleet.json` show a milestone ledger's `scenarios`, `feature_pr` and `test_rounds` (`null`, `null` and `[]` when absent) (#16). The `pd-orchestrate` line of the skills map shows the reviewer's `check-request`/`check-result` path and the milestone flow (#15). The `session-role.sh` row of the CLAUDE.md hooks table says that `PD_BOT_ROLE=orchestrator` gives the role and any other non-empty value gives none (#18). These come from the ship.js comparison round (#30).
+- Added: `fleet-settings.py` sets a fleet session's model, permission mode and role (`PD_BOT_ROLE`, `PD_BOT_TICKET`, `PD_BOT_RUN`) in the workspace checkout's `.claude/settings.local.json` before `podbay-dev start`, and `--restore` puts back only those keys (their old values are kept in the git directory, never in the work tree), so a rule the session saved meanwhile stays. It keeps every other key, refuses a file git does not ignore, and never sets `bypassPermissions`. Checked in a real Pod Bay session: it started on Haiku 5.5 in auto mode with the role variables set. `podbay.md` uses it instead of typing `/model` into the session, which also changed the machine's default model.
+- Changed: the fleet orchestrator no longer runs tests or checks in its own session; their output filled its context. After a `pass` it sends `check-request` to the ticket's reviewer session, which runs the acceptance check and `fleet-check.sh` in block mode (`pd-review/references/checks.md`) and answers with a short `check-result`. A milestone's feature test runs in a tester session of its own (`feature-test-request`, `feature-test-result`).
+- Added: `pd-orchestrate/references/milestone.md`, the milestone run on one feature branch: a scenario page (an artifact only the orchestrator edits, with a reason per change), a draft feature pull request into `main` once the first ticket is in, a whole-feature review, a feature test of every scenario in a tester session, all bug tickets of a round created before any fix, at most 2 fix rounds (test, fix, test, fix, test), the label `pd-bot:owner-merge` on a fix for a requirement that was not clear, and the owner merges into `main`. `pd-orchestrate` may use the Artifact tool.
+- Added: `fleet-check.sh` checks the reviewer's intent verdict (`intent.verdict` in the receipt must be `match`) and the report's `needs_review` decisions (a mismatch unless its title is in the `--decisions-seen <file>` list of titles the owner saw). The receipt gains an `intent` object; `match` with a non-empty `gaps` list is a mismatch. `fleet-check.json` now records the `--base` it checked.
+- Added: `fleet-gate.sh` decides whether a fleet ticket pull request may go into its `feat/*` branch without the owner: a block-mode `fleet-check.json` for the head with the suite run and passed, green CI, and an open pull request on exactly the run's `feat/<slug>` (`--base`) at that head with no `pd-bot:owner-merge` label, where the checked base is in the feature branch's history (so no unchecked commit goes in). The orchestrator puts that label on a fix where the worker decided a requirement that was not clear. It changes nothing; on a pass it prints the one `gh pr merge` command, which `merge-guard.sh` still judges. `pd-orchestrate` can now run a milestone on a feature branch.
+- Changed: the `pd-orchestrate` orchestrator now removes the worker and reviewer workspaces of a finished ticket itself, instead of leaving every workspace for the owner (a fleet run left `src-01`..`src-16`). A workspace qualifies when the ticket's PR is MERGED or CLOSED, the review receipt is saved, no other ticket uses it, and no session from outside the fleet runs there. The orchestrator runs `podbay-dev stop <name>`, then `podbay-dev ws-rm <project> <src-NN>`. A refused `ws-rm` (work not pushed) keeps the workspace with the reason in the ledger; it is never forced or deleted by hand, and `src` is never removed. The ledger records each workspace as removed or kept, and the final report lists each kept one with its reason. New contract test `tests/scripts/orchestrate-cleanup-contract.test.sh` (P11).
+- feat(pd-orchestrate): the orchestrator removes a finished ticket's workspaces itself (P11) (PR #49)
+- feat(fleet): milestone runs on a feature branch (PR #12)
+- cmp-ship-r1: tickets #15, #16, #18 (cherry-picked from #30) (PR #54)
+
+## [0.4.0] — 2026-11-21
+
+- Fixed: `ship.js` never removed its stage worktrees, so each run left a full checkout and build per stage (about 170 GB across four Mnemo checkouts). At the end of a run that succeeded, the new `scripts/ship-worktree-cleanup.sh` removes the run's detached stage worktrees with `git worktree remove` (never forced). It keeps the ticket-branch worktrees, a worktree with changes or untracked files, and one whose commits are on no branch, then removes the run dir if it is empty. A blocked or failed run keeps everything. The result's new `cleanup` field and a `worktrees:` log line list what was kept, its size and the exact removal command, and the pd-autopilot completion report prints them. `clean-worktrees.sh` is unchanged (P10).
+- feat(pod-board): peek at a session's last reply; a menu bar popover (PR #28)
+- docs(pod-board): a short guide to what it is, how to build and use it (PR #29)
+- feat(pod-board): collapse and expand the sidebar (PR #34)
+- fix(ship): remove a successful run's detached stage worktrees; report what is kept (P10) (PR #33)
+
+## [0.3.0] — 2026-11-21
+
+- Fixed: two tests that failed on a busy machine (P7). The clean-worktrees "item 2" time-budget case now uses a 10s budget, because the scan of every process's working directory alone took over 3s with about 2000 processes. The board-start `--no-open` case now waits up to 10s for the board to answer, because node can start after the 3s that `board-start.sh` waits. Tests only; no hook or script changed.
+- Fixed: the pd-autopilot preflight step was denied by `merge-guard.sh` when an agent appended `; echo "exit=$?"`: the letters gh (in "preflight"), pr (in "myprojects") and the `$` match the guard's pre-filter. `SKILL.md` step 1 and `references/preflight.md` now say to run the command exactly as written, with nothing appended. When the denied command holds no merge, the wrapper denial now says it matched the letters g-h..p-r..$ instead of "mentions merge in text", with the same workaround. What the guard denies is unchanged (P9).
+- test: make the time-budget and board-start --no-open cases hold on a busy machine (P7) (PR #8)
+- feat: Pod Board desktop app for Pod Bay sessions (PR #24)
+- feat(board): Pod Bay sessions view at /pods (PR #9)
+- fix(merge-guard): say what matched when a denied command holds no merge; run preflight as written (P9) (PR #25)
+
+## [0.2.0] — 2026-11-21
+
+- `merge-guard.sh` now denies spellings that bash turns into `gh`, `merge` or a wrapper: brace expansion, a glob or brace in the gh words, octal, hex and unicode escapes (decoded before matching), `GH`/`Gh` and `Bash`/`SH`, a gh name built from variable slices, and any merge-like command with a backslash line break. Without jq it checks the command field only (P5).
+- Added: the `session-role.sh` SessionStart hook tells the Pod Bay session of the main workspace (`src`) that it is the orchestrator: it checks, coordinates and delegates hands-on work. Sessions in `src-NN` and sessions outside Pod Bay get nothing. Switch it off with `{"orchestrator": "off"}` in `.claude/pd-bot.json` or `PD_BOT_ROLE=none`; `/pd-bot:pd-setup` asks about it.
+- Changed: `pr-opened.sh` tells the orchestrator session to hand the `/code-review` to another session; every other session keeps the old reminder.
+- Fixed: `pr-opened.sh` fired on any command that held the text `gh pr create` (a grep, a scan, a failed create). It now fires only when `gh pr create` is a command word (not text inside an argument) and the output holds a pull request URL. A script that runs `gh pr create` inside it gets no reminder.
+- Changed: `docs/adr/` is tracked again and starts at ADR 0001; the rest of `docs/` stays local.
+- `merge-guard.sh`: the wrapper denial names the workaround (put the command in a script file and run it by a path without the word). Prose that mentions merge next to `bash x.sh` stays denied: two security reviews broke both fixes tried; the bypasses they found are now regression tests (P1).
+- A PR that changes the FE/UI (ticket kind FE or FE+BE, or a diff touching `.tsx .jsx .vue .svelte .css .scss .html`) needs a screenshot. Without one the PR still opens and the merge becomes `Merge: human (no UI screenshot attached)`: in `ship.js` (the final merge reason; a ticket is never blocked), `pd-finishing-a-development-branch` the fleet outcome contract and the `pd-work` toolbox (P2).
+- Require a screenshot on every FE/UI PR, else Merge: human (P2) (PR #3)
+- merge-guard: name the workaround in the wrapper denial; regression tests for 11 bypasses (P1) (PR #4)
+- feat(hooks): give the Pod Bay main-workspace session the orchestrator role (PR #5)
+- merge-guard: deny spellings that bash turns into gh, merge or a wrapper (P5) (PR #6)
+
+## [0.1.0] — 2026-11-20
+
+- Initial release of the `harness` plugin: skills, agents, hooks and the `autopilot-run` ship workflow.

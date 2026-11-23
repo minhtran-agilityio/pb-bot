@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.ruff_cache/
+.pytest_cache/
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
+
+# Claude Code (user-specific, not shared config)
+settings.local.json
+CLAUDE.local.md
+
+# Git worktrees (project-local, isolated feature workspaces)
+.worktrees/
+
+# Claude Code local folder (user-specific rules and settings; the plugin itself lives in plugins/pd-bot/)
+# launch.json is shared: the Claude desktop Browser pane reads it to start the board.
+**/.claude/*
+!/.claude/launch.json
+# Project agents are shared: Claude Code loads them from <repo>/.claude/agents/ (Shape Board's ui-designer).
+# Only the agent .md files are tracked; anything else in that folder (.env, credentials) stays ignored.
+!/.claude/agents/
+/.claude/agents/*
+!/.claude/agents/*.md
+
+# Playwright plugin output: screenshots, snapshots and GIF evidence from verify runs (local only)
+.playwright-mcp/
+
+
+# Local-only research notes (kept out of the tracked tree by request)
+docs/memory/
+
+# specs/ at the repo root is local scratch: one specs/<slug>/ per ticket (intent, design, decision, plan, summary).
+# Anchored, so plugins/pd-bot/templates/specs/ stays tracked.
+/specs/
+
+.vercel
+
+# vscode
+.vscode
+
+# local research notes and generated reports
+/research_notes/
+/reports/
+
+# Project docs and research notes are kept local only, except the decision records in docs/adr/
+/docs/*
+!/docs/adr/
+research/

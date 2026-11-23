@@ -1,0 +1,152 @@
+<title>Shape Board Anti-Slop Review</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a review memo in the app's own look. Findings first, then proposals as now → proposed rows, then rules. */
+:root{color-scheme:dark;
+ --bg:#121214;--s1:#18181B;--s2:#1F1F23;--s3:#28282D;--border:#2E2E33;--fg:#F4F4F5;--muted:#A1A1AA;--subtle:#8A8A94;
+ --accent:#F97316;--accent-text:#FB923C;--accent-soft:rgba(249,115,22,.14);--bad:#F06363;--bad-soft:rgba(240,99,99,.12);--good:#3FB97A;--good-soft:rgba(63,185,122,.12);
+ --ui:"Inter",system-ui,sans-serif;--code:"JetBrains Mono",ui-monospace,Menlo,monospace}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){color-scheme:light;--bg:#F4F4F5;--s1:#FAFAFA;--s2:#FFFFFF;--s3:#E9E9EC;--border:#DEDEE2;--fg:#18181B;--muted:#52525B;--subtle:#6B6B74;--accent:#C2410C;--accent-text:#C2410C;--accent-soft:rgba(249,115,22,.12);--bad:#C9302C;--bad-soft:rgba(201,48,44,.08);--good:#1F8A55;--good-soft:rgba(31,138,85,.10)}}
+:root[data-theme="light"]{color-scheme:light;--bg:#F4F4F5;--s1:#FAFAFA;--s2:#FFFFFF;--s3:#E9E9EC;--border:#DEDEE2;--fg:#18181B;--muted:#52525B;--subtle:#6B6B74;--accent:#C2410C;--accent-text:#C2410C;--accent-soft:rgba(249,115,22,.12);--bad:#C9302C;--bad-soft:rgba(201,48,44,.08);--good:#1F8A55;--good-soft:rgba(31,138,85,.10)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/22px var(--ui);-webkit-font-smoothing:antialiased}
+.page{max-width:960px;margin:0 auto;padding-block:40px 72px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:40px}
+h1,h2,h3{margin:0;text-wrap:balance} h1{font-size:24px;line-height:32px;font-weight:600} h2{font-size:18px;line-height:26px;font-weight:600} h3{font-size:14px;line-height:20px;font-weight:600}
+p{margin:0} .muted{color:var(--muted)} .mono{font-family:var(--code);font-size:12px}
+code{font-family:var(--code);font-size:12px;background:var(--s3);padding:1px 5px;border-radius:4px}
+.label{font-size:11px;line-height:16px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle)}
+section{display:flex;flex-direction:column;gap:14px;min-width:0}
+.head{display:flex;flex-direction:column;gap:8px}
+.verdict{background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:8px}
+.verdict ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
+.sites{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.site{background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.site .top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.site a{color:var(--accent-text);text-decoration:none;font-family:var(--code);font-size:12px}
+.site .take{border-top:1px solid var(--border);padding-top:8px;margin-top:4px}
+.tag{display:inline-flex;height:20px;align-items:center;padding:0 6px;border-radius:4px;font-size:12px;font-weight:500}
+.tag.warn{background:var(--bad-soft);color:var(--bad)} .tag.ok{background:var(--good-soft);color:var(--good)} .tag.n{background:var(--s3);color:var(--muted)}
+.props{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:10px;background:var(--s1)}
+.prop{display:grid;grid-template-columns:28px minmax(0,1fr);gap:12px;padding:16px}
+.prop+.prop{border-top:1px solid var(--border)}
+.prop .n{font-family:var(--code);color:var(--accent-text);font-size:13px}
+.prop .body{display:flex;flex-direction:column;gap:8px;min-width:0}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cmp div{background:var(--s2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;min-width:0}
+.cmp div.new{border-color:var(--accent)}
+.cmp .label{display:block;margin-bottom:2px}
+.sw{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+.sw i{width:28px;height:20px;border-radius:4px;border:1px solid var(--border);display:inline-block}
+.why{color:var(--muted);font-size:13px}
+.rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:8px}
+.rule{background:var(--s1);border:1px solid var(--border);border-radius:6px;padding:10px 12px;display:flex;gap:10px;font-size:13px;line-height:20px}
+.rule b{font-weight:600}
+.x{color:var(--bad);font-family:var(--code);flex:none}
+.motif{background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:16px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:center}
+.motif svg{width:100%;max-width:340px;height:auto}
+.unv{background:var(--s1);border:1px dashed var(--border);border-radius:10px;padding:14px;font-size:13px}
+.unv ul{margin:6px 0 0;padding-left:18px}
+@media (max-width:640px){.cmp,.motif{grid-template-columns:1fr}}
+</style>
+
+<div class="page">
+  <header class="head">
+    <span class="label">Shape Board · design system review</span>
+    <h1>What makes our UI look AI-made, and what to change</h1>
+    <p class="muted">I read 5 reference sites and checked the current design system v1 against them. Below: what I learned, 6 proposed changes, and new rules for agents. Nothing is changed yet. Pick an option on the card in the thread.</p>
+  </header>
+
+  <section>
+    <h2>Honest verdict on v1</h2>
+    <div class="verdict">
+      <p>v1 is clean and consistent, but it looks like <b>the default shadcn app</b>. That is the main "AI slop" signal in it.</p>
+      <ul>
+        <li><b>Inter + zinc gray + one bright accent</b> is the shadcn default. Thousands of AI-built apps look exactly like this.</li>
+        <li>The <b>sparkles icon</b> on "Generate issues" is the most common AI cliché in UI today. I used it. It should go.</li>
+        <li>Nothing in the UI comes from the product's own world. The logo has a strong idea (a branch with an orange node), but the UI does not use it anywhere.</li>
+        <li>Good parts to keep: one accent color, status = icon + label, dense 13px type, borders instead of shadows, the locked token list.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <h2>What I learned from the 5 sites</h2>
+    <div class="sites">
+      <div class="site"><div class="top"><h3>Knowns UI</h3><a href="https://ui.knowns.dev/">ui.knowns.dev</a></div>
+        <p class="muted">React + Tailwind kit "for AI products". Copies source into your repo with the shadcn CLI. 76 components, 176 blocks. Free part is MIT, Pro is paid.</p>
+        <p class="muted">Useful pieces for us: Tool call card, Approval prompt, Chat composer, Stepper, Inline diff.</p>
+        <p class="take"><span class="tag n">Use as idea source</span> Borrow 1–2 patterns. Do not install the kit: it brings its own look, so the app would look like every other app built on it.</p></div>
+      <div class="site"><div class="top"><h3>Realtime Colors</h3><a href="https://www.realtimecolors.com/">realtimecolors.com</a></div>
+        <p class="muted">Preview a palette on a real page. Five roles: text, background, primary, secondary, accent. Contrast check per pair (fail / AA / AAA). Exports CSS, Tailwind, OKLCH.</p>
+        <p class="muted">Its guidance: 3 colors are usually enough, rarely more than 6, keep ratios near <b>60-30-10</b>.</p>
+        <p class="take"><span class="tag ok">Adopt</span> Use it to test our palette, and add the 60-30-10 rule and AA contrast as written rules.</p></div>
+      <div class="site"><div class="top"><h3>Haikei</h3><a href="https://haikei.app/">haikei.app</a></div>
+        <p class="muted">Generator for SVG backgrounds: layered waves, blobs, peaks, steps, low-poly grids, gradients. Exports SVG / PNG.</p>
+        <p class="take"><span class="tag warn">Mostly avoid</span> Blobs and waves are a top AI-slop look, and a dense tool does not need them. Allow one exception only: a quiet pattern made from our own logo shape, in empty states.</p></div>
+      <div class="site"><div class="top"><h3>Lucide</h3><a href="https://lucide.dev/">lucide.dev</a></div>
+        <p class="muted">The icon set we already use (<code>lucide-react</code>, ISC licence, about 2,000 icons). Default is 24px with 2px stroke. Stroke can be changed per icon.</p>
+        <p class="take"><span class="tag ok">Keep, add rules</span> One fixed icon per meaning, a fixed stroke per size, and no icons used only as decoration.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Proposed changes</h2>
+    <div class="props">
+      <div class="prop"><span class="n">1</span><div class="body"><h3>UI font: Inter → IBM Plex Sans</h3>
+        <div class="cmp"><div><span class="label">Now</span>Inter 13px. Default of shadcn, Vercel, Linear clones.</div><div class="new"><span class="label">Proposed</span>IBM Plex Sans, bundled with <code>@fontsource/ibm-plex-sans</code> (SIL Open Font License). Keep JetBrains Mono for ids and paths.</div></div>
+        <p class="why">Updated in v1.2: the user chose IBM Plex Sans after a side-by-side test. It reads well at small sizes, so the app keeps its density and loses the "default" feel, and its licence (SIL OFL) is clear.</p></div></div>
+
+      <div class="prop"><span class="n">2</span><div class="body"><h3>Neutrals: cold zinc → gray with a small warm tint toward the logo orange</h3>
+        <div class="cmp"><div><span class="label">Now · dark</span>Tailwind zinc, cold blue-gray<div class="sw"><i style="background:#121214"></i><i style="background:#18181B"></i><i style="background:#1F1F23"></i><i style="background:#28282D"></i><i style="background:#A1A1AA"></i></div></div><div class="new"><span class="label">Proposed · dark</span>Same lightness, tiny warm tint<div class="sw"><i style="background:#141312"></i><i style="background:#1A1918"></i><i style="background:#211F1D"></i><i style="background:#2A2725"></i><i style="background:#A8A29E"></i></div></div></div>
+        <p class="why">Grays with a slight lean toward the accent look chosen on purpose. Pure zinc is Tailwind's default. I checked contrast: all text tokens still pass AA (4.5:1) on every surface in both themes. The logo files and #F97316 do not change.</p></div></div>
+
+      <div class="prop"><span class="n">3</span><div class="body"><h3>Signature detail: the branch from the logo</h3>
+        <div class="motif">
+          <svg viewBox="0 0 340 130" role="img" aria-label="Overview tree drawn with branch lines like the logo">
+            <g fill="none" stroke="var(--subtle)" stroke-width="1.5" stroke-linecap="round"><path d="M20 22 V108"/><path d="M20 58 H34 Q44 58 44 68 V68"/><path d="M20 108 H40"/><path d="M44 68 V86 Q44 96 54 96 H62"/></g>
+            <circle cx="20" cy="18" r="6" fill="var(--accent)"/>
+            <g font-family="Inter,system-ui,sans-serif" font-size="12" fill="var(--fg)"><text x="34" y="22">M1 · Guest checkout</text><text x="58" y="72" fill="var(--muted)">#123 Order tracking page</text><text x="72" y="100" fill="var(--muted)">#124 Confirmation email</text><text x="50" y="112">M2 · Promo codes</text></g>
+            <circle cx="44" cy="68" r="3.5" fill="var(--fg)"/>
+          </svg>
+          <p class="why">Draw the overview tree with rounded branch lines like the logo, and use the orange node only for "you are here / running now". The same line style goes into the pipeline steps (Prototype → Grill → Generate → Issues). This is the one bold detail. Everything else stays quiet.</p>
+        </div></div></div>
+
+      <div class="prop"><span class="n">4</span><div class="body"><h3>Icons: fixed map and fixed stroke</h3>
+        <div class="cmp"><div><span class="label">Now</span>16px, stroke 1.75. Any lucide icon allowed. <code>sparkles</code> on Generate.</div><div class="new"><span class="label">Proposed</span>One file <code>icons.ts</code> maps meaning → icon. 16px stroke 1.75, 14px stroke 1.5, 12px stroke 1.5. Generate uses <code>git-branch-plus</code>.</div></div>
+        <p class="why">Agents pick random icons when they can. A single map makes the same idea always use the same icon. Rule: an icon must carry meaning. No icon in front of every heading.</p></div></div>
+
+      <div class="prop"><span class="n">5</span><div class="body"><h3>Color budget: 60-30-10, written as a rule</h3>
+        <div class="cmp"><div><span class="label">Now</span>"Max one primary button per view."</div><div class="new"><span class="label">Proposed</span>About 60% bg, 30% surfaces and text, 10% or less accent. Status colors only inside badges, dots and the status bar. Never as backgrounds of whole cards or rows.</div></div>
+        <p class="why">From Realtime Colors. Easy for an agent to check, and it stops the "everything is colorful" look.</p></div></div>
+
+      <div class="prop"><span class="n">6</span><div class="body"><h3>Two new parts from Knowns UI ideas (optional)</h3>
+        <div class="cmp"><div><span class="label">Now</span>No way to show what a background Claude session is doing.</div><div class="new"><span class="label">Proposed</span><b>PipelineSteps</b> (Prototype → Grill → Generate → Issues) and <b>RunLog</b> (tool-call style rows for a running session). Built with our own tokens.</div></div>
+        <p class="why">You said a grill is a Claude Code background session with history. These two parts show that clearly. I copy the idea, not the code or the look.</p></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>New "anti-slop" rules for agents</h2>
+    <p class="muted">These go into DESIGN_SYSTEM.md §0 and the CLAUDE.md snippet. Each is easy to check in a diff.</p>
+    <div class="rules">
+      <div class="rule"><span class="x">✕</span><span><b>No gradients</b> on text, buttons or backgrounds. No purple-blue anything.</span></div>
+      <div class="rule"><span class="x">✕</span><span><b>No glass, blur or glow:</b> no <code>backdrop-blur</code>, no colored shadows.</span></div>
+      <div class="rule"><span class="x">✕</span><span><b>No sparkles / magic-wand icons</b> for AI. Say what happens instead.</span></div>
+      <div class="rule"><span class="x">✕</span><span><b>No emoji</b> in UI text, headings or empty states.</span></div>
+      <div class="rule"><span class="x">✕</span><span><b>No card inside a card</b>, and no colored left border on cards.</span></div>
+      <div class="rule"><span class="x">✕</span><span><b>No blobs, waves or decorative backgrounds.</b> Only the logo-branch pattern in EmptyState.</span></div>
+      <div class="rule"><span class="x">✕</span><span><b>No centered hero layouts</b> inside the app. Content is left-aligned.</span></div>
+      <div class="rule"><span class="x">✕</span><span><b>No filler copy:</b> "Unlock", "Seamlessly", "Supercharge", "AI-powered". Use plain verbs and real numbers.</span></div>
+      <div class="rule"><span class="x">✕</span><span><b>No lorem ipsum or fake round numbers</b> in mocks. Use realistic repo, issue and branch names.</span></div>
+      <div class="rule"><span class="x">✕</span><span><b>No new font, icon set or UI kit</b> (including Knowns UI) without asking.</span></div>
+    </div>
+  </section>
+
+  <div class="unv"><b>What I could not check</b>
+    <ul>
+      <li>Knowns UI's exact visual style (fonts, radius). I only read its text pages.</li>
+      <li>Haikei licence terms, and the Lucide accessibility page.</li>
+    </ul>
+  </div>
+</div>

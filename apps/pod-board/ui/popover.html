@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pod Board</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* The menu bar popover: who needs you and what is running, one click from the menu bar. */
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; overflow: hidden; background: hsl(var(--cream)); color: hsl(var(--cocoa)); font: 14px/1.45 'Pod Sans', system-ui, sans-serif;
+    -webkit-user-select: none; user-select: none; cursor: default; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  button:focus-visible, .r:focus-visible { outline: 2px solid hsl(var(--terracotta)); outline-offset: 2px; }
+  .ic { width: 1em; height: 1em; flex: none; }
+  .sprite { position: absolute; width: 0; height: 0; }
+  .mono { font-family: 'Pod Mono', ui-monospace, Menlo, monospace; font-size: 11px; color: hsl(var(--muted-fg)); }
+  .tab { font-variant-numeric: tabular-nums; }
+  .wrap { height: 100%; display: flex; flex-direction: column; }
+  header { display: flex; align-items: center; gap: 12px; padding: 14px 14px 12px; }
+  .face { flex: none; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 13px; font-size: 21px;
+    background: hsl(var(--sage-deep)); color: hsl(var(--on-accent)); box-shadow: var(--shadow-clay); }
+  .face.needs { background: hsl(var(--terracotta)); } .face.busy { background: hsl(var(--sky-deep)); } .face.warn { background: hsl(var(--rose-deep)); }
+  .head { min-width: 0; flex: 1; }
+  .head b { display: block; font-size: 15px; }
+  .head small { display: block; color: hsl(var(--muted-fg)); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  main { flex: 1; min-height: 0; overflow-y: auto; padding: 0 10px 8px; }
+  h2 { margin: 10px 6px 6px; display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: hsl(var(--muted-fg)); }
+  h2 .ic { font-size: 14px; }
+  h2.needs { color: hsl(var(--terracotta)); } h2.busy { color: hsl(var(--sky-deep)); } h2.done { color: hsl(var(--success)); }
+  .r { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 10px; align-items: baseline; width: 100%; text-align: left;
+    padding: 8px 10px; margin-bottom: 6px; border-radius: 14px; background: hsl(var(--paper)); border: 1px solid var(--edge); box-shadow: var(--shadow-xs);
+    transition: box-shadow .15s, transform .15s; }
+  .r:hover { box-shadow: var(--shadow-soft); transform: translateY(-1px); }
+  .r.needs { background: hsl(var(--rose) / .55); }
+  .r .t { min-width: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .r .w { font-size: 12px; font-weight: 800; color: hsl(var(--terracotta)); }
+  .r.busy .w { color: hsl(var(--sky-deep)); }
+  .r.done .w { color: hsl(var(--success)); }
+  .r .s { grid-column: 1 / -1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tag { padding: 0 7px; border-radius: 999px; background: hsl(var(--terracotta)); color: hsl(var(--on-accent)); font: 700 10.5px 'Pod Sans', system-ui, sans-serif; }
+  .quiet { margin: 26px 10px; text-align: center; color: hsl(var(--muted-fg)); }
+  .quiet .ic { display: block; margin: 0 auto 8px; font-size: 34px; color: hsl(var(--sage-deep)); }
+  .more { margin: 2px 6px 8px; font-size: 12px; color: hsl(var(--muted-fg)); }
+  footer { display: flex; align-items: center; gap: 8px; padding: 10px 12px 12px; border-top: 1px solid hsl(var(--border)); }
+  footer .c { flex: 1; font-size: 12px; color: hsl(var(--muted-fg)); }
+  .btn { display: inline-flex; align-items: center; min-height: 32px; padding: 0 14px; border-radius: 999px; font-size: 13px; font-weight: 700;
+    background: hsl(var(--terracotta)); color: hsl(var(--on-accent)); box-shadow: var(--shadow-soft); }
+  .btn:hover { filter: brightness(1.05); }
+  @media (prefers-reduced-motion: reduce) { * { transition-duration: .001ms !important; } }
+</style>
+</head>
+<body>
+<!-- Icons: Phosphor Icons, duotone weight, MIT (see THIRD-PARTY.md); the same symbols as index.html. -->
+<svg class="sprite" aria-hidden="true" fill="currentColor"><symbol id="i-hand" viewBox="0 0 256 256"><path d="M208,116v36a80,80,0,0,1-160,0V76a20,20,0,0,1,40,0V44a20,20,0,0,1,40,0V60a20,20,0,0,1,40,0v56a20,20,0,0,1,40,0Z" opacity="0.2"/><path d="M188,88a27.75,27.75,0,0,0-12,2.71V60a28,28,0,0,0-41.36-24.6A28,28,0,0,0,80,44v6.71A27.75,27.75,0,0,0,68,48,28,28,0,0,0,40,76v76a88,88,0,0,0,176,0V116A28,28,0,0,0,188,88Zm12,64a72,72,0,0,1-144,0V76a12,12,0,0,1,24,0v44a8,8,0,0,0,16,0V44a12,12,0,0,1,24,0v68a8,8,0,0,0,16,0V60a12,12,0,0,1,24,0v68.67A48.08,48.08,0,0,0,120,176a8,8,0,0,0,16,0,32,32,0,0,1,32-32,8,8,0,0,0,8-8V116a12,12,0,0,1,24,0Z"/></symbol><symbol id="i-bolt" viewBox="0 0 256 256"><path d="M96,240l16-80L48,136,160,16,144,96l64,24Z" opacity="0.2"/><path d="M215.79,118.17a8,8,0,0,0-5-5.66L153.18,90.9l14.66-73.33a8,8,0,0,0-13.69-7l-112,120a8,8,0,0,0,3,13l57.63,21.61L88.16,238.43a8,8,0,0,0,13.69,7l112-120A8,8,0,0,0,215.79,118.17ZM109.37,214l10.47-52.38a8,8,0,0,0-5-9.06L62,132.71l84.62-90.66L136.16,94.43a8,8,0,0,0,5,9.06l52.8,19.8Z"/></symbol><symbol id="i-coffee" viewBox="0 0 256 256"><path d="M208,88v48a88,88,0,0,1-51.3,80H83.3A88,88,0,0,1,32,136V88Z" opacity="0.2"/><path d="M80,56V24a8,8,0,0,1,16,0V56a8,8,0,0,1-16,0Zm40,8a8,8,0,0,0,8-8V24a8,8,0,0,0-16,0V56A8,8,0,0,0,120,64Zm32,0a8,8,0,0,0,8-8V24a8,8,0,0,0-16,0V56A8,8,0,0,0,152,64Zm96,56v8a40,40,0,0,1-37.51,39.91,96.59,96.59,0,0,1-27,40.09H208a8,8,0,0,1,0,16H32a8,8,0,0,1,0-16H56.54A96.3,96.3,0,0,1,24,136V88a8,8,0,0,1,8-8H208A40,40,0,0,1,248,120ZM200,96H40v40a80.27,80.27,0,0,0,45.12,72h69.76A80.27,80.27,0,0,0,200,136Zm32,24a24,24,0,0,0-16-22.62V136a95.78,95.78,0,0,1-1.2,15A24,24,0,0,0,232,128Z"/></symbol><symbol id="i-night" viewBox="0 0 256 256"><path d="M227.89,147.89A96,96,0,1,1,108.11,28.11,96.09,96.09,0,0,0,227.89,147.89Z" opacity="0.2"/><path d="M233.54,142.23a8,8,0,0,0-8-2,88.08,88.08,0,0,1-109.8-109.8,8,8,0,0,0-10-10,104.84,104.84,0,0,0-52.91,37A104,104,0,0,0,136,224a103.09,103.09,0,0,0,62.52-20.88,104.84,104.84,0,0,0,37-52.91A8,8,0,0,0,233.54,142.23ZM188.9,190.34A88,88,0,0,1,65.66,67.11a89,89,0,0,1,31.4-26A106,106,0,0,0,96,56,104.11,104.11,0,0,0,200,160a106,106,0,0,0,14.92-1.06A89,89,0,0,1,188.9,190.34Z"/></symbol><symbol id="i-warn" viewBox="0 0 256 256"><path d="M224,128a96,96,0,1,1-96-96A96,96,0,0,1,224,128Z" opacity="0.2"/><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm-8-80V80a8,8,0,0,1,16,0v56a8,8,0,0,1-16,0Zm20,36a12,12,0,1,1-12-12A12,12,0,0,1,140,172Z"/></symbol></svg>
+<div class="wrap">
+  <header><span class="face" id="face" aria-hidden="true"></span><div class="head"><b id="headline">Pod Board</b><small id="sub">Reading Pod Bay…</small></div></header>
+  <main id="list" aria-live="polite"></main>
+  <footer><span class="c tab" id="counts"></span><button type="button" class="btn" id="board">Open Pod Board</button></footer>
+</div>
+<script>
+const SHOW = 6; // rows per group; the board has the rest
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+function ic(id) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const s = document.createElementNS(NS, 'svg'); s.setAttribute('class', 'ic'); s.setAttribute('aria-hidden', 'true');
+  const u = document.createElementNS(NS, 'use'); u.setAttribute('href', `#i-${id}`); s.append(u); return s;
+}
+function dur(since) {
+  if (!since) return '';
+  const m = Math.max(0, Math.round((Date.now() - since) / 60000));
+  if (m < 60) return `${m} m`;
+  if (m < 1440) return `${Math.floor(m / 60)} h ${m % 60} m`;
+  return `${Math.floor(m / 1440)} d ${Math.floor(m % 1440 / 60)} h`;
+}
+const tauri = () => window.__TAURI__;
+const call = (cmd, args) => { const t = tauri(); if (t) t.core.invoke(cmd, args).catch(() => {}); };
+
+// The theme follows the board's choice (same storage), else the system.
+function applyTheme() {
+  let stored = null; try { stored = localStorage.getItem('pod-board-theme'); } catch (e) { /* no storage */ }
+  const dark = stored === 'dark' || (stored !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+}
+applyTheme();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+addEventListener('storage', applyTheme);
+addEventListener('focus', applyTheme);
+
+function row(s) {
+  // A finished session shows how long ago it finished; the others how long they wait or work.
+  const b = el('button', `r ${s.finished ? 'done' : s.state}`); b.type = 'button';
+  b.append(el('span', 't', s.title), el('span', 'w tab', s.finished ? `${dur(s.finished)} ago` : dur(s.since)));
+  const sub = el('span', 's mono');
+  if (s.waiting) { sub.append(el('span', 'tag', s.waiting), ' '); }
+  sub.append(s.what || (s.branch ? `branch ${s.branch}` : `${s.project}/${s.ws}`), ` · ${s.machine}`);
+  b.append(sub);
+  b.title = s.rc_id ? `Open ${s.title} in Claude` : `${s.title}: open the board`;
+  b.addEventListener('click', () => {
+    if (s.rc_id) { call('open_session', { id: s.rc_id }); call('close_popover'); } else call('show_board');
+  });
+  return b;
+}
+
+function group(state, label, icon, list) {
+  if (!list.length) return [];
+  const h = el('h2', state); h.append(ic(icon), `${label} · ${list.length}`);
+  const out = [h, ...list.slice(0, SHOW).map(row)];
+  if (list.length > SHOW) out.push(el('p', 'more', `and ${list.length - SHOW} more on the board`));
+  return out;
+}
+
+let last = null;
+function draw(m) {
+  if (!m) return;
+  last = m;
+  const list = $('list'); list.textContent = '';
+  const c = m.counts || { needs: 0, busy: 0, idle: 0, stopped: 0 };
+  const needs = m.sessions.filter(s => s.state === 'needs'), busy = m.sessions.filter(s => s.state === 'busy');
+  const done = m.sessions.filter(s => s.finished);
+  let face = 'coffee', tone = '', head = 'Nobody needs you', sub = c.busy ? `${c.busy} working` : 'All quiet';
+  if (!m.ok) { face = 'warn'; tone = 'warn'; head = 'Cannot read Pod Bay'; sub = m.error || 'Showing the last data that was read'; }
+  else if (c.needs) { face = 'hand'; tone = 'needs'; head = `${c.needs} ${c.needs === 1 ? 'session needs' : 'sessions need'} you`; sub = `Longest wait: ${needs[0].title} · ${dur(needs[0].since)}`; }
+  else {
+    if (c.busy) { face = 'bolt'; tone = 'busy'; }
+    if (done.length) { head = `${done.length} finished`; sub = c.busy ? `${c.busy} working · nobody needs you` : 'Nobody needs you'; }
+  }
+  const f = $('face'); f.className = `face ${tone}`; f.replaceChildren(ic(face));
+  $('headline').textContent = head; $('sub').textContent = sub;
+  const parts = [...group('needs', 'Needs you', 'hand', needs), ...group('done', 'Finished', 'coffee', done), ...group('busy', 'Working', 'bolt', busy)];
+  if (parts.length) list.append(...parts);
+  else { const q = el('p', 'quiet'); q.append(ic('night'), 'Nothing is running. Idle sessions are on the board.'); list.append(q); }
+  $('counts').textContent = `${c.needs} need you · ${c.busy} working · ${c.idle} idle${c.finished ? ` · ${c.finished} finished` : ''}`;
+}
+
+$('board').addEventListener('click', () => call('show_board'));
+addEventListener('keydown', e => { if (e.key === 'Escape') call('close_popover'); });
+const t = tauri();
+if (t) {
+  t.event.listen('pods', e => draw(e.payload));
+  t.core.invoke('snapshot').then(m => { if (m && (m.read_at || m.error)) draw(m); }).catch(() => {});
+}
+setInterval(() => draw(last), 60000); // the waits keep counting between reads
+</script>
+</body>
+</html>
