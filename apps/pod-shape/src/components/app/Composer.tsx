@@ -1,4 +1,4 @@
-import { forwardRef, useRef, type ReactNode } from "react";
+import { forwardRef, useCallback, useRef, type ReactNode } from "react";
 import { cn } from "../../lib/cn";
 import { Button } from "../ui/button";
 import { Kbd } from "../ui/kbd";
@@ -30,6 +30,15 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
   ref,
 ) {
   const composing = useRef(false);
+  const inner = useRef<HTMLTextAreaElement | null>(null);
+  const setRef = useCallback(
+    (node: HTMLTextAreaElement | null) => {
+      inner.current = node;
+      if (typeof ref === "function") ref(node);
+      else if (ref) ref.current = node;
+    },
+    [ref],
+  );
   const canSend = value.trim() !== "" && !disabled && !thinking;
   return (
     <div className={cn("flex flex-col gap-2 bg-transparent px-10 pt-3 pb-5", className)}>
@@ -40,8 +49,9 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
         )}
       >
         <Textarea
-          ref={ref}
+          ref={setRef}
           variant="bare"
+          invalid={invalid}
           aria-label={ariaLabel}
           value={value}
           placeholder={placeholder}
@@ -63,7 +73,13 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
             if (canSend) onSend();
           }}
         />
-        <Button variant="primary" size="icon" icon="send" aria-label="Send" disabled={!canSend} onClick={onSend} />
+        <Button variant="primary" size="icon" icon="send" aria-label="Send" disabled={!canSend}
+          onClick={() => {
+            onSend();
+            // The button turns disabled once the screen clears the value or sets thinking; keep keyboard focus in the field.
+            inner.current?.focus();
+          }}
+        />
       </div>
       <div className="flex items-center justify-between gap-4 text-xs text-fg-subtle">
         <span>
