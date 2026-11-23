@@ -7,7 +7,7 @@ export function ArtifactPreviewFrame({ src, title }: { src: string; title: strin
       <div className="h-105 w-full overflow-hidden rounded-box border border-border bg-surface-1">
         <iframe
           className="size-full border-0"
-          sandbox="allow-scripts"
+          sandbox="allow-scripts allow-same-origin"
           referrerPolicy="no-referrer"
           src={src || undefined}
           title={title}
