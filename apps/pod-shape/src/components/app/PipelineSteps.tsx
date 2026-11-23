@@ -15,7 +15,7 @@ const STEPS: { key: PipelineStep; label: string }[] = [
 export function PipelineSteps({ current, className = "" }: { current: PipelineStep; className?: string }) {
   const at = STEPS.findIndex((s) => s.key === current);
   return (
-    <ol aria-label="Pipeline" className={cn("flex items-center text-sm", className)}>
+    <ol aria-label="Pipeline" className={cn("flex items-center text-xs", className)}>
       {STEPS.map((step, i) => {
         const state = i < at ? "done" : i === at ? "current" : "later";
         const node =
