@@ -53,6 +53,13 @@ bash scripts/check-plugin-version.sh || fail "scripts/check-plugin-version.sh"
 echo "== L1: markdown links =="
 bash scripts/check-md-links.sh || fail "scripts/check-md-links.sh"
 
+echo "== L1: project wiki (quotes match their sources, sources are tracked) =="
+if command -v python3 >/dev/null 2>&1; then
+  python3 plugins/pd-bot/scripts/wiki_check.py --root . --dir docs/wiki || fail "plugins/pd-bot/scripts/wiki_check.py"
+else
+  echo "  skip — no python3"
+fi
+
 echo "== L1: skill allowed-tools =="
 bash scripts/check-allowed-tools.sh || fail "scripts/check-allowed-tools.sh"
 if command -v python3 >/dev/null 2>&1; then

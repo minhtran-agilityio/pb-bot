@@ -123,6 +123,7 @@ compound  (when the root cause is a reusable learning — the bug track takes it
 | `pd-tickets` | **User-invoked** (`/pd-bot:pd-tickets <brief path> [--max 30] [--milestone <name> \| --no-milestone]`). Reads a brief, splits it into tickets, shows one table, asks one go/no-go question, then creates the issues and an epic with `gh`, under a milestone if the owner chooses one. Stops on a secret in the brief. Each ticket is written to pass `intake` as READY. Never edits existing issues | GitHub issues, an epic and an optional milestone; next step `/pd-bot:pd-orchestrate <milestone>` or `/pd-bot:pd-orchestrate #n #m ...` |
 | `pd-decision-record` | **Stage- or user-invoked**. A model decided something on its own during an autonomous run. Stage agents return `decisions[]`. The final ADR stage runs `scripts/write_adrs.py`, commits `docs/adr/NNNN-*.md` and renders the PR `## Decisions` section | ADR files + a `## Decisions` PR section |
 | `pd-recall` | **User-invoked only** (`/pd-bot:pd-recall <task description>`). Use it when you start a task and want to see what `docs/solutions/` already knows about it. Manual only, with no automatic trigger. Read-only: it runs in a forked `Explore` context with `Read`, `Grep` and `Glob`, opens at most 3 records and never writes a file. Not `compound` (which writes records) | Matching record paths with one line each, things to avoid from `failure` and `bug` records, and a `Search surface:` line that lists every file read. With no match it prints `no match` and the `Search surface:` line |
+| `pd-wiki` | **User- or orchestrator-invoked** (`/pd-bot:pd-wiki init \| update [<from>..<to>] \| check`). Use it when the owner asks for a project wiki, after pull requests merged into the default branch, or when `scripts/wiki_check.py` reports a failed or stale page. Sources are tracked files only, each fact has a quote block, and the wiki holds no ticket state. Not `compound` (lessons of one session, in `docs/solutions/`) | `docs/wiki/index.md`, focused pages, `log.md` and `golden.json` in a wiki-only pull request. `scripts/wiki_check.py` checks every quote against its source, with no model |
 | `pd-compound` | Only after a session that produced a reusable learning (non-obvious bug fix, pattern, decision, useful failure) | `docs/solutions/<category>/<slug>.md`, rebuilt `INDEX.md`, `critical-patterns.md` entries for critical or recurring learnings |
 | `pd-session-retro` | **User-invoked**, after a session with visible friction — traces struggles to missing environment levers (check > pointer > scoped rule) and proposes ranked fixes; never edits, waits for approval. Not `compound` (knowledge capture) or a bug hunt | Ranked candidate list → approved items become an `intake` task. Durable knowledge goes to `compound` |
 | `pd-release-notes` | **User-invoked** (`/pd-bot:pd-release-notes --milestone <name>` or `<from>..<to>`). Drafts technical GitHub Release notes: breaking changes (title `!:`, body or commit footer `BREAKING CHANGE:`, or a breaking label), groups by conventional-commit type, known limitations from PR bodies. Version from `--version`, a manifest, the latest tag, else `[NEEDS HUMAN]`. Draft only: never tags, pushes, publishes or merges | A draft `.md` plus a fact-list JSON beside it, handed to `release-summary` |
@@ -170,6 +171,7 @@ release-notes              ──► draft + fact-list JSON → human review →
 release-summary            ──► summary draft → human review (terminal)
 asd-ste100                 ──► nothing (terminal — returns the rewritten text to its caller)
 compound                   ──► nothing (terminal — crystallization is end state)
+wiki                       ──► wiki-only pull request → human merge (terminal)
 finishing-a-development-branch ──► nothing (terminal — shipped)
 ```
 
@@ -193,6 +195,8 @@ reads  ◄── shape          (applicable decisions — avoid re-proposing rej
 ```
 
 Schema reference: `docs/solutions/README.md` (scaffolded by `/pd-bot:pd-setup`).
+
+`docs/solutions/` is local to one machine. The project wiki in `docs/wiki/` is the tracked knowledge that every clone has: `pd-wiki` writes it, and any agent reads `docs/wiki/index.md` and then one page.
 
 ---
 
