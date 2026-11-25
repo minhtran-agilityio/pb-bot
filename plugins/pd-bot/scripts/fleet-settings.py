@@ -36,7 +36,7 @@ Safety:
 - Every check runs before anything is written.
 
 Usage:
-  fleet-settings.py --checkout DIR --role worker|reviewer|tester|advisor --model ID
+  fleet-settings.py --checkout DIR --role worker|reviewer|tester|advisor|keeper --model ID
                     --mode auto|acceptEdits [--ticket ID] [--run ID]
                     [--depth S|M|L] [--escalated] [--keep-connectors]
                     [--effort low|medium|high|xhigh]
@@ -57,7 +57,7 @@ import tempfile
 
 SETTINGS = os.path.join(".claude", "settings.local.json")
 STATE_NAME = "pd-bot-fleet-settings.json"
-ROLES = ("worker", "reviewer", "tester", "advisor")
+ROLES = ("worker", "reviewer", "tester", "advisor", "keeper")
 MODES = ("auto", "acceptEdits")
 MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@\[\]-]{0,99}$")
 ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")

@@ -7,6 +7,8 @@ file. Versions change only in the release PR (see the release section of `AGENTS
 
 ## [Unreleased]
 
+- Changed: the Shape Board keeper (`Pb Bot Storehouse`) and its UI reviewer run on demand, a fresh session per batch, stopped when they send `KEEPER-DONE` or `REVIEWER-DONE`, instead of living for days. Both run Sonnet 5.5 at effort high, and the keeper runs `ui-designer` by its agent type, not `general-purpose`. tokscope, 2026-11-22 to 25: the long-lived keeper cost about $99 (Opus context 500k to 850k) and the reviewer about $38. `podbay.md` gains "Project roles started on demand": the orchestrator starts such a role when a request finds no session of it. `fleet-settings.py` accepts `--role keeper`. New brief: `apps/pod-shape/docs/ui-reviewer.md`. A new keeper sends any `UI-READY` it finds missing (merged request issues without a `UI-READY sent` comment).
+
 ## [0.6.1] — 2026-11-25
 
 - Changed: sessions compact sooner. `autoCompactWindow` is 300000 in this repo's `.claude/settings.json` and in what `pd-setup` writes (`merge-trim.sh --compact-window 300000`): the orchestrator and owner sessions compact at about 267k. It is 500000 in `fleet-trim.json` for workers and reviewers, which lose more when compacted mid-task. In tokscope, the 4 to 5 longest sessions per role carry most of the cost above 267k (worker 69%, orchestrator 71%); probed with `/context` on Claude Code 2.1.332: the window went from 1M to 300k with a 33k buffer. tokscope, 2026-11-20 to 25: the longest orchestrator session averaged 506k context per request, peak 966k.
