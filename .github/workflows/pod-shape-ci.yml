@@ -70,7 +70,10 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
       - name: Node tests
-        run: node --test $(find src -name '*.test.mjs')
+        run: |
+          mapfile -d '' files < <(find src -name '*.test.mjs' -print0)
+          if [ "${#files[@]}" -eq 0 ]; then echo "no *.test.mjs files found" >&2; exit 1; fi
+          node --test "${files[@]}"
       - name: Build
         run: npm run build
       - name: cargo test
