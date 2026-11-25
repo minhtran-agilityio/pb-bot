@@ -1,5 +1,6 @@
-//! The page model, built from raw `podbay-dev` JSON.
-//! It copies named fields only (an allow list): account, uuid, dir, path and remote_url never leave this module.
+//! The page model, built from raw `podbay-dev` JSON and the local session files (`local.rs`).
+//! It copies named fields only (an allow list): account, uuid, dir, path, remote_url, cwd and the Claude session id
+//! never leave this module. The only id that does is the Remote Control id (`rc_id`).
 
 use serde::Serialize;
 use serde_json::Value;
@@ -21,8 +22,46 @@ pub struct Link {
     pub url: String,
 }
 
+/// Why a waiting session waits, when its file says. Only "permission prompt" is told apart today (step 0, 2026-11-25):
+/// a question and "input needed" read the same, and no file holds the command, so `detail` is empty.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct Reason {
+    /// "permission", "question" or "plan"
+    pub kind: &'static str,
+    pub detail: String,
+}
+
+/// One sub-agent of a session on this machine.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct Agent {
+    /// `agentType`, for example "Explore"
+    #[serde(rename = "type")]
+    pub kind: String,
+    /// `description`
+    pub task: String,
+    pub model: String,
+    /// When it started (ms since the epoch), from its transcript's file time.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub since: Option<u64>,
+    pub done: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub took_s: Option<u64>,
+    /// 0: a child of the main session; 1: a child of a sub-agent.
+    pub depth: u32,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct Agents {
+    pub running: usize,
+    pub done: usize,
+    pub list: Vec<Agent>,
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct Session {
+    /// Where it runs: "podbay" (listed by Pod Bay) or "terminal" (a terminal session on this machine with Remote
+    /// Control on, which Pod Bay does not list).
+    pub source: &'static str,
     pub machine: String,
     pub project: String,
     pub ws: String,
@@ -46,6 +85,11 @@ pub struct Session {
     /// When the session finished a long run and went idle (ms since the epoch), until the owner looks at it; else 0.
     /// `build` leaves it 0: `Alerts::mark` sets it, because it depends on what earlier reads showed.
     pub finished: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<Reason>,
+    /// Sub-agents, for a session on this machine that has any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agents: Option<Agents>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -93,6 +137,8 @@ pub struct Raw {
     pub checkouts: Value,
     pub machines: Value,
     pub queue: Value,
+    /// The Claude sessions of this machine (`local::read`).
+    pub local: Vec<crate::local::Local>,
 }
 
 fn text(v: &Value) -> String {
@@ -157,6 +203,14 @@ fn state_of(s: &Value) -> &'static str {
         "busy"
     } else {
         "idle"
+    }
+}
+
+/// The reason behind a `waitingFor` / `waiting_for` text, when it names one.
+pub fn reason_of(waiting_for: &str) -> Option<Reason> {
+    match waiting_for.trim() {
+        "permission prompt" => Some(Reason { kind: "permission", detail: String::new() }),
+        _ => None,
     }
 }
 
@@ -266,6 +320,9 @@ pub fn build(raw: &Raw) -> Model {
                 rc_id: session_id(&text(&s["remote_url"])),
                 name: safe_name(&text(&s["name"])),
                 waiting: cut(s["waiting_for"].as_str().unwrap_or("").trim(), 40),
+                reason: reason_of(s["waiting_for"].as_str().unwrap_or("")),
+                agents: None,
+                source: "podbay",
                 prs: s["links"]["prs"].as_array().map(Vec::len).unwrap_or(0),
                 links: links_of(s),
                 finished: 0,
@@ -279,6 +336,7 @@ pub fn build(raw: &Raw) -> Model {
             });
         }
     }
+    merge_local(&mut sessions, &raw.local, &me(&raw.machines));
     order(&mut sessions);
 
     let stopped: Vec<Stopped> = seen
@@ -308,6 +366,58 @@ pub fn build(raw: &Raw) -> Model {
         list.iter().filter(|m| !m["result"].is_array() && truthy(&m["machine"])).map(|m| text(&m["machine"])).collect()
     }).unwrap_or_default();
     Model { machines, sessions, stopped, counts, unread }
+}
+
+/// The name of this machine in Pod Bay (`me: true` in `podbay-dev machines`), else empty.
+fn me(machines: &Value) -> String {
+    machines.as_array().and_then(|l| l.iter().find(|m| m["me"] == Value::Bool(true))).map(|m| text(&m["machine"])).unwrap_or_default()
+}
+
+/// Add the local sessions. One that Pod Bay also lists (the same tmux session on this machine, or the same Remote
+/// Control id) shows once, as Pod Bay's, and lends it its sub-agents. Another one shows as "terminal" when it is an
+/// interactive `cli` session with Remote Control on; any other one (a `claude -p` run, a session without Remote
+/// Control, an entry point not seen in step 0) is left out.
+fn merge_local(sessions: &mut Vec<Session>, local: &[crate::local::Local], me: &str) {
+    for l in local {
+        let twin = sessions.iter_mut().find(|s| {
+            s.source == "podbay"
+                && ((!l.rc_id.is_empty() && s.rc_id == l.rc_id) || (!me.is_empty() && s.machine == me && !l.tmux.is_empty() && s.name == l.tmux))
+        });
+        if let Some(s) = twin {
+            if s.agents.is_none() { s.agents = l.agents.clone(); }
+            continue;
+        }
+        if l.entrypoint != "cli" || !l.interactive || l.rc_id.is_empty() {
+            continue;
+        }
+        let waits = !l.waiting_for.trim().is_empty();
+        let state = match l.status.as_str() {
+            "busy" if !waits => "busy",
+            "idle" if !waits => "idle",
+            _ => "needs",
+        };
+        let title = if l.title.is_empty() { l.project.clone() } else { l.title.clone() };
+        sessions.push(Session {
+            source: "terminal",
+            machine: me.to_string(),
+            project: l.project.clone(),
+            ws: String::new(),
+            title: cut(&title, NAME_CHARS),
+            state,
+            since: l.since,
+            what: String::new(),
+            branch: String::new(),
+            prs: 0,
+            queued: 0,
+            waiting: l.waiting_for.clone(),
+            rc_id: l.rc_id.clone(),
+            name: String::new(),
+            links: Vec::new(),
+            finished: 0,
+            reason: reason_of(&l.waiting_for),
+            agents: l.agents.clone(),
+        });
+    }
 }
 
 /// One session's identity across reads: its Remote Control id when it has one (stable when the title changes),
@@ -369,6 +479,7 @@ mod tests {
                 {"dir": "/d/02", "finished": null}, {"dir": "/d/02", "finished": 123},
                 {"dir": "/d/02", "state": "unknown", "finished": null}, {"dir": "/d/02", "state": "delivered", "finished": 5}
             ]}]),
+            local: vec![],
         }
     }
 
@@ -492,7 +603,7 @@ mod tests {
     #[test]
     fn missing_or_odd_input_gives_an_empty_model() {
         assert_eq!(build(&Raw::default()), Model::default());
-        let odd = Raw { ls: json!("x"), checkouts: json!([{"machine": "A", "result": "err"}]), machines: json!({}), queue: Value::Null };
+        let odd = Raw { ls: json!("x"), checkouts: json!([{"machine": "A", "result": "err"}]), machines: json!({}), queue: Value::Null, local: vec![] };
         assert_eq!(build(&odd), Model::default());
     }
 
@@ -503,5 +614,86 @@ mod tests {
         let what = &build(&r).sessions[0].what;
         assert_eq!(what.chars().count(), WHAT_CHARS);
         assert!(what.ends_with('…'));
+    }
+
+    /// Pod Bay's view next to the local fixture folder (`tests/fixtures/local`): this machine is UA. Pod Bay lists the
+    /// tmux session `claude-pb-bot-02` (the local "Pod Bay twin") and a session whose Remote Control id is the local
+    /// "Remote twin"'s; M0 has a session with the same tmux name, which must not take the local one.
+    fn with_local() -> Model {
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
+        let r = Raw {
+            ls: json!([
+                {"machine": "UA", "result": [
+                    sess(json!({"title": "Board work", "name": "claude-pb-bot-02", "project": "pb-bot", "context": "pb-bot/pb-bot@02", "remote_url": null})),
+                    sess(json!({"title": "Twin by link", "name": "claude-pb-bot-05", "project": "pb-bot", "context": "pb-bot/pb-bot@05", "status": "busy",
+                                "remote_url": "https://claude.ai/code/session_01FixtureTwin"})),
+                    sess(json!({"title": "Plain wait", "name": "claude-pb-bot-06", "status": "waiting", "waiting_for": "input needed", "remote_url": null})),
+                ]},
+                {"machine": "M0", "result": [sess(json!({"title": "Same name elsewhere", "name": "claude-pb-bot-02", "remote_url": null}))]}
+            ]),
+            machines: json!([{"machine": "UA", "me": true, "online": true}, {"machine": "M0", "me": false, "online": true}]),
+            local: crate::local::read(&crate::local::fixture(), now, &|_| true),
+            ..Raw::default()
+        };
+        build(&r)
+    }
+
+    #[test]
+    fn local_sessions_show_as_terminal_and_a_pod_bay_twin_shows_once() {
+        let m = with_local();
+        let mut got: Vec<(&str, &str, &str)> = m.sessions.iter().map(|s| (s.title.as_str(), s.source, s.machine.as_str())).collect();
+        got.sort();
+        assert_eq!(got, vec![
+            ("Board work", "podbay", "UA"), ("Plain wait", "podbay", "UA"), ("Quiet terminal", "terminal", "UA"),
+            ("Same name elsewhere", "podbay", "M0"), ("Sub-agent host", "terminal", "UA"), ("Twin by link", "podbay", "UA"),
+            ("Waits on a push", "terminal", "UA"),
+        ], "no row for the twins, the `claude -p` run or the session without Remote Control");
+        let by = |t: &str| m.sessions.iter().find(|s| s.title == t).unwrap().clone();
+        // The twin by tmux name lends its sub-agents to the Pod Bay row of this machine, not to M0's.
+        assert_eq!(by("Board work").agents.as_ref().map(|a| (a.running, a.done)), Some((0, 1)));
+        assert!(by("Same name elsewhere").agents.is_none());
+        let t = by("Quiet terminal");
+        assert_eq!((t.project.as_str(), t.rc_id.as_str(), t.state, t.name.as_str()), ("beta", "session_01FixtureQuiet", "idle", ""));
+        assert_eq!(by("Sub-agent host").state, "busy");
+        assert_eq!(m.counts, Counts { needs: 2, busy: 2, idle: 3, stopped: 0, finished: 0 });
+    }
+
+    #[test]
+    fn the_model_of_local_sessions_holds_no_path_account_or_session_id() {
+        let m = with_local();
+        let body = serde_json::to_string(&m).unwrap();
+        for key in ["\"cwd\"", "\"dir\"", "\"path\"", "\"account\"", "\"uuid\"", "\"sessionId\"", "\"pid\"", "\"tmux\""] {
+            assert!(!body.contains(key), "model has the field {key}");
+        }
+        for secret in ["/home/someone", "someone@example.com", "11111111-1111", "22222222-", "toolu_SECRET", "PRIVATE TRANSCRIPT", "/secret/"] {
+            assert!(!body.contains(secret), "model holds {secret}");
+        }
+        let host = m.sessions.iter().find(|s| s.title == "Sub-agent host").unwrap();
+        assert_eq!(host.project, "alpha", "the project is the last folder name only");
+    }
+
+    #[test]
+    fn sub_agents_reach_the_model_with_counts_and_depth() {
+        let m = with_local();
+        let a = m.sessions.iter().find(|s| s.title == "Sub-agent host").unwrap().agents.clone().unwrap();
+        assert_eq!((a.running, a.done), (5, 2));
+        assert_eq!(a.list.iter().find(|x| x.task == "Nested lookup").unwrap().depth, 1);
+        assert!(m.sessions.iter().find(|s| s.title == "Quiet terminal").unwrap().agents.is_none());
+        let v = serde_json::to_value(&a).unwrap();
+        assert_eq!(v["list"][0]["type"], "Explore", "the page reads `type`");
+    }
+
+    #[test]
+    fn a_known_wait_reason_has_its_kind_and_an_unknown_one_none() {
+        let m = with_local();
+        let by = |t: &str| m.sessions.iter().find(|s| s.title == t).unwrap().clone();
+        let w = by("Waits on a push");
+        assert_eq!((w.state, w.waiting.as_str()), ("needs", "permission prompt"));
+        assert_eq!(w.reason, Some(Reason { kind: "permission", detail: String::new() }));
+        let p = by("Plain wait");
+        assert_eq!((p.state, p.waiting.as_str(), p.reason.clone()), ("needs", "input needed", None));
+        let pb = build(&Raw { ls: json!([{"machine": "U0", "result": [sess(json!({"status": "waiting", "waiting_for": "permission prompt"}))]}]), ..Raw::default() });
+        assert_eq!(pb.sessions[0].reason.as_ref().map(|r| r.kind), Some("permission"), "Pod Bay's own sessions on any machine too");
+        assert!(serde_json::to_string(&by("Quiet terminal")).unwrap().find("\"reason\"").is_none(), "no reason: no field");
     }
 }

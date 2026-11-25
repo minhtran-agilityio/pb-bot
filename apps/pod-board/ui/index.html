@@ -54,6 +54,8 @@
   .item.sub[data-on="1"] { background: var(--surface-2); box-shadow: var(--card-sh); font-weight: 600; }
   .item.clear { justify-content: center; color: var(--fg-muted); text-decoration: underline; text-underline-offset: 3px; }
   .item .dot { flex: none; width: 8px; height: 8px; margin: 0 4px; border-radius: 50%; background: var(--success); }
+  .item .dot.hot { background: var(--accent); }
+  .item .dot.quiet { background: var(--border-strong); }
   .item .dot.off { background: transparent; border: 1.5px dashed var(--fg-subtle); }
   .item .dot.warn { border-color: var(--warning); }
 
@@ -147,7 +149,7 @@
   :is(.pill.busy, .sic.busy) .ic { animation: spin 1.4s linear infinite; }
 
   /* Lanes: neutral, on the page colour; the state shows in the pill. */
-  .lanes { display: grid; gap: 12px; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+  .lanes { display: grid; gap: 12px; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; }
   @media (max-width: 1040px) { .lanes { grid-template-columns: minmax(0, 1fr); } }
   .lane { min-width: 0; padding: 12px; border-radius: 24px; background: var(--bg); }
   .lane-h { display: flex; align-items: center; gap: 8px; margin: 2px 6px 10px; font-size: 14px; }
@@ -171,7 +173,7 @@
   .wait { flex: none; font-size: 13px; line-height: 20px; font-weight: 600; color: var(--accent-text); }
   .when { flex: none; font-size: 13px; line-height: 20px; color: var(--fg-subtle); }
   .what { margin: 0; font-size: 13px; line-height: 20px; color: var(--fg-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .what.fallback { font-style: italic; color: var(--fg-subtle); }
+  .what.fallback { font-style: italic; color: var(--fg-subtle); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .meta { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
   .where { font-size: 13px; line-height: 20px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
   /* Tags and link buttons: 22 px pills. */
@@ -197,8 +199,9 @@
   .lrow.link { cursor: pointer; }
   .lrow.link:hover { background: var(--surface-3); }
   .lt { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 14px; font-weight: 600; }
-  .lt > span:not(.sic) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lt > span:not(.sic):not(.srci) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .lt .peekbtn { margin-left: auto; }
+  .srci { flex: none; display: grid; place-items: center; font-size: 14px; color: var(--fg-muted); }
   .sic { flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; font-size: 14px; }
   .sic.needs { background: var(--session-needs-soft); color: var(--accent-text); }
   .sic.busy { background: var(--session-working-soft); color: var(--session-working); }
@@ -215,7 +218,7 @@
   /* StoppedStrip: a plain card that stays at the bottom of the panel while the lanes scroll. */
   .strip { position: sticky; bottom: 0; z-index: 5; margin-top: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 18px;
     background: var(--surface-2); border: 1px solid var(--border); box-shadow: var(--card-sh); font-size: 13px; line-height: 20px; }
-  .chip { display: inline-flex; align-items: center; height: 22px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 9999px; font-size: 12px; line-height: 16px;
+  .chip { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 9999px; font-size: 12px; line-height: 16px;
     font-weight: 500; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
   .chip.off { background: var(--surface-3); border-color: var(--surface-3); }
 
@@ -299,6 +302,7 @@
   .pmeta { margin: 4px 20px 12px; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
   .pbody { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 16px; border-top: 1px solid var(--border); }
   .pbody section { display: grid; gap: 6px; }
+  .pmeta .where { min-width: 0; }
   .plabel { margin: 0; font-size: 12px; line-height: 16px; font-weight: 600; color: var(--fg-muted); display: flex; gap: 8px; }
   .plabel .tab { margin-left: auto; font-weight: 500; color: var(--fg-subtle); }
   .bubble { margin: 0; padding: 10px 14px; border-radius: 18px; background: var(--surface-3); font-size: 13px; line-height: 20px; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -322,7 +326,7 @@
 </head>
 <body>
 <!-- Icons: Lucide, ISC licence (see THIRD-PARTY.md). Stroke 1.75, drawn at 12, 14 or 16 px. -->
-<svg class="sprite" width="0" height="0" aria-hidden="true"><symbol id="i-hand" viewBox="0 0 24 24"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></symbol><symbol id="i-loader" viewBox="0 0 24 24"><path d="M12 2v4"/><path d="m16.2 7.8 2.9-2.9"/><path d="M18 12h4"/><path d="m16.2 16.2 2.9 2.9"/><path d="M12 18v4"/><path d="m4.9 19.1 2.9-2.9"/><path d="M2 12h4"/><path d="m4.9 4.9 2.9 2.9"/></symbol><symbol id="i-coffee" viewBox="0 0 24 24"><path d="M10 2v2"/><path d="M14 2v2"/><path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"/><path d="M6 2v2"/></symbol><symbol id="i-moon-star" viewBox="0 0 24 24"><path d="M18 5h4"/><path d="M20 3v4"/><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></symbol><symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></symbol><symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol><symbol id="i-monitor" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></symbol><symbol id="i-house" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol><symbol id="i-layout-grid" viewBox="0 0 24 24"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></symbol><symbol id="i-list" viewBox="0 0 24 24"><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/></symbol><symbol id="i-message-square" viewBox="0 0 24 24"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/></symbol><symbol id="i-refresh-cw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol><symbol id="i-pause" viewBox="0 0 24 24"><rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/></symbol><symbol id="i-play" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></symbol><symbol id="i-panel-left" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></symbol><symbol id="i-triangle-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol><symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol></svg>
+<svg class="sprite" width="0" height="0" aria-hidden="true"><symbol id="i-server" viewBox="0 0 24 24"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></symbol><symbol id="i-terminal" viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></symbol><symbol id="i-bot" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></symbol><symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol><symbol id="i-hand" viewBox="0 0 24 24"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></symbol><symbol id="i-loader" viewBox="0 0 24 24"><path d="M12 2v4"/><path d="m16.2 7.8 2.9-2.9"/><path d="M18 12h4"/><path d="m16.2 16.2 2.9 2.9"/><path d="M12 18v4"/><path d="m4.9 19.1 2.9-2.9"/><path d="M2 12h4"/><path d="m4.9 4.9 2.9 2.9"/></symbol><symbol id="i-coffee" viewBox="0 0 24 24"><path d="M10 2v2"/><path d="M14 2v2"/><path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"/><path d="M6 2v2"/></symbol><symbol id="i-moon-star" viewBox="0 0 24 24"><path d="M18 5h4"/><path d="M20 3v4"/><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></symbol><symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></symbol><symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol><symbol id="i-monitor" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></symbol><symbol id="i-house" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol><symbol id="i-layout-grid" viewBox="0 0 24 24"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></symbol><symbol id="i-list" viewBox="0 0 24 24"><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/></symbol><symbol id="i-message-square" viewBox="0 0 24 24"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/></symbol><symbol id="i-refresh-cw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol><symbol id="i-pause" viewBox="0 0 24 24"><rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/></symbol><symbol id="i-play" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></symbol><symbol id="i-panel-left" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></symbol><symbol id="i-triangle-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol><symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol></svg>
 <header class="titlebar" data-tauri-drag-region="deep">
   <button type="button" class="iconbtn sm" id="sidebar" aria-controls="side" aria-expanded="true"></button>
   <svg class="pod-logo" viewBox="64 64 896 896" aria-hidden="true"><rect class="tile" x="64" y="64" width="896" height="896" rx="200"/><path class="body" d="M280 470 L312 262 L440 392 Z M744 470 L712 262 L584 392 Z" stroke-width="34" stroke-linejoin="round"/><rect class="body" x="212" y="360" width="600" height="380" rx="190"/><rect class="eye" x="378" y="520" width="84" height="56" rx="28"/><rect class="eye" x="562" y="520" width="84" height="56" rx="28"/><rect x="322" y="800" width="104" height="36" rx="18" fill="#EB7D4C"/><rect x="460" y="800" width="104" height="36" rx="18" fill="#8FB3DE"/><rect x="598" y="800" width="104" height="36" rx="18" fill="#4E6E58"/></svg>
@@ -448,13 +452,83 @@ function pill(state) {
   return p;
 }
 
+// Where a session runs. One outline chip for every source: icon and word, no colour per source.
+const SRC = { podbay: ['Pod Bay', 'server'], desktop: ['Desktop', 'monitor'], terminal: ['Terminal', 'terminal'] };
+const srcOf = s => (SRC[s.source] ? s.source : 'podbay');
+// Only a Pod Bay chip names the machine.
+const srcWords = s => { const k = srcOf(s); return k === 'podbay' ? (s.machine ? `Pod Bay · ${s.machine}` : 'Pod Bay') : k === 'terminal' ? 'Terminal · RC' : 'Desktop'; };
+function srcChip(s) { const c = el('span', 'src'); c.append(ic(SRC[srcOf(s)][1]), el('span', null, srcWords(s))); return c; }
+const REASON = { permission: 'Permission', question: 'Question', plan: 'Plan approval' };
+// "Permission" in accent text, then the detail in the code font. The detail is often empty: then the kind stands alone.
+function whyLine(s, box) {
+  const r = s.reason, k = r && REASON[r.kind]; if (!k) return null;
+  const p = el('p', box ? 'why box' : 'why'); p.append(el('b', null, k));
+  if (r.detail) p.append(el('code', null, r.detail));
+  return p;
+}
+const nSub = n => `${n} sub-agent${n === 1 ? '' : 's'}`;
+const subRun = s => { const a = s.agents; if (!a) return 0; return Number(a.running) || (a.list || []).filter(x => !x.done).length; };
+const subDone = s => { const a = s.agents; if (!a) return 0; return Number(a.done) || (a.list || []).filter(x => x.done).length; };
+function subTag(s) {
+  const r = subRun(s), d = subDone(s);
+  return r ? el('span', 'tag', `${nSub(r)} running`) : d ? el('span', 'tag', `${nSub(d)} done`) : null;
+}
+// Time in whole seconds or minutes: 40 s, 1 m 35 s.
+const took = sec => (sec < 60 ? `${Math.round(sec)} s` : `${Math.floor(sec / 60)} m ${Math.round(sec % 60)} s`);
+// The running rows of a card: at most three, then "+n more running".
+function subBox(s) {
+  const rows = ((s.agents && s.agents.list) || []).filter(x => !x.done);
+  if (!rows.length) return null;
+  const box = el('div', 'subs');
+  for (const a of rows.slice(0, 3)) {
+    const r = el('div', `sa${a.depth ? ' d1' : ''}`);
+    // A state dot carries its word too: a label for screen readers and a tooltip.
+    const i = ic('loader'); i.classList.add('spin'); i.removeAttribute('aria-hidden'); i.setAttribute('role', 'img'); i.setAttribute('aria-label', 'running');
+    const tt = document.createElementNS('http://www.w3.org/2000/svg', 'title'); tt.textContent = 'Running'; i.prepend(tt);
+    r.append(i, el('b', null, a.type || 'agent'), el('span', 'task', a.task || a.step || ''));
+    if (a.since) { const t = el('span', 'tm tab', dur(a.since)); t.dataset.since = a.since; r.append(t); }
+    if (a.step || a.task) r.title = [a.type, a.task, a.step].filter(Boolean).join(' · ');
+    box.append(r);
+  }
+  const more = Math.max(subRun(s), rows.length) - 3;
+  if (more > 0) box.append(el('p', 'rest', `+${more} more running`));
+  return box;
+}
+// The full tree for the peek: type, task, model, running or took, step or result. A nested one is indented.
+function subTree(s) {
+  const list = (s.agents && s.agents.list) || [];
+  if (!list.length) return null;
+  const sec = el('section'); const l = el('p', 'plabel', 'Sub-agents');
+  l.append(el('span', 'tab', `${subRun(s) || list.filter(x => !x.done).length} running · ${subDone(s) || list.filter(x => x.done).length} done`));
+  const ul = el('ul', 'atree');
+  for (const a of list) {
+    const li = el('li', `an${a.depth ? ' d1' : ''}`);
+    const h = el('div', 'h'); const i = ic(a.done ? 'check' : 'loader'); i.classList.add(a.done ? 'fin' : 'run');
+    const w = el('span', 'w tab');
+    if (a.done) w.append(a.took_s != null ? `took ${took(a.took_s)}` : 'done');
+    else { w.append('running'); if (a.since) { const t = el('span', 'tab', dur(a.since)); t.dataset.since = a.since; w.append(' ', t); } }
+    h.append(i, el('b', null, a.type || 'agent'), w);
+    li.append(h);
+    if (a.task) li.append(el('span', 't', a.task));
+    const m = [a.model, a.done ? a.result : a.step].filter(Boolean).join(' · ');
+    if (m) li.append(el('span', 'm', m));
+    ul.append(li);
+  }
+  sec.append(l, ul); return sec;
+}
+
 let snap = null, pending = null, pendingN = 0, paused = false, lastMsg = 0, lastMove = 0, first = true, saidNeeds = null, lastBody = '';
-let view = 'home', machine = null, lastView = '', layout = 'board';
+let view = 'home', srcF = null, projF = null, lastView = '', layout = 'board';
 try { if (localStorage.getItem('pod-board-layout') === 'list') layout = 'list'; } catch (e) { /* no storage */ }
 const prev = new Map();
 
-const shown = () => snap.sessions.filter(s => !machine || s.machine === machine);
-const stoppedShown = () => snap.stopped.filter(w => !machine || w.machine === machine);
+// Two filters that toggle: a source and a project. Both narrow every count and list.
+const keep = x => (!srcF || srcOf(x) === srcF) && (!projF || x.project === projF);
+const shown = () => snap.sessions.filter(keep);
+const stoppedShown = () => snap.stopped.filter(keep);
+
+// The project, and for a Pod Bay session its workspace. The machine is on the Pod Bay chip only.
+const place = s => (srcOf(s) === 'podbay' && s.ws ? `${s.project}/${s.ws}` : s.project || '');
 
 // SessionCard. `big` is the wide card of a state page: always the text, more links.
 function row(s, big) {
@@ -466,10 +540,14 @@ function row(s, big) {
   else { const t = el('span', 'when tab', ago(s.since)); t.dataset.ago = s.since || ''; top.append(t); }
   const pb = peekButton(s); if (pb) top.append(pb);
   li.append(top);
-  if (s.state !== 'idle' || big) li.append(s.what ? el('p', 'what', s.what) : el('p', 'what fallback', s.branch ? `branch ${s.branch}` : 'no description'));
-  const meta = el('p', 'meta'); meta.append(el('span', 'where', `${s.project}/${s.ws} · ${s.machine}`));
+  const why = s.state === 'needs' ? whyLine(s) : null; if (why) li.append(why);
+  if (s.state === 'busy' && s.step) { const st = el('p', 'stepl'); st.title = s.step; st.append(ic('chevron-right'), el('span', null, s.step)); li.append(st); }
+  else if (s.state !== 'idle' || big) li.append(s.what ? el('p', 'what', s.what) : el('p', 'what fallback', s.branch ? `branch ${s.branch}` : 'no description'));
+  const sb = s.state === 'busy' ? subBox(s) : null; if (sb) li.append(sb);
+  const meta = el('p', 'meta'); meta.append(srcChip(s), el('span', 'where', place(s)));
   if (big && s.prs && !(s.links || []).some(l => l.kind === 'pr')) meta.append(el('span', 'where', `· ${s.prs} PR`));
   if (s.waiting) meta.append(el('span', 'tag wait', s.waiting));
+  const st2 = subTag(s); if (st2) meta.append(st2);
   if (s.finished) meta.append(doneTag(s));
   if (s.queued) meta.append(el('span', 'tag', `${s.queued} queued`));
   li.append(meta);
@@ -537,20 +615,29 @@ function summary(list) {
   $('sumText').textContent = text;
   $('sumSub').replaceChildren(...[].concat(sub));
   const counts = $('counts'); counts.textContent = '';
-  for (const state of ['busy', 'idle', 'stopped']) {
-    const b = el('button', 'count'); b.type = 'button'; b.addEventListener('click', () => go(state));
-    b.append(el('b', 'tab', String(c[state])), ` ${STATES[state][0].toLowerCase()}`);
+  const subs = list.reduce((n, s) => n + subRun(s), 0);
+  for (const state of ['busy', 'subs', 'idle', 'stopped']) {
+    const b = el('button', 'count'); b.type = 'button'; b.addEventListener('click', () => go(state === 'subs' ? 'busy' : state));
+    if (state === 'subs') b.append(el('b', 'tab', String(subs)), subs === 1 ? ' sub-agent' : ' sub-agents');
+    else b.append(el('b', 'tab', String(c[state])), ` ${STATES[state][0].toLowerCase()}`);
     counts.append(b);
   }
   $('summary').hidden = false;
 }
 
 function stoppedStrip() {
-  const list = stoppedShown(), off = snap.machines.filter(m => !m.online && (!machine || m.name === machine));
+  // An offline machine belongs to no source or project: its chip shows only while no filter is on.
+  const list = stoppedShown(), off = snap.machines.filter(m => !m.online && !srcF && !projF);
   if (!list.length && !off.length) return null;
   const box = el('section', 'strip');
   box.append(pill('stopped'), el('b', 'tab', String(list.length)));
-  for (const w of list) box.append(el('span', 'chip', `${w.project}/${w.ws} · ${w.machine}${w.dirty ? ' ✎' : ''}`));
+  for (const w of list) {
+    if (w.source === 'desktop') {
+      // A Desktop session that closed lately: it has no workspace and no machine.
+      const c = el('span', 'chip'); c.title = 'Desktop session, closed';
+      c.append(ic('monitor'), `${w.title} · ${w.project} · closed ${ago(w.closed)}`); box.append(c);
+    } else box.append(el('span', 'chip', `${w.project}/${w.ws} · ${w.machine}${w.dirty ? ' ✎' : ''}`));
+  }
   for (const m of off) {
     const c = el('span', 'chip off', m.key_stale ? `${m.name} offline · password out of date` : `${m.name} offline`);
     if (m.key_stale) c.title = `Pod Bay on this computer holds an old password for ${m.name}, so it cannot reach it. Sign in to Pod Bay again on one of the two machines.`;
@@ -573,14 +660,18 @@ function linkable(node, s) {
 // Peek: the last reply and prompt of one session, read on demand with `podbay-dev detail` (it never polls).
 // Another machine can take ten seconds to answer, so a read is kept for PEEK_KEEP_MS and the panel shows a placeholder.
 const PEEK_KEEP_MS = 20000;
-const peeks = new Map(); // `${machine}|${name}` -> { at, data } | { at, error }
-let peekOf = null, peekToken = 0, peekFrom = null;
+const peeks = new Map(); // pkey -> { at, data } | { at, error }
+let peekOf = null, peekToken = 0, peekFrom = null, peekSig = '';
+// The same session across reads. A session with no Pod Bay name (a Terminal one) is told apart by its title.
+const pkey = s => `${srcOf(s)}|${s.machine}|${s.name || s.title}`;
+// Prompt and reply come from `podbay-dev detail`: only a Pod Bay session with a name has them.
+const canRead = s => srcOf(s) === 'podbay' && !!s.name;
+const sigOf = s => JSON.stringify([s.reason, s.agents, s.step]);
 
 function peekButton(s) {
-  if (!s.name) return null;
   const b = el('button', 'peekbtn'); b.type = 'button';
-  b.setAttribute('aria-label', `Peek at ${s.title}`); b.title = 'Peek: last reply and prompt';
-  b.setAttribute('aria-expanded', String(!!peekOf && peekOf.machine === s.machine && peekOf.name === s.name));
+  b.setAttribute('aria-label', `Peek at ${s.title}`); b.title = canRead(s) ? 'Peek: last reply and prompt' : 'Peek: why it waits and the sub-agents';
+  b.setAttribute('aria-expanded', String(!!peekOf && pkey(peekOf) === pkey(s)));
   b.append(ic('message-square'));
   // The card itself opens the session; the button only opens the peek.
   b.addEventListener('click', e => { e.stopPropagation(); openPeek(s, b); });
@@ -605,7 +696,7 @@ function drawPeekHead() {
   $('peekPill').replaceChildren(pill(s.state));
   $('peekTitle').textContent = s.title;
   const meta = $('peekMeta'); meta.textContent = '';
-  meta.append(el('span', 'where', `${s.project}/${s.ws} · ${s.machine}`));
+  meta.append(srcChip(s), el('span', 'where', place(s)));
   if (s.waiting) meta.append(el('span', 'tag wait', s.waiting));
   if (s.state !== 'idle' && s.since) meta.append(el('span', 'where', `· ${dur(s.since)}`));
   const open = $('peekOpen'); open.disabled = !s.rc_id; open.title = s.rc_id ? `Open ${s.title} in the Claude app` : 'This session has no Remote Control link';
@@ -614,8 +705,13 @@ function drawPeekHead() {
 function drawPeekBody() {
   const s = peekOf; if (!s) return;
   const body = $('peekBody'); body.textContent = '';
-  const got = peeks.get(`${s.machine}|${s.name}`);
+  // Why it waits and the sub-agent tree come from the snapshot, so they show at once.
+  const why = s.state === 'needs' ? whyLine(s, true) : null;
+  if (why) { const sec = el('section'); sec.append(el('p', 'plabel', 'Why it waits'), why); body.append(sec); }
+  const tree = subTree(s); if (tree) body.append(tree);
+  const got = canRead(s) ? peeks.get(pkey(s)) : null;
   $('peekAgain').disabled = !got;
+  if (!canRead(s)) { body.append(el('p', 'pnote', 'The prompt and the last reply are only read for Pod Bay sessions.')); return; }
   if (!got) {
     body.append(el('p', 'pnote', `Reading from ${s.machine}… another machine can take ten seconds.`));
     for (const c of ['', ' s2', ' s3']) body.append(el('div', `shimmer${c}`));
@@ -625,18 +721,19 @@ function drawPeekBody() {
   const d = got.data;
   if (!d.shared) { body.append(el('p', 'pnote', `${s.machine} does not share its sessions' text.`)); return; }
   if (!d.reply && !d.prompt) { body.append(el('p', 'pnote', 'No prompt or reply yet.')); return; }
+  if (d.prompt) { const sec = el('section'); sec.append(el('p', 'plabel', 'Your last prompt'), richText(el('p', 'bubble me'), d.prompt)); body.append(sec); }
   if (d.reply) {
     const sec = el('section'); const l = el('p', 'plabel', 'Last reply');
     if (d.at) l.append(el('span', 'tab', ago(d.at)));
     sec.append(l, richText(el('p', 'bubble'), d.reply)); body.append(sec);
   }
-  if (d.prompt) { const sec = el('section'); sec.append(el('p', 'plabel', 'Your last prompt'), richText(el('p', 'bubble me'), d.prompt)); body.prepend(sec); }
-  // A session that waits for you asked at the end of its reply: start there. Others start at the top.
-  body.scrollTop = s.state === 'needs' ? body.scrollHeight : 0;
+  // A session that waits for you asked at the end of its reply: start there, unless a reason box stands at the top.
+  body.scrollTop = s.state === 'needs' && !why ? body.scrollHeight : 0;
 }
 
 function readPeek(s, force) {
-  const k = `${s.machine}|${s.name}`, had = peeks.get(k);
+  if (!canRead(s)) return; // no Pod Bay name: nothing to ask `podbay-dev detail`
+  const k = pkey(s), had = peeks.get(k);
   if (!force && had && Date.now() - had.at < PEEK_KEEP_MS) return;
   if (force) peeks.delete(k);
   const t = window.__TAURI__; if (!t) return;
@@ -645,13 +742,13 @@ function readPeek(s, force) {
   t.core.invoke('peek', { machine: s.machine, name: s.name })
     .then(data => { peeks.set(k, { at: Date.now(), data }); })
     .catch(err => { peeks.set(k, { at: Date.now(), error: String(err || 'unknown error').replace(/^podbay-dev /, '') }); })
-    .finally(() => { if (token === peekToken && peekOf && `${peekOf.machine}|${peekOf.name}` === k) drawPeekBody(); });
+    .finally(() => { if (token === peekToken && peekOf && pkey(peekOf) === k) drawPeekBody(); });
 }
 
 function openPeek(s, from) {
-  const same = peekOf && peekOf.machine === s.machine && peekOf.name === s.name && $('peek').classList.contains('open');
+  const same = peekOf && pkey(peekOf) === pkey(s) && $('peek').classList.contains('open');
   if (same) { closePeek(); return; }
-  peekOf = s; peekFrom = from || null;
+  peekOf = s; peekSig = sigOf(s); peekFrom = from || null;
   $('peek').classList.add('open'); $('peek').setAttribute('aria-hidden', 'false');
   drawPeek(); readPeek(s, false);
   markPeekButtons(); if (from) from.setAttribute('aria-expanded', 'true');
@@ -704,12 +801,17 @@ function listRow(s) {
   const key = `${s.machine}|${s.title}`;
   const r = el('div', `lrow ${s.state}`); r.dataset.key = key;
   if (!first && prev.has(key) && prev.get(key) !== s.state) r.classList.add('flash');
-  const ti = el('span', 'lt'); const si = el('span', `sic ${s.state}`); si.append(ic(STATES[s.state][1])); ti.append(si, el('span', null, s.title));
+  const ti = el('span', 'lt'); const si = el('span', `sic ${s.state}`); si.append(ic(STATES[s.state][1]));
+  // The source is an icon only; its words are the tooltip and the label.
+  const sr = el('span', 'srci'); sr.title = srcWords(s); sr.setAttribute('role', 'img'); sr.setAttribute('aria-label', srcWords(s)); sr.append(ic(SRC[srcOf(s)][1]));
+  ti.append(si, sr, el('span', null, s.title));
   const pb = peekButton(s); if (pb) ti.append(pb);
   // The text is cut with an ellipsis; the links after it always stay whole.
-  const what = el('span', s.what ? 'lw' : 'lw fallback'); what.append(el('span', 'txt', s.what || (s.branch ? `branch ${s.branch}` : 'no description')));
-  const where = el('span', 'lp'); where.append(el('span', 'place', `${s.project}/${s.ws} · ${s.machine}`));
+  const text = (s.state === 'busy' && s.step) || s.what;
+  const what = el('span', text ? 'lw' : 'lw fallback'); what.append(el('span', 'txt', text || (s.branch ? `branch ${s.branch}` : 'no description')));
+  const where = el('span', 'lp'); where.append(el('span', 'place', srcOf(s) === 'podbay' && s.machine ? `${place(s)} · ${s.machine}` : place(s)));
   if (s.waiting) where.append(el('span', 'tag wait', s.waiting));
+  const lst = subRun(s) ? el('span', 'tag', nSub(subRun(s))) : subTag(s); if (lst) where.append(lst);
   if (s.finished) where.append(doneTag(s));
   if (s.queued) where.append(el('span', 'tag', `${s.queued} queued`));
   const lk = links(s, 2); if (lk) what.append(lk);
@@ -752,7 +854,7 @@ function render() {
     if (these.length && layout === 'list') v.append(listView(these, false));
     else if (these.length) { const ul = el('ul', 'wide'); for (const s of these) ul.append(row(s, true)); v.append(ul); }
   }
-  const key = `${view}|${machine}|${layout}`;
+  const key = `${view}|${srcF}|${projF}|${layout}`;
   if (key !== lastView) { lastView = key; v.classList.remove('enter'); void v.offsetWidth; v.classList.add('enter'); }
   prev.clear(); for (const s of snap.sessions) prev.set(`${s.machine}|${s.title}`, s.state);
   first = false;
@@ -762,20 +864,23 @@ function render() {
   const pose = k.needs > 0 ? 'needs' : k.busy > 0 ? 'busy' : 'idle';
   if (!cat.classList.contains(pose)) cat.className = `cat ${pose}`;
   if (peekOf) {
-    const now = snap.sessions.find(x => x.machine === peekOf.machine && x.name === peekOf.name);
-    if (now) { peekOf = now; drawPeekHead(); }
+    const now = snap.sessions.find(x => pkey(x) === pkey(peekOf));
+    if (now) { peekOf = now; drawPeekHead(); if (sigOf(now) !== peekSig) { peekSig = sigOf(now); drawPeekBody(); } }
     for (const b of document.querySelectorAll('.peekbtn')) if (b.getAttribute('aria-label') === `Peek at ${peekOf.title}`) b.setAttribute('aria-expanded', 'true');
   }
   const needs = snap.counts.needs;
   if (saidNeeds !== needs) { $('say').textContent = `${needs} sessions need you`; saidNeeds = needs; }
 }
 
-function item(icon, label, count, active, hot, onClick, dotClass) {
-  const b = el('button', 'item'); b.type = 'button'; b.title = label; b.setAttribute('aria-label', label);
+// `tip` replaces the label as tooltip and screen reader name; `on` marks a filter row that is switched on.
+function item(icon, label, count, active, hot, onClick, dotClass, tip, on) {
+  const b = el('button', 'item'); b.type = 'button'; b.title = tip || label; b.setAttribute('aria-label', tip || label);
   if (active) b.setAttribute('aria-current', 'page');
+  if (on != null) { b.setAttribute('aria-pressed', String(on)); b.classList.add('sub'); if (on) b.dataset.on = '1'; }
   if (hot) b.dataset.hot = '1';
   const ico = el('span', 'ico'); if (!dotClass) ico.append(ic(icon));
-  b.append(dotClass ? el('span', `dot ${dotClass}`) : ico, el('span', 'lbl', label));
+  const dot = dotClass ? el('span', `dot ${dotClass}`) : null; if (dot && tip) dot.title = tip;
+  b.append(dot || ico, el('span', 'lbl', label));
   if (count != null) b.append(el('span', 'n tab', String(count)));
   b.addEventListener('click', onClick);
   return b;
@@ -784,7 +889,7 @@ function item(icon, label, count, active, hot, onClick, dotClass) {
 function nav() {
   const box = $('nav'); const thumb = $('thumb'); const keep = box.scrollTop;
   box.textContent = ''; box.append(thumb);
-  // Every count follows the machine filter, so a number always matches what the view shows.
+  // Every state count follows the filters, so a number always matches what the view shows.
   const c = { needs: 0, busy: 0, idle: 0, stopped: 0 };
   if (snap) { for (const s of shown()) c[s.state]++; c.stopped = stoppedShown().length; }
   box.append(item('house', 'Overview', null, view === 'home', false, () => go('home')));
@@ -792,19 +897,27 @@ function nav() {
     box.append(item(STATES[state][1], STATES[state][0], c[state], view === state, state === 'needs' && c.needs > 0, () => go(state)));
   }
   if (snap) {
-    if (snap.machines.length > 1) {
-      box.append(el('p', 'group', 'Machines'));
-      for (const m of snap.machines) {
-        box.append(item('', m.name, snap.sessions.filter(s => s.machine === m.name).length, false, false, () => { machine = machine === m.name ? null : m.name; render(); bar(); }, m.online ? 'on' : m.key_stale ? 'off warn' : 'off'));
-        if (!m.online) box.lastChild.title = m.key_stale ? `${m.name}: offline, password out of date` : `${m.name}: offline`;
-        box.lastChild.classList.add('sub'); if (machine === m.name) box.lastChild.dataset.on = '1';
-      }
+    // Source and Projects: each row is a filter that toggles. Counts here are the whole board, so a row shows what it would add.
+    box.append(el('p', 'group', 'Source'));
+    for (const k of ['podbay', 'desktop', 'terminal']) {
+      const n = snap.sessions.filter(x => srcOf(x) === k).length;
+      if (!n && srcF !== k) continue; // a source with no session is left out
+      box.append(item(SRC[k][1], SRC[k][0], n, false, false, () => { srcF = srcF === k ? null : k; render(); bar(); }, '', `${SRC[k][0]} sessions`, srcF === k));
+    }
+    const projects = [...new Set(snap.sessions.map(x => x.project).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    if (projF && !projects.includes(projF)) projects.push(projF);
+    if (projects.length) box.append(el('p', 'group', 'Projects'));
+    for (const pr of projects) {
+      const mine = snap.sessions.filter(x => x.project === pr), w = mine.filter(x => x.state === 'needs').length;
+      // The dot is accent when a session there waits; the tooltip and the label say it, and the count turns accent too.
+      const tip = w ? `${pr}: ${w} ${w === 1 ? 'session needs' : 'sessions need'} you` : pr;
+      box.append(item('', pr, mine.length, false, w > 0, () => { projF = projF === pr ? null : pr; render(); bar(); }, w ? 'hot' : 'quiet', tip, projF === pr));
     }
   }
-  if (machine) {
-    const clear = el('button', 'item sub clear'); clear.type = 'button'; clear.title = 'Clear the machine filter'; clear.setAttribute('aria-label', 'Clear filter');
+  if (srcF || projF) {
+    const clear = el('button', 'item sub clear'); clear.type = 'button'; clear.title = 'Clear the filter'; clear.setAttribute('aria-label', 'Clear filter');
     const x = el('span', 'ico'); x.append(ic('x')); clear.append(x, el('span', 'lbl', 'Clear filter'));
-    clear.addEventListener('click', () => { machine = null; render(); bar(); });
+    clear.addEventListener('click', () => { srcF = null; projF = null; render(); bar(); });
     box.append(clear);
   }
   box.scrollTop = keep; // a redraw every few seconds must not jump the list back to the top
@@ -840,7 +953,8 @@ function bar() {
   const name = view === 'home' ? 'Overview' : STATES[view][0];
   const crumb = $('crumb'); crumb.textContent = 'Pod Board › ';
   crumb.append(el('b', null, name));
-  if (machine) crumb.append(` · ${machine}`);
+  if (srcF) crumb.append(` · ${SRC[srcF][0]}`);
+  if (projF) crumb.append(` · ${projF}`);
   $('title').textContent = name;
   // A state page names its state with the same pill as the lanes, and the count.
   const ts = $('titleState'); ts.textContent = '';

@@ -246,7 +246,7 @@ mod tests {
         Session {
             machine: "UA".into(), project: "pb-bot".into(), ws: "src-05".into(), title: title.into(), state,
             since: 0, what: String::new(), branch: String::new(), prs: 0, queued: 0, rc_id: String::new(), name: String::new(),
-            links: vec![], finished: 0,
+            links: vec![], finished: 0, source: "podbay", reason: None, agents: None,
             waiting: if state == "needs" { "input needed".into() } else { String::new() },
         }
     }
@@ -429,5 +429,33 @@ mod tests {
         let titles: Vec<&str> = o.alerts.iter().map(|x| x.title.as_str()).collect();
         assert_eq!(titles, vec!["Q still needs you (30 min)", "R needs you"],
             "the muted start of Q is not announced late, but its reminder goes out once the quiet time ends");
+    }
+
+    #[test]
+    fn a_local_session_takes_part_in_the_alert_rules() {
+        use crate::local::Local;
+        use crate::model::{build, Raw};
+        let me = serde_json::json!([{"machine": "UA", "me": true, "online": true}]);
+        let read = |status: &str, waiting: &str| build(&Raw {
+            machines: me.clone(),
+            local: vec![Local { rc_id: "session_01Term".into(), entrypoint: "cli".into(), interactive: true, status: status.into(),
+                                waiting_for: waiting.into(), title: "Terminal job".into(), project: "alpha".into(), since: 1, ..Local::default() }],
+            ..Raw::default()
+        });
+        let mut a = Alerts::new(true);
+        assert_eq!(a.on_read(&read("busy", ""), 0), Outcome::default());
+        // A new wait: one alert, with sound and flash, opening the session by its Remote Control id.
+        let o = a.on_read(&read("waiting", "permission prompt"), 5_000);
+        assert_eq!(o.alerts.len(), 1);
+        assert_eq!((o.alerts[0].kind.clone(), o.alerts[0].rc_id.as_str(), o.sound, o.flash), (Kind::New, "session_01Term", true, true));
+        assert!(a.on_read(&read("waiting", "permission prompt"), 10_000).alerts.is_empty(), "told once");
+        // A 2 minute run, then idle: finished.
+        a.on_read(&read("busy", ""), 20_000);
+        a.on_read(&read("idle", ""), 20_000 + FINISH_MIN_RUN_MS);
+        let o = a.on_read(&read("idle", ""), 20_000 + FINISH_MIN_RUN_MS + FINISH_SETTLE_MS);
+        assert_eq!(o.alerts.iter().map(|x| x.kind.clone()).collect::<Vec<_>>(), vec![Kind::Finished]);
+        let mut m = read("idle", "");
+        a.mark(&mut m);
+        assert!(m.sessions[0].finished > 0 && m.counts.finished == 1);
     }
 }
