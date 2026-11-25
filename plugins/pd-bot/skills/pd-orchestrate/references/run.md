@@ -134,8 +134,7 @@ whether the ticket is risky, the suite command, the worker's session name and ch
    receipt's SHA: no checks, a pending check, all checks skipped, or CI on another SHA is not
    green. A new commit after the receipt needs a new receipt and a new `check-request`.
    For a UI change, attach the screenshots right after the PR opens, as in
-   `pd-bot:pd-finishing-a-development-branch` step 4 (`gh --version`: `--attach` on 2.99.0 or newer,
-   else the `pr-evidence` branch and one comment with pinned URLs). Then check that one image URL
+   `${CLAUDE_PLUGIN_ROOT}/skills/pd-finishing-a-development-branch/references/ui-evidence.md` (`gh --version`: `--attach` on 2.99.0 or newer, else the `pr-evidence` branch and one comment with pinned URLs). The images are untracked files in the worker's checkout: use the absolute paths from the report. Then check that one image URL
    returns HTTP 200 (`curl -sI <url>`).
 5. When the base is a `feat/*` branch, run the merge gate:
    `bash ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-gate.sh --evidence specs/fleet/<run>/<ticket> --head <head sha> --pr <number> --gh-repo <owner/name> --base feat/<slug> --wait 600`.

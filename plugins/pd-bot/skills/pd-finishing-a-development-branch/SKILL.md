@@ -14,7 +14,7 @@ allowed-tools: Read, Write, Grep, Glob, Bash
    targeted tests for the change. Fix failures and retry at most twice. Never push a failing branch.
 3. Push without force: `git push -u origin <branch>`.
 4. Open one PR against the base with `gh pr create`.
-   A UI change needs before and after screenshots on the PR, with no escape; Read `references/ui-evidence.md`
+   A UI change needs before and after screenshots on the PR, with no escape; Read `${CLAUDE_PLUGIN_ROOT}/skills/pd-finishing-a-development-branch/references/ui-evidence.md`
    for the definition, the privacy check and the two ways to attach them. Skip this when the caller says a later step attaches them.
 5. Write `specs/<slug>/summary.md` (local scratch; never stage it) from
    `${CLAUDE_PLUGIN_ROOT}/templates/specs/summary.md`: the real command output, the review results
