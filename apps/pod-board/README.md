@@ -63,7 +63,7 @@ It is a Tauri 2 app (Rust and one HTML page). It needs no server, no port and no
   about ten seconds. A read is kept for 20 s; "Read again" reads it now. Esc or × closes the panel.
 - **Menu bar popover:** a left click on the menu bar icon opens a small panel under it with the sessions that need
   you, the ones that finished and the ones working; a row opens that session in the Claude app, and "Open Pod Board" opens the window. A
-  right click (or Control-click) shows the menu. The popover closes when you click anywhere else.
+  right click (or Control-click) shows the menu. The popover closes when you click anywhere else: on macOS the app watches mouse clicks, because the popover is not the key window on a display when the board's window is on another one (issue #170). A click on the menu bar icon of the other display moves the popover there.
 - **Cat:** a small black cat with glowing eyes, drawn for this app in the logo's colours, sits in the round tile at
   the start of the summary row, on every page. It shows the heaviest state of the whole board: it waves when a session needs you, types when one is working, and
   sleeps otherwise. It is decorative (hidden from screen readers) and does nothing when clicked.
