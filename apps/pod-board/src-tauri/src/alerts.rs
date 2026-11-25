@@ -49,6 +49,8 @@ pub struct Outcome {
     pub flash: bool,
 }
 
+/// `machine` in `Wait`, `Run` and `Finish` is the Pod Bay machine of a Pod Bay session, and empty for a local one:
+/// only a Pod Bay session's state is kept while its machine is not read (`keep`).
 #[derive(Debug, Clone)]
 struct Wait {
     machine: String,
@@ -82,6 +84,9 @@ pub struct Alerts {
     running: HashMap<String, Run>,
     finished: HashMap<String, Finish>,
     last_sound: Option<u64>,
+    /// A read with Pod Bay in it was seen. Until then the Pod Bay sessions are only learned, like on the first read:
+    /// a failed first `ls` must not make the first good one announce every wait as new (issue #158).
+    podbay_read: bool,
     /// Do Not Disturb until this time (ms since the epoch), if set.
     pub dnd_until: Option<u64>,
     pub sound_on: bool,
@@ -94,6 +99,18 @@ fn place(s: &Session) -> String {
 fn body(s: &Session) -> String {
     let what = if s.what.is_empty() { place(s) } else { s.what.clone() };
     if s.waiting.is_empty() { what } else { format!("{} · {}", s.waiting, what) }
+}
+
+/// A Pod Bay session of a machine that was not read this time: the model shows its last known state, which raises
+/// nothing (its waits, runs and finishes are kept until the machine is read again).
+fn stale(model: &Model, s: &Session) -> bool {
+    s.source == "podbay" && model.unread.contains(&s.machine)
+}
+
+/// The machine to keep a session's state for while that machine is not read: a Pod Bay session's machine; none for a
+/// local session, which is read on every poll (issue #158: a terminal session that waits again during an outage).
+fn keep(s: &Session) -> String {
+    if s.source == "podbay" { s.machine.clone() } else { String::new() }
 }
 
 impl Alerts {
@@ -116,12 +133,14 @@ impl Alerts {
     /// Feed one read of the model at time `now` (ms since the epoch).
     pub fn on_read(&mut self, model: &Model, now: u64) -> Outcome {
         let quiet = self.quiet(now);
-        let first = self.waiting.is_none();
+        // The first read only learns what already waits; for Pod Bay sessions, the first read that has Pod Bay in it.
+        let (first_local, first_podbay) = (self.waiting.is_none(), !self.podbay_read);
+        let first = |s: &Session| if s.source == "podbay" { first_podbay } else { first_local };
         let before = self.waiting.take().unwrap_or_default();
         let mut waiting = HashMap::new();
         let mut out = Outcome::default();
-        self.track_finishes(model, now, first, quiet, &mut out);
-        for s in model.sessions.iter().filter(|s| s.state == "needs") {
+        self.track_finishes(model, now, &first, quiet, &mut out);
+        for s in model.sessions.iter().filter(|s| s.state == "needs" && !stale(model, s)) {
             let k = key(s);
             let wait = match before.get(&k) {
                 // A wait that goes on: remind when its time has come.
@@ -144,10 +163,10 @@ impl Alerts {
                 }
                 // A new wait. The first read only learns what already waits.
                 None => {
-                    if !first && !quiet {
+                    if !first(s) && !quiet {
                         out.alerts.push(Alert { kind: Kind::New, title: format!("{} needs you", s.title), body: body(s), session: k.clone(), rc_id: s.rc_id.clone() });
                     }
-                    Wait { machine: s.machine.clone(), since: now, reminders: 0, last_told: now }
+                    Wait { machine: keep(s), since: now, reminders: 0, last_told: now }
                 }
             };
             waiting.insert(k, wait);
@@ -157,6 +176,7 @@ impl Alerts {
             if model.unread.contains(&w.machine) { waiting.entry(k).or_insert(w); }
         }
         self.waiting = Some(waiting);
+        self.podbay_read |= !model.stale;
 
         // A finish is a quiet notice: only a wait or its reminder makes a sound.
         if out.alerts.iter().any(|a| a.kind != Kind::Finished) {
@@ -172,16 +192,16 @@ impl Alerts {
     /// Follow each session from working to idle. A session that worked for `FINISH_MIN_RUN_MS` and then stays idle
     /// for `FINISH_SETTLE_MS` has finished: the board marks it until the owner looks at it, and one quiet
     /// notification goes out (after Do Not Disturb, when that holds).
-    fn track_finishes(&mut self, model: &Model, now: u64, first: bool, quiet: bool, out: &mut Outcome) {
+    fn track_finishes(&mut self, model: &Model, now: u64, first: &dyn Fn(&Session) -> bool, quiet: bool, out: &mut Outcome) {
         let mut seen: Vec<String> = Vec::new();
-        for s in &model.sessions {
+        for s in model.sessions.iter().filter(|s| !stale(model, s)) {
             let k = key(s);
             match s.state {
                 "busy" => {
                     self.finished.remove(&k);
                     // On the first read the run started before this app looked: take Pod Bay's time for it.
-                    let since = if first && s.since > 0 && (s.since as u64) <= now { s.since as u64 } else { now };
-                    self.running.entry(k.clone()).or_insert(Run { machine: s.machine.clone(), since });
+                    let since = if first(s) && s.since > 0 && (s.since as u64) <= now { s.since as u64 } else { now };
+                    self.running.entry(k.clone()).or_insert(Run { machine: keep(s), since });
                 }
                 "idle" => {
                     if let Some(run) = self.running.remove(&k) {
@@ -246,12 +266,12 @@ mod tests {
         Session {
             machine: "UA".into(), project: "pb-bot".into(), ws: "src-05".into(), title: title.into(), state,
             since: 0, what: String::new(), branch: String::new(), prs: 0, queued: 0, rc_id: String::new(), name: String::new(),
-            links: vec![], finished: 0,
+            links: vec![], finished: 0, source: "podbay", reason: None, agents: None,
             waiting: if state == "needs" { "input needed".into() } else { String::new() },
         }
     }
     fn m(list: Vec<Session>) -> Model {
-        Model { machines: vec![], sessions: list, stopped: vec![], counts: Counts::default(), unread: vec![] }
+        Model { machines: vec![], sessions: list, stopped: vec![], counts: Counts::default(), unread: vec![], stale: false }
     }
     const MIN: u64 = 60_000;
 
@@ -429,5 +449,33 @@ mod tests {
         let titles: Vec<&str> = o.alerts.iter().map(|x| x.title.as_str()).collect();
         assert_eq!(titles, vec!["Q still needs you (30 min)", "R needs you"],
             "the muted start of Q is not announced late, but its reminder goes out once the quiet time ends");
+    }
+
+    #[test]
+    fn a_local_session_takes_part_in_the_alert_rules() {
+        use crate::local::Local;
+        use crate::model::{build, Raw};
+        let me = serde_json::json!([{"machine": "UA", "me": true, "online": true}]);
+        let read = |status: &str, waiting: &str| build(&Raw {
+            machines: me.clone(),
+            local: vec![Local { rc_id: "session_01Term".into(), entrypoint: "cli".into(), interactive: true, status: status.into(),
+                                waiting_for: waiting.into(), title: "Terminal job".into(), project: "alpha".into(), since: 1, ..Local::default() }],
+            ..Raw::default()
+        });
+        let mut a = Alerts::new(true);
+        assert_eq!(a.on_read(&read("busy", ""), 0), Outcome::default());
+        // A new wait: one alert, with sound and flash, opening the session by its Remote Control id.
+        let o = a.on_read(&read("waiting", "permission prompt"), 5_000);
+        assert_eq!(o.alerts.len(), 1);
+        assert_eq!((o.alerts[0].kind.clone(), o.alerts[0].rc_id.as_str(), o.sound, o.flash), (Kind::New, "session_01Term", true, true));
+        assert!(a.on_read(&read("waiting", "permission prompt"), 10_000).alerts.is_empty(), "told once");
+        // A 2 minute run, then idle: finished.
+        a.on_read(&read("busy", ""), 20_000);
+        a.on_read(&read("idle", ""), 20_000 + FINISH_MIN_RUN_MS);
+        let o = a.on_read(&read("idle", ""), 20_000 + FINISH_MIN_RUN_MS + FINISH_SETTLE_MS);
+        assert_eq!(o.alerts.iter().map(|x| x.kind.clone()).collect::<Vec<_>>(), vec![Kind::Finished]);
+        let mut m = read("idle", "");
+        a.mark(&mut m);
+        assert!(m.sessions[0].finished > 0 && m.counts.finished == 1);
     }
 }

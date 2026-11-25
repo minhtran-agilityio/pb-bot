@@ -1,10 +1,11 @@
 # Pod Board
 
-Pod Board is a small desktop app that shows every Pod Bay Claude session on every machine, sorted by what it needs
+Pod Board is a small desktop app that shows every Pod Bay Claude session on every machine, and the Claude terminal
+sessions of this machine that have Remote Control on, sorted by what it needs
 from you: **Needs you**, **Working**, **Idle** and **Stopped**.
 It tells you when a session starts to wait for you, so you can leave long tasks running and come back when needed.
 
-It only watches. It reads `podbay-dev` and never changes a session.
+It only watches. It reads `podbay-dev` and this machine's Claude session files, and never changes a session.
 
 ## Requirements
 
@@ -26,8 +27,21 @@ The app is not signed, so the first start on a new Mac asks for confirmation (ri
 
 ## Use
 
-- **Board:** one lane per state. Filter by state or machine in the sidebar; switch between **Board** and **List** at
-  the top right.
+- **Window:** the title bar shows the Pod Cat logo and where you are; drag it to move the window. The sidebar
+  filters by state, by **Source** (Pod Bay, Terminal) and by **Projects**: click a row to filter, click it again or
+  **Clear filter** to stop. A project's dot turns accent while a session there needs you; its foot has the theme switch (light, dark, follow the system). The button on the
+  title bar (or ⌘B) folds the sidebar to its icons.
+- **Look:** the same design system as Shape Board: Outfit for text (JetBrains Mono only for code), Lucide icons,
+  soft state pills with an icon and a word, and the Pod Cat logo. The fonts and icons ship inside the app.
+- **Board:** one lane per state. Switch between **Board** and **List** at the top right of the main panel. The cat
+  in the summary row waves when a session needs you, types while one works, and sleeps otherwise.
+- **Source:** each card says where its session runs: `Pod Bay · M0` (with the machine) or `Terminal · RC` (a
+  terminal session on this machine with Remote Control on). Claude desktop-app sessions are not shown yet.
+- **Why it waits:** a card that needs you says `Permission` when the session waits on a permission; else the
+  `input needed` tag shows. The peek repeats it under "Why it waits".
+- **Sub-agents:** a working session on this machine shows up to 3 running sub-agents and "+n more running"; the
+  peek lists every sub-agent with its model and time. Sessions on other machines show no sub-agents (Pod Bay does
+  not report them).
 - **Open a session:** click a card. The Claude desktop app switches to that session.
 - **Peek:** the speech-bubble button on a card shows the session's last reply and your last prompt, without opening it.
 - **Menu bar:** the icon shows the most urgent state and a count. Left-click for a small list of who needs you and

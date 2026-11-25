@@ -1,13 +1,14 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The board window and the menu bar popover listen to events and read the snapshot",
+  "description": "The board window and the menu bar popover listen to events and read the snapshot; the board drags by its title bar",
   "windows": [
     "main",
     "popover"
   ],
   "permissions": [
     "core:event:allow-listen",
-    "core:event:allow-unlisten"
+    "core:event:allow-unlisten",
+    "core:window:allow-start-dragging"
   ]
 }

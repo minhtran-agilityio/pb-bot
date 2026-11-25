@@ -1,11 +1,13 @@
 // Pod Board: a small desktop window with every Pod Bay session by state (needs you, busy, idle).
 // It only observes. It polls the read-only commands `podbay-dev ls --all`, `checkouts --all`, `machines` and
-// `queue ls --all`. It runs `podbay-dev detail` only when the owner opens a session's peek, for that one session,
+// `queue ls --all`, and reads this machine's Claude session files and sub-agent files (`local.rs`; read only, no
+// hook). It runs `podbay-dev detail` only when the owner opens a session's peek, for that one session,
 // and keeps only its last prompt and reply (never the screen). It never sends anything anywhere. A click can open
 // a session in the Claude app, or one of its links (a pull request, an issue, an artifact) in the browser.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod alerts;
+mod local;
 mod model;
 
 use alerts::Alerts;
@@ -274,6 +276,11 @@ fn find_podbay() -> PathBuf {
     dirs.into_iter().map(|d| d.join("podbay-dev")).find(|p| p.is_file()).unwrap_or_else(|| PathBuf::from("podbay-dev"))
 }
 
+/// `~/.claude`, where Claude Code keeps its session files.
+fn claude_dir() -> Option<PathBuf> {
+    std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".claude"))
+}
+
 /// Run one read-only Pod Bay command and parse its JSON. The error text names the subcommand, never stderr.
 fn read(cmd: &PathBuf, args: &[&str]) -> Result<Value, String> {
     read_for(cmd, args, COMMAND_TIMEOUT)
@@ -331,23 +338,43 @@ fn now_ms() -> u64 {
 }
 
 /// The menu bar icon for the most urgent state, and the count beside it (empty when nothing counts).
-/// Icons: Phosphor Icons, duotone, drawn black so macOS can tint them as template images.
+/// Icons: Lucide (ISC), the same shapes as the window, drawn black so macOS can tint them as template images.
 fn tray_look(snap: &Snapshot) -> (&'static [u8], String) {
     let c = snap.model.counts;
     // Nobody waits, but something finished: say so beside the icon ("✓2", or "3 ✓2" while others work).
     let done = if c.finished > 0 { format!("✓{}", c.finished) } else { String::new() };
     if !snap.ok {
-        (include_bytes!("../icons/tray-warning-circle.png"), String::new())
+        // Pod Bay could not be read, but this machine's own sessions still count (issue #158): a wait shows its number.
+        (include_bytes!("../icons/tray-triangle-alert.png"), if c.needs > 0 { c.needs.to_string() } else { String::new() })
     } else if c.needs > 0 {
-        (include_bytes!("../icons/tray-hand-palm.png"), c.needs.to_string())
+        (include_bytes!("../icons/tray-hand.png"), c.needs.to_string())
     } else if c.busy > 0 {
-        (include_bytes!("../icons/tray-lightning.png"), format!("{} {done}", c.busy).trim_end().to_string())
+        (include_bytes!("../icons/tray-loader.png"), format!("{} {done}", c.busy).trim_end().to_string())
     } else if c.idle > 0 {
         (include_bytes!("../icons/tray-coffee.png"), done)
     } else {
-        (include_bytes!("../icons/tray-moon-stars.png"), String::new())
+        (include_bytes!("../icons/tray-moon-star.png"), String::new())
     }
 }
+
+/// The Dock shows the icon it cached for the bundle, and a Dock that pinned Pod Board before the Pod Cat icon (#136) kept
+/// the old one: a new `icon.icns`, `lsregister -f` and a Dock restart did not change it (issue #159, checked on macOS 27).
+/// So the running app hands the Dock its icon itself, from the same picture as the bundle icon.
+#[cfg(target_os = "macos")]
+fn dock_icon() {
+    use objc2::{AnyThread, MainThreadMarker};
+    use objc2_app_kit::{NSApplication, NSImage};
+    use objc2_foundation::NSData;
+    // `setup` runs on the main thread; anywhere else, leave the Dock as it is.
+    let Some(mtm) = MainThreadMarker::new() else { return };
+    let data = NSData::with_bytes(include_bytes!("../icons/icon.png"));
+    if let Some(image) = NSImage::initWithData(NSImage::alloc(), &data) {
+        unsafe { NSApplication::sharedApplication(mtm).setApplicationIconImage(Some(&image)) };
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn dock_icon() {}
 
 fn publish(app: &AppHandle, snap: &Snapshot) {
     let _ = app.emit("pods", snap);
@@ -401,7 +428,7 @@ fn play_sound() {
 /// Blink the menu bar icon a few times, then put back the icon of the current state.
 fn flash_tray(app: AppHandle) {
     std::thread::spawn(move || {
-        let hand = tauri::image::Image::from_bytes(include_bytes!("../icons/tray-hand-palm.png"));
+        let hand = tauri::image::Image::from_bytes(include_bytes!("../icons/tray-hand.png"));
         let blank = tauri::image::Image::from_bytes(include_bytes!("../icons/tray-blank.png"));
         let (Ok(hand), Ok(blank)) = (hand, blank) else { return };
         for i in 0..8 {
@@ -416,9 +443,23 @@ fn flash_tray(app: AppHandle) {
     });
 }
 
+/// Turn one read into the snapshot and the alerts. When `ls` failed (`error`), the Pod Bay part is the last read
+/// (`raw.ls` keeps it) and marked as not read, so it raises nothing; this machine's terminal sessions (local ones that
+/// Pod Bay does not list) are fresh and alert as usual (issue #158). A session Pod Bay lists stays as last read. The snapshot then says why the read failed and keeps the time of the last good read.
+fn apply_read(held: &mut Snapshot, raw: &mut Raw, error: Option<String>, alerts: &mut Alerts, now: u64) -> alerts::Outcome {
+    raw.stale = error.is_some();
+    let mut model = build(raw);
+    let outcome = alerts.on_read(&model, now);
+    alerts.mark(&mut model);
+    let read_at = if error.is_some() { held.read_at } else { Some(now) };
+    *held = Snapshot { ok: error.is_none(), error, read_at, dnd_until: held.dnd_until, model };
+    outcome
+}
+
 fn poll_loop(app: AppHandle, wake: Receiver<()>) {
     let cmd = find_podbay();
     let mut raw = Raw::default();
+    let mut cache = local::Cache::default();
     let mut n: u32 = 0;
     loop {
         let mut error = None;
@@ -435,20 +476,17 @@ fn poll_loop(app: AppHandle, wake: Receiver<()>) {
             }
             Err(e) => error = Some(e),
         }
+        // This machine's own Claude sessions: a few small files, read on every poll.
+        raw.local = claude_dir().map(|d| local::read_with(&d, now_ms(), &local::alive, &mut cache)).unwrap_or_default();
 
-        let mut outcome = alerts::Outcome::default();
+        let outcome;
         let snap = {
             let state = app.state::<Shared>();
             let mut held = match state.0.lock() { Ok(g) => g, Err(p) => p.into_inner() };
-            match error {
-                // A failed read keeps the last sessions and says why.
-                Some(e) => { held.ok = false; held.error = Some(e); }
-                None => {
-                    let mut model = build(&raw);
-                    let now = now_ms();
-                    if let Ok(mut a) = app.state::<AlertState>().0.lock() { outcome = a.on_read(&model, now); a.mark(&mut model); }
-                    *held = Snapshot { ok: true, error: None, read_at: Some(now), dnd_until: None, model };
-                }
+            {
+                let alerts = app.state::<AlertState>();
+                let mut a = match alerts.0.lock() { Ok(g) => g, Err(p) => p.into_inner() };
+                outcome = apply_read(&mut held, &mut raw, error, &mut a, now_ms());
             }
             // Do Not Disturb ends by itself; the window and the menu show whether it holds.
             let dnd = match app.state::<AlertState>().0.lock() {
@@ -487,29 +525,203 @@ fn hide_popover(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("popover") { let _ = w.hide(); }
 }
 
+/// Does a mouse click at `point` close the popover? Yes when it is shown and the click is outside its `frame`
+/// (x, y, width, height; both in one space, the macOS global points). The focus plays no part: on the laptop display
+/// the popover never becomes the key window while the board's window is on the other display, so `Focused(false)`
+/// never fires there (issue #170).
+fn click_hides_popover(visible: bool, frame: (f64, f64, f64, f64), point: (f64, f64)) -> bool {
+    let (x, y, w, h) = frame;
+    // A frame holds its low edges, not its high ones.
+    visible && !(point.0 >= x && point.0 < x + w && point.1 >= y && point.1 < y + h)
+}
+
+/// Where the mouse is, in macOS global points. The same space as a window frame.
+#[cfg(target_os = "macos")]
+fn mouse_point() -> (f64, f64) {
+    let m = objc2_app_kit::NSEvent::mouseLocation();
+    (m.x, m.y)
+}
+
+#[cfg(target_os = "macos")]
+fn note_closed_by_click() {
+    if let Ok(mut g) = POPOVER_CLOSED_BY_CLICK.lock() { *g = Some((Instant::now(), mouse_point())); }
+}
+
+/// macOS: close the popover on a click anywhere else, like a system menu. A global monitor sees the clicks that go
+/// to other apps (the desktop, another display's menu bar); a local one sees the clicks on the board's window, the
+/// only window of this app that is not the popover or the menu bar icon.
+#[cfg(target_os = "macos")]
+fn close_popover_on_click_away(app: &AppHandle) {
+    use block2::RcBlock;
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::{NSEvent, NSEventMask, NSWindow};
+    use std::ptr::NonNull;
+    let Some(mtm) = MainThreadMarker::new() else { return };
+    let mask = NSEventMask::LeftMouseDown | NSEventMask::RightMouseDown | NSEventMask::OtherMouseDown;
+    fn ns_of(app: &AppHandle, label: &str) -> Option<usize> {
+        app.get_webview_window(label).and_then(|w| w.ns_window().ok()).map(|p| p as usize)
+    }
+    // Is the click outside the popover? Read the window's own frame: the same space as the mouse location.
+    fn outside(app: &AppHandle) -> bool {
+        let Some(p) = ns_of(app, "popover") else { return false };
+        let visible = app.get_webview_window("popover").and_then(|w| w.is_visible().ok()).unwrap_or(false);
+        // SAFETY: `ns_window` is this app's own NSWindow, alive while the webview window is; used on the main thread.
+        let f = unsafe { &*(p as *const NSWindow) }.frame();
+        let m = NSEvent::mouseLocation();
+        click_hides_popover(visible, (f.origin.x, f.origin.y, f.size.width, f.size.height), (m.x, m.y))
+    }
+    let other = app.clone();
+    let global = RcBlock::new(move |_: NonNull<NSEvent>| {
+        if outside(&other) { hide_popover(&other); note_closed_by_click(); }
+    });
+    let _ = NSEvent::addGlobalMonitorForEventsMatchingMask_handler(mask, &global);
+    let this = app.clone();
+    let local = RcBlock::new(move |event: NonNull<NSEvent>| -> *mut NSEvent {
+        // Only a click on the board's window counts here. A click on the popover, or on this app's menu bar icon
+        // (whose own click toggles the popover), is left alone.
+        let on_board = MainThreadMarker::new()
+            .and_then(|mtm| unsafe { event.as_ref() }.window(mtm))
+            .map(|w| &*w as *const NSWindow as usize)
+            .is_some_and(|w| Some(w) == ns_of(&this, "main"));
+        if on_board && outside(&this) { hide_popover(&this); note_closed_by_click(); }
+        event.as_ptr()
+    });
+    // SAFETY: the block returns the event it was given, a valid pointer.
+    let _ = unsafe { NSEvent::addLocalMonitorForEventsMatchingMask_handler(mask, &local) };
+    // The monitors live as long as the app.
+    std::mem::forget(global);
+    std::mem::forget(local);
+    let _ = mtm;
+}
+
+#[cfg(not(target_os = "macos"))]
+fn mouse_point() -> (f64, f64) { (0.0, 0.0) }
+
+#[cfg(not(target_os = "macos"))]
+fn close_popover_on_click_away(_app: &AppHandle) {}
+
 /// Where the popover goes: centred under the menu bar icon, 6 px below it, and inside the icon's screen.
-/// All values are physical pixels; `screen` is (left, width) of the monitor the icon is on.
+/// All values are in one unit (here logical points); `screen` is (left, width) of the monitor the icon is on.
 fn popover_x(icon_x: f64, icon_w: f64, pop_w: f64, screen: (f64, f64)) -> f64 {
     let x = icon_x + icon_w / 2.0 - pop_w / 2.0;
     let (left, width) = screen;
     x.min(left + width - pop_w - 8.0).max(left + 8.0)
 }
 
-/// A left click on the menu bar icon opens the popover under it, or closes it when it is open.
+/// One monitor as tao reports it: position and size in physical pixels, and its scale factor.
+#[derive(Clone, Copy, Debug)]
+struct Mon { x: f64, y: f64, w: f64, h: f64, scale: f64 }
+
+/// Where the popover goes, in logical points (the space a `LogicalPosition` takes).
+/// `icon` is the tray rect (x, y, w, h) as tray-icon reports it on macOS: logical points times the
+/// scale of the icon's own screen. The click point (`cursor`, logical points) names that screen: the
+/// monitor whose logical bounds hold it. Only then is the rect divided by that monitor's scale, so
+/// two screens with different scales cannot be mixed up. The popover is centred under the icon,
+/// 6 points below it, and kept 8 points inside that screen.
+fn popover_place(icon: (f64, f64, f64, f64), cursor: (f64, f64), pop_w: f64, mons: &[Mon]) -> Option<(f64, f64)> {
+    let (ix, iy, iw, ih) = icon;
+    let m = mons.iter().find(|m| {
+        let (left, top) = (m.x / m.scale, m.y / m.scale);
+        cursor.0 >= left && cursor.0 < left + m.w / m.scale && cursor.1 >= top && cursor.1 < top + m.h / m.scale
+    })?;
+    let x = popover_x(ix / m.scale, iw / m.scale, pop_w, (m.x / m.scale, m.w / m.scale));
+    Some((x, iy / m.scale + ih / m.scale + 6.0))
+}
+
+/// The click point when the system cannot give it: the middle of the icon, in logical points. The icon rect is
+/// logical points times the scale of its own screen, so a screen can hold it only when the rect divided by that
+/// screen's scale falls in that screen's logical bounds (issue #158: the rect itself was matched against logical
+/// bounds, which could name another screen). Two screens with different scales can both fit; then the primary
+/// screen (at `primary`, its position as tao gives it) wins, else the first that fits.
+fn icon_point(icon: (f64, f64, f64, f64), mons: &[Mon], primary: Option<(f64, f64)>) -> Option<(f64, f64)> {
+    let (ix, iy, iw, ih) = icon;
+    let mid = |m: &Mon| ((ix + iw / 2.0) / m.scale, (iy + ih / 2.0) / m.scale);
+    let fits = |m: &&Mon| {
+        let ((x, y), (left, top)) = (mid(m), (m.x / m.scale, m.y / m.scale));
+        x >= left && x < left + m.w / m.scale && y >= top && y < top + m.h / m.scale
+    };
+    let mut hits = mons.iter().filter(fits);
+    let first = hits.next()?;
+    let pick = std::iter::once(first).chain(hits).find(|m| Some((m.x, m.y)) == primary).unwrap_or(first);
+    Some(mid(pick))
+}
+
+/// The menu bar icon the popover was last opened for (its tray rect's top left), and when a click elsewhere last
+/// closed it. A click on the icon is a mouse-down, which the click monitor sees as a click away, then a mouse-up,
+/// which toggles: the two must not undo each other.
+static POPOVER_ICON: Mutex<Option<(f64, f64)>> = Mutex::new(None);
+static POPOVER_CLOSED_BY_CLICK: Mutex<Option<(Instant, (f64, f64))>> = Mutex::new(None);
+/// A mouse-up this soon after a click closed the popover, and with the mouse still where that click was, belongs to
+/// that click. Without it the icon's own click would close the popover on mouse-down and reopen it on mouse-up.
+const CLICK_PAIR_MS: u128 = 600;
+const CLICK_PAIR_MOVED: f64 = 4.0;
+
+/// Two tray rects are the same icon when their top left is close: the icon's width follows its count text, and
+/// another menu bar item can push it sideways. Another display's icon is a whole screen away.
+fn same_icon(a: (f64, f64), b: (f64, f64)) -> bool {
+    (a.0 - b.0).abs() < 300.0 && (a.1 - b.1).abs() < 20.0
+}
+
+#[derive(Debug, PartialEq)]
+enum Toggle { Hide, Stay, Show }
+
+/// What a click on a menu bar icon does: close the popover that is open under this icon, leave it closed when this
+/// click's own mouse-down just closed it, otherwise open it under this icon (also moving it from the other display's).
+/// `closed_by_click` is, when a click elsewhere closed it, how many ms ago and how many points the mouse moved since.
+fn toggle_action(visible: bool, same_icon: bool, closed_by_click: Option<(u128, f64)>) -> Toggle {
+    match (visible, same_icon) {
+        (true, true) => Toggle::Hide,
+        (true, false) => Toggle::Show,
+        (false, true) if closed_by_click.is_some_and(|(ms, moved)| ms < CLICK_PAIR_MS && moved < CLICK_PAIR_MOVED) => Toggle::Stay,
+        (false, _) => Toggle::Show,
+    }
+}
+
+/// A left click on the menu bar icon opens the popover under it, or closes it when it is open under that icon.
 fn toggle_popover(app: &AppHandle, rect: tauri::Rect) {
     let Some(w) = app.get_webview_window("popover") else { return };
-    if w.is_visible().unwrap_or(false) { let _ = w.hide(); return; }
-    let scale = w.scale_factor().unwrap_or(1.0);
-    let pos: tauri::PhysicalPosition<f64> = rect.position.to_physical(scale);
-    let size: tauri::PhysicalSize<f64> = rect.size.to_physical(scale);
-    let screen = w
-        .monitor_from_point(pos.x, pos.y)
-        .ok()
-        .flatten()
-        .map(|m| (m.position().x as f64, m.size().width as f64))
-        .unwrap_or((0.0, f64::MAX / 4.0));
-    let x = popover_x(pos.x, size.width, POPOVER_W * scale, screen);
-    let _ = w.set_position(tauri::PhysicalPosition::new(x, pos.y + size.height + 6.0 * scale));
+    let at = rect.position.to_physical::<f64>(1.0);
+    let at = (at.x, at.y);
+    let same = POPOVER_ICON.lock().ok().and_then(|g| *g).is_some_and(|i| same_icon(i, at));
+    let closed = POPOVER_CLOSED_BY_CLICK.lock().ok().and_then(|g| *g).map(|(t, at)| {
+        let now = mouse_point();
+        (t.elapsed().as_millis(), (now.0 - at.0).hypot(now.1 - at.1))
+    });
+    let action = toggle_action(w.is_visible().unwrap_or(false), same, closed);
+    // The stamp belongs to one click: spent now, whatever the action.
+    if let Ok(mut g) = POPOVER_CLOSED_BY_CLICK.lock() { *g = None; }
+    match action {
+        Toggle::Hide => { let _ = w.hide(); return; }
+        Toggle::Stay => return,
+        Toggle::Show => {}
+    }
+    if let Ok(mut g) = POPOVER_ICON.lock() { *g = Some(at); }
+    let mons: Vec<Mon> = w
+        .available_monitors()
+        .unwrap_or_default()
+        .iter()
+        .map(|m| Mon {
+            x: m.position().x as f64,
+            y: m.position().y as f64,
+            w: m.size().width as f64,
+            h: m.size().height as f64,
+            scale: m.scale_factor(),
+        })
+        .collect();
+    let icon = (rect.position.to_physical::<f64>(1.0), rect.size.to_physical::<f64>(1.0));
+    let icon = (icon.0.x, icon.0.y, icon.1.width, icon.1.height);
+    // tao reports the cursor as logical points times the primary screen's scale.
+    let main_mon = app.primary_monitor().ok().flatten();
+    let primary = main_mon.as_ref().map(|m| m.scale_factor()).unwrap_or(1.0);
+    let main_at = main_mon.as_ref().map(|m| (m.position().x as f64, m.position().y as f64));
+    let cursor = app.cursor_position().ok().map(|c| (c.x / primary, c.y / primary)).or_else(|| icon_point(icon, &mons, main_at));
+    let placed = cursor.and_then(|c| popover_place(icon, c, POPOVER_W, &mons));
+    // No monitor holds the click (should not happen): open under the icon, unclamped, at the popover's scale.
+    let (x, y) = placed.unwrap_or_else(|| {
+        let s = w.scale_factor().unwrap_or(1.0);
+        (icon.0 / s + icon.2 / s / 2.0 - POPOVER_W / 2.0, icon.1 / s + icon.3 / s + 6.0)
+    });
+    let _ = w.set_position(tauri::LogicalPosition::new(x, y));
     let _ = w.show();
     let _ = w.set_focus();
 }
@@ -597,6 +809,8 @@ fn main() {
                 })
                 .build(app)?;
 
+            dock_icon();
+            close_popover_on_click_away(app.handle());
             // Started at login: stay in the Dock and the menu bar, do not pop a window up.
             if std::env::args().any(|a| a == "--hidden") {
                 if let Some(window) = app.get_webview_window("main") {
@@ -708,6 +922,17 @@ mod tests {
     }
 
     #[test]
+    fn a_failed_read_shows_the_warning_icon_and_the_number_of_waits() {
+        // Issue #158 bug 2: a local wait raised during a failed `ls` gets its badge.
+        let mut snap = Snapshot { ok: false, error: Some("podbay-dev ls failed".into()), ..Snapshot::default() };
+        snap.model.counts = model::Counts { needs: 2, busy: 1, idle: 0, stopped: 0, finished: 0 };
+        let (icon, title) = tray_look(&snap);
+        assert_eq!((icon, title.as_str()), (&include_bytes!("../icons/tray-triangle-alert.png")[..], "2"));
+        snap.model.counts.needs = 0;
+        assert_eq!(tray_look(&snap).1, "");
+    }
+
+    #[test]
     fn the_popover_sits_under_its_icon_and_stays_on_the_screen() {
         // Icon at x 1000, 40 wide, on a 1440-wide screen: centred under it.
         assert_eq!(popover_x(1000.0, 40.0, 340.0, (0.0, 1440.0)), 850.0);
@@ -715,6 +940,46 @@ mod tests {
         assert_eq!(popover_x(1420.0, 20.0, 340.0, (0.0, 1440.0)), 1092.0);
         // Icon near the left edge of a second screen that starts at x 1440.
         assert_eq!(popover_x(1450.0, 20.0, 340.0, (1440.0, 1920.0)), 1448.0);
+    }
+
+
+    #[test]
+    fn the_popover_lands_under_the_icon_on_each_of_two_displays_with_different_scale() {
+        // Retina laptop (scale 2, 1440x900 points) at the origin; external (scale 1, 1920x1080 points) to its right.
+        // tao: monitor position = logical origin x scale; the tray rect = logical x the icon screen's scale;
+        // the click point is given here in logical points.
+        let mons = [
+            Mon { x: 0.0, y: 0.0, w: 2880.0, h: 1800.0, scale: 2.0 },
+            Mon { x: 1440.0, y: 0.0, w: 1920.0, h: 1080.0, scale: 1.0 },
+        ];
+        // Icon on the laptop: logical x 1000, 24x24 points -> physical x2.
+        let (x, y) = popover_place((2000.0, 0.0, 48.0, 48.0), (1012.0, 10.0), 340.0, &mons).unwrap();
+        assert_eq!((x, y), (1000.0 + 12.0 - 170.0, 24.0 + 6.0));
+        // Icon on the external display: logical x 2800, 22x22 points -> physical x1.
+        // Its rect read at the laptop's scale (x 1400) would also fall on the laptop: the click point decides.
+        let (x, y) = popover_place((2800.0, 0.0, 22.0, 22.0), (2811.0, 10.0), 340.0, &mons).unwrap();
+        assert_eq!((x, y), (2800.0 + 11.0 - 170.0, 22.0 + 6.0));
+        // Icon at the far right of the laptop: kept inside that display (1440 points wide).
+        let (x, _) = popover_place((2860.0, 0.0, 48.0, 48.0), (1442.0 - 12.0, 10.0), 340.0, &mons).unwrap();
+        assert_eq!(x, 1440.0 - 340.0 - 8.0);
+        // Icon at the far right of the external display (logical right edge 3360).
+        let (x, _) = popover_place((3350.0, 0.0, 22.0, 22.0), (3355.0, 10.0), 340.0, &mons).unwrap();
+        assert_eq!(x, 3360.0 - 340.0 - 8.0);
+        // The external display on the left of the laptop (negative origin) works the same way.
+        let left = [
+            Mon { x: -1920.0, y: 0.0, w: 1920.0, h: 1080.0, scale: 1.0 },
+            Mon { x: 0.0, y: 0.0, w: 2880.0, h: 1800.0, scale: 2.0 },
+        ];
+        let (x, _) = popover_place((-500.0, 0.0, 22.0, 22.0), (-489.0, 10.0), 340.0, &left).unwrap();
+        assert_eq!(x, -500.0 + 11.0 - 170.0);
+    }
+
+    #[test]
+    fn one_display_is_unchanged() {
+        let mons = [Mon { x: 0.0, y: 0.0, w: 2880.0, h: 1800.0, scale: 2.0 }];
+        let (x, y) = popover_place((2000.0, 0.0, 48.0, 48.0), (1012.0, 10.0), 340.0, &mons).unwrap();
+        assert_eq!((x, y), (1000.0 + 12.0 - 170.0, 30.0));
+        assert!(popover_place((2000.0, 0.0, 48.0, 48.0), (1012.0, 10.0), 340.0, &[]).is_none());
     }
 
     #[test]
@@ -745,5 +1010,148 @@ mod tests {
         let got = read(&cmd, &["ls", "--all"]);
         assert!(started.elapsed() < COMMAND_TIMEOUT + Duration::from_secs(2), "took {:?}", started.elapsed());
         assert_eq!(got.unwrap_err(), "podbay-dev ls kept its output open");
+    }
+
+    #[test]
+    fn without_a_click_point_the_icon_rect_is_matched_with_each_screens_own_scale() {
+        // Issue #158 bug 7. The same screens as above: the laptop (scale 2) is the primary one.
+        let mons = [
+            Mon { x: 0.0, y: 0.0, w: 2880.0, h: 1800.0, scale: 2.0 },
+            Mon { x: 1440.0, y: 0.0, w: 1920.0, h: 1080.0, scale: 1.0 },
+        ];
+        // Icon on the laptop at logical x 1000 (rect x 2000). Read as a logical point, 2000 falls on the external
+        // display: the popover went there. Matched with each screen's scale, the primary laptop holds it.
+        let icon = (2000.0, 0.0, 48.0, 48.0);
+        let click = icon_point(icon, &mons, Some((0.0, 0.0))).unwrap();
+        assert_eq!(click, (1012.0, 12.0));
+        assert_eq!(popover_place(icon, click, 340.0, &mons).unwrap(), (1000.0 + 12.0 - 170.0, 24.0 + 6.0));
+        // Only the external display can hold this rect (3300 / 2 is past the laptop's 1440 points).
+        let icon = (3300.0, 0.0, 22.0, 22.0);
+        let click = icon_point(icon, &mons, Some((0.0, 0.0))).unwrap();
+        assert_eq!(click, (3311.0, 11.0));
+        assert_eq!(popover_place(icon, click, 340.0, &mons).unwrap().0, 3360.0 - 340.0 - 8.0);
+        // A rect no screen holds gives no point (the caller then opens under the icon, unclamped).
+        assert!(icon_point((9000.0, 0.0, 22.0, 22.0), &mons, None).is_none());
+    }
+
+    #[test]
+    fn a_click_outside_the_popover_closes_it_whichever_window_has_the_focus() {
+        // Issue #170: on the laptop display the popover opens but the main window (on the other display) stays the
+        // key window, so the popover never sees `Focused(false)`. The click itself decides, not the focus.
+        // Frame and point are in one space (macOS global points, origin bottom left): x, y, width, height.
+        let frame = (707.0, 524.0, 340.0, 333.0);
+        // A click on the desktop of the same screen, on the other display, and on or past each high edge.
+        assert!(click_hides_popover(true, frame, (300.0, 400.0)));
+        assert!(click_hides_popover(true, frame, (500.0, 1500.0)));
+        assert!(click_hides_popover(true, frame, (706.9, 600.0)));
+        assert!(click_hides_popover(true, frame, (1047.0, 600.0)));
+        assert!(click_hides_popover(true, frame, (800.0, 857.0)));
+        assert!(click_hides_popover(true, frame, (800.0, 523.9)));
+        // A click inside the popover keeps it; a hidden popover has nothing to close.
+        assert!(!click_hides_popover(true, frame, (800.0, 600.0)));
+        assert!(!click_hides_popover(true, frame, (707.0, 524.0)));
+        assert!(!click_hides_popover(false, frame, (300.0, 400.0)));
+    }
+
+    #[test]
+    fn a_click_on_a_menu_bar_icon_opens_closes_or_moves_the_popover() {
+        let (laptop, external) = ((864.0, 3.0), (1386.0, -1437.0));
+        // Closed: a click opens it.
+        assert_eq!(toggle_action(false, false, None), Toggle::Show);
+        // Open, same icon: the click closes it. Open for the other display's icon: it moves there (not just closes).
+        assert_eq!(toggle_action(true, true, None), Toggle::Hide);
+        assert_eq!(toggle_action(true, false, None), Toggle::Show);
+        // The mouse-down of this same click already closed it (the click monitor): the mouse-up must not reopen it.
+        assert_eq!(toggle_action(false, true, Some((80, 0.0))), Toggle::Stay);
+        // A click on the other icon closed it on mouse-down too, but that click opens it under its own icon.
+        assert_eq!(toggle_action(false, false, Some((80, 0.0))), Toggle::Show);
+        // Closed long ago, or by a click somewhere else a moment ago (the mouse moved to the icon): open.
+        assert_eq!(toggle_action(false, true, Some((5000, 0.0))), Toggle::Show);
+        assert_eq!(toggle_action(false, true, Some((200, 400.0))), Toggle::Show);
+        // The icon's width changes with its count text and another item can push it sideways, so its left edge
+        // moves; the other display's icon is a whole screen away.
+        assert!(same_icon(laptop, (850.0, 3.0)));
+        assert!(same_icon(laptop, (600.0, 3.0)));
+        assert!(!same_icon(laptop, external));
+    }
+
+    fn term(status: &str, waiting: &str) -> local::Local {
+        local::Local { rc_id: "session_01Term".into(), entrypoint: "cli".into(), interactive: true, status: status.into(),
+            waiting_for: waiting.into(), title: "Term".into(), project: "alpha".into(), since: 1, ..Default::default() }
+    }
+
+    #[test]
+    fn a_local_session_that_starts_waiting_while_ls_fails_still_alerts() {
+        // Issue #158 bug 2: a failed `podbay-dev ls --all` froze the local sessions and their alerts.
+        let pod_wait = serde_json::json!({"title": "Pod wait", "name": "claude-x-01", "project": "x", "context": "x/x@01",
+            "status": "waiting", "waiting_for": "input needed", "remote_url": "https://claude.ai/code/session_01PodWait"});
+        let mut raw = Raw {
+            ls: serde_json::json!([{"machine": "UA", "result": [pod_wait]}]),
+            machines: serde_json::json!([{"machine": "UA", "me": true, "online": true}]),
+            local: vec![term("idle", "")],
+            ..Raw::default()
+        };
+        let (mut held, mut alerts) = (Snapshot::default(), Alerts::new(true));
+        let first = apply_read(&mut held, &mut raw, None, &mut alerts, 1_000);
+        assert!(first.alerts.is_empty() && held.ok && held.read_at == Some(1_000));
+
+        // `ls` fails; the terminal session starts waiting. Long after, so a reminder for Pod Bay's wait would be due.
+        let later = 1_000 + alerts::REMIND_AFTER_MS + 1;
+        raw.local = vec![term("waiting", "input needed")];
+        let out = apply_read(&mut held, &mut raw, Some("podbay-dev ls failed".into()), &mut alerts, later);
+        let titles: Vec<&str> = out.alerts.iter().map(|a| a.title.as_str()).collect();
+        assert_eq!(titles, vec!["Term needs you"], "the local wait alerts; Pod Bay's last read raises nothing");
+        assert!(out.sound && out.flash, "sound and the icon flash");
+        assert!(!held.ok && held.error.as_deref() == Some("podbay-dev ls failed") && held.read_at == Some(1_000));
+        let term_row = held.model.sessions.iter().find(|s| s.title == "Term").expect("the card is there");
+        assert_eq!((term_row.state, term_row.source), ("needs", "terminal"));
+        assert!(held.model.sessions.iter().any(|s| s.title == "Pod wait"), "the last Pod Bay sessions stay on the board");
+        assert_eq!(held.model.counts.needs, 2, "the badge counts the new wait");
+
+        // `ls` is back: Pod Bay's wait is not announced as new (its reminder, now due, may go out).
+        let back = apply_read(&mut held, &mut raw, None, &mut alerts, later + 1_000);
+        let titles: Vec<&str> = back.alerts.iter().map(|a| a.title.as_str()).collect();
+        assert!(titles.iter().all(|t| !t.ends_with(" needs you")), "{titles:?}");
+        assert!(held.ok);
+    }
+
+    #[test]
+    fn a_failed_first_read_does_not_make_the_first_good_read_announce_every_wait() {
+        // Review of #158, F1: the first good Pod Bay read only learns what already waits, even after a failed one.
+        let waits: Vec<serde_json::Value> = (1..=3).map(|i| serde_json::json!({"title": format!("0{i}"), "name": format!("claude-x-0{i}"),
+            "project": "x", "context": format!("x/x@0{i}"), "status": "waiting", "waiting_for": "input needed",
+            "remote_url": format!("https://claude.ai/code/session_01Wait{i}")})).collect();
+        let mut raw = Raw { machines: serde_json::json!([{"machine": "UA", "me": true, "online": true}]), ..Raw::default() };
+        let (mut held, mut alerts) = (Snapshot::default(), Alerts::new(true));
+        let failed = apply_read(&mut held, &mut raw, Some("podbay-dev ls failed".into()), &mut alerts, 1_000);
+        assert!(failed.alerts.is_empty());
+        raw.ls = serde_json::json!([{"machine": "UA", "result": waits}]);
+        let good = apply_read(&mut held, &mut raw, None, &mut alerts, 4_000);
+        assert!(good.alerts.is_empty() && !good.sound && !good.flash, "{:?}", good.alerts.iter().map(|a| &a.title).collect::<Vec<_>>());
+        // A wait that starts after that is told.
+        raw.local = vec![term("waiting", "input needed")];
+        let next = apply_read(&mut held, &mut raw, None, &mut alerts, 7_000);
+        assert_eq!(next.alerts.iter().map(|a| a.title.as_str()).collect::<Vec<_>>(), vec!["Term needs you"]);
+    }
+
+    #[test]
+    fn a_terminal_session_that_waits_again_during_one_ls_outage_alerts_again() {
+        // Review of #158, F2: an ended local wait was kept while this machine counted as not read.
+        let mut raw = Raw {
+            ls: serde_json::json!([{"machine": "UA", "result": []}]),
+            machines: serde_json::json!([{"machine": "UA", "me": true, "online": true}]),
+            local: vec![term("idle", "")],
+            ..Raw::default()
+        };
+        let (mut held, mut alerts) = (Snapshot::default(), Alerts::new(true));
+        apply_read(&mut held, &mut raw, None, &mut alerts, 1_000);
+        let fail = || Some("podbay-dev ls failed".to_string());
+        let mut told = Vec::new();
+        for (i, (status, waiting)) in [("waiting", "input needed"), ("busy", ""), ("waiting", "permission prompt")].into_iter().enumerate() {
+            raw.local = vec![term(status, waiting)];
+            let out = apply_read(&mut held, &mut raw, fail(), &mut alerts, 100_000 * (i as u64 + 1));
+            told.extend(out.alerts.into_iter().map(|a| a.title));
+        }
+        assert_eq!(told, vec!["Term needs you", "Term needs you"]);
     }
 }

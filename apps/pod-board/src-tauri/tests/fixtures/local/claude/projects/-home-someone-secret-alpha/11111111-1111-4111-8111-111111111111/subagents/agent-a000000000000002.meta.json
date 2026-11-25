@@ -1,0 +1,1 @@
+{"agentType": "general-purpose", "description": "Write tests in /home/someone/secret/alpha/tests", "model": "sonnet", "spawnDepth": 1, "isBuiltIn": true, "toolUseId": "toolu_SECRET2", "worktreePath": "/home/someone/secret/wt"}
