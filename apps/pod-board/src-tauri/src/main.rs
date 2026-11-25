@@ -276,6 +276,15 @@ fn find_podbay() -> PathBuf {
     dirs.into_iter().map(|d| d.join("podbay-dev")).find(|p| p.is_file()).unwrap_or_else(|| PathBuf::from("podbay-dev"))
 }
 
+// --- #174, step 1: the base behaviour, so the tests below fail for the ticket's reason ---
+/// Base: the child gets the app's own PATH, which a desktop app starts with as `/usr/bin:/bin:/usr/sbin:/sbin`.
+fn child_path(path: Option<std::ffi::OsString>, _home: Option<std::ffi::OsString>) -> std::ffi::OsString {
+    path.unwrap_or_default()
+}
+
+/// Base: the app never asks why a machine is unreachable.
+fn lan_blocked(_addr: &str, _os_error: Option<i32>) -> bool { false }
+
 /// `~/.claude`, where Claude Code keeps its session files.
 fn claude_dir() -> Option<PathBuf> {
     std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".claude"))
@@ -1073,6 +1082,37 @@ mod tests {
         assert!(same_icon(laptop, (850.0, 3.0)));
         assert!(same_icon(laptop, (600.0, 3.0)));
         assert!(!same_icon(laptop, external));
+    }
+
+    #[test]
+    fn the_child_path_holds_where_podbay_and_tmux_live_without_repeats() {
+        use std::ffi::OsString;
+        let os = |s: &str| Some(OsString::from(s));
+        // Issue #174: started from Finder the app has only the system directories, so `podbay-dev` found no tmux.
+        assert_eq!(
+            child_path(os("/usr/bin:/bin:/usr/sbin:/sbin"), os("/Users/x")),
+            OsString::from("/usr/bin:/bin:/usr/sbin:/sbin:/Users/x/.local/bin:/usr/local/bin:/opt/homebrew/bin")
+        );
+        // What the app already has stays first and is not repeated.
+        assert_eq!(
+            child_path(os("/opt/homebrew/bin:/usr/bin"), os("/Users/x")),
+            OsString::from("/opt/homebrew/bin:/usr/bin:/Users/x/.local/bin:/usr/local/bin")
+        );
+        assert_eq!(child_path(None, None), OsString::from("/usr/local/bin:/opt/homebrew/bin"));
+    }
+
+    #[test]
+    fn only_no_route_to_a_local_address_means_the_local_network_is_blocked() {
+        // errno 65 (EHOSTUNREACH): what macOS gives a connection that "Local Network" access does not allow.
+        assert!(lan_blocked("192.168.1.218:7880", Some(65)));
+        assert!(lan_blocked("10.0.0.5:7880", Some(65)));
+        assert!(lan_blocked("172.16.3.4:7880", Some(65)));
+        // Refused, timed out, reached, or not a local address: not this problem.
+        assert!(!lan_blocked("192.168.1.218:7880", Some(61)));
+        assert!(!lan_blocked("192.168.1.218:7880", Some(60)));
+        assert!(!lan_blocked("192.168.1.218:7880", None));
+        assert!(!lan_blocked("8.8.8.8:53", Some(65)));
+        assert!(!lan_blocked("not an address", Some(65)));
     }
 
     fn term(status: &str, waiting: &str) -> local::Local {

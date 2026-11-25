@@ -106,6 +106,9 @@ pub struct Machine {
     pub online: bool,
     /// This machine's Pod Bay holds an out-of-date password for it (`password_current: false`): the two cannot link.
     pub key_stale: bool,
+    /// The app cannot reach this machine on the local network although Pod Bay may: macOS "Local Network" is off for
+    /// Pod Board (issue #174).
+    pub blocked: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, PartialEq, Eq)]
@@ -142,6 +145,8 @@ pub struct Raw {
     pub queue: Value,
     /// The Claude sessions of this machine (`local::read_with`).
     pub local: Vec<crate::local::Local>,
+    /// Machines (by name) the app could not reach on the local network (`lan_blocked` in main.rs).
+    pub blocked: Vec<String>,
     /// The last `ls --all` failed: `ls` holds the read before it, so every machine in it counts as not read.
     pub stale: bool,
 }
@@ -359,7 +364,7 @@ pub fn build(raw: &Raw) -> Model {
         .map(|list| {
             list.iter()
                 .filter(|m| truthy(&m["machine"]))
-                .map(|m| Machine { name: text(&m["machine"]), online: truthy(&m["online"]), key_stale: m["password_current"] == Value::Bool(false) })
+                .map(|m| Machine { name: text(&m["machine"]), online: truthy(&m["online"]), key_stale: m["password_current"] == Value::Bool(false), blocked: false })
                 .collect()
         })
         .unwrap_or_default();
@@ -441,6 +446,20 @@ pub fn key(s: &Session) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_machine_the_app_cannot_reach_on_the_local_network_is_marked() {
+        let r = Raw {
+            machines: json!([
+                {"machine": "M0", "me": true, "online": true, "password_current": true},
+                {"machine": "U0", "me": false, "online": false, "password_current": true, "addr": "192.168.1.218:7880"},
+                {"machine": "UA", "me": false, "online": false, "password_current": false}]),
+            blocked: vec!["U0".to_string()],
+            ..Raw::default()
+        };
+        let got: Vec<(String, bool)> = build(&r).machines.into_iter().map(|m| (m.name, m.blocked)).collect();
+        assert_eq!(got, vec![("M0".to_string(), false), ("U0".to_string(), true), ("UA".to_string(), false)]);
+    }
+
     use super::*;
     use serde_json::json;
 
@@ -493,6 +512,7 @@ mod tests {
                 {"dir": "/d/02", "state": "unknown", "finished": null}, {"dir": "/d/02", "state": "delivered", "finished": 5}
             ]}]),
             local: vec![],
+            blocked: vec![],
             stale: false,
         }
     }
@@ -601,8 +621,8 @@ mod tests {
             Stopped { machine: "UA".into(), project: "mnemo".into(), ws: "src-07".into(), dirty: true },
         ]);
         assert_eq!(m.machines, vec![
-            Machine { name: "UA".into(), online: true, key_stale: false },
-            Machine { name: "Old".into(), online: false, key_stale: true },
+            Machine { name: "UA".into(), online: true, key_stale: false, blocked: false },
+            Machine { name: "Old".into(), online: false, key_stale: true, blocked: false },
         ]);
     }
 
@@ -617,7 +637,7 @@ mod tests {
     #[test]
     fn missing_or_odd_input_gives_an_empty_model() {
         assert_eq!(build(&Raw::default()), Model::default());
-        let odd = Raw { ls: json!("x"), checkouts: json!([{"machine": "A", "result": "err"}]), machines: json!({}), queue: Value::Null, local: vec![], stale: false };
+        let odd = Raw { ls: json!("x"), checkouts: json!([{"machine": "A", "result": "err"}]), machines: json!({}), queue: Value::Null, local: vec![], blocked: vec![], stale: false };
         assert_eq!(build(&odd), Model::default());
     }
 
