@@ -32,7 +32,7 @@ The flow: add a repo, paste an artifact, grill it, generate issues, then see eve
 Sources of truth:
 
 - **Design doc (architecture, protocol, data model, risks):** https://claude.ai/artifact/K47EPMgWrZgCv37Z7zSzyH (Vietnamese).
-- **Design system:** `docs/DESIGN_SYSTEM.md` (v2.3, "Cozy") is the contract (owner request 2026-11-22, from the Cozy prototype). The artifact https://claude.ai/artifact/WRkcjobJX9VCEi74o3mVjN shows v2.0 too; where they differ (four issue statuses), the repo file wins.
+- **Design system:** `docs/DESIGN_SYSTEM.md` (v2.4, "Cozy") is the contract (owner request 2026-11-22, from the Cozy prototype). The artifact https://claude.ai/artifact/WRkcjobJX9VCEi74o3mVjN shows v2.0 too; where they differ (four issue statuses), the repo file wins.
 - **Clickable prototype:** https://claude.ai/artifact/3xwd3RbWe9k1kyFMa8bgjo (same as `docs/prototype/shape-board-prototype.html`; replaces the earlier FVACosM4PvP3syMpk9ngc1, owner decision 2026-11-22). It shows every screen and flow with fake data. Copy its screens and behavior. Do not copy its code: it is a single esbuild bundle, and its source files were not kept.
 
 If the design doc and the design system disagree, follow the design doc for behavior and the design system for looks. One known conflict is listed in section 5.
@@ -98,7 +98,7 @@ Each step is 1 small PR with a clear done point. Do not start step 1 until step 
 4. **Generate issues.** Run `pd-tickets`, show the review screen, create the issues, store the links. Done when real issues appear on GitHub and in the tree.
 5. **Tree + status.** The full tree, status from one GraphQL call per project, progress bars. Done when 2 projects with issues in different states show correctly.
 
-## 7. Design system "Cozy" (v2.3), fonts and logo (must follow)
+## 7. Design system "Cozy" (v2.4), fonts and logo (must follow)
 
 - **UI parts: ask the keeper first.** Before any UI work, ask the `Pb Bot Storehouse` session whether the part exists (`DESIGN_SYSTEM.md` §11, `docs/storehouse-keeper.md`). Only the keeper and the `ui-designer` agent change `src/components/ui/`, `src/components/app/` and `tokens.css`.
 

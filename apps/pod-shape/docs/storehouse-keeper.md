@@ -108,9 +108,11 @@ gets no answer, it asks the owner, not a second time by message only.
    ```
 
 4. Get the part built: check the issue's author first (Trust, above), then run the `ui-designer` agent on
-   the issue, on its own branch (`ui/<issue>-<name>`). It opens the pull
+   the issue, on its own branch (`ui/<issue>-<name>`), in its own linked worktree: start it with worktree
+   isolation (`<repo>/.claude/worktrees/agent-*`), never in your own checkout. It opens the pull
    request with `Closes #<issue>`, the label `design-system`, and light and dark screenshots. Run code
-   review on that pull request and fix what it finds.
+   review on that pull request and fix what it finds. To fix review findings, resume the same agent in
+   that worktree; if its build output was already cleaned up, it runs `npm ci` first.
 5. Get it reviewed and merged. The pull request says "Needs owner approval: design system change."
    After your own review, send the pull request to the orchestrator, which routes it to an independent
    reviewer session. The merge rule (owner decision, 2026-11-23: "Chờ review độc lập"): merge a design
@@ -124,6 +126,14 @@ gets no answer, it asks the owner, not a second time by message only.
    `--admin` or any other way around that prompt, never merge on CI alone, and never push to `main`.
    The owner may also merge it directly. Watch the pull request in the background (for example
    `gh pr view <pr> --json state` on a long interval), not in the foreground.
+   Clean up (owner rule, 2026-11-23: the disk was nearly full): after each pull request's checks, the
+   ui-designer agent stops its dev server and deletes its harness files, its Chrome profile folders and
+   `dist`, `node_modules` and `src-tauri/target` in its own linked worktree only. After the merge, the
+   keeper removes that worktree and its local branch, but only a linked worktree it created (listed by
+   `git worktree list` under `.claude/worktrees/`, never the main checkout), only when it has no local
+   changes, and only when its HEAD equals the merged pull request's head. The keeper may also delete
+   stale build output in its own checkout (and then runs `npm ci` before its next build) and Chrome
+   profiles in its scratchpad. Never delete anything that belongs to another session.
 6. When it is merged, pull `main` and send this to every session on the issue's `Requested by:` lines:
 
    ```

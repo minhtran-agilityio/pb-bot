@@ -2,7 +2,7 @@
 name: pd-shape
 description: "Grill and brainstorm with the owner, in one loop, until both share one understanding of a prototype, an idea or a ticket; then write a feature brief. Use after the owner finalizes a prototype, for a GRILL ticket, or when the approach is not clear."
 argument-hint: "<prototype file | #issue | issue URL | file path | free text>"
-allowed-tools: Read, Write, Edit, Grep, Glob, Agent, AskUserQuestion, Bash(gh issue view *), Bash(gh issue comment *), Bash(git log *), Bash(git fetch *), Bash(git worktree *), Bash(git -C *), Bash(git add docs/adr*), Bash(git commit *), Bash(git push *), Bash(gh pr create *), Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/write_adrs.py *)
+allowed-tools: Read(./**), Read(~/.claude/plugins/cache/*/pd-bot/**), Grep(./**), Glob(./**), Edit(./specs/**), Agent, AskUserQuestion, Bash(gh issue view *)
 ---
 
 # Shape: one understanding before any code
@@ -42,6 +42,12 @@ Unanswered after two rounds: record the recommended answer with `needs_review: t
 When a decision meets all 3 conditions of `references/adr.md`, ask the owner: "Make this an ADR?"
 Each yes follows that file. Every other decision stays in the brief.
 
+This skill pre-allows only `gh issue view` among shell commands, reads inside the repo and the
+installed plugins, and writes under `specs/`. Every git, `gh issue comment`, `gh pr create` and
+`write_adrs.py` call shows the owner a permission prompt, one per command; so does any other read
+or write (issue #123).
+<!-- pd-bot:owner-approves git; gh issue comment; gh pr create; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/write_adrs.py -->
+
 ## 5. Output
 
 1. Depth M and L: write `specs/<slug>/design.md` from `references/design-template.md` (local scratch, in
@@ -51,7 +57,7 @@ Each yes follows that file. Every other decision stays in the brief.
    The slug rule is in `${CLAUDE_PLUGIN_ROOT}/templates/specs/intent.md`.
 3. Ask: "Does this brief say what you mean?" Fix it until the owner says yes. That yes is the stop.
 4. A ticket: also post the decisions as ONE comment titled "Confirmed decisions"
-   (`gh issue comment <n> --body-file <file>`), and update `specs/<slug>/intent.md` and
+   (`gh issue comment <n> --body-file <file>`); show the owner the file's full text before that command, and update `specs/<slug>/intent.md` and
    `specs/<slug>/decision.md` (`${CLAUDE_PLUGIN_ROOT}/templates/specs/decision.md`).
 5. Next: a prototype or idea goes to `/pd-bot:pd-tickets specs/<slug>/brief.md`;
    a ticket returns the decision list to the caller; a depth L design goes to `pd-bot:pd-xia2`, then

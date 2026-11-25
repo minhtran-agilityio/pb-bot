@@ -67,6 +67,28 @@ DISPATCH_TOOLS = ("Agent", "Task")
 # tool is declared: the skill can simply use the tool.
 NATIVE_EQUIVALENT = {"grep": "Grep", "rg": "Grep", "ls": "Glob", "cat": "Read"}
 
+# git subcommands that Claude Code runs without any allow rule, because its own read-only check
+# passes them (probed with haiku in `dontAsk`, Claude Code 2.1.330, `--allowedTools Read`: `git log`,
+# `git diff`, `git show`, `git branch --show-current` and `git describe` ran). That check also
+# refuses their writing flags (`git log --output=<file>` was denied), which a `Bash(git log *)`
+# rule would let through. So a skill instructs these with no grant, and must not add a wide one.
+READ_ONLY_GIT = ("log", "diff", "show", "describe")
+
+# A skill can name commands that it leaves to the owner's permission prompt on purpose, because
+# no allow rule for them is narrow enough (scripts/check_allowed_tools_wide.py). The marker is an
+# HTML comment in the SKILL.md body: `<!-- pd-bot:owner-approves git; gh pr create -->`. Each
+# `;`-separated entry is a command prefix. A command with that prefix counts as permitted: it
+# does not break mid-task, Claude Code asks the owner for it.
+OWNER_APPROVES = re.compile(r"<!--\s*pd-bot:owner-approves\s+(.*?)\s*-->")
+
+
+def owner_approved(text: str) -> list[str]:
+    """Return the command prefixes that a SKILL.md body leaves to the owner's prompt."""
+    prefixes: list[str] = []
+    for match in OWNER_APPROVES.finditer(text):
+        prefixes += [p.strip() for p in match.group(1).split(";") if p.strip()]
+    return prefixes
+
 
 def frontmatter(text: str) -> str | None:
     lines = text.splitlines()
@@ -159,14 +181,40 @@ def head(command: str) -> str:
 
 
 def permitted(
-    command: str, patterns: list[str], unrestricted: bool, bare: set[str]
+    command: str,
+    patterns: list[str],
+    unrestricted: bool,
+    bare: set[str],
+    owner: list[str] | None = None,
 ) -> bool:
     if unrestricted:
         return True
     target = head(command)
+    words = target.split()
+
+    # Left to the owner's permission prompt on purpose (see OWNER_APPROVES).
+    if any(target == p or target.startswith(p + " ") for p in owner or ()):
+        return True
+
+    # Claude Code's own read-only check runs these without a grant (see READ_ONLY_GIT).
+    if (
+        len(words) >= 2
+        and words[0] == "git"
+        and (words[1] in READ_ONLY_GIT or words[1:] == ["branch", "--show-current"])
+        and not any(w.startswith("--output") for w in words)
+    ):
+        return True
+
+    # A bare script name in prose (`write_adrs.py`) refers to the script that a pattern grants
+    # by its full path (`Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/write_adrs.py *)`), or that
+    # the skill leaves to the owner's prompt by its full path.
+    if len(words) == 1 and "/" not in target and target.endswith((".sh", ".py")):
+        named = re.compile(r"/" + re.escape(target) + r"(\s|$)")
+        if any(named.search(p) for p in [*patterns, *(owner or ())]):
+            return True
 
     # A native tool can stand in for its shell equivalent (`grep` -> the Grep tool).
-    native = NATIVE_EQUIVALENT.get(target.split()[0] if target.split() else "")
+    native = NATIVE_EQUIVALENT.get(words[0] if words else "")
     if native and native in bare:
         return True
 
@@ -262,6 +310,7 @@ def check(root: Path, as_json: bool = False) -> int:
         if block is None:
             continue
         bare, patterns, unrestricted = declared_tools(block)
+        owner = owner_approved(skill_md.read_text())
         if not bare and not patterns and not unrestricted:
             # Presence is check-allowed-tools.sh's job; nothing to compare against here.
             continue
@@ -285,7 +334,7 @@ def check(root: Path, as_json: bool = False) -> int:
             rel = doc.relative_to(root)
             for number, command in commands(text):
                 checked_commands += 1
-                if not permitted(command, patterns, unrestricted, bare):
+                if not permitted(command, patterns, unrestricted, bare, owner):
                     problems.append(
                         f"conformance: {rel}:{number} instructs `{head(command)}` "
                         f"but {name} declares no matching Bash(...) pattern"
