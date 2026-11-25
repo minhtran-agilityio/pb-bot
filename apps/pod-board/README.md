@@ -143,6 +143,16 @@ Linux needs the WebKitGTK 4.1 development packages. The app looks for `podbay-de
   writes it for an interactive session whether or not it runs in tmux, but not for a child session: a `claude` started
   from inside another Claude session (its environment holds `CLAUDE_CODE_CHILD_SESSION`) writes no file, so it does
   not show (issue #159).
+- Started from Finder, the Dock or at login, the app has only `/usr/bin:/bin:/usr/sbin:/sbin` in its PATH. The
+  `podbay-dev` it runs gets `~/.local/bin`, `/usr/local/bin` and `/opt/homebrew/bin` after that, because it needs `tmux`
+  (Homebrew) to list this machine's sessions; without it this machine listed none (issue #174).
+- Other machines on your local network (macOS): macOS lets Pod Board, and the `podbay-dev` it starts, reach them only
+  while System Settings > Privacy & Security > Local Network has Pod Board switched on. The bundle says why it asks
+  (`NSLocalNetworkUsageDescription` in `src-tauri/Info.plist`) and is signed ad hoc under its own identifier
+  (`io.pdbot.podboard`, `bundle.macOS.signingIdentity` in `tauri.conf.json`); an unsigned build got a new identifier
+  on every rebuild, so macOS did not know it again. When the app cannot reach a machine on the local network
+  (a connection to its private address fails with "No route to host") the Stopped strip says
+  `<machine> not reachable · allow Local Network for Pod Board`. A rebuild of an ad-hoc signed app can still ask again.
 - On macOS a session killed hard (its file left behind) shows until its pid is reused or the file is removed: the
   format of `procStart` there was not seen, so only the pid is checked.
 - Sources not shown, and data not available (step 0, 2026-11-25, on Linux and on M0):

@@ -647,7 +647,7 @@ function summary(list) {
 
 function stoppedStrip() {
   // An offline machine belongs to no source or project: its chip shows only while no filter is on.
-  const list = stoppedShown(), off = snap.machines.filter(m => !m.online && !srcF && !projF);
+  const list = stoppedShown(), off = snap.machines.filter(m => (!m.online || m.blocked) && !srcF && !projF);
   if (!list.length && !off.length) return null;
   const box = el('section', 'strip');
   box.append(pill('stopped'), el('b', 'tab', String(list.length)));
@@ -659,8 +659,10 @@ function stoppedStrip() {
     } else box.append(el('span', 'chip', `${w.project}/${w.ws} · ${w.machine}${w.dirty ? ' ✎' : ''}`));
   }
   for (const m of off) {
-    const c = el('span', 'chip off', m.key_stale ? `${m.name} offline · password out of date` : `${m.name} offline`);
-    if (m.key_stale) c.title = `Pod Bay on this computer holds an old password for ${m.name}, so it cannot reach it. Sign in to Pod Bay again on one of the two machines.`;
+    // The app cannot reach it on the local network: macOS "Local Network" is off for Pod Board (issue 174).
+    const c = el('span', 'chip off', m.blocked ? `${m.name} not reachable · allow Local Network for Pod Board` : m.key_stale ? `${m.name} offline · password out of date` : `${m.name} offline`);
+    if (m.blocked) c.title = `Pod Board cannot reach ${m.name} on your network, although another program can. Open System Settings > Privacy & Security > Local Network and switch Pod Board on, then it shows ${m.name}'s sessions.`;
+    else if (m.key_stale) c.title = `Pod Bay on this computer holds an old password for ${m.name}, so it cannot reach it. Sign in to Pod Bay again on one of the two machines.`;
     box.append(c);
   }
   return box;

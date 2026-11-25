@@ -276,14 +276,47 @@ fn find_podbay() -> PathBuf {
     dirs.into_iter().map(|d| d.join("podbay-dev")).find(|p| p.is_file()).unwrap_or_else(|| PathBuf::from("podbay-dev"))
 }
 
-// --- #174, step 1: the base behaviour, so the tests below fail for the ticket's reason ---
-/// Base: the child gets the app's own PATH, which a desktop app starts with as `/usr/bin:/bin:/usr/sbin:/sbin`.
-fn child_path(path: Option<std::ffi::OsString>, _home: Option<std::ffi::OsString>) -> std::ffi::OsString {
-    path.unwrap_or_default()
+/// The PATH of the `podbay-dev` child. A desktop app starts with only `/usr/bin:/bin:/usr/sbin:/sbin`, and
+/// `podbay-dev` needs `tmux` (Homebrew) to list this machine's sessions, so the directories where it and the
+/// tools it uses live come after the app's own, without repeats (issue #174).
+fn child_path(path: Option<std::ffi::OsString>, home: Option<std::ffi::OsString>) -> std::ffi::OsString {
+    let mut dirs: Vec<PathBuf> = path.map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
+    let mut more: Vec<PathBuf> = home.map(|h| PathBuf::from(h).join(".local").join("bin")).into_iter().collect();
+    more.push(PathBuf::from("/usr/local/bin"));
+    more.push(PathBuf::from("/opt/homebrew/bin"));
+    for d in more {
+        if !dirs.contains(&d) { dirs.push(d); }
+    }
+    std::env::join_paths(dirs).unwrap_or_default()
 }
 
-/// Base: the app never asks why a machine is unreachable.
-fn lan_blocked(_addr: &str, _os_error: Option<i32>) -> bool { false }
+/// Is this the macOS "Local Network" block? A connection to a private (local network) address that fails with
+/// errno 65, "No route to host", although the machine is there: Pod Board has no permission for the local network
+/// and the `podbay-dev` it starts inherits that (issue #174). Any other error is some other problem.
+fn lan_blocked(addr: &str, os_error: Option<i32>) -> bool {
+    const EHOSTUNREACH: i32 = 65;
+    let Ok(sock) = addr.parse::<std::net::SocketAddr>() else { return false };
+    let local = match sock.ip() {
+        std::net::IpAddr::V4(ip) => ip.is_private() || ip.is_link_local(),
+        std::net::IpAddr::V6(_) => false,
+    };
+    local && os_error == Some(EHOSTUNREACH)
+}
+
+/// The names of the machines that Pod Bay knows an address for, that this app cannot reach, and for which the
+/// reason is the local network block. A machine that answers is not probed (`ls --all` lists it).
+fn blocked_machines(machines: &Value, listed: &[String]) -> Vec<String> {
+    let Some(list) = machines.as_array() else { return vec![] };
+    list.iter()
+        .filter(|m| m["me"] != Value::Bool(true))
+        .filter_map(|m| {
+            let (name, addr) = (m["machine"].as_str()?, m["addr"].as_str()?);
+            if m["online"] == Value::Bool(true) && listed.iter().any(|l| l == name) { return None; }
+            let err = std::net::TcpStream::connect_timeout(&addr.parse().ok()?, Duration::from_secs(2)).err()?;
+            lan_blocked(addr, err.raw_os_error()).then(|| name.to_string())
+        })
+        .collect()
+}
 
 /// `~/.claude`, where Claude Code keeps its session files.
 fn claude_dir() -> Option<PathBuf> {
@@ -300,6 +333,7 @@ fn read_for(cmd: &PathBuf, args: &[&str], timeout: Duration) -> Result<Value, St
     let sub = if args.first() == Some(&"--on") { args.get(2).copied().unwrap_or("") } else { args[0] };
     let mut child = Command::new(cmd)
         .args(args)
+        .env("PATH", child_path(std::env::var_os("PATH"), std::env::var_os("HOME")))
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -479,6 +513,8 @@ fn poll_loop(app: AppHandle, wake: Receiver<()>) {
                     // A failed slow read keeps its last value.
                     if let Ok(v) = read(&cmd, &["checkouts", "--all"]) { raw.checkouts = v; }
                     if let Ok(v) = read(&cmd, &["machines"]) { raw.machines = v; }
+                    let listed: Vec<String> = raw.ls.as_array().map(|l| l.iter().filter_map(|m| m["machine"].as_str().map(str::to_string)).collect()).unwrap_or_default();
+                    raw.blocked = blocked_machines(&raw.machines, &listed);
                     if let Ok(v) = read(&cmd, &["queue", "ls", "--all"]) { raw.queue = v; }
                 }
                 n = n.wrapping_add(1);

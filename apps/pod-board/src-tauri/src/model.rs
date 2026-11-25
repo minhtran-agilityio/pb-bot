@@ -364,7 +364,7 @@ pub fn build(raw: &Raw) -> Model {
         .map(|list| {
             list.iter()
                 .filter(|m| truthy(&m["machine"]))
-                .map(|m| Machine { name: text(&m["machine"]), online: truthy(&m["online"]), key_stale: m["password_current"] == Value::Bool(false), blocked: false })
+                .map(|m| Machine { name: text(&m["machine"]), online: truthy(&m["online"]), key_stale: m["password_current"] == Value::Bool(false), blocked: raw.blocked.contains(&text(&m["machine"])) })
                 .collect()
         })
         .unwrap_or_default();
