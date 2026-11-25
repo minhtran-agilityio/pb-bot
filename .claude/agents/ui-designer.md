@@ -82,6 +82,20 @@ file, and stop. Do not build a copy.
    merge: the keeper merges only under its merge rule (CI green, no conflict, an independent reviewer's
    PASS for that head, through the merge-guard prompt). Then mark it ready for review.
 
+## Clean up
+
+You run in your own linked git worktree: the keeper starts you with worktree isolation, under
+`<repo>/.claude/worktrees/`. Check it first: `git rev-parse --show-toplevel` must be a path that
+`git worktree list` shows and that is NOT the main checkout (the first line of that list). If it is the
+main checkout, delete no build output at all and tell the keeper.
+
+After your pull request is pushed and your checks are done (owner rule: the disk was nearly full), in
+your own worktree only: stop your dev server, and delete your harness files, and
+`apps/pod-shape/dist`, `apps/pod-shape/node_modules` and `apps/pod-shape/src-tauri/target`. Chrome
+profiles: run the CDP driver with `SCRATCH=<your scratch folder>` so every profile lands there as
+`chrome-*`, never in `/tmp`; delete those `chrome-*` folders. Delete nothing outside your worktree and
+your scratch folder. If you are resumed for fixes, run `npm ci` in `apps/pod-shape` first.
+
 ## Never
 
 - Never edit a screen, and never answer two requests in one pull request.
