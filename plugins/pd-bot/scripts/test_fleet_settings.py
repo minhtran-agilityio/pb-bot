@@ -334,10 +334,11 @@ def test_other_roles_and_sonnet_workers_are_not_guarded(checkout):
         assert r.returncode == 0, r.stderr
 
 
-def test_keep_connectors_writes_no_trim(checkout):
+def test_keep_connectors_writes_no_connector_trim_but_keeps_the_compact_window(checkout):
     assert apply(checkout, "--keep-connectors").returncode == 0
     data = json.loads(settings(checkout).read_text())
     assert "disableClaudeAiConnectors" not in data and "enabledPlugins" not in data
+    assert data["autoCompactWindow"] == TRIM["autoCompactWindow"]
 
 
 def test_restore_puts_back_the_owner_plugin_choices(checkout):
@@ -386,6 +387,7 @@ def test_keep_connectors_after_a_trimmed_apply_puts_the_owner_values_back(checko
     assert apply(checkout, "--keep-connectors").returncode == 0
     data = json.loads(settings(checkout).read_text())
     assert "disableClaudeAiConnectors" not in data and data["enabledPlugins"] == {"mine@m": True}
+    assert data["autoCompactWindow"] == TRIM["autoCompactWindow"]
     assert run("--checkout", str(checkout), "--restore").returncode == 0
     assert json.loads(settings(checkout).read_text()) == {"enabledPlugins": {"mine@m": True}}
 

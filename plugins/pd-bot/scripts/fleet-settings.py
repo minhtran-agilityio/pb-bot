@@ -14,7 +14,8 @@ session start:
                              the token trim in fleet-trim.json (next to this script): no claude.ai
                              connectors and no unused plugins, so each request carries about 20k
                              fewer tokens of tool and skill lists, and an auto-compact window of
-                             500k instead of 1M. --keep-connectors skips it.
+                             500k instead of 1M. --keep-connectors skips the connector and
+                             plugin keys; the compact window is always written.
 
 Model guard: a worker runs Sonnet. For --role worker, a model that is not a Sonnet or Haiku id or
 alias (Opus, Fable, or an alias such as `best` that can resolve to Opus) is refused unless --depth L
@@ -66,6 +67,7 @@ KEYS = (("model",), ("permissions", "defaultMode"), ("env", "PD_BOT_ROLE"),
 ABSENT = {"absent": True}
 TRIM_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fleet-trim.json")
 WORKER_MODEL_RE = re.compile(r"sonnet|haiku", re.I)
+CONNECTOR_KEYS = ("disableClaudeAiConnectors", "enabledPlugins")
 
 
 def trim_values():
@@ -237,7 +239,7 @@ def apply(a):
     data = read_settings(path)
     existed = data is not None
     data = data or {}
-    trim = [] if a.keep_connectors else trim_values()
+    trim = [(k, v) for k, v in trim_values() if not (a.keep_connectors and k[0] in CONNECTOR_KEYS)]
     # Every check is done; now write. The first apply's saved values win over a later apply's;
     # a trim key the first apply did not set is added with its value as it stands now.
     if os.path.exists(state):
@@ -261,9 +263,10 @@ def apply(a):
         if key not in known:
             extra.append({"path": list(key), "saved": get(data, key)})
     if a.keep_connectors:
-        # An earlier apply may have written the trim: put the owner's values back.
+        # An earlier apply may have written the connector trim: put the owner's values back.
         for item in extra:
-            put(data, tuple(item["path"]), item.get("saved", ABSENT))
+            if item["path"][0] in CONNECTOR_KEYS:
+                put(data, tuple(item["path"]), item.get("saved", ABSENT))
     write_atomic(state, dump(saved))
     os.makedirs(cdir, exist_ok=True)
     new = {("model",): a.model, ("permissions", "defaultMode"): a.mode,
@@ -277,7 +280,7 @@ def apply(a):
     print(f"fleet-settings: {path}: model {a.model}, mode {a.mode}, role {a.role}"
           + (f", effort {a.effort}" if a.effort else "")
           + (f", ticket {a.ticket}" if a.ticket else "")
-          + (", token trim off" if a.keep_connectors else ", token trim on"))
+          + (", connectors kept" if a.keep_connectors else ", token trim on"))
 
 
 def main(argv):

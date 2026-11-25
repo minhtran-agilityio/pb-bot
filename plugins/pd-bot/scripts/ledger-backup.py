@@ -16,6 +16,7 @@ import argparse
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 import tempfile
@@ -50,13 +51,14 @@ def read_ledger(path):
     return data
 
 
-def no_links(*paths):
-    for p in paths:
-        cur = p
-        while cur and cur != os.path.dirname(cur):
-            if os.path.islink(cur):
-                refuse(f"{cur} is a symlink")
-            cur = os.path.dirname(cur)
+def no_links(base, path):
+    """Refuse a symlink in `path` or in any folder between it and `base` (base itself and the folders
+    above it are not checked: a checkout reached through a symlinked parent is fine)."""
+    cur = path
+    while cur != base and cur != os.path.dirname(cur):
+        if os.path.islink(cur):
+            refuse(f"{cur} is a symlink")
+        cur = os.path.dirname(cur)
 
 
 def copy(src, dst):
@@ -67,6 +69,7 @@ def copy(src, dst):
         with os.fdopen(fd, "w") as f:
             json.dump(data, f, indent=2)
             f.write("\n")
+        os.chmod(tmp, stat.S_IMODE(os.stat(src).st_mode))
         os.replace(tmp, dst)
     except BaseException:
         if os.path.exists(tmp):
@@ -85,9 +88,11 @@ def main(argv):
     if not os.path.isdir(a.checkout):
         p.error(f"--checkout is not a directory: {a.checkout}")
     checkout = os.path.abspath(a.checkout)
+    gdir = git_dir(checkout)
     ledger = os.path.join(checkout, "specs", "fleet", a.run, "ledger.json")
-    backup = os.path.join(git_dir(checkout), "pd-bot", "fleet", a.run, "ledger.json")
-    no_links(ledger, backup)
+    backup = os.path.join(gdir, "pd-bot", "fleet", a.run, "ledger.json")
+    no_links(checkout, ledger)
+    no_links(gdir, backup)
     if a.restore:
         if os.path.exists(ledger):
             refuse(f"{ledger} exists; not overwriting it with the backup")

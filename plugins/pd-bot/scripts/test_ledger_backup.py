@@ -98,3 +98,22 @@ def test_not_a_git_checkout_is_refused(tmp_path):
 @pytest.mark.parametrize("run_id", ["../x", "a/b", "", "-x"])
 def test_a_bad_run_id_is_a_usage_error(checkout, run_id):
     assert run("--checkout", str(checkout), "--run", run_id).returncode == 2
+
+
+def test_a_checkout_reached_through_a_symlinked_parent_works(checkout, tmp_path):
+    link = tmp_path / "link"
+    os.symlink(checkout.parent, link)
+    write_ledger(checkout, {"v": 1})
+    r = run("--checkout", str(link / "co"), "--run", "r1")
+    assert r.returncode == 0, r.stderr
+    assert backup(checkout).exists()
+
+
+def test_the_restored_ledger_keeps_the_mode_of_its_source(checkout):
+    write_ledger(checkout, {"v": 1})
+    os.chmod(ledger(checkout), 0o644)
+    assert run("--checkout", str(checkout), "--run", "r1").returncode == 0
+    assert oct(os.stat(backup(checkout)).st_mode & 0o777) == "0o644"
+    ledger(checkout).unlink()
+    assert run("--checkout", str(checkout), "--run", "r1", "--restore").returncode == 0
+    assert oct(os.stat(ledger(checkout)).st_mode & 0o777) == "0o644"

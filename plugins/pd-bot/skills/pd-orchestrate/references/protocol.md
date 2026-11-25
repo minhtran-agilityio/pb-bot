@@ -101,7 +101,8 @@ writes it. It is the orchestrator's memory:
   That copy is never committed and survives `git clean`; it is lost only with the checkout.
 - **Start and context summary.** At the start of a session, look for `specs/fleet/*/ledger.json`
   with a ticket that is not `done`, `blocked` or `skipped`, and for `<git dir>/pd-bot/fleet/*/`.
-  When the run's ledger is missing but its backup exists, run the script with `--restore`. Read
+  When the run's ledger is missing and its backup still has such an open ticket, run the script
+  with `--restore`; a backup of a finished run is history, not work. Read
   the ledger before anything else, then go on from each open ticket's `next`. Do the same after a
   context summary.
 - **Context size.** The project settings set `autoCompactWindow` to 300000, so your session

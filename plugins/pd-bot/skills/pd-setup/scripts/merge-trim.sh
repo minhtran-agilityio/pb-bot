@@ -3,8 +3,8 @@
 # auto-compact window) into a
 # project settings.json, so each request of every session there carries fewer tool and skill lists.
 # Usage: merge-trim.sh [--dry-run] [--compact-window N] <trim.json> <settings.json>
-#   --compact-window N writes autoCompactWindow N (at least 100000) instead of the trim file's value:
-#   project settings serve the orchestrator, which compacts sooner than fleet sessions.
+#   --compact-window N writes autoCompactWindow N (at least 100000). The trim file's own value is for
+#   fleet sessions and is never copied: project settings serve the orchestrator, which compacts sooner.
 #   Sets every top-level key and each enabledPlugins entry of the trim file; keeps every
 #   other key. Writes nothing when nothing changes (idempotent). A missing file is created as {}.
 #   --dry-run prints the diff and changes nothing.
@@ -19,7 +19,7 @@ while [ "$#" -gt 0 ]; do
     --dry-run) DRY=1; shift ;;
     --compact-window)
       [ "$#" -ge 2 ] || { echo "merge-trim: --compact-window needs a number" >&2; exit 1; }
-      case "$2" in ''|*[!0-9]*) echo "merge-trim: --compact-window needs a number" >&2; exit 1 ;; esac
+      case "$2" in ''|*[!0-9]*|??????????*) echo "merge-trim: --compact-window needs a number of at most 9 digits" >&2; exit 1 ;; esac
       [ "$2" -ge 100000 ] || { echo "merge-trim: --compact-window must be at least 100000" >&2; exit 1; }
       WINDOW=$2; shift 2 ;;
     *) break ;;
@@ -41,7 +41,7 @@ else
 fi
 
 NEW=$(printf '%s' "$CUR" | jq --slurpfile t "$TRIM" --arg w "$WINDOW" '
-  . * ($t[0] | del(.enabledPlugins, .disableClaudeAiConnectors))
+  . * ($t[0] | del(.enabledPlugins, .disableClaudeAiConnectors, .autoCompactWindow))
   | .disableClaudeAiConnectors = (if ($t[0] | has("disableClaudeAiConnectors"))
                                 then $t[0].disableClaudeAiConnectors else true end)
   | .enabledPlugins = ((.enabledPlugins // {}) + ($t[0].enabledPlugins // {}))
