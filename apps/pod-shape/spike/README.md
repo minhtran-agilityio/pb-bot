@@ -55,6 +55,29 @@ claude -p
 | Step | `--allowedTools` | `--disallowedTools` |
 |---|---|---|
 | grill (`/pd-bot:pd-shape <prototype>`) | `Read Glob Grep Write(./specs/**) Edit(./specs/**)` | `AskUserQuestion Bash Agent WebFetch WebSearch NotebookEdit` |
+
+**Finding, build step 3 (2026-11-23).** A bare `Read` on `--allowedTools` reads **any** file, even under
+`dontAsk`. A haiku probe read a file outside the working folder and outside `--add-dir`. So the grill row
+above lets a prompt injected through the prototype read `~/.ssh/*` into the chat and the transcript. The
+app (`src-tauri/src/grill/flags.rs`) scopes the read tools instead: `Read(./**) Glob(./**) Grep(./**)`,
+`Read(//<prototype folder>/**)` and `Read(~/.claude/plugins/**)` (pd-shape reads its own references), and
+it denies `.env` files. A second probe showed that these rules allow those folders and deny an outside
+file. The app also gives Claude no Bash rule at all, because a `*` inside a Bash rule matches extra
+arguments: `Bash(git -C <dir>* status *)` allowed `git -C <dir> -c core.pager=cat status`.
+
+**Two more findings, build step 3 (security review, probes 5-7).**
+
+- A skill's `allowed-tools` widens the permissions when a turn starts with its slash command, even
+  under `dontAsk`. A probe skill with `allowed-tools: Read, Write, Edit`, typed as `/probe`, read a
+  canary file outside the repo and wrote one there. pd-shape lists bare `Read, Write, Edit`. So the
+  app never types `/pd-bot:pd-shape`. It sends the text of pd-shape's `SKILL.md`, without the
+  frontmatter, as the first message, and it denies the `Skill` tool. The Bash probe above held only
+  because `Bash` was a bare tool name on the deny list.
+- `Write(./specs/**)` matches nothing. `Edit(./specs/**)` allows Write and Edit under `specs/` and
+  nowhere else. The spike's brief writes worked only because of pd-shape's bare `Write` grant.
+
+The app also passes `--setting-sources ""`, so allow rules in a trusted repo's `.claude/settings.json`
+or in the user's settings cannot widen the rules either.
 | tickets, up to approval (`/pd-bot:pd-tickets <brief>`) | `Read Glob Grep` and the read-only `gh` and `publish-check.sh` calls in `spike.py` (`TICKETS_ALLOWED`), the milestone GET spelled exactly | `AskUserQuestion Write Edit Agent` and the `gh` and `git` write patterns in `spike.py` (`TICKETS_DENIED`) |
 
 ### Why the permission mode is pinned

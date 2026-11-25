@@ -9,6 +9,7 @@ use std::path::Path;
 const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/0001_projects.sql"),
     include_str!("../migrations/0002_artifacts.sql"),
+    include_str!("../migrations/0003_grill.sql"),
 ];
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -125,10 +126,46 @@ mod tests {
         }
         let conn = open(&file).unwrap();
         let v: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(v, 2);
+        assert_eq!(v as usize, MIGRATIONS.len());
         assert_eq!(list_projects(&conn).unwrap().len(), 1);
         let n: i64 = conn.query_row("SELECT COUNT(*) FROM artifacts", [], |r| r.get(0)).unwrap();
         assert_eq!(n, 0);
+    }
+
+    #[test]
+    fn a_step_2_database_migrates_to_step_3_and_keeps_its_artifacts() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("t.db");
+        {
+            // A database as build step 2 left it: 0001 and 0002 ran, one project with one artifact.
+            let mut conn = Connection::open(&file).unwrap();
+            for (i, sql) in MIGRATIONS[..2].iter().enumerate() {
+                let tx = conn.transaction().unwrap();
+                tx.execute_batch(sql).unwrap();
+                tx.pragma_update(None, "user_version", (i + 1) as i64).unwrap();
+                tx.commit().unwrap();
+            }
+            insert_project(&conn, "a/b", "b", "/x").unwrap();
+            conn.execute(
+                "INSERT INTO artifacts (project_id, name, source, state) VALUES (1, 'proto', 'manual', 'added')",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO artifact_versions (artifact_id, n, html, sha256, source) VALUES (1, 1, '<p>', 'h', 'paste')",
+                [],
+            )
+            .unwrap();
+        }
+        let conn = open(&file).unwrap();
+        let v: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
+        assert_eq!(v, 3);
+        let n: i64 = conn.query_row("SELECT COUNT(*) FROM artifact_versions", [], |r| r.get(0)).unwrap();
+        assert_eq!(n, 1);
+        for t in ["grill_sessions", "grill_messages", "briefs", "features", "runs"] {
+            let c: i64 = conn.query_row(&format!("SELECT COUNT(*) FROM {t}"), [], |r| r.get(0)).unwrap();
+            assert_eq!(c, 0, "{t}");
+        }
     }
 
     #[test]

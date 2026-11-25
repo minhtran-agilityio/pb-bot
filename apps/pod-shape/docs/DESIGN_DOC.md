@@ -8,6 +8,8 @@
 > - Câu hỏi mở 6: code nằm trong repo pb-bot, thư mục `apps/pod-shape` (không phải repo riêng).
 > - Bộ flag `claude -p` ở mục Kiến trúc đã được thay bằng bộ flag đã kiểm trong `apps/pod-shape/spike/README.md` (`--permission-mode dontAsk`, allowlist theo từng bước).
 > - Mục "Tạo milestone và issues": app chặn mọi lệnh ghi GitHub cho tới khi owner bấm duyệt (xem spike README).
+> - Grill, bước 4 ("khối `p2g-brief`"): bỏ, theo spike. App nhận ra brief bằng file `specs/<slug>/brief.md` mới hoặc đã đổi sau mỗi lượt, và bằng câu hỏi có `header` là `Brief` (build step 3, advisor-reviewed).
+> - ADR trong grill: git do app chạy, không phải Claude (HANDOFF.md §3, hàng "ADR from the grill").
 
 # Shape Board — Thiết kế app V1
 
@@ -150,6 +152,13 @@ Trạng thái issue lưu trong SQLite chỉ là cache để mở app nhanh. Ngu�
 > - `artifacts.claude_id` (the last part of the claude.ai link) may be NULL: an artifact added by dropping a file has no link until one is pasted.
 > - `artifacts.state` is `new` (in the box), `added` (in a project) or `ignored`, with `CHECK ((state = 'added') = (project_id IS NOT NULL))`. Also `source` (`hook` or `manual`), `updated` (a new version arrived; cleared when the owner opens the preview), `title`, `cwd` and `published_at` from the log.
 > - `artifact_versions` stores `n`, `html` (at most 5 MB), `sha256`, `source` (`hook`, `drop`, `paste`) and the hook `file` (unique when set). Two more tables, `hook_files` and `hook_state`, remember which hook files were read and the last log line read.
+
+> **Advisor-reviewed change, 2026-11-23, build step 3** (`src-tauri/migrations/0003_grill.sql`):
+>
+> - `briefs` belong to the grill session (`grill_session_id`), not to a feature: a brief exists before the owner confirms it, and the confirmation makes the feature (1 grill = 1 feature, `features.grill_session_id` is unique). There is no `briefs.feature_id` and no `features.artifact_id`; both come through the session.
+> - `grill_sessions` also keeps `claude_started` (later turns use `--resume`), `pending_message` (the turn that did not finish; Resume sends it wrapped), `draft_answers` (the answers given so far to the open question block), `adr_pending` and `app_note`.
+> - `runs` keeps `pgid` and `proc_start`, so the next app start can kill a `claude` group that a crash left behind. Its `step` already allows the step 4 values (`tickets`, `create`).
+> - Features use `ON DELETE RESTRICT`.
 
 ## Màn hình
 

@@ -1,6 +1,7 @@
 mod artifacts;
 mod checks;
-mod db;
+pub mod db;
+pub mod grill;
 mod nav;
 
 use artifacts::paths::HookPaths;
@@ -13,11 +14,13 @@ use rusqlite::Connection;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::webview::NewWindowResponse;
-use tauri::{Emitter, Manager, WebviewWindowBuilder};
+use tauri::{Emitter, Manager, RunEvent, WebviewWindowBuilder};
 
 struct Db(Arc<Mutex<Connection>>);
 struct Hook(HookPaths);
 struct Previews(Arc<artifacts::preview::PreviewTokens>);
+/// Holds the single-instance lock for the life of the app.
+struct InstanceLock(#[allow(dead_code)] std::fs::File);
 
 /// Event the UI listens to: the hook brought something (or the folder or log appeared or went away).
 const ARTIFACTS_CHANGED: &str = "artifacts-changed";
@@ -241,9 +244,34 @@ pub fn run() {
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
+            // One app at a time (review L8). A second one says so and quits before it touches the database.
+            match grill::proc::single_instance(&dir) {
+                Ok(lock) => {
+                    app.manage(InstanceLock(lock));
+                }
+                Err(e) => {
+                    use tauri_plugin_dialog::DialogExt;
+                    app.dialog().message(format!("{e} Use the window that is already open.")).title("Shape Board").blocking_show();
+                    std::process::exit(0);
+                }
+            }
             let conn = Arc::new(Mutex::new(db::open(&dir.join("shape-board.db"))?));
             let paths = HookPaths::for_home(&app.path().home_dir()?);
             app.manage(Db(conn.clone()));
+            // Step 3: the grill engine. Before the window opens: kill a claude group a crash left
+            // behind, then show every session that was running as stopped (Resume continues it).
+            let grill_handle = app.handle().clone();
+            let engine = grill::engine::Engine::new(
+                conn.clone(),
+                app.path().home_dir()?,
+                Arc::new(move |id| {
+                    let _ = grill_handle.emit(grill::GRILL_CHANGED, serde_json::json!({ "sessionId": id }));
+                }),
+            );
+            if let Err(e) = engine.recover() {
+                eprintln!("shape-board: grill recovery failed: {e}");
+            }
+            app.manage(grill::Grill(engine));
             app.manage(Hook(paths.clone()));
             app.manage(Previews(Arc::new(artifacts::preview::PreviewTokens::default())));
             // The main window is built here, not from the config, so it gets the navigation guard
@@ -297,8 +325,26 @@ pub fn run() {
             mark_artifact_seen,
             preview_url,
             find_manual_target,
-            import_manual
+            import_manual,
+            grill::grill_start,
+            grill::grill_sessions,
+            grill::grill_latest,
+            grill::grill_detail,
+            grill::grill_answer,
+            grill::grill_send,
+            grill::grill_confirm_brief,
+            grill::grill_stop,
+            grill::grill_resume,
+            grill::grill_adr_decide
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Shape Board");
+        .build(tauri::generate_context!())
+        .expect("error while building Shape Board")
+        .run(|app, event| {
+            // Cmd+Q and the last window closing: no claude group may outlive the app (advisor must-fix 3).
+            if let RunEvent::Exit = event {
+                if let Some(g) = app.try_state::<grill::Grill>() {
+                    g.0.shutdown();
+                }
+            }
+        });
 }
