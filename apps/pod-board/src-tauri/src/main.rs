@@ -488,7 +488,7 @@ fn hide_popover(app: &AppHandle) {
 }
 
 /// Where the popover goes: centred under the menu bar icon, 6 px below it, and inside the icon's screen.
-/// All values are physical pixels; `screen` is (left, width) of the monitor the icon is on.
+/// All values are in one unit (here logical points); `screen` is (left, width) of the monitor the icon is on.
 fn popover_x(icon_x: f64, icon_w: f64, pop_w: f64, screen: (f64, f64)) -> f64 {
     let x = icon_x + icon_w / 2.0 - pop_w / 2.0;
     let (left, width) = screen;
@@ -499,24 +499,49 @@ fn popover_x(icon_x: f64, icon_w: f64, pop_w: f64, screen: (f64, f64)) -> f64 {
 #[derive(Clone, Copy, Debug)]
 struct Mon { x: f64, y: f64, w: f64, h: f64, scale: f64 }
 
-/// Where the popover goes, in logical points (the space `set_position` takes with a `LogicalPosition`).
-fn popover_place(_icon: (f64, f64, f64, f64), _pop_w: f64, _mons: &[Mon]) -> Option<(f64, f64)> { None }
+/// Where the popover goes, in logical points (the space a `LogicalPosition` takes).
+/// `icon` is the tray rect (x, y, w, h) as tray-icon reports it on macOS: logical points times the
+/// scale of the icon's own screen. That scale is not known, so each monitor's scale is tried and the
+/// monitor whose logical bounds hold the icon is the icon's screen. The popover is centred under the
+/// icon, 6 points below it, and kept 8 points inside that screen.
+fn popover_place(icon: (f64, f64, f64, f64), pop_w: f64, mons: &[Mon]) -> Option<(f64, f64)> {
+    let (ix, iy, iw, ih) = icon;
+    mons.iter().find_map(|m| {
+        let (lx, ly) = (ix / m.scale, iy / m.scale);
+        let (left, top) = (m.x / m.scale, m.y / m.scale);
+        let (width, height) = (m.w / m.scale, m.h / m.scale);
+        let inside = lx >= left && lx < left + width && ly >= top && ly < top + height;
+        inside.then(|| {
+            let x = popover_x(lx, iw / m.scale, pop_w, (left, width));
+            (x, ly + ih / m.scale + 6.0)
+        })
+    })
+}
 
 /// A left click on the menu bar icon opens the popover under it, or closes it when it is open.
 fn toggle_popover(app: &AppHandle, rect: tauri::Rect) {
     let Some(w) = app.get_webview_window("popover") else { return };
     if w.is_visible().unwrap_or(false) { let _ = w.hide(); return; }
-    let scale = w.scale_factor().unwrap_or(1.0);
-    let pos: tauri::PhysicalPosition<f64> = rect.position.to_physical(scale);
-    let size: tauri::PhysicalSize<f64> = rect.size.to_physical(scale);
-    let screen = w
-        .monitor_from_point(pos.x, pos.y)
-        .ok()
-        .flatten()
-        .map(|m| (m.position().x as f64, m.size().width as f64))
-        .unwrap_or((0.0, f64::MAX / 4.0));
-    let x = popover_x(pos.x, size.width, POPOVER_W * scale, screen);
-    let _ = w.set_position(tauri::PhysicalPosition::new(x, pos.y + size.height + 6.0 * scale));
+    let mons: Vec<Mon> = w
+        .available_monitors()
+        .unwrap_or_default()
+        .iter()
+        .map(|m| Mon {
+            x: m.position().x as f64,
+            y: m.position().y as f64,
+            w: m.size().width as f64,
+            h: m.size().height as f64,
+            scale: m.scale_factor(),
+        })
+        .collect();
+    let icon = (rect.position.to_physical::<f64>(1.0), rect.size.to_physical::<f64>(1.0));
+    let icon = (icon.0.x, icon.0.y, icon.1.width, icon.1.height);
+    // No monitor holds the icon (should not happen): open under it unclamped, at the popover's own scale.
+    let (x, y) = popover_place(icon, POPOVER_W, &mons).unwrap_or_else(|| {
+        let s = w.scale_factor().unwrap_or(1.0);
+        (icon.0 / s + icon.2 / s / 2.0 - POPOVER_W / 2.0, icon.1 / s + icon.3 / s + 6.0)
+    });
+    let _ = w.set_position(tauri::LogicalPosition::new(x, y));
     let _ = w.show();
     let _ = w.set_focus();
 }
@@ -733,9 +758,9 @@ mod tests {
             Mon { x: 0.0, y: 0.0, w: 2880.0, h: 1800.0, scale: 2.0 },
             Mon { x: 1440.0, y: 0.0, w: 1920.0, h: 1080.0, scale: 1.0 },
         ];
-        // Icon on the laptop: logical x 1300, y 0, 24x24 points -> physical x2.
-        let (x, y) = popover_place((2600.0, 0.0, 48.0, 48.0), 340.0, &mons).unwrap();
-        assert_eq!((x, y), (1300.0 + 12.0 - 170.0, 24.0 + 6.0));
+        // Icon on the laptop: logical x 1000, y 0, 24x24 points -> physical x2.
+        let (x, y) = popover_place((2000.0, 0.0, 48.0, 48.0), 340.0, &mons).unwrap();
+        assert_eq!((x, y), (1000.0 + 12.0 - 170.0, 24.0 + 6.0));
         // Icon on the external display: logical x 2800, 22x22 points -> physical x1.
         let (x, y) = popover_place((2800.0, 0.0, 22.0, 22.0), 340.0, &mons).unwrap();
         assert_eq!((x, y), (2800.0 + 11.0 - 170.0, 22.0 + 6.0));
