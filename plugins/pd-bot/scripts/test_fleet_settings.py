@@ -419,3 +419,11 @@ def test_no_effort_option_removes_an_earlier_apply_effort(checkout):
     assert apply(checkout, "--effort", "high").returncode == 0
     assert apply(checkout).returncode == 0
     assert "effortLevel" not in json.loads(settings(checkout).read_text())
+
+
+def test_keeper_is_a_role_on_its_own(checkout):
+    r = run("--checkout", str(checkout), "--role", "keeper", "--model", "claude-sonnet-5-5",
+            "--mode", "auto", "--effort", "high")
+    assert r.returncode == 0, r.stderr
+    data = json.loads(settings(checkout).read_text())
+    assert data["env"]["PD_BOT_ROLE"] == "keeper" and data["effortLevel"] == "high"

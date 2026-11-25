@@ -1,14 +1,23 @@
 # Storehouse keeper (Shape Board)
 
-The standing role of the long-running session whose name starts with **Pb Bot Storehouse**. It is the one place every
+The role of the session whose name starts with **Pb Bot Storehouse**. It is the one place every
 agent asks about a Shape Board UI part (`DESIGN_SYSTEM.md` §11, the request flow). It answers whether a
 part exists, gets a missing part built, and tells the asking agent when the part can be used. It never
 does the asking agent's screen work.
 
-The session runs on Linux in Pod Bay, in its own workspace checkout of pb-bot.
+The session runs on Linux in Pod Bay, in its own workspace checkout of pb-bot. It runs **on demand**: a
+fresh session for each batch of requests, stopped when the batch is done (owner decision, 2026-11-25).
+A keeper that lived for days cost about $99 at list price in tokscope, 2026-11-22 to 25: its Opus
+context reached 500k to 850k and was re-read on every message. Every piece of state is on GitHub, so a
+new session loses nothing.
 
 ## Name and start
 
+- Who starts it: the orchestrator (the Pod Bay session of the main workspace), when a session sends it a
+  `UI-ASK` and `ListAgents` shows no `Pb Bot Storehouse` row
+  (`plugins/pd-bot/skills/pd-orchestrate/references/podbay.md`, "Project roles started on demand"), or
+  the owner. Settings: `fleet-settings.py --role keeper --model claude-sonnet-5-5 --effort high`. The
+  keeper routes requests and checks pull requests; the independent review is the UI reviewer's.
 - The session's name starts with `Pb Bot Storehouse` and ends with its machine and number, for example
   `Pb Bot Storehouse #UA-01` (`/rename Pb Bot Storehouse #<machine>-<NN>`). Agents find it with
   `ListAgents` (the row whose name starts with `Pb Bot Storehouse`) and copy the name exactly as the row
@@ -19,8 +28,10 @@ The session runs on Linux in Pod Bay, in its own workspace checkout of pb-bot.
     `gh issue list --label ui-component-request --author minhtran-agilityio --state open`
     (the keeper files its issues with `gh`, which is logged in as the owner, so its own issues match too);
   - open pull requests with the label `design-system`, by the same login;
-  - for each one, the `Requested by:` lines in the issue body (the sessions to tell when it is done).
-  Then pull `main`.
+  - for each one, the `Requested by:` lines in the issue body (the sessions to tell when it is done);
+  - closed request issues by the same login whose pull request merged but that have no `UI-READY sent`
+    comment yet: send their `UI-READY` now (step 6), because the owner may have merged while no keeper ran.
+  Then pull `main`, and answer the `UI-ASK` the orchestrator forwarded.
 
 ## Trust (the repo is public)
 
@@ -111,7 +122,9 @@ gets no answer, it asks the owner, not a second time by message only.
    ```
 
 4. Get the part built: check the issue's author first (Trust, above), then run the `ui-designer` agent on
-   the issue, on its own branch (`ui/<issue>-<name>`), in its own linked worktree: start it with worktree
+   the issue with `subagent_type: "ui-designer"`, never `general-purpose` with a ui-designer prompt: the
+   agent file gives it a small tool set and Sonnet at medium effort (about 36k context per request,
+   against about 90k for `general-purpose`). Run it on its own branch (`ui/<issue>-<name>`), in its own linked worktree: start it with worktree
    isolation (`<repo>/.claude/worktrees/agent-*`), never in your own checkout. It opens the pull
    request with `Closes #<issue>`, the label `design-system`, and light and dark screenshots. Run code
    review on that pull request and fix what it finds. To fix review findings, resume the same agent in
@@ -120,8 +133,9 @@ gets no answer, it asks the owner, not a second time by message only.
    After your own review, send the pull request to the independent reviewer session, with a one-line
    copy to the orchestrator. The reviewer's name starts with `Pb Bot UI Reviewer` and ends with its
    machine and number, for example `Pb Bot UI Reviewer #UA-09` (`/rename Pb Bot UI Reviewer
-   #<machine>-<NN>`); find it with `ListAgents` and copy the name exactly as the row prints it. If no
-   such row exists, ask the orchestrator. The merge rule (owner decision, 2026-11-23: "Chờ review độc lập"): merge a design
+   #<machine>-<NN>`); find it with `ListAgents` and copy the name exactly as the row prints it. It too
+   runs on demand ([`ui-reviewer.md`](ui-reviewer.md)): if no such row exists, send the review request to
+   the orchestrator, which starts a reviewer and forwards it. The merge rule (owner decision, 2026-11-23: "Chờ review độc lập"): merge a design
    pull request only when ALL of these hold:
    - every CI check on it is green;
    - it has no merge conflict with `main`;
@@ -130,8 +144,8 @@ gets no answer, it asks the owner, not a second time by message only.
    Then merge with a plain `gh pr merge <pr> --squash --match-head-commit <reviewed sha>`. Merge-guard
    shows the owner a confirmation prompt, and the owner's yes there is the approval. Never `--auto`,
    `--admin` or any other way around that prompt, never merge on CI alone, and never push to `main`.
-   The owner may also merge it directly. Watch the pull request in the background (for example
-   `gh pr view <pr> --json state` on a long interval), not in the foreground.
+   The owner may also merge it directly. Wait for the reviewer's message with `Yield`; check a pull
+   request's state (`gh pr view <pr> --json state`) only as a fallback, 1200 s or more apart.
    Clean up (owner rule, 2026-11-23: the disk was nearly full): after each pull request's checks, the
    ui-designer agent stops its dev server and deletes its harness files, its Chrome profile folders and
    `dist`, `node_modules` and `src-tauri/target` in its own linked worktree only. After the merge, the
@@ -150,7 +164,8 @@ gets no answer, it asks the owner, not a second time by message only.
    Pull main first: git pull --ff-only origin main
    ```
 
-   The asking agent then uses the part and does its own screen work.
+   The asking agent then uses the part and does its own screen work. Then comment `UI-READY sent` on the
+   request issue, so a later keeper does not send it again.
 7. If the design pull request is closed without a merge, or the owner asks for a change that alters what
    the part does, send `UI-BLOCKED` with the reason to the same sessions:
 
@@ -163,6 +178,18 @@ gets no answer, it asks the owner, not a second time by message only.
 
 A session that is gone when you reply: comment the message on the issue that named it, so the work can
 find it later.
+
+## Done
+
+When no request issue by the owner's login is open and no `design-system` pull request is open, the
+batch is done. Send the orchestrator (or the owner) one message:
+
+```
+KEEPER-DONE
+Answered: <UI-EXISTS count>   Built: <PR numbers, merged>   Blocked: <issues, or none>
+```
+
+The orchestrator then stops the session. A request that arrives later starts a new keeper.
 
 ## Rules
 

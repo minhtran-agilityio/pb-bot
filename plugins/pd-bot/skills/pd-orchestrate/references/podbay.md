@@ -86,7 +86,7 @@ it for a slash command, or when a session does not accept cross-session messages
    one. One ticket per workspace; a reviewer or an advisor gets its own workspace too, so no
    session shares a working tree with another.
 2. Before you start it, set its model, its permission mode and its role in the checkout:
-   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-settings.py --checkout <checkout> --role worker|reviewer|tester|advisor --model <model id> --mode <your mode> --ticket <id> --run <run> --depth <S|M|L> [--effort low|medium|high|xhigh]`.
+   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-settings.py --checkout <checkout> --role worker|reviewer|tester|advisor|keeper --model <model id> --mode <your mode> --ticket <id> --run <run> --depth <S|M|L> [--effort low|medium|high|xhigh]`.
    A worker runs Sonnet: the script refuses an Opus or Fable model for `--role worker` unless
    `--depth L`, or `--escalated` after a Sonnet worker already failed once on that ticket. For a
    harder S or M ticket, raise the Sonnet worker's effort to `high` (`--effort high`) instead.
@@ -129,6 +129,21 @@ it for a slash command, or when a session does not accept cross-session messages
 | "held for approval" on your send | permission modes differ | restart the session in your mode, or ask the owner |
 | an idle prompt, no report | the agent stopped early | send one message that asks for the report or the blocker |
 | a usage-limit line | the account is out of quota | stop assigning; tell the owner when it resets |
+
+## Project roles started on demand
+
+A project may name a standing role that runs only while it has work, for example a keeper of shared
+parts and its independent reviewer (pb-bot: `apps/pod-shape/docs/storehouse-keeper.md` and
+`ui-reviewer.md`). Such a role's doc gives its session name, model and brief. An idle session costs
+nothing, but a session that lives for days re-reads a large context on every message, so these roles
+start fresh for each batch of work:
+
+- When a session sends you a request for that role and `ListAgents` shows no session of it, start
+  one as in "Start a session for a role" (`--role keeper` for a keeper, `--role reviewer` for its
+  reviewer, with the model and effort its doc names), give it the name its doc names, and forward
+  the request word for word.
+- When the role sends you its done message (the doc names it), stop the session and put its
+  checkout's settings back, as in "Clean up".
 
 ## Other machines
 
