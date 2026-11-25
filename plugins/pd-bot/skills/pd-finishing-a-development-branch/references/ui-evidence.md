@@ -10,19 +10,26 @@ On a public repository, use mock data. Check `gh --version`, then attach after `
 - gh 2.99.0 or newer: `gh pr comment <n> --attach <file>`.
 - Older gh: commit the images to the `pr-evidence` branch under `pr-<n>/` with git plumbing (no checkout), push
   without force, and post one comment with a before/after table. Never commit screenshots to the ticket branch.
-  Add on top of the current tip, so the push is a fast-forward (use absolute paths for the files):
+  Add on top of the current tip, so the push is a fast-forward (use absolute paths for the files; it runs in bash and zsh):
   ```bash
-  git fetch origin pr-evidence || true            # the branch may not exist yet
-  export GIT_INDEX_FILE=$(mktemp -u)
   PARENT=""
-  if git rev-parse -q --verify origin/pr-evidence >/dev/null; then
-    git read-tree origin/pr-evidence
-    PARENT=origin/pr-evidence
+  if git fetch -q origin pr-evidence; then
+    PARENT=$(git rev-parse FETCH_HEAD)   # the branch may not exist yet: then PARENT stays empty
+  fi
+  export GIT_INDEX_FILE=$(mktemp -u)
+  if [ -n "$PARENT" ]; then
+    git read-tree "$PARENT"
   fi
   git update-index --add --cacheinfo 100644,$(git hash-object -w <file>),pr-<n>/<name>   # once per file
-  T=$(git write-tree); rm -f "$GIT_INDEX_FILE"; unset GIT_INDEX_FILE
-  C=$(git commit-tree "$T" ${PARENT:+-p "$PARENT"} -m "Evidence for PR #<n>")
-  git push origin "$C:refs/heads/pr-evidence"
+  T=$(git write-tree)
+  rm -f "$GIT_INDEX_FILE"
+  unset GIT_INDEX_FILE
+  if [ -n "$PARENT" ]; then
+    C=$(git commit-tree "$T" -p "$PARENT" -m "Evidence for PR #<n>")
+  else
+    C=$(git commit-tree "$T" -m "Evidence for PR #<n>")
+  fi
+  git push origin "${C}:refs/heads/pr-evidence"
   ```
   On a non-fast-forward push, fetch and run it again. Never force-push. Pin each image URL to `$C`:
   `https://raw.githubusercontent.com/<owner>/<repo>/<C>/pr-<n>/<name>`.
