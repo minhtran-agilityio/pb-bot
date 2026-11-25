@@ -135,9 +135,13 @@ async function fit() {
   fitted = h;
   try {
     const w = t.window.getCurrentWindow();
+    // Hidden: only the size. The app places the window under the menu bar icon when it opens it.
+    if (!(await w.isVisible())) { await w.setSize(new t.dpi.LogicalSize(340, h)); return; }
+    // Shown: keep the top-left corner, whichever corner the system keeps when it resizes. Skip the move if the
+    // window was hidden meanwhile, so a stale position never wins over the app's placement.
     const at = await w.outerPosition();
     await w.setSize(new t.dpi.LogicalSize(340, h));
-    await w.setPosition(at);
+    if (await w.isVisible()) await w.setPosition(at);
   } catch (e) { fitted = 0; }
 }
 

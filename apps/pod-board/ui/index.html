@@ -12,9 +12,12 @@
   .ic { stroke-width: 1.75; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
-  /* Title bar: the window's own. On macOS the window buttons sit on its left (--tb-inset); a press on it drags the window. */
+  /* Title bar: the window's own. On macOS the window buttons sit on its left (--tb-inset); a press anywhere on it but the
+     button drags the window, and a double-click zooms it. Where the system draws its own title bar (the app on Linux), it is not shown. */
   :root { --tb-inset: 18px; }
   :root.mac { --tb-inset: 84px; }
+  :root.native-tb body { grid-template-rows: minmax(0, 1fr); }
+  :root.native-tb .titlebar { display: none; }
   .titlebar { display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 18px 0 var(--tb-inset); -webkit-user-select: none; user-select: none; }
   .pod-logo { flex: none; display: block; width: 20px; height: 20px; pointer-events: none; }
   .pod-logo .tile { fill: var(--pod-brand-bg); } .pod-logo .body { fill: var(--pod-brand-cat); stroke: var(--pod-brand-cat); } .pod-logo .eye { fill: var(--pod-brand-eye); }
@@ -25,14 +28,14 @@
   /* The width changes at once when the sidebar collapses (no transition): the thumb is placed from the new sizes right after. */
   .shell { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); gap: var(--shell-gap); padding: 0 var(--shell-gap) var(--shell-gap); min-height: 0; }
   .shell.collapsed { grid-template-columns: 64px minmax(0, 1fr); }
-  @media (max-width: 860px) { .shell { grid-template-columns: 64px minmax(0, 1fr); } }
+  @media (max-width: 860px) { .shell { grid-template-columns: 64px minmax(0, 1fr); } #sidebar { display: none; } }
 
   /* Sidebar */
   .side { display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 0; padding: 16px 10px 12px; border-radius: 28px; background: var(--side); overflow: hidden; }
   /* The list scrolls by itself, so the status box always stays in view. A small inset keeps each focus ring visible. */
   .nav { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 2px; padding: 3px; overflow: hidden auto; scrollbar-width: thin; }
   .nav > * { flex: none; }
-  .nav.more { -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 36px), transparent); mask-image: linear-gradient(to bottom, black calc(100% - 36px), transparent); }
+  .nav.fade { -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 36px), transparent); mask-image: linear-gradient(to bottom, black calc(100% - 36px), transparent); }
   .group { margin: 0; padding: 14px 12px 6px; font-size: 12px; line-height: 16px; font-weight: 600; color: var(--fg-muted); }
   .thumb { position: absolute; left: 0; top: 0; height: 38px; border-radius: 9999px; background: var(--surface-2); box-shadow: var(--card-sh); pointer-events: none;
     transition: transform var(--dur-base) var(--ease-out), height var(--dur-base) var(--ease-out); }
@@ -92,7 +95,7 @@
   .shell.collapsed .nav { align-items: center; }
   .shell.collapsed .sstat { padding: 8px; justify-items: center; background: none; box-shadow: none; }
   .shell.collapsed .sstat .l2 { padding: 0; }
-  .shell.collapsed .seg { flex-direction: column; }
+  .shell.collapsed .side .seg { flex-direction: column; }
   .shell.collapsed .dnd { padding: 6px; }
   @media (max-width: 860px) {
     .side { padding: 12px 8px; align-items: center; }
@@ -320,10 +323,10 @@
 <body>
 <!-- Icons: Lucide, ISC licence (see THIRD-PARTY.md). Stroke 1.75, drawn at 12, 14 or 16 px. -->
 <svg class="sprite" width="0" height="0" aria-hidden="true"><symbol id="i-hand" viewBox="0 0 24 24"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></symbol><symbol id="i-loader" viewBox="0 0 24 24"><path d="M12 2v4"/><path d="m16.2 7.8 2.9-2.9"/><path d="M18 12h4"/><path d="m16.2 16.2 2.9 2.9"/><path d="M12 18v4"/><path d="m4.9 19.1 2.9-2.9"/><path d="M2 12h4"/><path d="m4.9 4.9 2.9 2.9"/></symbol><symbol id="i-coffee" viewBox="0 0 24 24"><path d="M10 2v2"/><path d="M14 2v2"/><path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"/><path d="M6 2v2"/></symbol><symbol id="i-moon-star" viewBox="0 0 24 24"><path d="M18 5h4"/><path d="M20 3v4"/><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></symbol><symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></symbol><symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol><symbol id="i-monitor" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></symbol><symbol id="i-house" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol><symbol id="i-layout-grid" viewBox="0 0 24 24"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></symbol><symbol id="i-list" viewBox="0 0 24 24"><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/></symbol><symbol id="i-message-square" viewBox="0 0 24 24"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/></symbol><symbol id="i-refresh-cw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol><symbol id="i-pause" viewBox="0 0 24 24"><rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/></symbol><symbol id="i-play" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></symbol><symbol id="i-panel-left" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></symbol><symbol id="i-triangle-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol><symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol></svg>
-<header class="titlebar" data-tauri-drag-region>
+<header class="titlebar" data-tauri-drag-region="deep">
   <button type="button" class="iconbtn sm" id="sidebar" aria-controls="side" aria-expanded="true"></button>
   <svg class="pod-logo" viewBox="64 64 896 896" aria-hidden="true"><rect class="tile" x="64" y="64" width="896" height="896" rx="200"/><path class="body" d="M280 470 L312 262 L440 392 Z M744 470 L712 262 L584 392 Z" stroke-width="34" stroke-linejoin="round"/><rect class="body" x="212" y="360" width="600" height="380" rx="190"/><rect class="eye" x="378" y="520" width="84" height="56" rx="28"/><rect class="eye" x="562" y="520" width="84" height="56" rx="28"/><rect x="322" y="800" width="104" height="36" rx="18" fill="#EB7D4C"/><rect x="460" y="800" width="104" height="36" rx="18" fill="#8FB3DE"/><rect x="598" y="800" width="104" height="36" rx="18" fill="#4E6E58"/></svg>
-  <p class="crumb" id="crumb" data-tauri-drag-region>Pod Board › <b>Overview</b></p>
+  <p class="crumb" id="crumb">Pod Board › <b>Overview</b></p>
 </header>
 <div class="shell">
   <aside class="side" id="side" aria-label="Navigation">
@@ -409,7 +412,9 @@
 const STALE_MS = 20000, HOLD_MS = 4000;
 // One meaning, one icon (Lucide names). The loader spins wherever it shows.
 const STATES = { needs: ['Needs you', 'hand'], busy: ['Working', 'loader'], idle: ['Idle', 'coffee'], stopped: ['Stopped', 'moon-star'] };
-if (/Mac/.test(navigator.userAgent)) document.documentElement.classList.add('mac'); // room for the window buttons on the title bar
+// macOS: the window buttons sit on the page's title bar. Elsewhere the app keeps the system's title bar, so the page hides its own.
+if (/Mac/.test(navigator.userAgent)) document.documentElement.classList.add('mac');
+else if (window.__TAURI__) document.documentElement.classList.add('native-tb');
 // One icon from the sprite at the top of the page.
 function ic(id) {
   const NS = 'http://www.w3.org/2000/svg';
@@ -797,7 +802,8 @@ function nav() {
     }
   }
   if (machine) {
-    const clear = el('button', 'item sub clear', 'Clear filter'); clear.type = 'button'; clear.title = 'Clear the machine filter';
+    const clear = el('button', 'item sub clear'); clear.type = 'button'; clear.title = 'Clear the machine filter'; clear.setAttribute('aria-label', 'Clear filter');
+    const x = el('span', 'ico'); x.append(ic('x')); clear.append(x, el('span', 'lbl', 'Clear filter'));
     clear.addEventListener('click', () => { machine = null; render(); bar(); });
     box.append(clear);
   }
@@ -809,7 +815,7 @@ function nav() {
 
 function fadeNav() {
   const n = $('nav');
-  n.classList.toggle('more', n.scrollHeight - n.clientHeight - n.scrollTop > 4);
+  n.classList.toggle('fade', n.scrollHeight - n.clientHeight - n.scrollTop > 4);
 }
 $('nav').addEventListener('scroll', fadeNav);
 
@@ -822,7 +828,8 @@ function bar() {
   else if (!snap) { s = 'wait'; text = 'Reading Pod Bay…'; }
   else if (!snap.ok) { s = 'error'; text = 'Pod Bay error'; }
   else if (!lastMsg || now - lastMsg > STALE_MS) { s = 'stale'; text = 'Stale data'; }
-  $('conn').dataset.s = s; $('connText').textContent = text; $('conn').parentElement.title = text;
+  // #conn is a live region: write it only when the words change, or a screen reader repeats them every second.
+  if ($('connText').textContent !== text) { $('conn').dataset.s = s; $('connText').textContent = text; $('conn').parentElement.title = text; }
   $('read').textContent = snap && snap.read_at ? `read at ${new Date(snap.read_at).toLocaleTimeString('en-GB', { hour12: false })}` : '';
   for (const id of ['view', 'summary']) $(id).classList.toggle('dim', s === 'stale' || s === 'error');
   const until = snap && snap.dnd_until;

@@ -29,6 +29,8 @@ The app is not signed, so the first start on a new Mac asks for confirmation (ri
 - **Window:** the title bar shows the Pod Cat logo and where you are; drag it to move the window. The sidebar
   filters by state or machine; its foot has the theme switch (light, dark, follow the system). The button on the
   title bar (or ⌘B) folds the sidebar to its icons.
+- **Look:** the same design system as Shape Board: Outfit for text (JetBrains Mono only for code), Lucide icons,
+  soft state pills with an icon and a word, and the Pod Cat logo. The fonts and icons ship inside the app.
 - **Board:** one lane per state. Switch between **Board** and **List** at the top right of the main panel. The cat
   in the summary row waves when a session needs you, types while one works, and sleeps otherwise.
 - **Open a session:** click a card. The Claude desktop app switches to that session.
