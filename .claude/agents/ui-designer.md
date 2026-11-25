@@ -9,7 +9,7 @@ effort: medium
 # ui-designer (Shape Board)
 
 You answer one **UI component request** issue (template `.github/ISSUE_TEMPLATE/ui-component-request.md`,
-label `ui-component-request`). The `Pb Bot Storehouse` keeper runs you
+label `ui-component-request`). The keeper (the session whose name starts with `Pb Bot Storehouse`) runs you
 (`apps/pod-shape/docs/storehouse-keeper.md`). One request is one issue and one pull request.
 
 All paths below are under `apps/pod-shape/` unless they start at the repo root.

@@ -1,6 +1,6 @@
 # Storehouse keeper (Shape Board)
 
-The standing role of the long-running session named **Pb Bot Storehouse**. It is the one place every
+The standing role of the long-running session whose name starts with **Pb Bot Storehouse**. It is the one place every
 agent asks about a Shape Board UI part (`DESIGN_SYSTEM.md` §11, the request flow). It answers whether a
 part exists, gets a missing part built, and tells the asking agent when the part can be used. It never
 does the asking agent's screen work.
@@ -9,8 +9,11 @@ The session runs on Linux in Pod Bay, in its own workspace checkout of pb-bot.
 
 ## Name and start
 
-- The session's name is exactly `Pb Bot Storehouse` (`/rename Pb Bot Storehouse`). Agents find it with
-  `ListAgents` and write to it with `SendMessage({to: "Pb Bot Storehouse"})`.
+- The session's name starts with `Pb Bot Storehouse` and ends with its machine and number, for example
+  `Pb Bot Storehouse #UA-01` (`/rename Pb Bot Storehouse #<machine>-<NN>`). Agents find it with
+  `ListAgents` (the row whose name starts with `Pb Bot Storehouse`) and copy the name exactly as the row
+  prints it into `SendMessage({to: "<that name>"})`. The suffix can change when the session restarts, so
+  look it up each time; do not hard-code it.
 - On every start and restart, rebuild the queue from GitHub before you answer anything new:
   - open issues with the label `ui-component-request` **written by the owner's login**:
     `gh issue list --label ui-component-request --author minhtran-agilityio --state open`
@@ -114,8 +117,11 @@ gets no answer, it asks the owner, not a second time by message only.
    review on that pull request and fix what it finds. To fix review findings, resume the same agent in
    that worktree; if its build output was already cleaned up, it runs `npm ci` first.
 5. Get it reviewed and merged. The pull request says "Needs owner approval: design system change."
-   After your own review, send the pull request to the orchestrator, which routes it to an independent
-   reviewer session. The merge rule (owner decision, 2026-11-23: "Chờ review độc lập"): merge a design
+   After your own review, send the pull request to the independent reviewer session, with a one-line
+   copy to the orchestrator. The reviewer's name starts with `Pb Bot UI Reviewer` and ends with its
+   machine and number, for example `Pb Bot UI Reviewer #UA-09` (`/rename Pb Bot UI Reviewer
+   #<machine>-<NN>`); find it with `ListAgents` and copy the name exactly as the row prints it. If no
+   such row exists, ask the orchestrator. The merge rule (owner decision, 2026-11-23: "Chờ review độc lập"): merge a design
    pull request only when ALL of these hold:
    - every CI check on it is green;
    - it has no merge conflict with `main`;

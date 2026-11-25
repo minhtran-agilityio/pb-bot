@@ -5,7 +5,7 @@ title: "[UI-REQ] "
 labels: ui-component-request
 ---
 
-<!-- One request is one issue and one pull request. The Pb Bot Storehouse keeper usually files this from a
+<!-- One request is one issue and one pull request. The keeper (session name starts with Pb Bot Storehouse) usually files this from a
      UI-ASK message. The asking agent stops its UI work for this part and continues after the design pull
      request merges. It adds no temporary style or element to a screen. -->
 
