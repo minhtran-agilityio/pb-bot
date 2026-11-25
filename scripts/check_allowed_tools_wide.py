@@ -54,6 +54,8 @@ GH_READ_VERBS = {"view", "list", "diff", "checks"}
 #    interpreter itself sees no option (probe: `Bash(python3 /abs/x.py *)` did not match
 #    `python3 -c '<code>' /abs/x.py`).
 INTERPRETERS = {"python", "python3", "bash", "sh", "node"}
+# ...and the script must be inside the plugin: `bash /dev/stdin *` or a system module is not.
+PLUGIN_SCRIPT_ROOTS = ("${CLAUDE_PLUGIN_ROOT}/", "${CLAUDE_SKILL_DIR}/")
 
 # File tools: a bare name means every file on the disk. A path rule passes only inside the repo
 # (`./...`, no `..`), and a write rule must not cover the repo root, `.git/` or `.claude/`
@@ -62,14 +64,21 @@ FILE_TOOLS = {"Read", "Write", "Edit", "MultiEdit", "NotebookEdit", "Grep", "Glo
 WRITE_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit"}
 # Probed: it reads the installed pd-bot's files and denies another plugin's files.
 READ_OUTSIDE = {"Read(~/.claude/plugins/cache/*/pd-bot/**)"}
-# Repo paths where a written file runs as code or config (CI, hooks, harness scripts, settings).
-# A write rule that can reach any of them is wide.
-PROTECTED_WRITE = (".git", ".claude", ".github", "scripts", "hooks",
-                   "plugins/pd-bot/hooks", "plugins/pd-bot/scripts")
+# A write rule is narrow only inside these repo folders, which hold notes and records, never code
+# or config. Everything else can hold a file that runs: CI, hooks, scripts, a SKILL.md (its
+# allowed-tools), .husky, a package.json (npm scripts), settings (review F2, F6).
+WRITE_FOLDERS = ("specs", "docs")
+
+
+# Characters that str.splitlines() or a YAML parser may treat as a line break, or that hide text.
+# A frontmatter that holds one fails closed: a rule after one could be read by Claude Code but not
+# by this check (review F4: `Read(./**)<U+2028>, Bash` hid the bare Bash).
+HIDDEN = re.compile("[\x00-\x08\x0b-\x1f\x7f-\x9f\u2028\u2029\ufeff\u200b-\u200f\u202a-\u202e\u2066-\u2069]")
 
 
 def frontmatter(text: str):
-    lines = text.splitlines()
+    """The frontmatter between the first two `---` lines, split on '\\n' only ('\\r' stripped)."""
+    lines = [line.rstrip("\r") for line in text.split("\n")]
     if not lines or lines[0].strip() != "---":
         return None
     for i in range(1, len(lines)):
@@ -84,10 +93,14 @@ def entries(block: str) -> list[str]:
     A value this parser cannot read safely (quoted, a [list], continued on the next line, or
     given twice) comes back as one entry that why_wide() reports, so it fails closed.
     """
+    if HIDDEN.search(block):
+        return ["<unparsed allowed-tools: the frontmatter holds a control or line-separator character>"]
     matches = list(re.finditer(r"^allowed-tools:(.*)$", block, re.MULTILINE))
     if not matches:
         return []
     raw = matches[0].group(1).strip()
+    if any(ord(c) > 126 for c in raw):
+        return [f"<unparsed allowed-tools: non-ASCII character in {raw!r}>"]
     rest = block[matches[0].end():].split("\n")
     continued = len(rest) > 1 and rest[1][:1] in (" ", "\t")
     if len(matches) > 1 or continued or raw[:1] in ("'", '"', "[", "|", ">") or not raw:
@@ -140,12 +153,9 @@ def file_rule_wide(entry: str, name: str, arg):
             fixed.append(seg)
         if len(fixed) == len(path[2:].split("/")):
             fixed = fixed[:-1]  # a plain file path: judge its folder
-        prefix = "/".join(fixed)
-        for protected in PROTECTED_WRITE:
-            if prefix == "" or protected == prefix or protected.startswith(prefix + "/") \
-                    or prefix.startswith(protected + "/"):
-                return (f"{entry} can write the repo root or {protected}/, where a file runs as "
-                        "code or config")
+        if not fixed or fixed[0] not in WRITE_FOLDERS or "package.json" in path:
+            return (f"{entry} can write outside {', '.join(f + '/' for f in WRITE_FOLDERS)}, where a "
+                    "file can run as code or config")
     return None
 
 
@@ -164,8 +174,8 @@ def bash_rule_wide(rule: str):
     if head == "gh" and tail_only and len(words) == 4 and words[1] not in ("auth", "api") \
             and words[2] in GH_READ_VERBS:
         return None
-    if head in INTERPRETERS and tail_only and len(words) == 3 and "/" in words[1] \
-            and not words[1].startswith("-"):
+    if head in INTERPRETERS and tail_only and len(words) == 3 \
+            and words[1].startswith(PLUGIN_SCRIPT_ROOTS) and ".." not in words[1].split("/"):
         return None
     if head == "git":
         return "git with a *: options such as -c core.fsmonitor=<cmd>, --output=<file> or --upload-pack=<cmd> run commands or write files"
@@ -182,6 +192,8 @@ def scan(root: Path) -> dict[str, list[tuple[str, str]]]:
     for skill_md in sorted((root / "skills").glob("*/SKILL.md")):
         block = frontmatter(skill_md.read_text())
         if block is None:
+            found[skill_md.parent.name] = [
+                ("<no frontmatter>", "SKILL.md has no frontmatter that this check can read")]
             continue
         wide = [(e, r) for e in entries(block) if (r := why_wide(e))]
         if wide:

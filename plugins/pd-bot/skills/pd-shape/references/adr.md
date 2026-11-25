@@ -29,9 +29,9 @@ in the brief. Why: a wide rule such as `Bash(git -C *)` or `Bash(git push *)` al
    `git fetch origin <default>`, then
    `git worktree add -b adr/<slug> <scratch path>/adr-<slug> origin/<default>`. Number the ADR there:
    `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/write_adrs.py --input <file> --adr-dir <worktree>/docs/adr`
-   (run from the worktree: `cd` into it; never `git -C`). Exit 2 means bad input: fix the file.
-3. In the worktree: `git add docs/adr`, `git commit`, `git push -u origin adr/<slug>`, then
-   `gh pr create` into the default branch. Before `git push`, show the owner `git diff --cached` in full: the
-   prompt shows only the command, not what it sends. Never push to the default branch. Then remove the worktree
+   (run from the worktree). Exit 2 means bad input: fix the file.
+3. In the worktree: `git add docs/adr`, then show the owner `git diff --cached` in full before
+   `git commit`: a permission prompt shows only the command, not what it sends. Then `git commit`,
+   `git push -u origin adr/<slug>` and `gh pr create` into the default branch. Never push to the default branch. Then remove the worktree
    (`git worktree remove <path>`); your own branch and working tree stay as they were.
 4. Add the ADR paths to the brief's `ADRs` section. The owner merges the pull request.

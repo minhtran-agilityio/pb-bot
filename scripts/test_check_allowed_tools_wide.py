@@ -112,6 +112,15 @@ WIDE = [
     "Edit(./plugins/pd-bot/hooks/**)",
     "Write(./plugins/pd-bot/scripts/x.sh)",
     "Edit(./*.json)",
+    # review round 2: F5 interpreter paths, F6 write paths
+    "Bash(bash /dev/stdin *)",
+    "Bash(python3 /usr/lib/python3.12/timeit.py *)",
+    "Bash(python3 scripts/x.py *)",
+    "Bash(python3 ${CLAUDE_PLUGIN_ROOT}/../x.py *)",
+    "Edit(./plugins/pd-bot/skills/**)",
+    "Edit(./.husky/**)",
+    "Edit(./apps/pod-shape/package.json)",
+    "Edit(./docs/package.json)",
 ]
 
 NARROW = [
@@ -129,7 +138,6 @@ NARROW = [
     "Read(~/.claude/plugins/cache/*/pd-bot/**)",
     "Edit(./specs/**)",
     "Edit(./docs/adr/**)",
-    "Edit(./plugins/pd-bot/skills/x/**)",
     "Grep(./**)",
     "Bash(bash ${CLAUDE_SKILL_DIR}/scripts/publish-check.sh *)",
     "Bash(test -n *)",
@@ -259,3 +267,30 @@ def test_base_ref_without_a_baseline_file_passes_with_a_note(tmp_path):
                       "--base-ref", "main")
     assert result.returncode == 0, result.stderr
     assert "has no baseline yet" in result.stdout
+
+
+def test_line_separators_in_frontmatter_fail_closed():
+    """Review F4: str.splitlines() broke the line at these, and the bare Bash after one vanished."""
+    for sep in ("\u2028", "\u0085", "\x0c"):
+        text = f"---\nname: a\nallowed-tools: Read(./**){sep}, Bash\n---\nbody\n"
+        block = wide.frontmatter(text)
+        found = [e for e in wide.entries(block) if wide.why_wide(e)]
+        assert found, repr(sep)
+
+
+def test_separator_before_the_key_fails_closed():
+    text = "---\nname: a\ndescription: x\u2028allowed-tools: Bash\nallowed-tools: Read(./**)\n---\n"
+    assert [e for e in wide.entries(wide.frontmatter(text)) if wide.why_wide(e)]
+
+
+def test_crlf_frontmatter_still_parses():
+    text = "---\r\nname: a\r\nallowed-tools: Read(./**), Agent\r\n---\r\nbody\r\n"
+    assert wide.entries(wide.frontmatter(text)) == ["Read(./**)", "Agent"]
+
+
+def test_skill_without_frontmatter_fails(tmp_path):
+    (tmp_path / "skills" / "alpha").mkdir(parents=True)
+    (tmp_path / "skills" / "alpha" / "SKILL.md").write_text("no frontmatter\n")
+    result = run(tmp_path)
+    assert result.returncode == 1
+    assert "no frontmatter" in result.stderr
