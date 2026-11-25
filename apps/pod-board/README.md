@@ -102,14 +102,17 @@ Linux needs the WebKitGTK 4.1 development packages. The app looks for `podbay-de
 - On every read it also reads this machine's Claude session files, with no hook and no write:
   - `~/.claude/sessions/<pid>.json`, one per running Claude session: `status`, `waitingFor`, `bridgeSessionId` (the
     Remote Control id), `tmux`, `entrypoint`, `kind`, `name`, `statusUpdatedAt`; `cwd`, `sessionId` and `pid` only
-    to find the sub-agent folder and to check that the process still runs. A file whose process is gone is skipped;
-    so is a missing, broken or odd file (at most 64 files of 64 KB).
+    to find the sub-agent folder and to check that the process still runs. A file whose process is gone is skipped
+    (on Linux also one whose `procStart` differs from the process's start time, so a reused pid does not count); so
+    is a missing, broken or odd file, a link or a pipe. The newest 512 files are looked at and at most 64 live
+    sessions kept, each file at most 64 KB.
   - `~/.claude/projects/<folder>/<sessionId>/subagents/agent-*.meta.json`, the sub-agent files: `agentType`,
     `description`, `model`, `spawnDepth`, `finished`. The sub-agent transcripts next to them (`agent-*.jsonl`) are
     never opened: only their file times give the start and the end. An unfinished sub-agent whose transcript has not
     changed for 15 minutes is not counted as running.
   - The model keeps from these only the fields above that the page shows; the project is the last folder name of
-    `cwd`. It never holds a path, an account, the Claude session id or the process id; the only id it holds is the
+    `cwd` (`~` for a home folder). Text from these files loses control, text-direction and zero-width characters,
+    and a home path in it (`/home/<user>/…`, `/Users/<user>/…`) becomes `~/…`. It never holds a path, an account, the Claude session id or the process id; the only id it holds is the
     Remote Control id. Prompt, reply and transcript text are read only when a peek opens, and only for Pod Bay
     sessions (with `podbay-dev detail`).
 - It runs no `podbay-dev detail` in the background: on 2026-11-25 its `activity` held only `you` and `reply`
@@ -119,6 +122,8 @@ Linux needs the WebKitGTK 4.1 development packages. The app looks for `podbay-de
 
 ## Limits
 
+- On macOS a session killed hard (its file left behind) shows until its pid is reused or the file is removed: the
+  format of `procStart` there was not seen, so only the pid is checked.
 - Sources not shown, and data not available (step 0, 2026-11-25, on Linux and on M0):
   - **Desktop:** the Claude desktop app wrote no session file on M0, and its own folders are not read. No Desktop
     source, Desktop filter or closed desktop sessions in the Stopped strip.

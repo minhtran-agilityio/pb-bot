@@ -336,7 +336,10 @@ pub fn build(raw: &Raw) -> Model {
             });
         }
     }
-    merge_local(&mut sessions, &raw.local, &me(&raw.machines));
+    let unread: Vec<String> = raw.ls.as_array().map(|list| {
+        list.iter().filter(|m| !m["result"].is_array() && truthy(&m["machine"])).map(|m| text(&m["machine"])).collect()
+    }).unwrap_or_default();
+    merge_local(&mut sessions, &raw.local, &me(&raw.machines), &unread);
     order(&mut sessions);
 
     let stopped: Vec<Stopped> = seen
@@ -362,9 +365,6 @@ pub fn build(raw: &Raw) -> Model {
             _ => counts.idle += 1,
         }
     }
-    let unread = raw.ls.as_array().map(|list| {
-        list.iter().filter(|m| !m["result"].is_array() && truthy(&m["machine"])).map(|m| text(&m["machine"])).collect()
-    }).unwrap_or_default();
     Model { machines, sessions, stopped, counts, unread }
 }
 
@@ -376,9 +376,15 @@ fn me(machines: &Value) -> String {
 /// Add the local sessions. One that Pod Bay also lists (the same tmux session on this machine, or the same Remote
 /// Control id) shows once, as Pod Bay's, and lends it its sub-agents. Another one shows as "terminal" when it is an
 /// interactive `cli` session with Remote Control on; any other one (a `claude -p` run, a session without Remote
-/// Control, an entry point not seen in step 0) is left out.
-fn merge_local(sessions: &mut Vec<Session>, local: &[crate::local::Local], me: &str) {
+/// Control, an entry point not seen in step 0) is left out. A local session in tmux is Pod Bay's to list: while this
+/// machine's Pod Bay list is unknown or could not be read, it is left out rather than shown as a terminal session.
+fn merge_local(sessions: &mut Vec<Session>, local: &[crate::local::Local], me: &str, unread: &[String]) {
+    let pod_bay_known = !me.is_empty() && !unread.iter().any(|m| m == me);
     for l in local {
+        // Only an interactive `cli` session counts: a `claude -p` run inside a Pod Bay pane lends nothing.
+        if l.entrypoint != "cli" || !l.interactive {
+            continue;
+        }
         let twin = sessions.iter_mut().find(|s| {
             s.source == "podbay"
                 && ((!l.rc_id.is_empty() && s.rc_id == l.rc_id) || (!me.is_empty() && s.machine == me && !l.tmux.is_empty() && s.name == l.tmux))
@@ -387,7 +393,7 @@ fn merge_local(sessions: &mut Vec<Session>, local: &[crate::local::Local], me: &
             if s.agents.is_none() { s.agents = l.agents.clone(); }
             continue;
         }
-        if l.entrypoint != "cli" || !l.interactive || l.rc_id.is_empty() {
+        if l.rc_id.is_empty() || (!l.tmux.is_empty() && !pod_bay_known) {
             continue;
         }
         let waits = !l.waiting_for.trim().is_empty();
@@ -632,7 +638,7 @@ mod tests {
                 {"machine": "M0", "result": [sess(json!({"title": "Same name elsewhere", "name": "claude-pb-bot-02", "remote_url": null}))]}
             ]),
             machines: json!([{"machine": "UA", "me": true, "online": true}, {"machine": "M0", "me": false, "online": true}]),
-            local: crate::local::read(&crate::local::fixture(), now, &|_| true),
+            local: crate::local::read(&crate::local::fixture(), now, &|_, _| true),
             ..Raw::default()
         };
         build(&r)
@@ -659,17 +665,44 @@ mod tests {
     }
 
     #[test]
+    fn a_print_run_in_a_pod_bay_pane_lends_nothing() {
+        // Fixture 1011 is a `claude -p` run in the pane `claude-pb-bot-02` with one running sub-agent.
+        let m = with_local();
+        let b = m.sessions.iter().find(|s| s.title == "Board work").unwrap();
+        assert_eq!(b.agents.as_ref().map(|a| (a.running, a.done)), Some((0, 1)), "only the interactive twin's sub-agents");
+    }
+
+    #[test]
+    fn a_pod_bay_session_does_not_become_a_terminal_row_while_this_machine_is_unread() {
+        let local = vec![crate::local::Local { tmux: "claude-pb-bot-02".into(), rc_id: "session_01InTmux".into(), entrypoint: "cli".into(),
+            interactive: true, status: "busy".into(), title: "In tmux".into(), project: "pb-bot".into(), ..Default::default() },
+            crate::local::Local { rc_id: "session_01Plain".into(), entrypoint: "cli".into(), interactive: true, status: "idle".into(),
+            title: "Plain terminal".into(), project: "beta".into(), ..Default::default() }];
+        let me = json!([{"machine": "UA", "me": true, "online": true}]);
+        let titles = |ls: Value, machines: Value| -> Vec<String> {
+            build(&Raw { ls, machines, local: local.clone(), ..Raw::default() }).sessions.iter().map(|s| s.title.clone()).collect()
+        };
+        assert_eq!(titles(json!([{"machine": "UA", "result": "unreachable"}]), me.clone()), vec!["Plain terminal"]);
+        assert_eq!(titles(json!([{"machine": "UA", "result": []}]), Value::Null), vec!["Plain terminal"], "this machine unknown");
+        let mut both = titles(json!([{"machine": "UA", "result": []}]), me);
+        both.sort();
+        assert_eq!(both, vec!["In tmux", "Plain terminal"], "a tmux session Pod Bay does not list shows when its list was read");
+    }
+
+    #[test]
     fn the_model_of_local_sessions_holds_no_path_account_or_session_id() {
         let m = with_local();
         let body = serde_json::to_string(&m).unwrap();
         for key in ["\"cwd\"", "\"dir\"", "\"path\"", "\"account\"", "\"uuid\"", "\"sessionId\"", "\"pid\"", "\"tmux\""] {
             assert!(!body.contains(key), "model has the field {key}");
         }
-        for secret in ["/home/someone", "someone@example.com", "11111111-1111", "22222222-", "toolu_SECRET", "PRIVATE TRANSCRIPT", "/secret/"] {
+        for secret in ["/home/someone", "someone@example.com", "11111111-1111", "22222222-", "toolu_SECRET", "PRIVATE TRANSCRIPT", "/Users/"] {
             assert!(!body.contains(secret), "model holds {secret}");
         }
         let host = m.sessions.iter().find(|s| s.title == "Sub-agent host").unwrap();
         assert_eq!(host.project, "alpha", "the project is the last folder name only");
+        let task = &host.agents.as_ref().unwrap().list.iter().find(|x| x.task.starts_with("Write tests")).unwrap().task;
+        assert_eq!(task, "Write tests in ~/secret/alpha/tests", "a home path in a sub-agent's task loses the home folder");
     }
 
     #[test]

@@ -663,12 +663,14 @@ const PEEK_KEEP_MS = 20000;
 const peeks = new Map(); // pkey -> { at, data } | { at, error }
 let peekOf = null, peekToken = 0, peekFrom = null, peekSig = '';
 // The same session across reads. A session with no Pod Bay name (a Terminal one) is told apart by its title.
-const pkey = s => `${srcOf(s)}|${s.machine}|${s.name || s.title}`;
+const pkey = s => (s.rc_id ? `rc|${s.rc_id}` : `${srcOf(s)}|${s.machine}|${s.name || s.title}`);
 // Prompt and reply come from `podbay-dev detail`: only a Pod Bay session with a name has them.
 const canRead = s => srcOf(s) === 'podbay' && !!s.name;
 const sigOf = s => JSON.stringify([s.reason, s.agents, s.step]);
 
 function peekButton(s) {
+  // A card with nothing to peek at (no prompt/reply to read, no reason, no sub-agents) and an open link has no peek button.
+  if (!(canRead(s) || (s.reason && REASON[s.reason.kind]) || (s.agents && (subRun(s) || subDone(s))) || !s.rc_id)) return null;
   const b = el('button', 'peekbtn'); b.type = 'button';
   b.setAttribute('aria-label', `Peek at ${s.title}`); b.title = canRead(s) ? 'Peek: last reply and prompt' : 'Peek: why it waits and the sub-agents';
   b.setAttribute('aria-expanded', String(!!peekOf && pkey(peekOf) === pkey(s)));
@@ -699,7 +701,7 @@ function drawPeekHead() {
   meta.append(srcChip(s), el('span', 'where', place(s)));
   if (s.waiting) meta.append(el('span', 'tag wait', s.waiting));
   if (s.state !== 'idle' && s.since) meta.append(el('span', 'where', `· ${dur(s.since)}`));
-  const open = $('peekOpen'); open.disabled = !s.rc_id; open.title = s.rc_id ? `Open ${s.title} in the Claude app` : 'This session has no Remote Control link';
+  const open = $('peekOpen'); open.disabled = !s.rc_id; open.title = s.rc_id ? `Open ${s.title} in the Claude app` : 'Cannot open: this session has no Remote Control link';
 }
 
 function drawPeekBody() {
@@ -711,7 +713,11 @@ function drawPeekBody() {
   const tree = subTree(s); if (tree) body.append(tree);
   const got = canRead(s) ? peeks.get(pkey(s)) : null;
   $('peekAgain').disabled = !got;
-  if (!canRead(s)) { body.append(el('p', 'pnote', 'The prompt and the last reply are only read for Pod Bay sessions.')); return; }
+  if (!s.rc_id) body.append(el('p', 'pnote', 'Cannot open: this session has no Remote Control link.'));
+  if (!canRead(s)) {
+    body.append(el('p', 'pnote', srcOf(s) === 'podbay' ? 'Pod Bay gave this session no name, so its prompt and reply cannot be read.' : 'Prompt and reply are read only for sessions Pod Bay runs, with its name.'));
+    return;
+  }
   if (!got) {
     body.append(el('p', 'pnote', `Reading from ${s.machine}… another machine can take ten seconds.`));
     for (const c of ['', ' s2', ' s3']) body.append(el('div', `shimmer${c}`));
@@ -797,7 +803,7 @@ document.addEventListener('keydown', e => {
 });
 drawSidebar();
 
-function listRow(s) {
+function listRow(s, badge) {
   const key = `${s.machine}|${s.title}`;
   const r = el('div', `lrow ${s.state}`); r.dataset.key = key;
   if (!first && prev.has(key) && prev.get(key) !== s.state) r.classList.add('flash');
@@ -810,6 +816,7 @@ function listRow(s) {
   const text = (s.state === 'busy' && s.step) || s.what;
   const what = el('span', text ? 'lw' : 'lw fallback'); what.append(el('span', 'txt', text || (s.branch ? `branch ${s.branch}` : 'no description')));
   const where = el('span', 'lp'); where.append(el('span', 'place', srcOf(s) === 'podbay' && s.machine ? `${place(s)} · ${s.machine}` : place(s)));
+  if (badge && s.state === 'needs') where.append(el('span', 'tag wait', 'needs you')); // no group head says it here
   if (s.waiting) where.append(el('span', 'tag wait', s.waiting));
   const lst = subRun(s) ? el('span', 'tag', nSub(subRun(s))) : subTag(s); if (lst) where.append(lst);
   if (s.finished) where.append(doneTag(s));
@@ -829,7 +836,7 @@ function listView(list, grouped) {
     const these = list.filter(s => s.state === state);
     if (!these.length) continue;
     if (grouped) { const g = el('div', 'lgroup'); g.append(pill(state), el('span', 'n tab', String(these.length))); box.append(g); }
-    for (const s of these) box.append(listRow(s));
+    for (const s of these) box.append(listRow(s, !grouped || !!srcF || !!projF));
   }
   return box;
 }

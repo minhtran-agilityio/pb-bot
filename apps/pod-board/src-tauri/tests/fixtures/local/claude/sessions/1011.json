@@ -1,0 +1,1 @@
+{"pid": 1011, "sessionId": "88888888-8888-4888-8888-888888888888", "cwd": "/home/someone/secret/pb-bot", "startedAt": 1795000000000, "kind": "print", "entrypoint": "sdk-cli", "name": "Judge run", "status": "busy", "statusUpdatedAt": 1795000050000, "tmux": "claude-pb-bot-02:@1.%1", "bridgeSessionId": null}

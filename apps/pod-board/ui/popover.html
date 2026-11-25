@@ -119,6 +119,7 @@ function row(s) {
   const sub = el('span', 's'); const chip = el('span', 'src'); chip.append(ic(SRC[srcOf(s)]), el('span', null, srcWords(s)));
   sub.append(chip);
   if (s.state === 'needs') sub.append(el('span', 'tag', 'needs you')); // no lane head here says it
+  if (s.state === 'needs' && s.waiting && !k) sub.append(el('span', 'tag', s.waiting)); // no reason: keep the waiting text
   if (s.state === 'busy' && subRun(s)) sub.append(el('span', 'tag sub', nSub(subRun(s))));
   sub.append(el('span', 'txt', (s.state === 'busy' && s.step) || s.what || (s.branch ? `branch ${s.branch}` : s.ws && srcOf(s) === 'podbay' ? `${s.project}/${s.ws}` : s.project)));
   b.append(sub);
