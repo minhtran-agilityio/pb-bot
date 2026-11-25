@@ -7,7 +7,10 @@ file. Versions change only in the release PR (see the release section of `AGENTS
 
 ## [Unreleased]
 
+## [0.6.2] — 2026-11-25
+
 - Changed: the Shape Board keeper (`Pb Bot Storehouse`) and its UI reviewer run on demand, a fresh session per batch, stopped when they send `KEEPER-DONE` or `REVIEWER-DONE`, instead of living for days. Both run Sonnet 5.5 at effort high, and the keeper runs `ui-designer` by its agent type, not `general-purpose`. tokscope, 2026-11-22 to 25: the long-lived keeper cost about $99 (Opus context 500k to 850k) and the reviewer about $38. `podbay.md` gains "Project roles started on demand": the orchestrator starts such a role when a request finds no session of it. `fleet-settings.py` accepts `--role keeper`. New brief: `apps/pod-shape/docs/ui-reviewer.md`. A new keeper sends any `UI-READY` it finds missing (merged request issues without a `UI-READY sent` comment).
+- Keeper and UI reviewer run on demand, on Sonnet (PR #165)
 
 ## [0.6.1] — 2026-11-25
 
