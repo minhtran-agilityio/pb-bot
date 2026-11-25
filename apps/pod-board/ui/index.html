@@ -532,7 +532,7 @@ const place = s => (srcOf(s) === 'podbay' && s.ws ? `${s.project}/${s.ws}` : s.p
 
 // SessionCard. `big` is the wide card of a state page: always the text, more links.
 function row(s, big) {
-  const key = `${s.machine}|${s.title}`;
+  const key = pkey(s);
   const li = el('li', `row ${s.state}`); li.dataset.key = key;
   if (!first && prev.has(key) && prev.get(key) !== s.state) li.classList.add('flash');
   const top = el('div', 'rtop'); top.append(el('span', 'title', s.title));
@@ -804,7 +804,7 @@ document.addEventListener('keydown', e => {
 drawSidebar();
 
 function listRow(s, badge) {
-  const key = `${s.machine}|${s.title}`;
+  const key = pkey(s);
   const r = el('div', `lrow ${s.state}`); r.dataset.key = key;
   if (!first && prev.has(key) && prev.get(key) !== s.state) r.classList.add('flash');
   const ti = el('span', 'lt'); const si = el('span', `sic ${s.state}`); si.append(ic(STATES[s.state][1]));
@@ -863,7 +863,7 @@ function render() {
   }
   const key = `${view}|${srcF}|${projF}|${layout}`;
   if (key !== lastView) { lastView = key; v.classList.remove('enter'); void v.offsetWidth; v.classList.add('enter'); }
-  prev.clear(); for (const s of snap.sessions) prev.set(`${s.machine}|${s.title}`, s.state);
+  prev.clear(); for (const s of snap.sessions) prev.set(pkey(s), s.state);
   first = false;
   nav();
   // The cat shows the heaviest state of the whole board, whatever the filter.

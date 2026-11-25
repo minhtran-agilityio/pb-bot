@@ -96,6 +96,12 @@ fn body(s: &Session) -> String {
     if s.waiting.is_empty() { what } else { format!("{} · {}", s.waiting, what) }
 }
 
+/// A Pod Bay session of a machine that was not read this time: the model shows its last known state, which raises
+/// nothing (its waits, runs and finishes are kept until the machine is read again).
+fn stale(model: &Model, s: &Session) -> bool {
+    s.source == "podbay" && model.unread.contains(&s.machine)
+}
+
 impl Alerts {
     pub fn new(sound_on: bool) -> Self {
         Alerts { sound_on, ..Alerts::default() }
@@ -121,7 +127,7 @@ impl Alerts {
         let mut waiting = HashMap::new();
         let mut out = Outcome::default();
         self.track_finishes(model, now, first, quiet, &mut out);
-        for s in model.sessions.iter().filter(|s| s.state == "needs") {
+        for s in model.sessions.iter().filter(|s| s.state == "needs" && !stale(model, s)) {
             let k = key(s);
             let wait = match before.get(&k) {
                 // A wait that goes on: remind when its time has come.
@@ -174,7 +180,7 @@ impl Alerts {
     /// notification goes out (after Do Not Disturb, when that holds).
     fn track_finishes(&mut self, model: &Model, now: u64, first: bool, quiet: bool, out: &mut Outcome) {
         let mut seen: Vec<String> = Vec::new();
-        for s in &model.sessions {
+        for s in model.sessions.iter().filter(|s| !stale(model, s)) {
             let k = key(s);
             match s.state {
                 "busy" => {

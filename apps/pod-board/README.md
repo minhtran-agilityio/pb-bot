@@ -23,7 +23,8 @@ It is a Tauri 2 app (Rust and one HTML page). It needs no server, no port and no
   none does, so a working card shows Pod Bay's description as before.
 - **Dock:** one icon; a click opens the window. The badge on the icon is the number of sessions that wait for you.
 - **Menu bar:** an icon for the most urgent state and its count: a hand (needs you), a loader (working), a cup (idle),
-  a moon with a star (nothing running), or a warning triangle when Pod Bay cannot be read. They are the same Lucide
+  a moon with a star (nothing running), or a warning triangle when Pod Bay cannot be read (with the count of
+  sessions that wait: the last Pod Bay read and this machine's own sessions, which still alert). They are the same Lucide
   shapes as the window's icons, as one-colour template images (`THIRD-PARTY.md`).
   A left click opens the popover (below); a right click shows its menu, which opens the window, turns "start at
   login" and "always on top" on and off, and quits.
@@ -102,18 +103,26 @@ Linux needs the WebKitGTK 4.1 development packages. The app looks for `podbay-de
 - On every read it also reads this machine's Claude session files, with no hook and no write:
   - `~/.claude/sessions/<pid>.json`, one per running Claude session: `status`, `waitingFor`, `bridgeSessionId` (the
     Remote Control id), `tmux`, `entrypoint`, `kind`, `name`, `statusUpdatedAt`; `cwd`, `sessionId` and `pid` only
-    to find the sub-agent folder and to check that the process still runs. A file whose process is gone is skipped
-    (on Linux also one whose `procStart` differs from the process's start time, so a reused pid does not count); so
-    is a missing, broken or odd file, a link or a pipe. The newest 512 files are looked at and at most 64 live
-    sessions kept, each file at most 64 KB.
+    to find the sub-agent folder and to check that the process still runs. When a file has no `statusUpdatedAt`, its
+    `startedAt` gives the time instead. A file whose process is gone is skipped (on Linux also one whose
+    `procStart` differs from the process's start time, so a reused pid does not count); so is a missing, broken or
+    odd file, a link or a pipe. The newest 512 files are looked at and at most 64 live sessions kept, each file at
+    most 64 KB. A folder's listing is used again while the folder has not changed (for at most a minute); each
+    session file is read on every poll.
+  - `/proc/<pid>/stat` (Linux only), for the `pid` of each session file: only its start time (field 22) is read and
+    compared with `procStart`.
   - `~/.claude/projects/<folder>/<sessionId>/subagents/agent-*.meta.json`, the sub-agent files: `agentType`,
     `description`, `model`, `spawnDepth`, `finished`. The sub-agent transcripts next to them (`agent-*.jsonl`) are
     never opened: only their file times give the start and the end. An unfinished sub-agent whose transcript has not
-    changed for 15 minutes is not counted as running.
+    changed for 15 minutes is not counted as running. A finished sub-agent's file is read once.
   - The model keeps from these only the fields above that the page shows; the project is the last folder name of
-    `cwd` (`~` for a home folder). Text from these files loses control, text-direction and zero-width characters,
-    and a home path in it (`/home/<user>/…`, `/Users/<user>/…`) becomes `~/…`. It never holds a path, an account, the Claude session id or the process id; the only id it holds is the
-    Remote Control id. Prompt, reply and transcript text are read only when a peek opens, and only for Pod Bay
+    `cwd` (`~` for a home folder: `$HOME`, `…/home/<user>`, `/Users/<user>`, `/root`, or a folder named like the
+    login). Text from these files loses control, text-direction and zero-width characters. A path in it that starts
+    with `/` loses its folders: a home path (`$HOME/…`, `…/home/<user>/…`, `/Users/<user>/…`, `/root/…`) becomes
+    `~/…`, any other path of two or more parts keeps only its last part (`/srv/data/x/log.txt` becomes
+    `…/log.txt`). It never holds an absolute path, the login name in a path, an account, the Claude session id or
+    the process id; the only id it holds is the Remote Control id. A path under the home folder (`~/…`) and a name
+    written in the text itself (a sub-agent's task) can still show. Prompt, reply and transcript text are read only when a peek opens, and only for Pod Bay
     sessions (with `podbay-dev detail`).
 - It runs no `podbay-dev detail` in the background: on 2026-11-25 its `activity` held only `you` and `reply`
   entries, with no step and no sub-agents, so a read per poll would cost up to ten seconds per machine for nothing.

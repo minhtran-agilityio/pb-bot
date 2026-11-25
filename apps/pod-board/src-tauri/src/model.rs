@@ -137,8 +137,10 @@ pub struct Raw {
     pub checkouts: Value,
     pub machines: Value,
     pub queue: Value,
-    /// The Claude sessions of this machine (`local::read`).
+    /// The Claude sessions of this machine (`local::read_with`).
     pub local: Vec<crate::local::Local>,
+    /// The last `ls --all` failed: `ls` holds the read before it, so every machine in it counts as not read.
+    pub stale: bool,
 }
 
 fn text(v: &Value) -> String {
@@ -336,10 +338,12 @@ pub fn build(raw: &Raw) -> Model {
             });
         }
     }
-    let unread: Vec<String> = raw.ls.as_array().map(|list| {
-        list.iter().filter(|m| !m["result"].is_array() && truthy(&m["machine"])).map(|m| text(&m["machine"])).collect()
+    let mut unread: Vec<String> = raw.ls.as_array().map(|list| {
+        list.iter().filter(|m| (raw.stale || !m["result"].is_array()) && truthy(&m["machine"])).map(|m| text(&m["machine"])).collect()
     }).unwrap_or_default();
-    merge_local(&mut sessions, &raw.local, &me(&raw.machines), &unread);
+    let me = me(&raw.machines);
+    if raw.stale && !me.is_empty() && !unread.contains(&me) { unread.push(me.clone()); }
+    merge_local(&mut sessions, &raw.local, &me, &unread);
     order(&mut sessions);
 
     let stopped: Vec<Stopped> = seen
@@ -486,6 +490,7 @@ mod tests {
                 {"dir": "/d/02", "state": "unknown", "finished": null}, {"dir": "/d/02", "state": "delivered", "finished": 5}
             ]}]),
             local: vec![],
+            stale: false,
         }
     }
 
@@ -609,7 +614,7 @@ mod tests {
     #[test]
     fn missing_or_odd_input_gives_an_empty_model() {
         assert_eq!(build(&Raw::default()), Model::default());
-        let odd = Raw { ls: json!("x"), checkouts: json!([{"machine": "A", "result": "err"}]), machines: json!({}), queue: Value::Null, local: vec![] };
+        let odd = Raw { ls: json!("x"), checkouts: json!([{"machine": "A", "result": "err"}]), machines: json!({}), queue: Value::Null, local: vec![], stale: false };
         assert_eq!(build(&odd), Model::default());
     }
 
