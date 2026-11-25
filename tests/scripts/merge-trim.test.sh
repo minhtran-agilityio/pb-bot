@@ -18,6 +18,7 @@ printf '%s' '{"model":"opus","permissions":{"deny":["Read(./.env)"]},"enabledPlu
 bash "$SCRIPT" "$TRIM" "$d/s.json" >/dev/null; rc=$?
 if [ "$rc" -eq 0 ] && jq -e --slurpfile t "$TRIM" '.model == "opus" and .permissions.deny == ["Read(./.env)"]
      and .enabledPlugins["mine@m"] == true and .disableClaudeAiConnectors == true
+     and .autoCompactWindow == $t[0].autoCompactWindow
      and (. as $s | $t[0].enabledPlugins | to_entries | all($s.enabledPlugins[.key] == .value))' "$d/s.json" >/dev/null; then pass
 else fail "rc=$rc file: $(cat "$d/s.json")"; fi
 
@@ -64,6 +65,15 @@ d=$(work)
 bash "$SCRIPT" "$TRIM" "$d/s.json" >/dev/null; rc=$?
 if [ "$rc" -eq 0 ] && jq -e '.disableClaudeAiConnectors == true' "$d/s.json" >/dev/null; then pass
 else fail "rc=$rc"; fi
+
+t "--compact-window replaces the trim file's autoCompactWindow; below 100000 or not a number exits 1"
+d=$(work)
+bash "$SCRIPT" --compact-window 300000 "$TRIM" "$d/s.json" >/dev/null; rc=$?
+ok=1
+{ [ "$rc" -eq 0 ] && jq -e '.autoCompactWindow == 300000' "$d/s.json" >/dev/null; } || ok=0
+for w in 99999 abc ""; do bash "$SCRIPT" --compact-window "$w" "$TRIM" "$d/x.json" >/dev/null 2>&1; [ "$?" -eq 1 ] || ok=0; done
+[ ! -e "$d/x.json" ] || ok=0
+if [ "$ok" -eq 1 ]; then pass; else fail "rc=$rc file: $(cat "$d/s.json")"; fi
 
 t "usage error exits 1"
 bash "$SCRIPT" "$TRIM" >/dev/null 2>&1; rc=$?

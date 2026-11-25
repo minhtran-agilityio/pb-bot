@@ -1,8 +1,11 @@
 #!/bin/bash
-# Merge the token trim (fleet-trim.json: no claude.ai connectors, unused plugins off) into a
+# Merge the token trim (fleet-trim.json: no claude.ai connectors, unused plugins off, a smaller
+# auto-compact window) into a
 # project settings.json, so each request of every session there carries fewer tool and skill lists.
-# Usage: merge-trim.sh [--dry-run] <trim.json> <settings.json>
-#   Sets disableClaudeAiConnectors and each enabledPlugins entry of the trim file; keeps every
+# Usage: merge-trim.sh [--dry-run] [--compact-window N] <trim.json> <settings.json>
+#   --compact-window N writes autoCompactWindow N (at least 100000) instead of the trim file's value:
+#   project settings serve the orchestrator, which compacts sooner than fleet sessions.
+#   Sets every top-level key and each enabledPlugins entry of the trim file; keeps every
 #   other key. Writes nothing when nothing changes (idempotent). A missing file is created as {}.
 #   --dry-run prints the diff and changes nothing.
 # Exit: 0 done or already merged, 1 usage, 2 a file is not a valid JSON object or enabledPlugins
@@ -10,8 +13,19 @@
 set -eu
 
 DRY=0
-if [ "${1:-}" = "--dry-run" ]; then DRY=1; shift; fi
-[ "$#" -eq 2 ] || { echo "usage: merge-trim.sh [--dry-run] <trim.json> <settings.json>" >&2; exit 1; }
+WINDOW=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --dry-run) DRY=1; shift ;;
+    --compact-window)
+      [ "$#" -ge 2 ] || { echo "merge-trim: --compact-window needs a number" >&2; exit 1; }
+      case "$2" in ''|*[!0-9]*) echo "merge-trim: --compact-window needs a number" >&2; exit 1 ;; esac
+      [ "$2" -ge 100000 ] || { echo "merge-trim: --compact-window must be at least 100000" >&2; exit 1; }
+      WINDOW=$2; shift 2 ;;
+    *) break ;;
+  esac
+done
+[ "$#" -eq 2 ] || { echo "usage: merge-trim.sh [--dry-run] [--compact-window N] <trim.json> <settings.json>" >&2; exit 1; }
 TRIM=$1
 FILE=$2
 command -v jq >/dev/null 2>&1 || { echo "merge-trim: jq is required (install jq, then re-run)" >&2; exit 3; }
@@ -26,11 +40,13 @@ else
   CUR='{}'
 fi
 
-NEW=$(printf '%s' "$CUR" | jq --slurpfile t "$TRIM" '
-  .disableClaudeAiConnectors = (if ($t[0] | has("disableClaudeAiConnectors"))
+NEW=$(printf '%s' "$CUR" | jq --slurpfile t "$TRIM" --arg w "$WINDOW" '
+  . * ($t[0] | del(.enabledPlugins, .disableClaudeAiConnectors))
+  | .disableClaudeAiConnectors = (if ($t[0] | has("disableClaudeAiConnectors"))
                                 then $t[0].disableClaudeAiConnectors else true end)
   | .enabledPlugins = ((.enabledPlugins // {}) + ($t[0].enabledPlugins // {}))
-  | if .enabledPlugins == {} then del(.enabledPlugins) else . end')
+  | if .enabledPlugins == {} then del(.enabledPlugins) else . end
+  | if $w != "" then .autoCompactWindow = ($w | tonumber) else . end')
 
 SAME=0
 if [ -f "$FILE" ] && [ "$(printf '%s' "$CUR" | jq -S .)" = "$(printf '%s' "$NEW" | jq -S .)" ]; then SAME=1; fi

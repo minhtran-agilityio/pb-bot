@@ -9,9 +9,11 @@ import pytest
 SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fleet-settings.py")
 with open(os.path.join(os.path.dirname(SCRIPT), "fleet-trim.json")) as _f:
     TRIM = json.load(_f)
+_SCALARS = sorted(k for k in TRIM if k not in ("disableClaudeAiConnectors", "enabledPlugins"))
 TRIM_LINES = ["disableClaudeAiConnectors: " + json.dumps(TRIM["disableClaudeAiConnectors"])] + [
+    f"{k}: {json.dumps(TRIM[k])}" for k in _SCALARS] + [
     f"enabledPlugins.{n}: false" for n in sorted(TRIM["enabledPlugins"])]
-TRIM_ABSENT = ["disableClaudeAiConnectors: absent"] + [
+TRIM_ABSENT = ["disableClaudeAiConnectors: absent"] + [f"{k}: absent" for k in _SCALARS] + [
     f"enabledPlugins.{n}: absent" for n in sorted(TRIM["enabledPlugins"])]
 
 
@@ -55,6 +57,7 @@ def test_writes_model_mode_and_role(checkout):
     assert data["permissions"]["defaultMode"] == "auto"
     assert data["env"] == {"PD_BOT_ROLE": "worker", "PD_BOT_TICKET": "12", "PD_BOT_RUN": "r1"}
     assert data["disableClaudeAiConnectors"] is True
+    assert data["autoCompactWindow"] == TRIM["autoCompactWindow"] >= 100000
     assert data["enabledPlugins"] == {n: False for n in TRIM["enabledPlugins"]}
 
 
@@ -369,6 +372,8 @@ def test_repo_project_settings_carry_the_plugin_trim_and_keep_only_claude_docs()
     # The owner's sessions keep the Claude Docs connector; every other claude.ai connector is denied.
     deny = proj["permissions"]["deny"]
     assert "disableClaudeAiConnectors" not in proj
+    # The orchestrator and owner sessions compact sooner (300k) than fleet sessions (fleet-trim.json).
+    assert proj["autoCompactWindow"] == 300000 < TRIM["autoCompactWindow"]
     assert all(r.startswith("mcp__claude_ai_") for r in deny)
     assert "mcp__claude_ai_Claude_Docs" not in deny and "mcp__claude_ai_Context7" not in deny
 

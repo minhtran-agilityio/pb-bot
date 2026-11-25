@@ -10,10 +10,11 @@ session start:
   permissions.defaultMode    the run's permission mode (a session in another mode holds messages)
   env.PD_BOT_ROLE            the role; the plugin's session-role hook reads it
   env.PD_BOT_TICKET, env.PD_BOT_RUN   the ticket and the run, for the session and its commands
-  disableClaudeAiConnectors, enabledPlugins.<plugin>
+  disableClaudeAiConnectors, autoCompactWindow, enabledPlugins.<plugin>
                              the token trim in fleet-trim.json (next to this script): no claude.ai
                              connectors and no unused plugins, so each request carries about 20k
-                             fewer tokens of tool and skill lists. --keep-connectors skips it.
+                             fewer tokens of tool and skill lists, and an auto-compact window of
+                             500k instead of 1M. --keep-connectors skips it.
 
 Model guard: a worker runs Sonnet. For --role worker, a model that is not a Sonnet or Haiku id or
 alias (Opus, Fable, or an alias such as `best` that can resolve to Opus) is refused unless --depth L
@@ -74,7 +75,11 @@ def trim_values():
             data = json.load(f)
     except (OSError, ValueError) as e:
         refuse(f"cannot read {TRIM_FILE}: {e}")
+    if not isinstance(data, dict):
+        refuse(f"{TRIM_FILE} does not hold a JSON object")
     pairs = [(("disableClaudeAiConnectors",), data.get("disableClaudeAiConnectors", True))]
+    pairs += [((k,), v) for k, v in sorted(data.items())
+              if k not in ("disableClaudeAiConnectors", "enabledPlugins")]
     plugins = data.get("enabledPlugins", {})
     if not isinstance(plugins, dict):
         refuse(f"{TRIM_FILE}: enabledPlugins is not an object")

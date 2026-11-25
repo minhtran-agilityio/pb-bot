@@ -1,4 +1,5 @@
 {
+  "autoCompactWindow": 500000,
   "disableClaudeAiConnectors": true,
   "enabledPlugins": {
     "render@anthropic-plugin-directory": false,
