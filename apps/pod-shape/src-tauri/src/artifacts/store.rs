@@ -105,6 +105,20 @@ pub fn add_version(
     source: &str,
     file: Option<&str>,
 ) -> rusqlite::Result<Option<(i64, i64)>> {
+    add_version_at(conn, artifact_id, html, source, file, None)
+}
+
+/// `add_version` with the time the version counts from: the hook's publish time when known (HANDOFF
+/// §11.3 column 1), else the import time. `at` is `YYYY-MM-DDTHH:MM:SSZ` (checked); a bad value is ignored.
+pub fn add_version_at(
+    conn: &Connection,
+    artifact_id: i64,
+    html: &str,
+    source: &str,
+    file: Option<&str>,
+    at: Option<&str>,
+) -> rusqlite::Result<Option<(i64, i64)>> {
+    let at = at.filter(|t| super::log::valid_utc(t));
     let html = strip_bom(html);
     let hash = sha256_hex(html);
     if let Some(f) = file {
@@ -122,8 +136,9 @@ pub fn add_version(
         |r| r.get(0),
     )?;
     conn.execute(
-        "INSERT INTO artifact_versions (artifact_id, n, html, sha256, source, file) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        params![artifact_id, n, html, hash, source, file],
+        "INSERT INTO artifact_versions (artifact_id, n, html, sha256, source, file, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, COALESCE(?7, strftime('%Y-%m-%dT%H:%M:%SZ', 'now')))",
+        params![artifact_id, n, html, hash, source, file, at],
     )?;
     let vid = conn.last_insert_rowid();
     if n > 1 {
@@ -151,6 +166,46 @@ pub fn set_state(conn: &Connection, key: &str, value: &str) -> rusqlite::Result<
         "INSERT INTO hook_state (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
         params![key, value],
     )?;
+    Ok(())
+}
+
+/// The publish time (column 1) of the log line that names this hook file (column 6), kept in
+/// `hook_state` so a line that arrives before or after its file is matched either way.
+pub fn file_time(conn: &Connection, file: &str) -> rusqlite::Result<Option<String>> {
+    get_state(conn, &format!("ftime:{file}"))
+}
+
+/// Records the time of the log line for `file` and, when the file is already a version, sets that
+/// version's time (the folder was seen before the line, issue #100). Times stay in version order.
+pub fn set_file_time(conn: &Connection, file: &str, at: &str) -> rusqlite::Result<()> {
+    set_state(conn, &format!("ftime:{file}"), at)?;
+    let artifact: Option<i64> = conn
+        .query_row("SELECT artifact_id FROM artifact_versions WHERE file = ?1", params![file], |r| r.get(0))
+        .optional()?;
+    if let Some(a) = artifact {
+        conn.execute("UPDATE artifact_versions SET created_at = ?2 WHERE file = ?1", params![file, at])?;
+        monotonic_times(conn, a)?;
+    }
+    Ok(())
+}
+
+/// A version's time never exceeds a newer version's: clocks of the log and of the files can differ, so
+/// each time is capped at the next version's time.
+pub fn monotonic_times(conn: &Connection, artifact_id: i64) -> rusqlite::Result<()> {
+    let rows: Vec<(i64, String)> = {
+        let mut st = conn.prepare("SELECT id, created_at FROM artifact_versions WHERE artifact_id = ?1 ORDER BY n DESC")?;
+        let r = st.query_map(params![artifact_id], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        r.collect::<rusqlite::Result<_>>()?
+    };
+    let mut cap: Option<String> = None;
+    for (id, at) in rows {
+        match &cap {
+            Some(c) if at > *c => {
+                conn.execute("UPDATE artifact_versions SET created_at = ?2 WHERE id = ?1", params![id, c])?;
+            }
+            _ => cap = Some(at),
+        }
+    }
     Ok(())
 }
 
