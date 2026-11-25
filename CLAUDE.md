@@ -8,7 +8,7 @@ Skill framework for Claude Code (the only supported runtime) with Pod Bay (`podb
 
 `bash scripts/check-shellcheck.sh` runs shellcheck over the harness shell scripts. Run it before the PR; CI runs the same script with `REQUIRE_SHELLCHECK=1`, which fails instead of skipping when shellcheck is missing.
 
-`apps/pod-board/` is the Pod Bay session board, a menu bar app (`apps/pod-board/README.md`).
+`apps/pod-board/` is the Pod Bay session board, a menu bar app (`apps/pod-board/README.md`). Every new build of it replaces the old one: after a build only one `Pod Board.app` stays on the machine, in `~/Applications`; old copies go to the Trash (rule and commands: `apps/pod-board/README.md`, "One installed copy").
 
 The plugin lives in `plugins/pd-bot/`; the marketplace file is `.claude-plugin/marketplace.json`. To develop, run `claude --plugin-dir plugins/pd-bot` from the repo root. The plugin's hooks and rule then load from there (the repo's `settings.json` wires no hooks), and its skills appear as `/pd-bot:<name>`.
 
