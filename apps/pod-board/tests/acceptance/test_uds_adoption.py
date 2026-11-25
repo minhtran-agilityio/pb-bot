@@ -262,10 +262,12 @@ class TestTokens(unittest.TestCase):
                 base = c[surf]
                 for fg, soft in (("--accent-text", "--session-needs-soft"), ("--session-working", "--session-working-soft"),
                                  ("--session-idle", "--session-idle-soft"), ("--session-finished", "--session-finished-soft"),
-                                 ("--success", "--status-open-soft"), ("--danger", "--danger-soft"), ("--warning", "--warning-soft")):
+                                 ("--success", "--status-open-soft"), ("--fg", "--danger-soft"), ("--warning", "--warning-soft")):
                     fill = over(c[soft], base)
                     pairs.append((fg, f"{soft} on {surf}", c[fg], fill))
                 pairs.append(("--accent-text", surf, c["--accent-text"], base))
+            # the app draws --danger text on plain --surface-2 (peek error), not on --danger-soft; the banner uses --fg on --danger-soft
+            pairs.append(("--danger", "--surface-2", c["--danger"], c["--surface-2"]))
             for fg, bg, a, b in pairs:
                 a = over(a, b) if a[3] < 1 else a
                 r = contrast(a, b)
