@@ -331,21 +331,21 @@ fn now_ms() -> u64 {
 }
 
 /// The menu bar icon for the most urgent state, and the count beside it (empty when nothing counts).
-/// Icons: Phosphor Icons, duotone, drawn black so macOS can tint them as template images.
+/// Icons: Lucide (ISC), the same shapes as the window, drawn black so macOS can tint them as template images.
 fn tray_look(snap: &Snapshot) -> (&'static [u8], String) {
     let c = snap.model.counts;
     // Nobody waits, but something finished: say so beside the icon ("✓2", or "3 ✓2" while others work).
     let done = if c.finished > 0 { format!("✓{}", c.finished) } else { String::new() };
     if !snap.ok {
-        (include_bytes!("../icons/tray-warning-circle.png"), String::new())
+        (include_bytes!("../icons/tray-triangle-alert.png"), String::new())
     } else if c.needs > 0 {
-        (include_bytes!("../icons/tray-hand-palm.png"), c.needs.to_string())
+        (include_bytes!("../icons/tray-hand.png"), c.needs.to_string())
     } else if c.busy > 0 {
-        (include_bytes!("../icons/tray-lightning.png"), format!("{} {done}", c.busy).trim_end().to_string())
+        (include_bytes!("../icons/tray-loader.png"), format!("{} {done}", c.busy).trim_end().to_string())
     } else if c.idle > 0 {
         (include_bytes!("../icons/tray-coffee.png"), done)
     } else {
-        (include_bytes!("../icons/tray-moon-stars.png"), String::new())
+        (include_bytes!("../icons/tray-moon-star.png"), String::new())
     }
 }
 
@@ -401,7 +401,7 @@ fn play_sound() {
 /// Blink the menu bar icon a few times, then put back the icon of the current state.
 fn flash_tray(app: AppHandle) {
     std::thread::spawn(move || {
-        let hand = tauri::image::Image::from_bytes(include_bytes!("../icons/tray-hand-palm.png"));
+        let hand = tauri::image::Image::from_bytes(include_bytes!("../icons/tray-hand.png"));
         let blank = tauri::image::Image::from_bytes(include_bytes!("../icons/tray-blank.png"));
         let (Ok(hand), Ok(blank)) = (hand, blank) else { return };
         for i in 0..8 {
