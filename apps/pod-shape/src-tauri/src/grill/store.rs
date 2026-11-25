@@ -447,7 +447,8 @@ pub fn confirm_brief(conn: &Connection, id: i64) -> Result<Feature, String> {
     }
     let name = brief_title(&b.content);
     // specs/<slug>/brief.md -> <slug>
-    let slug = b.path.trim_start_matches("specs/").split('/').next().unwrap_or("feature").to_string();
+    // Only [a-z0-9-] reaches the database (review L6); the brief path is checked again here.
+    let slug = crate::grill::adr::safe_slug(b.path.trim_start_matches("specs/").split('/').next().unwrap_or("feature"));
     conn.execute("INSERT INTO features (grill_session_id, name, slug) VALUES (?1, ?2, ?3)", params![id, name, slug]).map_err(e)?;
     feature(conn, id).map_err(e)?.ok_or_else(|| "The feature was not saved.".into())
 }
@@ -525,6 +526,10 @@ pub mod tests {
         assert_eq!(confirm_brief(&conn, id).unwrap().id, f.id);
         let n: i64 = conn.query_row("SELECT COUNT(*) FROM features", [], |r| r.get(0)).unwrap();
         assert_eq!(n, 1);
+        // A slug folder with odd characters is stored as a safe slug.
+        let id2 = { set_state(&conn, id, "confirmed").unwrap(); create_session(&conn, v, "u2").unwrap() };
+        add_brief_version(&conn, id2, "specs/Odd Name;rm/brief.md", "# Brief: Odd", "z").unwrap();
+        assert_eq!(confirm_brief(&conn, id2).unwrap().slug, "odd-name-rm");
     }
 
     #[test]

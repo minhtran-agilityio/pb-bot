@@ -81,6 +81,58 @@ pub fn read_current(project: &Path, rel: &str) -> Option<Brief> {
     read_brief(&project, &specs, &dir)
 }
 
+/// Every file under `<project>/specs/` (relative path -> (size, mtime ns)), at most 5 levels and 5 000
+/// files, links not followed. Used to flag a turn that changed anything other than a brief or a design
+/// (review F1: the permission rules deny it; this is the second line).
+pub type SpecsFiles = HashMap<String, (u64, u128)>;
+
+pub fn specs_files(project: &Path) -> SpecsFiles {
+    let mut out = SpecsFiles::new();
+    let Ok(project) = project.canonicalize() else { return out };
+    let mut stack = vec![(project.join("specs"), 0usize)];
+    while let Some((dir, depth)) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+        for e in entries.flatten() {
+            if out.len() >= 5000 {
+                return out;
+            }
+            let Ok(m) = std::fs::symlink_metadata(e.path()) else { continue };
+            if m.is_dir() && depth < 5 {
+                stack.push((e.path(), depth + 1));
+            } else if m.is_file() || m.file_type().is_symlink() {
+                let rel = e.path().strip_prefix(&project).map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+                let mtime = m.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map_or(0, |d| d.as_nanos());
+                out.insert(rel, (m.len(), mtime));
+            }
+        }
+    }
+    out
+}
+
+/// Files under specs/ that are new, changed or gone since `before`, other than this feature's
+/// `specs/<slug>/brief.md` and `design.md`. With no slug yet, a NEW brief or design in any slug folder is
+/// expected (pd-shape picks the slug); changing another feature's existing one is not. Sorted.
+pub fn unexpected_changes(before: &SpecsFiles, after: &SpecsFiles, slug: Option<&str>) -> Vec<String> {
+    let allowed = |p: &str| {
+        let parts: Vec<&str> = p.split('/').collect();
+        let shape = parts.len() == 3 && parts[0] == "specs" && (parts[2] == "brief.md" || parts[2] == "design.md");
+        shape && match slug {
+            Some(s) => parts[1] == s,
+            None => !before.contains_key(p),
+        }
+    };
+    let mut v: Vec<String> = after
+        .iter()
+        .filter(|(p, m)| before.get(*p) != Some(m))
+        .map(|(p, _)| p.clone())
+        .chain(before.keys().filter(|p| !after.contains_key(*p)).cloned())
+        .filter(|p| !allowed(p))
+        .collect();
+    v.sort();
+    v.dedup();
+    v
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -104,6 +156,35 @@ mod tests {
         fs::write(p.join("specs/phone-sign-up/brief.md"), "# Brief: Phone sign-up\nv2").unwrap();
         assert_eq!(changed_since(p, &before).unwrap().content, "# Brief: Phone sign-up\nv2");
         assert_eq!(read_current(p, "specs/phone-sign-up/brief.md").unwrap().content, "# Brief: Phone sign-up\nv2");
+    }
+
+    #[test]
+    fn only_briefs_and_designs_may_change_under_specs() {
+        let d = tempfile::tempdir().unwrap();
+        let p = d.path();
+        fs::create_dir_all(p.join("specs/a")).unwrap();
+        fs::write(p.join("specs/a/plan.md"), "old plan").unwrap();
+        fs::write(p.join("specs/a/gone.md"), "x").unwrap();
+        let before = specs_files(p);
+        fs::write(p.join("specs/a/brief.md"), "# Brief").unwrap();
+        fs::write(p.join("specs/a/design.md"), "# Design").unwrap();
+        fs::write(p.join("specs/a/plan.md"), "planted plan, longer").unwrap();
+        fs::create_dir_all(p.join("specs/b/deep")).unwrap();
+        fs::write(p.join("specs/b/deep/brief.md"), "nested").unwrap();
+        fs::remove_file(p.join("specs/a/gone.md")).unwrap();
+        let after = specs_files(p);
+        assert_eq!(unexpected_changes(&before, &after, None), vec!["specs/a/gone.md", "specs/a/plan.md", "specs/b/deep/brief.md"]);
+        assert!(unexpected_changes(&after, &specs_files(p), None).is_empty());
+        // Once the feature is "a", another feature's brief is flagged, even a new one; a's own is not.
+        let before = specs_files(p);
+        fs::create_dir_all(p.join("specs/other")).unwrap();
+        fs::write(p.join("specs/other/brief.md"), "planted").unwrap();
+        fs::write(p.join("specs/a/brief.md"), "# Brief v2, longer").unwrap();
+        assert_eq!(unexpected_changes(&before, &specs_files(p), Some("a")), vec!["specs/other/brief.md"]);
+        // With no slug yet, overwriting an EXISTING brief of another feature is flagged.
+        let before = specs_files(p);
+        fs::write(p.join("specs/other/brief.md"), "planted again, longer").unwrap();
+        assert_eq!(unexpected_changes(&before, &specs_files(p), None), vec!["specs/other/brief.md"]);
     }
 
     #[test]

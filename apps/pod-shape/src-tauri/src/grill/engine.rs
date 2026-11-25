@@ -408,11 +408,18 @@ impl Engine {
         }
         let project = PathBuf::from(&tc.project_path);
         let before = brief::snapshot(&project);
+        let specs_before = brief::specs_files(&project);
+        // The feature's slug, once the session has a brief: the write rules name it (review F1).
+        let slug: Option<String> = store::latest_brief(&lock(&self.db), id)
+            .ok()
+            .flatten()
+            .and_then(|b| b.path.strip_prefix("specs/").and_then(|r| r.split('/').next()).map(str::to_string))
+            .filter(|s| flags::valid_slug(s));
         let mut first = !tc.claude_started;
         let mut attempt = 0;
         let outcome = loop {
             attempt += 1;
-            let o = self.spawn_once(id, turn, message, step, first, &d, &project);
+            let o = self.spawn_once(id, turn, message, step, first, &d, &project, slug.as_deref());
             // Session-flag fallback, both ways (advisor must-fix 4).
             let text = o.error_text();
             if attempt == 1 && !o.stopped && !o.timed_out {
@@ -427,13 +434,25 @@ impl Engine {
             }
             break o;
         };
+        // Anything under specs/ other than a brief or a design is reported, whatever the turn's outcome.
+        let odd = brief::unexpected_changes(&specs_before, &brief::specs_files(&project), slug.as_deref());
+        if !odd.is_empty() {
+            let _ = store::add_message(
+                &lock(&self.db),
+                id,
+                turn,
+                "error",
+                &format!("This turn changed files under specs/ that are not a brief or a design: {}. Check them before you use them.", odd.join(", ")),
+                None,
+            );
+        }
         self.finish(id, turn, step, outcome, &project, &before, &d);
         *lock(&self.live) = None;
         self.changed(id);
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn spawn_once(&self, id: i64, turn: i64, message: &str, step: Step, first: bool, d: &Dirs, project: &Path) -> Attempt {
+    fn spawn_once(&self, id: i64, turn: i64, message: &str, step: Step, first: bool, d: &Dirs, project: &Path, slug: Option<&str>) -> Attempt {
         let spec = TurnSpec {
             session_uuid: &dirs_uuid(d),
             first,
@@ -442,6 +461,8 @@ impl Engine {
             decisions_dir: &d.decisions,
             decisions_file: &d.decisions_file,
             message,
+            plugin_dir: self.plugin_root.as_deref(),
+            slug,
         };
         let args = flags::turn_args(&spec);
         let display = flags::display_command(&spec);
@@ -637,8 +658,19 @@ impl Engine {
             Ok(t) => t,
             Err(err) => return (super::adr::note(&Err(err)), None),
         };
+        let repo_name: String = match lock(&self.db).query_row(
+            "SELECT p.repo FROM grill_sessions s JOIN artifacts a ON a.id = s.artifact_id JOIN projects p ON p.id = a.project_id WHERE s.id = ?1",
+            [id],
+            |r| r.get(0),
+        ) {
+            Ok(r) => r,
+            Err(err) => return (super::adr::note(&Err(err.to_string())), None),
+        };
         let mut log = self.adr_log(id);
-        match super::adr::prepare(project, &d.scratch, &d.decisions_file, &tools, &mut log) {
+        let prepared = super::adr::prepare(project, &repo_name, &d.scratch, &d.decisions_file, &tools, &mut log);
+        // The decisions file is spent either way; the next ADR turn must write a fresh one (review L5).
+        let _ = std::fs::remove_file(&d.decisions_file);
+        match prepared {
             Ok(Some(p)) => (
                 format!("ADR ready for you to read: {}. Nothing is pushed until you say yes.", p.files.iter().map(|f| f.0.as_str()).collect::<Vec<_>>().join(", ")),
                 serde_json::to_string(&p).ok(),

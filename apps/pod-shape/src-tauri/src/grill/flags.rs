@@ -8,7 +8,10 @@
 //! - a skill's `allowed-tools` (pd-shape lists bare `Read, Write, Edit`) DOES widen the fence when the
 //!   turn starts with its slash command, even under dontAsk; so the app never types `/pd-bot:pd-shape`.
 //!   It sends the skill's text as the first message (`first_message`) and denies the `Skill` tool;
-//! - `Write(./specs/**)` matches nothing; `Edit(./specs/**)` allows Write and Edit there and nowhere else;
+//! - `Write(./specs/**)` matches nothing; an `Edit(...)` rule allows Write and Edit. The rules are
+//!   `Edit(./specs/*/brief.md)` and `Edit(./specs/*/design.md)` only (review F1, probe 8: another file under
+//!   specs/, `specs/brief.md` and `specs/a/b/brief.md` are denied), so an injected page cannot plant a plan
+//!   or a script that a later step reads;
 //! - allow rules in a trusted repo's `.claude/settings.json` or the user's settings would widen the fence,
 //!   so the turn loads no settings file (`--setting-sources ""`).
 
@@ -92,13 +95,20 @@ fn abs_rule(tool: &str, dir: &Path) -> String {
     format!("{tool}(/{}/**)", dir.display().to_string().trim_end_matches('/'))
 }
 
-pub fn allowed_tools(step: Step, proto_dir: &Path, decisions_dir: &Path) -> Vec<String> {
+pub fn allowed_tools(step: Step, proto_dir: &Path, decisions_dir: &Path, plugin_dir: Option<&Path>, slug: Option<&str>) -> Vec<String> {
     let mut v: Vec<String> = ["Read(./**)", "Glob(./**)", "Grep(./**)"].iter().map(|s| s.to_string()).collect();
     v.push(abs_rule("Read", proto_dir));
     // pd-shape reads its own references/*.md from the installed plugin.
-    v.push("Read(~/.claude/plugins/**)".into());
+    // Only the pd-bot plugin folder the skill came from, not every installed plugin (review L1).
+    if let Some(dir) = plugin_dir {
+        v.push(abs_rule("Read", dir));
+    }
     // An Edit rule covers Write too (probe 7); a Write rule matches nothing.
-    v.push("Edit(./specs/**)".into());
+    // Once the session has a brief, only its own slug (review F1); before that pd-shape picks the slug, so
+    // any `specs/<slug>/` is allowed and the app flags a change to another feature's existing files.
+    let dir = slug.filter(|s| valid_slug(s)).unwrap_or("*");
+    v.push(format!("Edit(./specs/{dir}/brief.md)"));
+    v.push(format!("Edit(./specs/{dir}/design.md)"));
     if step == Step::Adr {
         v.push(abs_rule("Read", decisions_dir));
         v.push(abs_rule("Edit", decisions_dir));
@@ -117,6 +127,8 @@ pub fn disallowed_tools() -> Vec<String> {
         "NotebookEdit",
         // A model-invoked skill would bring its own allowed-tools grant (probe 5).
         "Skill",
+        // Not a tool in this CLI build (probe 8 accepts the name); a guard if a later build adds it (review L2).
+        "SlashCommand",
     ]
     .iter()
     .map(|s| s.to_string())
@@ -132,6 +144,11 @@ pub const SECRET_GLOBS: &[&str] = &[
     "**/credentials*", "**/.npmrc", "**/.netrc", "**/.pypirc",
 ];
 
+/// `[a-z0-9-]+`: a slug that can go into a permission rule as is.
+pub fn valid_slug(s: &str) -> bool {
+    !s.is_empty() && s.len() <= 80 && s.bytes().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-')
+}
+
 /// What one turn needs to build its command line.
 pub struct TurnSpec<'a> {
     pub session_uuid: &'a str,
@@ -142,6 +159,10 @@ pub struct TurnSpec<'a> {
     pub decisions_dir: &'a Path,
     pub decisions_file: &'a Path,
     pub message: &'a str,
+    /// The pd-bot plugin folder (its pd-shape references are read from there).
+    pub plugin_dir: Option<&'a Path>,
+    /// The slug of the session's brief, once there is one.
+    pub slug: Option<&'a str>,
 }
 
 /// The arguments after `claude`. The message comes after `--`, so an answer that starts with `-` is
@@ -174,7 +195,7 @@ pub fn turn_args(t: &TurnSpec) -> Vec<String> {
     a.push(if t.first { "--session-id" } else { "--resume" }.into());
     a.push(t.session_uuid.into());
     a.push("--allowedTools".into());
-    a.extend(allowed_tools(t.step, t.proto_dir, t.decisions_dir));
+    a.extend(allowed_tools(t.step, t.proto_dir, t.decisions_dir, t.plugin_dir, t.slug));
     a.push("--disallowedTools".into());
     a.extend(disallowed_tools());
     a.push("--".into());
@@ -201,7 +222,17 @@ mod tests {
     use std::path::PathBuf;
 
     fn spec<'a>(first: bool, step: Step, p: &'a Path, d: &'a Path, f: &'a Path, msg: &'a str) -> TurnSpec<'a> {
-        TurnSpec { session_uuid: "11111111-2222-3333-4444-555555555555", first, step, proto_dir: p, decisions_dir: d, decisions_file: f, message: msg }
+        TurnSpec {
+            session_uuid: "11111111-2222-3333-4444-555555555555",
+            first,
+            step,
+            proto_dir: p,
+            decisions_dir: d,
+            decisions_file: f,
+            message: msg,
+            plugin_dir: Some(Path::new("/home/u/.claude/plugins/cache/pd-bot/pd-bot/0.6.0")),
+            slug: None,
+        }
     }
 
     fn after<'a>(a: &'a [String], flag: &str) -> &'a str {
@@ -269,7 +300,8 @@ mod tests {
             allow,
             vec![
                 "Read(./**)", "Glob(./**)", "Grep(./**)", "Read(//private/var/T/shape-board/u/proto/**)",
-                "Read(~/.claude/plugins/**)", "Edit(./specs/**)"
+                "Read(//home/u/.claude/plugins/cache/pd-bot/pd-bot/0.6.0/**)", "Edit(./specs/*/brief.md)",
+                "Edit(./specs/*/design.md)"
             ]
         );
         // No bare tool name that would allow every path, and no Bash rule.
@@ -278,7 +310,7 @@ mod tests {
             assert!(!t.starts_with("Bash"), "{t}");
         }
         let deny = list(&a, "--disallowedTools");
-        for t in ["AskUserQuestion", "Bash", "Agent", "WebFetch", "WebSearch", "NotebookEdit", "Skill", "Read(./.env*)", "Read(./**/.env*)",
+        for t in ["AskUserQuestion", "Bash", "Agent", "WebFetch", "WebSearch", "NotebookEdit", "Skill", "SlashCommand", "Read(./.env*)", "Read(./**/.env*)",
                   "Grep(./**/.env*)", "Read(./.git/**)", "Grep(./.git/**)", "Read(./**/id_rsa*)", "Read(./**/*.pem)"] {
             assert!(deny.contains(&t), "{t} not denied");
         }
@@ -293,7 +325,7 @@ mod tests {
         let (p, d, f) = dirs();
         let a = turn_args(&spec(false, Step::Adr, &p, &d, &f, "x"));
         let allow = list(&a, "--allowedTools");
-        let grill = allowed_tools(Step::Grill, &p, &d);
+        let grill = allowed_tools(Step::Grill, &p, &d, Some(Path::new("/home/u/.claude/plugins/cache/pd-bot/pd-bot/0.6.0")), None);
         let extra: Vec<&str> = allow.iter().copied().filter(|t| !grill.iter().any(|g| g == t)).collect();
         assert_eq!(
             extra,
@@ -310,6 +342,22 @@ mod tests {
         assert!(p.contains("\"Brief\"") && p.contains("\"ADR\""));
         assert!(p.contains("/t/decisions/decisions.json"));
         assert!(p.contains("do not run git or gh"));
+    }
+
+    #[test]
+    fn writes_are_only_this_features_brief_and_design() {
+        let (p, d, _) = dirs();
+        let edits = |slug| -> Vec<String> {
+            allowed_tools(Step::Grill, &p, &d, None, slug).into_iter().filter(|t| t.starts_with("Edit") || t.starts_with("Write")).collect()
+        };
+        // Before a brief exists: any slug folder, but only brief.md and design.md (never specs/**).
+        assert_eq!(edits(None), vec!["Edit(./specs/*/brief.md)", "Edit(./specs/*/design.md)"]);
+        // With a brief: only that feature.
+        assert_eq!(edits(Some("phone-sign-up")), vec!["Edit(./specs/phone-sign-up/brief.md)", "Edit(./specs/phone-sign-up/design.md)"]);
+        // A slug that is not [a-z0-9-] never reaches a rule.
+        assert_eq!(edits(Some("../x")), edits(None));
+        assert_eq!(edits(Some("a b")), edits(None));
+        assert!(valid_slug("phone-sign-up-2") && !valid_slug("Phone") && !valid_slug(""));
     }
 
     #[test]

@@ -32,6 +32,10 @@ if mode == "brief":
     os.makedirs("specs/phone", exist_ok=True)
     open("specs/phone/brief.md", "w").write("# Brief: Phone sign-up\n\n## Goal\nSign up with a phone.\n")
     text = "I wrote the brief.\n\n" + block("Brief", "Does this brief say what you mean?")
+elif mode == "plant":
+    os.makedirs("specs/other", exist_ok=True)
+    open("specs/other/plan.md", "w").write("planted")
+    text = "Done.\n\n" + block("Brief", "Does this brief say what you mean?")
 elif mode == "done":
     text = "Thanks. The brief is final."
 elif mode == "adr":
@@ -388,4 +392,29 @@ fn the_next_app_start_kills_a_group_a_crash_left_and_resume_works() {
     }
     assert_eq!(t.state(id), "waiting_owner");
     assert!(t.args().last().unwrap().last().unwrap().starts_with("The last turn was interrupted"));
+}
+
+#[test]
+fn after_a_brief_the_rules_name_its_slug_and_other_specs_changes_are_flagged() {
+    let t = setup();
+    t.mode("q");
+    let id = t.engine.start(t.version).unwrap();
+    t.wait(id);
+    let a = &t.args()[0];
+    assert!(a.contains(&"Edit(./specs/*/brief.md)".to_string()), "no brief yet: any slug folder");
+    t.mode("brief");
+    t.engine.answer(id, "Which sign-up methods?", "Phone only", false).unwrap();
+    assert_eq!(t.wait(id), "brief_ready");
+    // The next turn may write only specs/phone/brief.md and design.md.
+    t.mode("plant");
+    t.engine.send_text(id, "x").unwrap_err(); // the brief question is open: answer it instead
+    t.engine.answer(id, "Does this brief say what you mean?", "Change the goal", false).unwrap();
+    t.wait(id);
+    let a = t.args().last().unwrap().clone();
+    assert!(a.contains(&"Edit(./specs/phone/brief.md)".to_string()), "{a:?}");
+    assert!(a.contains(&"Edit(./specs/phone/design.md)".to_string()));
+    assert!(!a.iter().any(|x| x == "Edit(./specs/*/brief.md)"));
+    let d = t.detail(id);
+    let warn = d.messages.iter().find(|m| m.role == "error" && m.text.contains("specs/other/plan.md"));
+    assert!(warn.is_some(), "the planted file must be flagged: {:?}", d.messages.iter().map(|m| &m.text).collect::<Vec<_>>());
 }

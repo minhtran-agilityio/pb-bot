@@ -69,6 +69,8 @@ pub struct Step {
 #[serde(rename_all = "camelCase")]
 pub struct Prepared {
     pub repo: PathBuf,
+    /// `owner/name` on GitHub, for `gh pr create --repo` (review L4: never the repo gh guesses).
+    pub repo_name: String,
     pub worktree: PathBuf,
     pub branch: String,
     pub base: String,
@@ -195,19 +197,34 @@ fn default_branch(r: &mut Runner, t: &Tools, repo: &str) -> String {
 
 /// Part 1: the worktree and the new ADR files, for the owner to read. `Ok(None)`: write_adrs.py made no
 /// file (the decision did not meet the ADR rule); the worktree is already removed then.
-pub fn prepare(repo: &Path, scratch: &Path, decisions_file: &Path, tools: &Tools, log: &mut dyn FnMut(&Step)) -> Result<Option<Prepared>, String> {
+pub fn prepare(
+    repo: &Path,
+    repo_name: &str,
+    scratch: &Path,
+    decisions_file: &Path,
+    tools: &Tools,
+    log: &mut dyn FnMut(&Step),
+) -> Result<Option<Prepared>, String> {
     let (slug, title) = read_decisions(decisions_file)?;
     let mut r = Runner { log };
     let repo_s = repo.to_string_lossy().into_owned();
     let base = default_branch(&mut r, tools, &repo_s);
     r.ok(&format!("git fetch origin {base}"), &tools.git, &["-C", &repo_s, "fetch", "origin", &base], None, GIT_TIMEOUT)?;
-    // A free branch name: adr/<slug>, adr/<slug>-2, ...
+    // A free branch name, here and on origin (review L3): adr/<slug>, adr/<slug>-2, ...
+    let remote = r.ok(
+        "git ls-remote origin adr/*",
+        &tools.git,
+        &["-C", &repo_s, "ls-remote", "--heads", "origin", "refs/heads/adr/*"],
+        None,
+        GIT_TIMEOUT,
+    )?;
+    let taken_remote: Vec<String> = remote.stdout.lines().filter_map(|l| l.split('\t').nth(1)).map(str::to_string).collect();
     let mut branch = format!("adr/{slug}");
     for i in 2..50 {
-        let exists = r
+        let local = r
             .run("git rev-parse --verify", &tools.git, &["-C", &repo_s, "rev-parse", "--verify", "--quiet", &format!("refs/heads/{branch}")], None, GIT_TIMEOUT)?
             .ok();
-        if !exists {
+        if !local && !taken_remote.contains(&format!("refs/heads/{branch}")) {
             break;
         }
         branch = format!("adr/{slug}-{i}");
@@ -216,7 +233,7 @@ pub fn prepare(repo: &Path, scratch: &Path, decisions_file: &Path, tools: &Tools
     let wt_s = wt.to_string_lossy().into_owned();
     let start = format!("origin/{base}");
     r.ok(&format!("git worktree add -b {branch}"), &tools.git, &["-C", &repo_s, "worktree", "add", "-b", &branch, &wt_s, &start], None, GIT_TIMEOUT)?;
-    let p = Prepared { repo: repo.to_path_buf(), worktree: wt.clone(), branch: branch.clone(), base, title, files: vec![] };
+    let p = Prepared { repo: repo.to_path_buf(), repo_name: repo_name.to_string(), worktree: wt.clone(), branch: branch.clone(), base, title, files: vec![] };
     let result = (|| -> Result<Vec<(String, String)>, String> {
         let adr_dir = wt.join("docs/adr").to_string_lossy().into_owned();
         let script = tools.write_adrs.to_string_lossy().into_owned();
@@ -284,7 +301,7 @@ pub fn publish(p: &Prepared, tools: &Tools, log: &mut dyn FnMut(&Step)) -> Resul
         let pr = r.ok(
             "gh pr create",
             &tools.gh,
-            &["pr", "create", "--base", &p.base, "--head", &p.branch, "--title", &pr_title, "--body", &body],
+            &["pr", "create", "--repo", &p.repo_name, "--base", &p.base, "--head", &p.branch, "--title", &pr_title, "--body", &body],
             Some(&p.worktree),
             GIT_TIMEOUT,
         )?;
@@ -383,7 +400,7 @@ mod tests {
 
         let mut steps = vec![];
         // Part 1: nothing is committed or pushed; the owner gets the file text.
-        let p = prepare(&repo, &scratch, &decisions, &tools, &mut |s| steps.push(s.argv.join(" "))).unwrap().unwrap();
+        let p = prepare(&repo, "o/r", &scratch, &decisions, &tools, &mut |s| steps.push(s.argv.join(" "))).unwrap().unwrap();
         assert_eq!(p.branch, "adr/phone-sign-up");
         assert_eq!(p.files, vec![("docs/adr/0002-phone-only.md".to_string(), "# 2. Phone only\n".to_string())]);
         let remote_branches = || {
@@ -410,21 +427,27 @@ mod tests {
         assert_eq!(fs::read_to_string(repo.join("wip.txt")).unwrap(), "uncommitted");
         assert!(!p.worktree.exists());
         let gh_args = fs::read_to_string(d.path().join("gh-args")).unwrap();
-        assert!(gh_args.starts_with("pr create --base main --head adr/phone-sign-up --title ADR: Phone only"), "{gh_args}");
+        assert!(gh_args.starts_with("pr create --repo o/r --base main --head adr/phone-sign-up --title ADR: Phone only"), "{gh_args}");
         // No merge command of any kind (the PR body may say the owner "merges" it).
         assert!(!steps.iter().any(|s| s.split_whitespace().any(|w| w == "merge")), "{steps:?}");
+
+        // The branch exists on origin but not here (deleted locally): the next ADR takes a new name (review L3).
+        git(&repo, &["branch", "-D", "adr/phone-sign-up"]);
+        let p2 = prepare(&repo, "o/r", &scratch, &decisions, &tools, &mut |_| {}).unwrap().unwrap();
+        assert_eq!(p2.branch, "adr/phone-sign-up-2");
+        discard(&p2, &tools, &mut |_| {});
 
         // A script that also edits an old ADR: refused in part 1, worktree and branch removed, nothing pushed.
         let bad = d.path().join("bad.py");
         fs::write(&bad, "import sys,os\nadr=sys.argv[sys.argv.index('--adr-dir')+1]\nopen(os.path.join(adr,'0001-first.md'),'a').write('superseded')\nopen(os.path.join(adr,'0003-x.md'),'w').write('x')\n").unwrap();
         let tools2 = Tools { write_adrs: bad, ..tools.clone() };
-        let err = prepare(&repo, &scratch, &decisions, &tools2, &mut |_| {}).unwrap_err();
+        let err = prepare(&repo, "o/r", &scratch, &decisions, &tools2, &mut |_| {}).unwrap_err();
         assert!(err.contains("more than new docs/adr files"), "{err}");
         assert_eq!(remote_branches().len(), 2);
         assert!(!scratch.join("adr-phone-sign-up-2").exists());
 
         // The owner said no: discard removes the worktree and the local branch; nothing pushed.
-        let p3 = prepare(&repo, &scratch, &decisions, &tools, &mut |_| {}).unwrap().unwrap();
+        let p3 = prepare(&repo, "o/r", &scratch, &decisions, &tools, &mut |_| {}).unwrap().unwrap();
         discard(&p3, &tools, &mut |_| {});
         assert!(!p3.worktree.exists());
         let b = Command::new("git").args(["-C", repo.to_str().unwrap(), "branch", "--list", &p3.branch]).output().unwrap();
@@ -432,7 +455,7 @@ mod tests {
         assert_eq!(remote_branches().len(), 2);
 
         // A file changed after the owner read it: publish refuses.
-        let p4 = prepare(&repo, &scratch, &decisions, &tools, &mut |_| {}).unwrap().unwrap();
+        let p4 = prepare(&repo, "o/r", &scratch, &decisions, &tools, &mut |_| {}).unwrap().unwrap();
         fs::write(p4.worktree.join(&p4.files[0].0), "changed").unwrap();
         assert!(publish(&p4, &tools, &mut |_| {}).unwrap_err().contains("changed after you read them"));
         assert_eq!(remote_branches().len(), 2);
@@ -449,7 +472,7 @@ mod tests {
     fn a_missing_decisions_file_makes_no_adr() {
         let d = tempfile::tempdir().unwrap();
         let tools = Tools { git: "git".into(), gh: "gh".into(), python: "python3".into(), write_adrs: d.path().join("x.py") };
-        let e = prepare(d.path(), d.path(), &d.path().join("none.json"), &tools, &mut |_| {}).unwrap_err();
+        let e = prepare(d.path(), "o/r", d.path(), &d.path().join("none.json"), &tools, &mut |_| {}).unwrap_err();
         assert!(e.contains("did not write the decisions file"));
     }
 }

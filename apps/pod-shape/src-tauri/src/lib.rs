@@ -19,6 +19,8 @@ use tauri::{Emitter, Manager, RunEvent, WebviewWindowBuilder};
 struct Db(Arc<Mutex<Connection>>);
 struct Hook(HookPaths);
 struct Previews(Arc<artifacts::preview::PreviewTokens>);
+/// Holds the single-instance lock for the life of the app.
+struct InstanceLock(#[allow(dead_code)] std::fs::File);
 
 /// Event the UI listens to: the hook brought something (or the folder or log appeared or went away).
 const ARTIFACTS_CHANGED: &str = "artifacts-changed";
@@ -242,6 +244,17 @@ pub fn run() {
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
+            // One app at a time (review L8). A second one says so and quits before it touches the database.
+            match grill::proc::single_instance(&dir) {
+                Ok(lock) => {
+                    app.manage(InstanceLock(lock));
+                }
+                Err(e) => {
+                    use tauri_plugin_dialog::DialogExt;
+                    app.dialog().message(format!("{e} Use the window that is already open.")).title("Shape Board").blocking_show();
+                    std::process::exit(0);
+                }
+            }
             let conn = Arc::new(Mutex::new(db::open(&dir.join("shape-board.db"))?));
             let paths = HookPaths::for_home(&app.path().home_dir()?);
             app.manage(Db(conn.clone()));

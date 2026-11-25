@@ -164,9 +164,37 @@ pub fn run(mut cmd: Command, cwd: Option<&Path>, timeout: Duration) -> std::io::
     Ok(Output { code: status.and_then(|s| s.code()), stdout: text_of(&out), stderr, ms: t0.elapsed().as_millis() })
 }
 
+/// One app per user (review L8): an exclusive `flock` on `<app data>/shape-board.lock`, held for the life of
+/// the returned file. A second instance gets `Err`, so two apps never run grill turns or the start-up
+/// sweep on the same database. The kernel drops the lock when the process dies, crash included.
+pub fn single_instance(dir: &Path) -> Result<std::fs::File, String> {
+    use std::os::unix::io::AsRawFd;
+    let f = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(dir.join("shape-board.lock"))
+        .map_err(|e| format!("the lock file could not be opened: {e}"))?;
+    // SAFETY: plain syscall on a file descriptor we own.
+    if unsafe { libc::flock(f.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
+        return Err("Shape Board is already open.".into());
+    }
+    Ok(f)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_second_instance_is_refused_until_the_first_one_ends() {
+        let d = tempfile::tempdir().unwrap();
+        let first = single_instance(d.path()).unwrap();
+        // flock is per open file description, so a second open in this process stands for a second app.
+        assert_eq!(single_instance(d.path()).unwrap_err(), "Shape Board is already open.");
+        drop(first);
+        assert!(single_instance(d.path()).is_ok());
+    }
 
     #[test]
     fn run_captures_output_and_exit_code() {
