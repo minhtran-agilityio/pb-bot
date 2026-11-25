@@ -114,6 +114,10 @@ it for a slash command, or when a session does not accept cross-session messages
 
 - One idle notice arrives for each `notify_when_idle` send. Do other work until then; if there is
   none, yield. Never loop on `ls` or `detail`.
+- Never wait with a `ScheduleWakeup` or `/loop` cycle: each wake-up re-reads your whole context
+  (tokscope, 2026-11-20 to 25: a loop session woke 151 times at 600 s with about 454k context).
+  Use a wake-up only as a fallback heartbeat, 1200 s or more, when no message or idle notice will
+  wake you.
 - Look at a session with `detail` only when it is silent past its budget, or an idle notice came
   with no message from it. `ls` shows `asks: true` when a dialog waits.
 - What you may see, and what it means:

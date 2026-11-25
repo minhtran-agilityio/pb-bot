@@ -28,7 +28,7 @@ All of this is true at the head commit of your branch:
 Read `references/toolbox.md` now. It maps situations to the skills and agents that fit them:
 diagnosis for a bug, research for unknown code, a design note and an advisor review at depth L,
 acceptance tests that are already on your branch, a security review for a risky
-ticket, an advisor when a check fails twice. Skip a tool that adds nothing. You may start agents of your own, in parallel when their work is
+ticket, an advisor when a check fails twice. You may start agents of your own, in parallel when their work is
 independent, and choose each one's model and effort. It also says what to do after you
 reported or escalated.
 
@@ -36,7 +36,7 @@ reported or escalated.
 
 When the evidence is there and the suite is green, commit and send `review-request` to the reviewer
 named in your brief: checkout path, branch, base, head SHA. Send nothing that argues for your change: the
-reviewer judges the diff against the ticket. Wait with `notify_when_idle`.
+reviewer judges the diff against the ticket. Wait with `notify_when_idle` and `Yield`, never a wakeup loop.
 
 For each finding: fix it, or answer with evidence why it is wrong. Then commit and send
 `fix-pushed` with the new SHA. A reviewer changes its verdict only on a new commit or on evidence,
