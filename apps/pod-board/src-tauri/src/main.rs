@@ -495,6 +495,13 @@ fn popover_x(icon_x: f64, icon_w: f64, pop_w: f64, screen: (f64, f64)) -> f64 {
     x.min(left + width - pop_w - 8.0).max(left + 8.0)
 }
 
+/// One monitor as tao reports it: position and size in physical pixels, and its scale factor.
+#[derive(Clone, Copy, Debug)]
+struct Mon { x: f64, y: f64, w: f64, h: f64, scale: f64 }
+
+/// Where the popover goes, in logical points (the space `set_position` takes with a `LogicalPosition`).
+fn popover_place(_icon: (f64, f64, f64, f64), _pop_w: f64, _mons: &[Mon]) -> Option<(f64, f64)> { None }
+
 /// A left click on the menu bar icon opens the popover under it, or closes it when it is open.
 fn toggle_popover(app: &AppHandle, rect: tauri::Rect) {
     let Some(w) = app.get_webview_window("popover") else { return };
@@ -715,6 +722,37 @@ mod tests {
         assert_eq!(popover_x(1420.0, 20.0, 340.0, (0.0, 1440.0)), 1092.0);
         // Icon near the left edge of a second screen that starts at x 1440.
         assert_eq!(popover_x(1450.0, 20.0, 340.0, (1440.0, 1920.0)), 1448.0);
+    }
+
+
+    #[test]
+    fn the_popover_lands_under_the_icon_on_each_of_two_displays_with_different_scale() {
+        // Retina laptop (scale 2, 1440x900 points) at the origin; external (scale 1, 1920x1080 points) to its right.
+        // tao: monitor position = logical origin x scale; the tray rect = logical x the icon screen's scale.
+        let mons = [
+            Mon { x: 0.0, y: 0.0, w: 2880.0, h: 1800.0, scale: 2.0 },
+            Mon { x: 1440.0, y: 0.0, w: 1920.0, h: 1080.0, scale: 1.0 },
+        ];
+        // Icon on the laptop: logical x 1300, y 0, 24x24 points -> physical x2.
+        let (x, y) = popover_place((2600.0, 0.0, 48.0, 48.0), 340.0, &mons).unwrap();
+        assert_eq!((x, y), (1300.0 + 12.0 - 170.0, 24.0 + 6.0));
+        // Icon on the external display: logical x 2800, 22x22 points -> physical x1.
+        let (x, y) = popover_place((2800.0, 0.0, 22.0, 22.0), 340.0, &mons).unwrap();
+        assert_eq!((x, y), (2800.0 + 11.0 - 170.0, 22.0 + 6.0));
+        // Icon at the far right of the laptop: kept inside that display (1440 points wide).
+        let (x, _) = popover_place((2860.0, 0.0, 48.0, 48.0), 340.0, &mons).unwrap();
+        assert_eq!(x, 1440.0 - 340.0 - 8.0);
+        // Icon at the far right of the external display (logical right edge 3360).
+        let (x, _) = popover_place((3350.0, 0.0, 22.0, 22.0), 340.0, &mons).unwrap();
+        assert_eq!(x, 3360.0 - 340.0 - 8.0);
+    }
+
+    #[test]
+    fn one_display_is_unchanged() {
+        let mons = [Mon { x: 0.0, y: 0.0, w: 2880.0, h: 1800.0, scale: 2.0 }];
+        let (x, y) = popover_place((2000.0, 0.0, 48.0, 48.0), 340.0, &mons).unwrap();
+        assert_eq!((x, y), (1000.0 + 12.0 - 170.0, 30.0));
+        assert!(popover_place((2000.0, 0.0, 48.0, 48.0), 340.0, &[]).is_none());
     }
 
     #[test]
