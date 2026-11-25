@@ -36,7 +36,7 @@ reported or escalated.
 
 When the evidence is there and the suite is green, commit and send `review-request` to the reviewer
 named in your brief: checkout path, branch, base, head SHA. Send nothing that argues for your change: the
-reviewer judges the diff against the ticket. Wait with `notify_when_idle` and `Yield`, never a wakeup loop.
+reviewer judges the diff against the ticket. Wait with `notify_when_idle` and `Yield`; wake-ups only every 1200 s or more.
 
 For each finding: fix it, or answer with evidence why it is wrong. Then commit and send
 `fix-pushed` with the new SHA. A reviewer changes its verdict only on a new commit or on evidence,
