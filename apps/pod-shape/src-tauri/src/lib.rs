@@ -209,12 +209,13 @@ pub fn run() {
             let label = ctx.webview_label().to_string();
             let db = ctx.app_handle().try_state::<Db>().map(|d| d.0.clone());
             let tokens = ctx.app_handle().try_state::<Previews>().map(|t| t.0.clone());
+            let log_dir = ctx.app_handle().path().app_data_dir().ok();
             tauri::async_runtime::spawn_blocking(move || {
                 let uri = req.uri();
                 let dest = req.headers().get("sec-fetch-dest").and_then(|v| v.to_str().ok());
                 // Whether the engine sends Sec-Fetch-Dest to a custom scheme (the Mac check reads this).
                 if cfg!(debug_assertions) {
-                    eprintln!("shape-board: preview request, sec-fetch-dest = {}", dest.unwrap_or("(absent)"));
+                    nav::debug_log(log_dir.as_deref(), &format!("preview request, sec-fetch-dest = {}", dest.unwrap_or("(absent)")));
                 }
                 let r = match (db, tokens) {
                     (Some(db), Some(tokens)) => {
@@ -271,12 +272,16 @@ pub fn run() {
                 .find(|w| w.label == "main")
                 .cloned()
                 .ok_or("the main window is missing from tauri.conf.json")?;
-            let dev_url = if cfg!(debug_assertions) { app.config().build.dev_url.clone() } else { None };
+            // The Vite dev server is allowed only under `tauri dev`: a `tauri build --debug` bundle also has
+            // debug assertions, but no dev server (issue #100).
+            let dev_url = if tauri::is_dev() { app.config().build.dev_url.clone() } else { None };
+            let log_dir = app.path().app_data_dir().ok();
+            nav::reset_debug_log(log_dir.as_deref());
             WebviewWindowBuilder::from_config(app.handle(), &config)?
                 .on_navigation(move |url| {
                     let ok = nav::allowed(url, dev_url.as_ref());
                     if !ok {
-                        eprintln!("shape-board: blocked navigation to {}", url.scheme());
+                        nav::debug_log(log_dir.as_deref(), &format!("blocked navigation to {}", url.scheme()));
                     }
                     ok
                 })

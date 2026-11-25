@@ -2,7 +2,7 @@
 // Dumb: props in, events out. The screen owns the answers, says which card is `active` and
 // fills the Composer. Keys 1–4 pick (or toggle) only while the card is active and not
 // disabled, and never while the owner types in an input or a textarea.
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useLayoutEffect, useRef } from "react";
 import { Kbd } from "../ui/kbd";
 import { Icon, iconSize } from "./icons";
 import { cn } from "../../lib/cn";
@@ -31,12 +31,12 @@ export interface SuggestedAnswersProps {
 
 const MAX_OPTIONS = 4;
 
-// Keys typed in a field, or on something inside a dialog or an open listbox, are not answers.
+// Keys typed in a field, or on something inside a dialog, a listbox, a menu, or on a combobox or tab, are not answers.
 function ignoresKey(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
   if (!el || !el.tagName) return false;
   if (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable) return true;
-  return el.closest('[role="dialog"], [role="alertdialog"], [role="listbox"]') !== null;
+  return el.closest('[role="dialog"], [role="alertdialog"], [role="listbox"], [role="combobox"], [role="menu"], [role="menuitem"], [role="tab"]') !== null;
 }
 
 const chip = cn(
@@ -63,7 +63,9 @@ export function SuggestedAnswers({
 }: SuggestedAnswersProps) {
   const shown = options.slice(0, MAX_OPTIONS);
   const live = useRef({ count: shown.length, multiSelect, onPick, onToggle });
-  live.current = { count: shown.length, multiSelect, onPick, onToggle };
+  useLayoutEffect(() => {
+    live.current = { count: shown.length, multiSelect, onPick, onToggle };
+  });
 
   const listening = active && !disabled && !answered;
   useEffect(() => {
@@ -88,7 +90,8 @@ export function SuggestedAnswers({
   return (
     <div className={cn("flex min-w-0 flex-col gap-2", className)}>
       <p className="text-xs font-medium text-fg-subtle">
-        Question {index} of {total} · {header}
+        Question {index} of {total}
+        {header ? ` · ${header}` : ""}
       </p>
       <p className="text-md text-fg">{question}</p>
       {!answered && (

@@ -195,7 +195,7 @@ export function ProjectScreen({
           name:
             add.nextVersion > 1 && add.targetName
               ? `This adds version ${add.nextVersion} of ${add.targetName}.`
-              : "Short name, shown on the card.",
+              : "Short name, used for the file and branch.",
           html: htmlHelper,
         }}
         primaryLabel={add.primaryLabel}

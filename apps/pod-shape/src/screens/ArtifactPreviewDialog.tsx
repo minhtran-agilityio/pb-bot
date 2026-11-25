@@ -9,7 +9,7 @@ import { formatWhen } from "../lib/time";
 
 // The artifact preview (prototype: "Preview" on an ArtifactCard; HANDOFF §5: a Dialog, not a screen).
 // Dialog lg: Version Select + link, the sandboxed frame (Storehouse part, sandbox fixed), footer
-// "Add version" + "Close". The frame loads preview://localhost/v/<id>, which Rust serves with its own CSP.
+// "Paste new version" + "Close". The frame loads preview://localhost/v/<id>, which Rust serves with its own CSP.
 // Opening it clears the "Updated" mark (owner decision 2026-11-23).
 export function ArtifactPreviewDialog({
   artifact,
@@ -65,7 +65,7 @@ export function ArtifactPreviewDialog({
   const current = versions?.find((v) => String(v.id) === selected) ?? null;
 
   // Each load of the frame gets a fresh single-use URL from Rust (review F6). A page that reloads
-  // itself then goes blank (known limit); "Reload" mints a new URL (owner decision 2026-11-23, round 2 N2).
+  // itself keeps showing the old page on WKWebView, one more request gets a 404 (known limit); "Reload" mints a new URL (owner decision 2026-11-23, round 2 N2).
   const [src, setSrc] = useState<{ id: number; url: string } | null>(null);
   const [loads, setLoads] = useState(0);
   const [minting, setMinting] = useState(false);
@@ -91,8 +91,8 @@ export function ArtifactPreviewDialog({
       title={artifact ? `Preview: ${artifact.name}` : "Preview"}
       footer={
         <>
-          <Button variant="ghost" icon="add" disabled={!onAddVersion || !artifact} onClick={() => artifact && onAddVersion?.(artifact)}>
-            Add version
+          <Button variant="ghost" disabled={!onAddVersion || !artifact} onClick={() => artifact && onAddVersion?.(artifact)}>
+            Paste new version
           </Button>
           <Button variant="secondary" onClick={onClose}>
             Close
@@ -101,15 +101,16 @@ export function ArtifactPreviewDialog({
       }
     >
       <div className="flex min-w-0 items-center gap-3">
-        <Select
-          className="min-w-0 flex-1"
-          aria-label="Version"
-          value={selected}
-          onValueChange={setSelected}
-          disabled={!versions || versions.length < 2}
-          options={(versions ?? []).map((v) => ({ value: String(v.id), label: `Version ${v.n} · ${formatWhen(v.createdAt)}` }))}
-          placeholder="Version"
-        />
+        <div className="w-50 shrink-0">
+          <Select
+            aria-label="Version"
+            value={selected}
+            onValueChange={setSelected}
+            disabled={!versions || versions.length < 2}
+            options={(versions ?? []).map((v) => ({ value: String(v.id), label: `Version ${v.n} · ${formatWhen(v.createdAt)}` }))}
+            placeholder="Version"
+          />
+        </div>
         {artifact?.link && <span className="min-w-0 flex-1 truncate text-sm text-fg-subtle tabular-nums">{artifact.link}</span>}
         <Button variant="ghost" size="sm" icon="regenerate" loading={minting} disabled={!current} onClick={() => setLoads((n) => n + 1)}>
           Reload

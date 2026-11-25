@@ -14,8 +14,32 @@
 use crate::artifacts::preview::preview_path;
 use tauri::Url;
 
+/// One line to stderr and, in a debug build, to `<dir>/debug.log`. A `.app` started from Finder has no
+/// visible stderr, so a `tauri build --debug` check (blocked navigation, preview request) reads this
+/// file. Release builds write nothing to disk. Never takes a page-controlled string beyond a scheme.
+pub fn debug_log(dir: Option<&std::path::Path>, line: &str) {
+    eprintln!("shape-board: {line}");
+    if cfg!(debug_assertions) {
+        if let Some(dir) = dir {
+            use std::io::Write;
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("debug.log")) {
+                let _ = writeln!(f, "{line}");
+            }
+        }
+    }
+}
+
+/// Empties `<dir>/debug.log` at startup in a debug build, so the file never grows past one run.
+pub fn reset_debug_log(dir: Option<&std::path::Path>) {
+    if cfg!(debug_assertions) {
+        if let Some(dir) = dir {
+            let _ = std::fs::write(dir.join("debug.log"), "");
+        }
+    }
+}
+
 /// True when `url` may load in the main window (top frame or, where the engine asks, a subframe).
-/// `dev_url` is the Vite dev server, passed only in debug builds.
+/// `dev_url` is the Vite dev server, passed only under `tauri dev` (`tauri::is_dev()`).
 pub fn allowed(url: &Url, dev_url: Option<&Url>) -> bool {
     let host = url.host_str();
     match url.scheme() {
@@ -75,6 +99,18 @@ mod tests {
         ] {
             assert!(!ok(u), "{u}");
         }
+    }
+
+    #[test]
+    fn a_debug_log_line_reaches_the_file_in_a_debug_build_and_a_new_run_empties_it() {
+        let d = tempfile::tempdir().unwrap();
+        let read = || std::fs::read_to_string(d.path().join("debug.log")).unwrap_or_default();
+        debug_log(Some(d.path()), "blocked navigation to https");
+        debug_log(None, "no dir, stderr only");
+        assert_eq!(read().contains("blocked navigation to https"), cfg!(debug_assertions));
+        assert!(!read().contains("no dir"));
+        reset_debug_log(Some(d.path()));
+        assert!(read().is_empty(), "a new run starts with an empty file");
     }
 
     #[test]
