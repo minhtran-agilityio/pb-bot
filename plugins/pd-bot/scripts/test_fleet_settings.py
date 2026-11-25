@@ -7,6 +7,12 @@ import sys
 import pytest
 
 SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fleet-settings.py")
+with open(os.path.join(os.path.dirname(SCRIPT), "fleet-trim.json")) as _f:
+    TRIM = json.load(_f)
+TRIM_LINES = ["disableClaudeAiConnectors: " + json.dumps(TRIM["disableClaudeAiConnectors"])] + [
+    f"enabledPlugins.{n}: false" for n in sorted(TRIM["enabledPlugins"])]
+TRIM_ABSENT = ["disableClaudeAiConnectors: absent"] + [
+    f"enabledPlugins.{n}: absent" for n in sorted(TRIM["enabledPlugins"])]
 
 
 # A global excludes file (common: **/.claude/settings.local.json) would hide the "not ignored" case,
@@ -48,6 +54,8 @@ def test_writes_model_mode_and_role(checkout):
     assert data["model"] == "claude-haiku-5-5"
     assert data["permissions"]["defaultMode"] == "auto"
     assert data["env"] == {"PD_BOT_ROLE": "worker", "PD_BOT_TICKET": "12", "PD_BOT_RUN": "r1"}
+    assert data["disableClaudeAiConnectors"] is True
+    assert data["enabledPlugins"] == {n: False for n in TRIM["enabledPlugins"]}
 
 
 def test_keeps_other_keys_and_restores_the_file(checkout):
@@ -112,7 +120,8 @@ def test_not_a_git_checkout_is_named(tmp_path):
 
 def test_bedrock_and_vertex_model_ids_are_accepted(checkout):
     for m in ("us.anthropic.claude-opus-5-5-v1:0", "claude-opus-5-5@20261101"):
-        r = run("--checkout", str(checkout), "--role", "worker", "--model", m, "--mode", "auto")
+        r = run("--checkout", str(checkout), "--role", "worker", "--model", m, "--mode", "auto",
+                "--depth", "L")
         assert r.returncode == 0, r.stderr
 
 
@@ -199,6 +208,10 @@ def test_refuses_a_non_object_env(checkout):
     ["--show", "--ticket="],
     ["--show", "--run="],
     ["--show", "--model="],
+    ["--show", "--depth", "L"],
+    ["--show", "--escalated"],
+    ["--restore", "--keep-connectors"],
+    ["--role", "worker", "--model", "m", "--mode", "auto", "--depth", "XL"],
 ])
 def test_usage_errors_exit_2(checkout, args):
     assert run("--checkout", str(checkout), *args).returncode == 2
@@ -224,7 +237,7 @@ def test_show_prints_absent_keys_and_no_restore_state(checkout):
     assert r.returncode == 0, r.stderr
     assert r.stdout.splitlines() == [
         "model: absent", "permissions.defaultMode: absent", "env.PD_BOT_ROLE: absent",
-        "env.PD_BOT_TICKET: absent", "env.PD_BOT_RUN: absent", "restore state: none"]
+        "env.PD_BOT_TICKET: absent", "env.PD_BOT_RUN: absent", *TRIM_ABSENT, "restore state: none"]
     assert not (checkout / ".claude").exists() and not state(checkout).exists()
 
 
@@ -235,7 +248,7 @@ def test_show_prints_values_after_apply_and_writes_nothing(checkout):
     assert r.returncode == 0, r.stderr
     assert r.stdout.splitlines() == [
         'model: "claude-haiku-5-5"', 'permissions.defaultMode: "auto"', 'env.PD_BOT_ROLE: "worker"',
-        'env.PD_BOT_TICKET: "12"', 'env.PD_BOT_RUN: "r1"', "restore state: present"]
+        'env.PD_BOT_TICKET: "12"', 'env.PD_BOT_RUN: "r1"', *TRIM_LINES, "restore state: present"]
     assert (settings(checkout).read_text(), state(checkout).read_text()) == before
 
 
@@ -287,3 +300,64 @@ def test_show_exits_0_and_reports_invalid_when_the_restore_state_path_is_a_direc
     r = show(checkout)
     assert r.returncode == 0, r.stderr
     assert r.stdout.splitlines()[-1] == "restore state: present (invalid)"
+
+
+@pytest.mark.parametrize("model", ["claude-opus-5-5", "claude-fable-5-2", "opus",
+                                   "us.anthropic.claude-opus-5-5-v1:0"])
+def test_a_worker_on_opus_or_fable_is_refused_below_depth_l(checkout, model):
+    for extra in ([], ["--depth", "S"], ["--depth", "M"]):
+        r = run("--checkout", str(checkout), "--role", "worker", "--model", model, "--mode", "auto", *extra)
+        assert r.returncode == 1 and "worker runs Sonnet" in r.stderr, (extra, r.stderr)
+    assert not settings(checkout).exists() and not state(checkout).exists()
+
+
+@pytest.mark.parametrize("extra", [["--depth", "L"], ["--escalated"], ["--depth", "M", "--escalated"]])
+def test_a_worker_on_opus_is_allowed_at_depth_l_or_escalated(checkout, extra):
+    r = run("--checkout", str(checkout), "--role", "worker", "--model", "claude-opus-5-5",
+            "--mode", "auto", *extra)
+    assert r.returncode == 0, r.stderr
+
+
+def test_other_roles_and_sonnet_workers_are_not_guarded(checkout):
+    for role, model in (("reviewer", "claude-opus-5-5"), ("advisor", "claude-fable-5-2"),
+                        ("worker", "claude-sonnet-5-5")):
+        r = run("--checkout", str(checkout), "--role", role, "--model", model, "--mode", "auto")
+        assert r.returncode == 0, r.stderr
+
+
+def test_keep_connectors_writes_no_trim(checkout):
+    assert apply(checkout, "--keep-connectors").returncode == 0
+    data = json.loads(settings(checkout).read_text())
+    assert "disableClaudeAiConnectors" not in data and "enabledPlugins" not in data
+
+
+def test_restore_puts_back_the_owner_plugin_choices(checkout):
+    settings(checkout).parent.mkdir()
+    name = sorted(TRIM["enabledPlugins"])[0]
+    before = {"enabledPlugins": {name: True, "mine@market": True}, "disableClaudeAiConnectors": False}
+    settings(checkout).write_text(json.dumps(before))
+    assert apply(checkout).returncode == 0
+    data = json.loads(settings(checkout).read_text())
+    assert data["enabledPlugins"][name] is False and data["enabledPlugins"]["mine@market"] is True
+    assert data["disableClaudeAiConnectors"] is True
+    assert run("--checkout", str(checkout), "--restore").returncode == 0
+    assert json.loads(settings(checkout).read_text()) == before
+
+
+def test_a_second_apply_adds_the_trim_the_first_skipped(checkout):
+    settings(checkout).parent.mkdir()
+    settings(checkout).write_text('{"model": "x"}')
+    assert apply(checkout, "--keep-connectors").returncode == 0
+    assert apply(checkout).returncode == 0
+    assert json.loads(settings(checkout).read_text())["disableClaudeAiConnectors"] is True
+    assert run("--checkout", str(checkout), "--restore").returncode == 0
+    assert json.loads(settings(checkout).read_text()) == {"model": "x"}
+
+
+def test_repo_project_settings_carry_the_same_trim():
+    repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(SCRIPT))))
+    with open(os.path.join(repo, ".claude", "settings.json")) as f:
+        proj = json.load(f)
+    assert proj["disableClaudeAiConnectors"] == TRIM["disableClaudeAiConnectors"]
+    assert {k: v for k, v in proj["enabledPlugins"].items() if k in TRIM["enabledPlugins"]} \
+        == TRIM["enabledPlugins"]

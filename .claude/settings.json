@@ -1,0 +1,9 @@
+{
+  "disableClaudeAiConnectors": true,
+  "enabledPlugins": {
+    "render@anthropic-plugin-directory": false,
+    "slack@anthropic-plugin-directory": false,
+    "google-multi-account@anthropic-plugin-directory": false,
+    "chrome-devtools-mcp@chrome-devtools-plugins": false
+  }
+}

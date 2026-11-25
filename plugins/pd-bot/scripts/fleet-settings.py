@@ -9,6 +9,13 @@ session start:
   permissions.defaultMode    the run's permission mode (a session in another mode holds messages)
   env.PD_BOT_ROLE            the role; the plugin's session-role hook reads it
   env.PD_BOT_TICKET, env.PD_BOT_RUN   the ticket and the run, for the session and its commands
+  disableClaudeAiConnectors, enabledPlugins.<plugin>
+                             the token trim in fleet-trim.json (next to this script): no claude.ai
+                             connectors and no unused plugins, so each request carries about 20k
+                             fewer tokens of tool and skill lists. --keep-connectors skips it.
+
+Model guard: a worker runs Sonnet. An Opus or Fable model for --role worker is refused unless
+--depth L or --escalated (a Sonnet worker already failed once on this ticket) is given.
 
 Every other key is kept. The values those keys had before (or that they were absent, or that the
 file did not exist) are saved in the checkout's git directory (`pd-bot-fleet-settings.json` under
@@ -27,6 +34,7 @@ Safety:
 Usage:
   fleet-settings.py --checkout DIR --role worker|reviewer|tester|advisor --model ID
                     --mode auto|acceptEdits [--ticket ID] [--run ID]
+                    [--depth S|M|L] [--escalated] [--keep-connectors]
   fleet-settings.py --checkout DIR --restore
   fleet-settings.py --checkout DIR --show
 --show is read-only: it prints one line per fleet key (`<key>: <JSON value>` or `<key>: absent`) and
@@ -52,6 +60,27 @@ ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 KEYS = (("model",), ("permissions", "defaultMode"), ("env", "PD_BOT_ROLE"),
         ("env", "PD_BOT_TICKET"), ("env", "PD_BOT_RUN"))
 ABSENT = {"absent": True}
+TRIM_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fleet-trim.json")
+BIG_MODEL_RE = re.compile(r"opus|fable", re.I)
+
+
+def trim_values():
+    """(key, value) pairs of the token trim, read from fleet-trim.json."""
+    try:
+        with open(TRIM_FILE) as f:
+            data = json.load(f)
+    except (OSError, ValueError) as e:
+        refuse(f"cannot read {TRIM_FILE}: {e}")
+    pairs = [(("disableClaudeAiConnectors",), data.get("disableClaudeAiConnectors", True))]
+    plugins = data.get("enabledPlugins", {})
+    if not isinstance(plugins, dict):
+        refuse(f"{TRIM_FILE}: enabledPlugins is not an object")
+    pairs += [(("enabledPlugins", name), bool(on)) for name, on in sorted(plugins.items())]
+    return pairs
+
+
+def trim_keys():
+    return tuple(k for k, _ in trim_values())
 
 
 def refuse(msg):
@@ -110,7 +139,7 @@ def read_settings(path):
         refuse(f"{path} is not valid JSON; fix it by hand first")
     if not isinstance(data, dict):
         refuse(f"{path} does not hold a JSON object")
-    for parent in ("permissions", "env"):
+    for parent in ("permissions", "env", "enabledPlugins"):
         if parent in data and not isinstance(data[parent], dict):
             refuse(f"{path}: {parent} is not an object")
     return data
@@ -156,6 +185,9 @@ def restore(checkout):
     data = read_settings(path) or {}
     for key in KEYS:
         put(data, key, saved.get("keys", {}).get(".".join(key), ABSENT))
+    for item in saved.get("extra", []):
+        if isinstance(item, dict) and isinstance(item.get("path"), list) and item["path"]:
+            put(data, tuple(item["path"]), item.get("saved", ABSENT))
     if not saved.get("file_existed", True) and not data:
         if os.path.exists(path):
             os.unlink(path)
@@ -169,7 +201,7 @@ def restore(checkout):
 def show(checkout):
     _, path, state = paths(checkout)
     data = read_settings(path) or {}
-    for key in KEYS:
+    for key in KEYS + trim_keys():
         got = get(data, key)
         print(f"{'.'.join(key)}: " + (json.dumps(got["value"]) if "value" in got else "absent"))
     label = "none"
@@ -197,19 +229,37 @@ def apply(a):
     data = read_settings(path)
     existed = data is not None
     data = data or {}
-    # Every check is done; now write. The first apply's saved values win over a later apply's.
-    if not os.path.exists(state):
+    trim = [] if a.keep_connectors else trim_values()
+    # Every check is done; now write. The first apply's saved values win over a later apply's;
+    # a trim key the first apply did not set is added with its value as it stands now.
+    if os.path.exists(state):
+        with open(state) as f:
+            try:
+                saved = json.load(f)
+            except ValueError:
+                refuse(f"{state} is not valid JSON; check {path} by hand and delete it")
+        if not isinstance(saved, dict):
+            refuse(f"{state} is not a JSON object; check {path} by hand and delete it")
+    else:
         saved = {"file_existed": existed, "keys": {".".join(k): get(data, k) for k in KEYS}}
-        write_atomic(state, dump(saved))
+    extra = saved.setdefault("extra", [])
+    known = {tuple(i.get("path", ())) for i in extra if isinstance(i, dict)}
+    for key, _ in trim:
+        if key not in known:
+            extra.append({"path": list(key), "saved": get(data, key)})
+    write_atomic(state, dump(saved))
     os.makedirs(cdir, exist_ok=True)
     new = {("model",): a.model, ("permissions", "defaultMode"): a.mode,
            ("env", "PD_BOT_ROLE"): a.role, ("env", "PD_BOT_TICKET"): a.ticket,
            ("env", "PD_BOT_RUN"): a.run}
     for key, val in new.items():
         put(data, key, {"value": val} if val else ABSENT)
+    for key, val in trim:
+        put(data, key, {"value": val})
     write_atomic(path, dump(data))
     print(f"fleet-settings: {path}: model {a.model}, mode {a.mode}, role {a.role}"
-          + (f", ticket {a.ticket}" if a.ticket else ""))
+          + (f", ticket {a.ticket}" if a.ticket else "")
+          + (", token trim off" if a.keep_connectors else ", token trim on"))
 
 
 def main(argv):
@@ -222,14 +272,19 @@ def main(argv):
     p.add_argument("--mode", choices=MODES)
     p.add_argument("--ticket")
     p.add_argument("--run")
+    p.add_argument("--depth", choices=("S", "M", "L"))
+    p.add_argument("--escalated", action="store_true")
+    p.add_argument("--keep-connectors", action="store_true")
     a = p.parse_args(argv)
+    apply_opts = (a.role, a.model, a.mode, a.ticket, a.run, a.depth,
+                  a.escalated or None, a.keep_connectors or None)
     if a.show:
-        if a.restore or any(v is not None for v in (a.role, a.model, a.mode, a.ticket, a.run)):
+        if a.restore or any(v is not None for v in apply_opts):
             p.error("--show takes only --checkout")
         show(a.checkout)
         return
     if a.restore:
-        if a.role or a.model or a.mode or a.ticket or a.run:
+        if any(v is not None for v in apply_opts):
             p.error("--restore takes only --checkout")
         restore(a.checkout)
         return
@@ -241,6 +296,9 @@ def main(argv):
         v = getattr(a, name)
         if v is not None and not ID_RE.match(v):
             p.error(f"--{name} must be letters, digits, dot, dash or underscore")
+    if a.role == "worker" and BIG_MODEL_RE.search(a.model) and not (a.depth == "L" or a.escalated):
+        refuse(f"a worker runs Sonnet; {a.model} needs --depth L, or --escalated after a Sonnet "
+               "worker failed once on this ticket")
     apply(a)
 
 
