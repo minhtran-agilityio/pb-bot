@@ -171,6 +171,21 @@ mdfind "kMDItemFSName == '$APP'"                    # check: only ~/Applications
   writes it for an interactive session whether or not it runs in tmux, but not for a child session: a `claude` started
   from inside another Claude session (its environment holds `CLAUDE_CODE_CHILD_SESSION`) writes no file, so it does
   not show (issue #159).
+- Started from Finder, the Dock or at login, the app has only `/usr/bin:/bin:/usr/sbin:/sbin` in its PATH. The
+  `podbay-dev` it runs gets `~/.local/bin`, `/usr/local/bin` and `/opt/homebrew/bin` after that, because it needs `tmux`
+  (Homebrew) to list this machine's sessions; without it this machine listed none (issue #174).
+- Other machines (U0 and so on): the board shows what `podbay-dev` returns. Pod Bay itself reaches a machine only
+  some of the time: on 2026-11-25, in a shell, `podbay-dev machines` said U0 `online: true, password_current: true`
+  and a few minutes later `online: false, password_current: false`, and `ls --all` then returned no U0 rows; the board
+  said `U0 offline · password out of date`, which was true. A code signature with the identifier `io.pdbot.podboard`
+  against the linker's `pod_board-<hash>` was tried in place on the installed app and showed no clear difference,
+  because U0 went on and off in the same minutes; so the bundle is not signed by this repo. It does say why it asks for
+  the local network (`NSLocalNetworkUsageDescription` in `src-tauri/Info.plist`).
+- When the app gets "No route to host" from a machine's address that Pod Bay lists (a private address such as
+  `192.168.x.x`), the Stopped strip adds `<machine> unreachable from Pod Board (no route to host)` next to Pod Bay's own
+  `offline` or `password out of date` chip. The line names no cause: macOS gives the same error when the host is off or
+  not on this network and when Local Network access is not allowed for the app (System Settings > Privacy & Security >
+  Local Network; the `podbay-dev` the app starts inherits it).
 - On macOS a session killed hard (its file left behind) shows until its pid is reused or the file is removed: the
   format of `procStart` there was not seen, so only the pid is checked.
 - Sources not shown, and data not available (step 0, 2026-11-25, on Linux and on M0):

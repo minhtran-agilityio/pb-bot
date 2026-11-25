@@ -647,7 +647,7 @@ function summary(list) {
 
 function stoppedStrip() {
   // An offline machine belongs to no source or project: its chip shows only while no filter is on.
-  const list = stoppedShown(), off = snap.machines.filter(m => !m.online && !srcF && !projF);
+  const list = stoppedShown(), off = snap.machines.filter(m => (!m.online || m.unreachable) && !srcF && !projF);
   if (!list.length && !off.length) return null;
   const box = el('section', 'strip');
   box.append(pill('stopped'), el('b', 'tab', String(list.length)));
@@ -659,9 +659,17 @@ function stoppedStrip() {
     } else box.append(el('span', 'chip', `${w.project}/${w.ws} · ${w.machine}${w.dirty ? ' ✎' : ''}`));
   }
   for (const m of off) {
-    const c = el('span', 'chip off', m.key_stale ? `${m.name} offline · password out of date` : `${m.name} offline`);
-    if (m.key_stale) c.title = `Pod Bay on this computer holds an old password for ${m.name}, so it cannot reach it. Sign in to Pod Bay again on one of the two machines.`;
-    box.append(c);
+    // Pod Bay's own words stay. When the app also has no route to the machine, one more line says so and names no cause.
+    if (!m.online) {
+      const c = el('span', 'chip off', m.key_stale ? `${m.name} offline · password out of date` : `${m.name} offline`);
+      if (m.key_stale) c.title = `Pod Bay on this computer holds an old password for ${m.name}, so it cannot reach it. Sign in to Pod Bay again on one of the two machines.`;
+      box.append(c);
+    }
+    if (m.unreachable) {
+      const u = el('span', 'chip off', `${m.name} unreachable from Pod Board (no route to host)`);
+      u.title = `Pod Board gets "No route to host" from ${m.name}'s network address, although another program may reach it. The machine may be off or not on this network, or macOS may not allow Pod Board on the local network (System Settings > Privacy & Security > Local Network).`;
+      box.append(u);
+    }
   }
   return box;
 }
