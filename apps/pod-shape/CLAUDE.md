@@ -27,7 +27,7 @@ Read `docs/HANDOFF.md` first. The build plan is §6 there; one step per PR.
 
 The UI follows `docs/DESIGN_SYSTEM.md` and `src/styles/tokens.css`. Read both before any UI change.
 
-**Before UI work, ask `Pb Bot Storehouse`** (`ListAgents`, then `SendMessage` a `UI-ASK`; forms in `docs/storehouse-keeper.md`, flow in DESIGN_SYSTEM.md §11). Do not build or style a missing part in a screen; continue that part only after `UI-READY`.
+**Before UI work, ask the keeper**, the session whose name starts with `Pb Bot Storehouse` (for example `Pb Bot Storehouse #UA-01`): `ListAgents`, copy its name exactly as the row prints it, then `SendMessage` a `UI-ASK` (forms in `docs/storehouse-keeper.md`, flow in DESIGN_SYSTEM.md §11). Do not build or style a missing part in a screen; continue that part only after `UI-READY`.
 
 Rules:
 - Use only the tokens, components (§6), layouts (§7) and lucide icons (§8) listed there.

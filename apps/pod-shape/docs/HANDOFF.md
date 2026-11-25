@@ -100,7 +100,7 @@ Each step is 1 small PR with a clear done point. Do not start step 1 until step 
 
 ## 7. Design system "Cozy" (v2.4), fonts and logo (must follow)
 
-- **UI parts: ask the keeper first.** Before any UI work, ask the `Pb Bot Storehouse` session whether the part exists (`DESIGN_SYSTEM.md` §11, `docs/storehouse-keeper.md`). Only the keeper and the `ui-designer` agent change `src/components/ui/`, `src/components/app/` and `tokens.css`.
+- **UI parts: ask the keeper first.** Before any UI work, ask the keeper session (its name starts with `Pb Bot Storehouse`, for example `Pb Bot Storehouse #UA-01`; copy the name from `ListAgents`) whether the part exists (`DESIGN_SYSTEM.md` §11, `docs/storehouse-keeper.md`). Only the keeper and the `ui-designer` agent change `src/components/ui/`, `src/components/app/` and `tokens.css`.
 
 - Read `DESIGN_SYSTEM.md` fully before any UI work. Paste `CLAUDE.md.snippet.md` into the app's `CLAUDE.md`.
 - Use only its tokens, components (§6), layouts (§7) and icons (§8). **Do not invent** a color, size, spacing, radius, shadow, component or variant. No hex or arbitrary Tailwind values. If something is missing, stop and ask the owner first.

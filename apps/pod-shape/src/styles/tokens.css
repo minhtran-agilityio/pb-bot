@@ -9,7 +9,7 @@
    - Never write a raw hex / rgb / px value in a component.
    - Never add a token here unless the user asked for it.
    - Shared UI parts and this file change only through the
-     Pb Bot Storehouse keeper (DESIGN_SYSTEM.md §11).
+     keeper session, whose name starts with Pb Bot Storehouse (DESIGN_SYSTEM.md §11).
    Full rules: DESIGN_SYSTEM.md
    ============================================================ */
 
