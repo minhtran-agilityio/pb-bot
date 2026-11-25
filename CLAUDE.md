@@ -8,7 +8,7 @@ Skill framework for Claude Code (the only supported runtime) with Pod Bay (`podb
 
 `bash scripts/check-shellcheck.sh` runs shellcheck over the harness shell scripts. Run it before the PR; CI runs the same script with `REQUIRE_SHELLCHECK=1`, which fails instead of skipping when shellcheck is missing.
 
-`apps/pod-board/` is the Pod Bay session board, a menu bar app (`apps/pod-board/README.md`). Every new build of it replaces the old one: after a build only one `Pod Board.app` stays on the machine, in `~/Applications`; old copies go to the Trash (rule and commands: `apps/pod-board/README.md`, "One installed copy").
+`apps/pod-board/` is the Pod Bay session board, a menu bar app (`apps/pod-board/README.md`).
 
 The plugin lives in `plugins/pd-bot/`; the marketplace file is `.claude-plugin/marketplace.json`. To develop, run `claude --plugin-dir plugins/pd-bot` from the repo root. The plugin's hooks and rule then load from there (the repo's `settings.json` wires no hooks), and its skills appear as `/pd-bot:<name>`.
 
@@ -93,6 +93,7 @@ Decisions made on the way are recorded as ADRs in `docs/adr/`. The skills above 
 
 - Never merge into main or the base branch unless the owner approves that one PR in the confirmation prompt; never force-push, never touch secrets, never weaken a test.
 - "Done" needs real command output.
+- A new build replaces the old one: after you build something that is installed or served from outside the checkout, one copy of it stays, never a stale second. The case that needs it now is `Pod Board.app` on macOS (`~/Applications` only; old and stale copies go to the Trash, never `rm -rf`; commands in `apps/pod-board/README.md`, "One installed copy"). A build whose output stays in the checkout (`apps/pod-shape` `dist/`, cargo `target/`) is overwritten by the next build: do not copy it elsewhere to keep it.
 - A bug needs a failing repro test first.
 
 ## Hooks

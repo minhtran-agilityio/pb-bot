@@ -68,7 +68,7 @@ Every new build replaces the old one: after a build there is exactly one `Pod Bo
 ```
 cd apps/pod-board/src-tauri
 cargo tauri build
-pkill -x pod-board                                  # quit the running app (no error if it is not running)
+pkill -x pod-board || true                          # quit the running app (pkill exits 1 when it is not running)
 APP="Pod Board.app"
 mkdir -p ~/Applications
 [ -e ~/Applications/"$APP" ] && mv ~/Applications/"$APP" ~/.Trash/"Pod Board $(date +%Y%m%d-%H%M%S).app"
