@@ -146,15 +146,14 @@ Linux needs the WebKitGTK 4.1 development packages. The app looks for `podbay-de
 - Started from Finder, the Dock or at login, the app has only `/usr/bin:/bin:/usr/sbin:/sbin` in its PATH. The
   `podbay-dev` it runs gets `~/.local/bin`, `/usr/local/bin` and `/opt/homebrew/bin` after that, because it needs `tmux`
   (Homebrew) to list this machine's sessions; without it this machine listed none (issue #174).
-- Other machines on your local network (macOS): macOS lets Pod Board, and the `podbay-dev` it starts, reach them only
-  while System Settings > Privacy & Security > Local Network has Pod Board switched on. The bundle says why it asks
-  (`NSLocalNetworkUsageDescription` in `src-tauri/Info.plist`) and is signed ad hoc under its own identifier
-  (`io.pdbot.podboard`, `bundle.macOS.signingIdentity` in `tauri.conf.json`; the unsigned build only had a linker
-  signature with the identifier `pod_board-<hash>`). When the app cannot reach a machine on the local network
-  (a connection to its private address fails with "No route to host") the Stopped strip says
-  `<machine> not reachable · allow Local Network for Pod Board`. If the switch is on and the strip still says so,
-  switch Pod Board off and on again in that list and restart the app: on 2026-11-25 the app got "No route to host"
-  for U0 (`192.168.1.218:7880`) with the switch on, and later reached it with no code change.
+- Other machines on your local network: when the app gets "No route to host" from a machine's address that Pod Bay
+  lists (a private address such as `192.168.x.x`), the Stopped strip adds `<machine> unreachable from Pod Board (no
+  route to host)` next to Pod Bay's own `offline` or `password out of date` chip. The line names no cause, because
+  macOS gives the same error when the host is off or not on this network and when Local Network access is not allowed
+  for the app (System Settings > Privacy & Security > Local Network; the `podbay-dev` the app starts inherits it). The
+  bundle says why it asks (`NSLocalNetworkUsageDescription` in `src-tauri/Info.plist`). On 2026-11-25 the installed app
+  got "No route to host" from U0 (`192.168.1.218:7880`) while that switch was on, and a later start of the same code
+  reached it; what changed in between was not isolated.
 - On macOS a session killed hard (its file left behind) shows until its pid is reused or the file is removed: the
   format of `procStart` there was not seen, so only the pid is checked.
 - Sources not shown, and data not available (step 0, 2026-11-25, on Linux and on M0):

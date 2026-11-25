@@ -280,20 +280,21 @@ fn find_podbay() -> PathBuf {
 /// `podbay-dev` needs `tmux` (Homebrew) to list this machine's sessions, so the directories where it and the
 /// tools it uses live come after the app's own, without repeats (issue #174).
 fn child_path(path: Option<std::ffi::OsString>, home: Option<std::ffi::OsString>) -> std::ffi::OsString {
-    let mut dirs: Vec<PathBuf> = path.map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
+    let mut dirs: Vec<PathBuf> = path.as_ref().map(|p| std::env::split_paths(p).collect()).unwrap_or_default();
     let mut more: Vec<PathBuf> = home.map(|h| PathBuf::from(h).join(".local").join("bin")).into_iter().collect();
     more.push(PathBuf::from("/usr/local/bin"));
     more.push(PathBuf::from("/opt/homebrew/bin"));
     for d in more {
         if !dirs.contains(&d) { dirs.push(d); }
     }
-    std::env::join_paths(dirs).unwrap_or_default()
+    // A directory that cannot be joined (a `:` in the home folder) leaves the inherited PATH as it was.
+    std::env::join_paths(dirs).unwrap_or_else(|_| path.unwrap_or_default())
 }
 
-/// Is this the macOS "Local Network" block? A connection to a private (local network) address that fails with
-/// errno 65, "No route to host", although the machine is there: Pod Board has no permission for the local network
-/// and the `podbay-dev` it starts inherits that (issue #174). Any other error is some other problem.
-fn lan_blocked(addr: &str, os_error: Option<i32>) -> bool {
+/// Is this "No route to host" (errno 65) on a private (local network) address? macOS gives it when Local Network
+/// access is not allowed for the app (the `podbay-dev` it starts inherits that), and also when the host is off or not
+/// on the subnet, so it says the machine cannot be reached, not why (issue #174). Any other error is some other problem.
+fn no_route_on_lan(addr: &str, os_error: Option<i32>) -> bool {
     const EHOSTUNREACH: i32 = 65;
     let Ok(sock) = addr.parse::<std::net::SocketAddr>() else { return false };
     let local = match sock.ip() {
@@ -303,19 +304,37 @@ fn lan_blocked(addr: &str, os_error: Option<i32>) -> bool {
     local && os_error == Some(EHOSTUNREACH)
 }
 
-/// The names of the machines that Pod Bay knows an address for, that this app cannot reach, and for which the
-/// reason is the local network block. A machine that answers is not probed (`ls --all` lists it).
-fn blocked_machines(machines: &Value, listed: &[String]) -> Vec<String> {
+/// The machines `ls --all` returned rows for (a result that is a list), by name.
+fn listed_machines(ls: &Value) -> Vec<String> {
+    ls.as_array()
+        .map(|l| l.iter().filter(|m| m["result"].is_array()).filter_map(|m| m["machine"].as_str().map(str::to_string)).collect())
+        .unwrap_or_default()
+}
+
+/// The names of the machines that Pod Bay knows an address for and that this app gets "No route to host" from. The
+/// cause is not known: macOS Local Network access for the app, or the host being off, give the same error. A machine
+/// that returned rows is not probed. The probes run side by side, so a few silent hosts cost one timeout, not one each.
+fn unreachable_machines(machines: &Value, listed: &[String]) -> Vec<String> {
     let Some(list) = machines.as_array() else { return vec![] };
-    list.iter()
+    let todo: Vec<(String, String)> = list
+        .iter()
         .filter(|m| m["me"] != Value::Bool(true))
-        .filter_map(|m| {
-            let (name, addr) = (m["machine"].as_str()?, m["addr"].as_str()?);
-            if m["online"] == Value::Bool(true) && listed.iter().any(|l| l == name) { return None; }
-            let err = std::net::TcpStream::connect_timeout(&addr.parse().ok()?, Duration::from_secs(2)).err()?;
-            lan_blocked(addr, err.raw_os_error()).then(|| name.to_string())
-        })
-        .collect()
+        .filter_map(|m| Some((m["machine"].as_str()?.to_string(), m["addr"].as_str()?.to_string())))
+        .filter(|(name, _)| !listed.contains(name))
+        .collect();
+    std::thread::scope(|scope| {
+        let probes: Vec<_> = todo
+            .iter()
+            .map(|(name, addr)| {
+                scope.spawn(move || {
+                    let sock = addr.parse().ok()?;
+                    let err = std::net::TcpStream::connect_timeout(&sock, Duration::from_secs(2)).err()?;
+                    no_route_on_lan(addr, err.raw_os_error()).then(|| name.clone())
+                })
+            })
+            .collect();
+        probes.into_iter().filter_map(|p| p.join().ok().flatten()).collect()
+    })
 }
 
 /// `~/.claude`, where Claude Code keeps its session files.
@@ -513,8 +532,7 @@ fn poll_loop(app: AppHandle, wake: Receiver<()>) {
                     // A failed slow read keeps its last value.
                     if let Ok(v) = read(&cmd, &["checkouts", "--all"]) { raw.checkouts = v; }
                     if let Ok(v) = read(&cmd, &["machines"]) { raw.machines = v; }
-                    let listed: Vec<String> = raw.ls.as_array().map(|l| l.iter().filter_map(|m| m["machine"].as_str().map(str::to_string)).collect()).unwrap_or_default();
-                    raw.blocked = blocked_machines(&raw.machines, &listed);
+                    raw.unreachable = unreachable_machines(&raw.machines, &listed_machines(&raw.ls));
                     if let Ok(v) = read(&cmd, &["queue", "ls", "--all"]) { raw.queue = v; }
                 }
                 n = n.wrapping_add(1);
@@ -1135,20 +1153,37 @@ mod tests {
             OsString::from("/opt/homebrew/bin:/usr/bin:/Users/x/.local/bin:/usr/local/bin")
         );
         assert_eq!(child_path(None, None), OsString::from("/usr/local/bin:/opt/homebrew/bin"));
+        // A home with a ':' cannot be joined into a PATH: keep the inherited one, never an empty one.
+        assert_eq!(child_path(os("/usr/bin:/bin"), os("/Users/a:b")), OsString::from("/usr/bin:/bin"));
     }
 
     #[test]
-    fn only_no_route_to_a_local_address_means_the_local_network_is_blocked() {
+    #[cfg(unix)]
+    fn the_podbay_child_gets_the_longer_path() {
+        let got = read(&script("path", "printf '[\"%s\"]' \"$PATH\""), &["ls"]).unwrap();
+        let path = got[0].as_str().unwrap().to_string();
+        assert!(path.contains("/opt/homebrew/bin") && path.contains("/usr/local/bin"), "the child PATH is {path}");
+    }
+
+    #[test]
+    fn only_machines_that_returned_rows_count_as_listed() {
+        let ls = serde_json::json!([{"machine": "M0", "result": []}, {"machine": "U0", "result": "unreachable"}, {"machine": "U1"}]);
+        assert_eq!(listed_machines(&ls), vec!["M0".to_string()]);
+        assert!(listed_machines(&serde_json::json!("x")).is_empty());
+    }
+
+    #[test]
+    fn only_no_route_to_a_local_address_is_unreachable_from_the_app() {
         // errno 65 (EHOSTUNREACH): what macOS gives a connection that "Local Network" access does not allow.
-        assert!(lan_blocked("192.168.1.218:7880", Some(65)));
-        assert!(lan_blocked("10.0.0.5:7880", Some(65)));
-        assert!(lan_blocked("172.16.3.4:7880", Some(65)));
+        assert!(no_route_on_lan("192.168.1.218:7880", Some(65)));
+        assert!(no_route_on_lan("10.0.0.5:7880", Some(65)));
+        assert!(no_route_on_lan("172.16.3.4:7880", Some(65)));
         // Refused, timed out, reached, or not a local address: not this problem.
-        assert!(!lan_blocked("192.168.1.218:7880", Some(61)));
-        assert!(!lan_blocked("192.168.1.218:7880", Some(60)));
-        assert!(!lan_blocked("192.168.1.218:7880", None));
-        assert!(!lan_blocked("8.8.8.8:53", Some(65)));
-        assert!(!lan_blocked("not an address", Some(65)));
+        assert!(!no_route_on_lan("192.168.1.218:7880", Some(61)));
+        assert!(!no_route_on_lan("192.168.1.218:7880", Some(60)));
+        assert!(!no_route_on_lan("192.168.1.218:7880", None));
+        assert!(!no_route_on_lan("8.8.8.8:53", Some(65)));
+        assert!(!no_route_on_lan("not an address", Some(65)));
     }
 
     fn term(status: &str, waiting: &str) -> local::Local {
