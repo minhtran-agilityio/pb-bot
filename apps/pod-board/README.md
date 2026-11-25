@@ -117,12 +117,16 @@ Linux needs the WebKitGTK 4.1 development packages. The app looks for `podbay-de
     changed for 15 minutes is not counted as running. A finished sub-agent's file is read once.
   - The model keeps from these only the fields above that the page shows; the project is the last folder name of
     `cwd` (`~` for a home folder: `$HOME`, `…/home/<user>`, `/Users/<user>`, `/root`, or a folder named like the
-    login). Text from these files loses control, text-direction and zero-width characters. A path in it that starts
-    with `/` loses its folders: a home path (`$HOME/…`, `…/home/<user>/…`, `/Users/<user>/…`, `/root/…`) becomes
-    `~/…`, any other path of two or more parts keeps only its last part (`/srv/data/x/log.txt` becomes
-    `…/log.txt`). It never holds an absolute path, the login name in a path, an account, the Claude session id or
-    the process id; the only id it holds is the Remote Control id. A path under the home folder (`~/…`) and a name
-    written in the text itself (a sub-agent's task) can still show. Prompt, reply and transcript text are read only when a peek opens, and only for Pod Bay
+    login). Text from these files first loses control, text-direction and zero-width characters. Then a path that
+    starts with `/` at the start of the text or after a space or an opening mark (`(`, `[`, `"`, `=`, …) loses its
+    folders: a home path (`$HOME/…`, `…/home/<user>/…`, `/Users/<user>/…`, `/root/…`) becomes `~/…`, a path that
+    ends at the login name becomes `~`, and any other path of two or more parts keeps only its last part
+    (`/srv/data/x/log.txt` becomes `…/log.txt`); a one-part path (`/tmp`) stays. In every other word with a `/` in
+    it (`file:///…`, `host:/…`, `a,/…`), `$HOME`, the folder after `home/` or `Users/` and the login name become
+    `~`, but the rest of the path stays. So the model holds no login name in a path, no home path, no account, no
+    Claude session id and no process id; the only id it holds is the Remote Control id. A path below the home folder
+    (`~/…`), the rest of a path in such a word, and a name written as a plain word in the text (a sub-agent's task)
+    can still show. Prompt, reply and transcript text are read only when a peek opens, and only for Pod Bay
     sessions (with `podbay-dev detail`).
 - It runs no `podbay-dev detail` in the background: on 2026-11-25 its `activity` held only `you` and `reply`
   entries, with no step and no sub-agents, so a read per poll would cost up to ten seconds per machine for nothing.

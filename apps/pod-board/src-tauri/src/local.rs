@@ -142,12 +142,52 @@ fn fold_path(p: &str) -> String {
         return std::iter::once("~").chain(parts[1..].iter().copied()).collect::<Vec<_>>().join("/");
     }
     match parts.as_slice() {
+        [last, ..] | [.., last] if logins().iter().any(|n| n == last) => "~".to_string(),
         [] | [_] => p.to_string(),
         [.., last] => format!("…/{last}"),
     }
 }
 
-/// Every absolute path in a text loses its folders (`fold_path`), so a model-written text (a sub-agent's task)
+/// The second pass over each word that holds a `/` (a path after `file://`, `host:` or a comma, which the first pass
+/// does not see as a path): `$HOME` becomes `~`, the folder after `home/` or `Users/` becomes `~`, and each login
+/// name becomes `~`. Words without a `/` are left as written.
+fn scrub(s: &str) -> String {
+    let word = |w: &str| -> String {
+        if !w.contains('/') {
+            return w.to_string();
+        }
+        let mut w = match home() { Some(h) => w.replace(h, "~"), None => w.to_string() };
+        for mark in ["home/", "Users/"] {
+            let mut from = 0;
+            while let Some(i) = w[from..].find(mark).map(|i| from + i + mark.len()) {
+                let end = w[i..].find(|c: char| c == '/' || "\"'`)]}>,;:".contains(c)).map_or(w.len(), |e| i + e);
+                if end > i && &w[i..end] != "~" {
+                    w.replace_range(i..end, "~");
+                }
+                from = i + 1;
+                if from >= w.len() { break; }
+            }
+        }
+        for n in logins().iter().filter(|n| n.chars().count() >= 2) {
+            w = w.replace(n.as_str(), "~");
+        }
+        w
+    };
+    let mut out = String::with_capacity(s.len());
+    let mut start = 0;
+    for (i, c) in s.char_indices() {
+        if c.is_whitespace() {
+            out.push_str(&word(&s[start..i]));
+            out.push(c);
+            start = i + c.len_utf8();
+        }
+    }
+    out.push_str(&word(&s[start..]));
+    out
+}
+
+/// Every absolute path in a text loses its folders (`fold_path`), then home folders and login names in any other
+/// word with a `/` go (`scrub`), so a model-written text (a sub-agent's task)
 /// cannot carry a full path or the login name in a home path to the page. A path starts with `/` at the start of
 /// the text or after a space or an opening mark, and ends at a space, a closing mark, `,` or `;`. A web address
 /// (`https://…`) is not a path.
@@ -169,7 +209,7 @@ fn home_free(s: &str) -> String {
         prev = Some(c);
         rest = &rest[c.len_utf8()..];
     }
-    out
+    scrub(&out)
 }
 
 /// Characters that are dropped from a text from a file: control, text-direction and zero-width characters (they
@@ -181,7 +221,9 @@ fn hidden(c: char) -> bool {
 
 /// Shorten a text from a file, without hidden characters and home paths.
 fn cut(s: &str, n: usize) -> String {
-    let clean: String = home_free(s).chars().filter(|&c| !hidden(c)).collect();
+    // Hidden characters go first: one before a `/` would hide a path from `home_free`.
+    let shown: String = s.chars().filter(|&c| !hidden(c)).collect();
+    let clean = home_free(&shown);
     let s = clean.trim();
     if s.chars().count() <= n {
         return s.to_string();
@@ -400,9 +442,13 @@ pub fn fixture() -> std::path::PathBuf {
     let dst = std::env::temp_dir().join(format!("pod-board-local-{}-{}-{n}", std::process::id(), ms(SystemTime::now())));
     fn copy(a: &Path, b: &Path) {
         std::fs::create_dir_all(b).unwrap();
-        for e in std::fs::read_dir(a).unwrap().flatten() {
-            let to = b.join(e.file_name());
-            if e.path().is_dir() { copy(&e.path(), &to) } else { std::fs::copy(e.path(), &to).unwrap(); }
+        // In name order: the copies' times then follow the names (agent 1 starts first), whatever order the
+        // folder lists them in and however many milliseconds the copy takes (issue #158).
+        let mut entries: Vec<_> = std::fs::read_dir(a).unwrap().flatten().map(|e| e.path()).collect();
+        entries.sort();
+        for path in entries {
+            let to = b.join(path.file_name().unwrap());
+            if path.is_dir() { copy(&path, &to) } else { std::fs::copy(&path, &to).unwrap(); }
         }
     }
     copy(&src, &dst);
@@ -611,5 +657,28 @@ mod tests {
         std::fs::write(dir.join("sessions/7778.json"), r#"{"pid": 7778, "kind": "interactive", "entrypoint": "cli", "status": "idle", "name": "Quick", "cwd": "/w/q"}"#).unwrap();
         let got = read_with(&dir, now(), &all_alive, &mut cache);
         assert_eq!(got.len(), first + 1);
+    }
+
+    #[test]
+    fn a_path_behind_a_hidden_character_a_colon_or_a_comma_loses_the_login() {
+        // Security review of #158: M1 (hidden character), M2 (`file://`, `host:`, comma), M3 (a path ending at the login).
+        let (home, user) = login();
+        let cases = [
+            format!("see \u{200B}/home/{user}/x"),
+            format!("open file:///home/{user}/a"),
+            format!("copy host:/home/{user}/x"),
+            format!("a.rs,/home/{user}/b and -v{home}/w:/w"),
+            format!("in /srv/data/{user} and /{user}"),
+            format!("cd ~/.claude/projects/-home-{user}-repo"),
+            format!("ask /Users/{user}x/y and other:/var/home/bob/z"),
+        ];
+        for c in &cases {
+            let got = cut(c, 400);
+            assert!(!got.contains(&user), "{c} -> {got}");
+            assert!(!got.contains("/home/bob") && !got.contains(&home), "{c} -> {got}");
+        }
+        assert_eq!(cut(&format!("see \u{200B}/home/{user}/x"), 80), "see ~/x");
+        assert_eq!(cut(&format!("in /srv/data/{user} and /{user}"), 80), "in ~ and ~");
+        assert_eq!(cut("see https://x.test/a/b, ok", 80), "see https://x.test/a/b, ok");
     }
 }
