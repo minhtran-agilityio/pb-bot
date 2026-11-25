@@ -210,6 +210,9 @@ def test_refuses_a_non_object_env(checkout):
     ["--show", "--model="],
     ["--show", "--depth", "L"],
     ["--show", "--escalated"],
+    ["--show", "--effort", "high"],
+    ["--restore", "--effort", "high"],
+    ["--role", "worker", "--model", "m", "--mode", "auto", "--effort", "max"],
     ["--restore", "--keep-connectors"],
     ["--role", "worker", "--model", "m", "--mode", "auto", "--depth", "XL"],
 ])
@@ -237,7 +240,8 @@ def test_show_prints_absent_keys_and_no_restore_state(checkout):
     assert r.returncode == 0, r.stderr
     assert r.stdout.splitlines() == [
         "model: absent", "permissions.defaultMode: absent", "env.PD_BOT_ROLE: absent",
-        "env.PD_BOT_TICKET: absent", "env.PD_BOT_RUN: absent", *TRIM_ABSENT, "restore state: none"]
+        "env.PD_BOT_TICKET: absent", "env.PD_BOT_RUN: absent", "effortLevel: absent", *TRIM_ABSENT,
+        "restore state: none"]
     assert not (checkout / ".claude").exists() and not state(checkout).exists()
 
 
@@ -248,7 +252,8 @@ def test_show_prints_values_after_apply_and_writes_nothing(checkout):
     assert r.returncode == 0, r.stderr
     assert r.stdout.splitlines() == [
         'model: "claude-haiku-5-5"', 'permissions.defaultMode: "auto"', 'env.PD_BOT_ROLE: "worker"',
-        'env.PD_BOT_TICKET: "12"', 'env.PD_BOT_RUN: "r1"', *TRIM_LINES, "restore state: present"]
+        'env.PD_BOT_TICKET: "12"', 'env.PD_BOT_RUN: "r1"', "effortLevel: absent", *TRIM_LINES,
+        "restore state: present"]
     assert (settings(checkout).read_text(), state(checkout).read_text()) == before
 
 
@@ -392,3 +397,18 @@ def test_a_restore_state_that_is_a_directory_is_refused(checkout):
     state(checkout).mkdir()
     r = apply(checkout)
     assert r.returncode == 1 and "Traceback" not in r.stderr, r.stderr
+
+
+def test_effort_is_written_and_restored(checkout):
+    settings(checkout).parent.mkdir()
+    settings(checkout).write_text('{"effortLevel": "low"}')
+    assert apply(checkout, "--effort", "high").returncode == 0
+    assert json.loads(settings(checkout).read_text())["effortLevel"] == "high"
+    assert run("--checkout", str(checkout), "--restore").returncode == 0
+    assert json.loads(settings(checkout).read_text()) == {"effortLevel": "low"}
+
+
+def test_no_effort_option_removes_an_earlier_apply_effort(checkout):
+    assert apply(checkout, "--effort", "high").returncode == 0
+    assert apply(checkout).returncode == 0
+    assert "effortLevel" not in json.loads(settings(checkout).read_text())

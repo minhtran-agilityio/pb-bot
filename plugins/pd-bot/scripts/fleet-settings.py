@@ -6,6 +6,7 @@ session. It sets these keys in <checkout>/.claude/settings.local.json, which Cla
 session start:
 
   model                      the role's model (the session starts on it; no /model keystrokes)
+  effortLevel                the role's effort (--effort low|medium|high|xhigh), when given
   permissions.defaultMode    the run's permission mode (a session in another mode holds messages)
   env.PD_BOT_ROLE            the role; the plugin's session-role hook reads it
   env.PD_BOT_TICKET, env.PD_BOT_RUN   the ticket and the run, for the session and its commands
@@ -36,6 +37,7 @@ Usage:
   fleet-settings.py --checkout DIR --role worker|reviewer|tester|advisor --model ID
                     --mode auto|acceptEdits [--ticket ID] [--run ID]
                     [--depth S|M|L] [--escalated] [--keep-connectors]
+                    [--effort low|medium|high|xhigh]
   fleet-settings.py --checkout DIR --restore
   fleet-settings.py --checkout DIR --show
 --show is read-only: it prints one line per fleet key (`<key>: <JSON value>` or `<key>: absent`) and
@@ -59,7 +61,7 @@ MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@\[\]-]{0,99}$")
 ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 # (path in the settings object) for every key the script sets.
 KEYS = (("model",), ("permissions", "defaultMode"), ("env", "PD_BOT_ROLE"),
-        ("env", "PD_BOT_TICKET"), ("env", "PD_BOT_RUN"))
+        ("env", "PD_BOT_TICKET"), ("env", "PD_BOT_RUN"), ("effortLevel",))
 ABSENT = {"absent": True}
 TRIM_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fleet-trim.json")
 WORKER_MODEL_RE = re.compile(r"sonnet|haiku", re.I)
@@ -261,13 +263,14 @@ def apply(a):
     os.makedirs(cdir, exist_ok=True)
     new = {("model",): a.model, ("permissions", "defaultMode"): a.mode,
            ("env", "PD_BOT_ROLE"): a.role, ("env", "PD_BOT_TICKET"): a.ticket,
-           ("env", "PD_BOT_RUN"): a.run}
+           ("env", "PD_BOT_RUN"): a.run, ("effortLevel",): a.effort}
     for key, val in new.items():
         put(data, key, {"value": val} if val else ABSENT)
     for key, val in trim:
         put(data, key, {"value": val})
     write_atomic(path, dump(data))
     print(f"fleet-settings: {path}: model {a.model}, mode {a.mode}, role {a.role}"
+          + (f", effort {a.effort}" if a.effort else "")
           + (f", ticket {a.ticket}" if a.ticket else "")
           + (", token trim off" if a.keep_connectors else ", token trim on"))
 
@@ -285,8 +288,9 @@ def main(argv):
     p.add_argument("--depth", choices=("S", "M", "L"))
     p.add_argument("--escalated", action="store_true")
     p.add_argument("--keep-connectors", action="store_true")
+    p.add_argument("--effort", choices=("low", "medium", "high", "xhigh"))
     a = p.parse_args(argv)
-    apply_opts = (a.role, a.model, a.mode, a.ticket, a.run, a.depth,
+    apply_opts = (a.role, a.model, a.mode, a.ticket, a.run, a.depth, a.effort,
                   a.escalated or None, a.keep_connectors or None)
     if a.show:
         if a.restore or any(v is not None for v in apply_opts):

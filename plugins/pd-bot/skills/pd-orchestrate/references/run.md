@@ -35,8 +35,8 @@ Leave a default when the ticket gives you a reason, and say why in the ledger.
 | Decision | Default | Change it when |
 |---|---|---|
 | Where the work runs | one Pod Bay session per ticket, in its own workspace | read-only work with no owner question: an in-process `Agent` that only reads is cheaper. It cannot exchange messages, so it returns its result to you |
-| Worker model | Sonnet 5.5 for depth S and M; Opus 5.5 at depth L. A hard limit: `fleet-settings.py` refuses Opus or Fable for a worker below depth L | a Sonnet worker already failed once on the ticket (`--escalated`). For a hard S or M ticket (hooks, security, a public contract), raise the Sonnet effort to `high`, not the model |
-| Reviewer | a different session, Opus 5.5, skill `pd-bot:pd-review` | never the worker's session; never you alone |
+| Worker model | Sonnet 5.5 for depth S and M; Opus 5.5 at depth L. A hard limit: `fleet-settings.py` refuses Opus or Fable for a worker below depth L | a Sonnet worker already failed once on the ticket (`--escalated`). For a hard S or M ticket (hooks, security, a public contract), raise the Sonnet effort to `high` (`--effort high`), not the model |
+| Reviewer | a different session, skill `pd-bot:pd-review`: Sonnet 5.5 at effort `high` (`--effort high`) for depth S and M; Opus 5.5 at depth L, on a risky ticket (hooks, security, a public contract) and for the whole-feature review | never the worker's session; never you alone. Its independence comes from the separate session and the plan-blind isolation, not from another model |
 | Order | dependency groups (command below); tickets of one group in parallel. The command puts two tickets with an overlapping path in different groups | you see an overlap that the paths do not show: give both tickets that path and run the command again |
 | Workers at once | 3 tickets (`--max-parallel 3`); reviewer and advisor sessions do not count | the owner gave another number; a usage-limit line appeared: lower it |
 | Budget | 60 minutes per ticket | depth L, or the owner gave a deadline |

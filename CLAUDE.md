@@ -19,6 +19,8 @@ The plugin lives in `plugins/pd-bot/`; the marketplace file is `.claude-plugin/m
 - The main session chooses the model and effort for each subagent from the task
   itself, whatever model the main session runs on. It always passes `model` to an agent that has no
   model in its frontmatter, because such an agent otherwise inherits the main session's model.
+- Fleet reviewer session (`pd-review`): Sonnet 5.5 at effort `high` for depth S and M; Opus 5.5 at
+  depth L, on a risky ticket and for the whole-feature review (`run.md`).
 - Coding: Sonnet 5.5 (`implementer` agent). Testing: Haiku 5.5
   (`test-runner`). Research and search: Haiku 5.5 (`researcher`). Intent review: Sonnet 5.5
   (`intent-reviewer`). Checking a ticket with no app: Sonnet 5.5 (`qa-verifier`).
