@@ -93,7 +93,7 @@ Decisions made on the way are recorded as ADRs in `docs/adr/`. The skills above 
 
 - Never merge into main or the base branch unless the owner approves that one PR in the confirmation prompt; never force-push, never touch secrets, never weaken a test.
 - "Done" needs real command output.
-- A new build replaces the old one: after you build something that is installed or served from outside the checkout, one copy of it stays, never a stale second. The case that needs it now is `Pod Board.app` on macOS (`~/Applications` only; old and stale copies go to the Trash, never `rm -rf`; commands in `apps/pod-board/README.md`, "One installed copy"). A build whose output stays in the checkout (`apps/pod-shape` `dist/`, cargo `target/`) is overwritten by the next build: do not copy it elsewhere to keep it.
+- After a new build of an app or bundle that a person runs, keep one current copy (the installed one) and move the old copies and stale bundles to the Trash (`mv` to `~/.Trash`, never `rm -rf`). Pod Board on macOS is the case now: install to `~/Applications`; the bundle paths to clean and the `mdfind` check are in `apps/pod-board/README.md`, "One installed copy". A build whose output stays in the checkout (`apps/pod-shape` `dist/`, cargo `target/`) is overwritten by the next build: do not copy it elsewhere to keep it.
 - A bug needs a failing repro test first.
 
 ## Hooks
