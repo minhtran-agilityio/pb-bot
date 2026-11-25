@@ -15,7 +15,13 @@
         "width": 1180,
         "height": 720,
         "minWidth": 420,
-        "minHeight": 320
+        "minHeight": 320,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": {
+          "x": 18,
+          "y": 18
+        }
       },
       {
         "label": "popover",

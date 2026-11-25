@@ -6,222 +6,236 @@
 <title>Pod Board</title>
 <link rel="stylesheet" href="theme.css">
 <style>
-  * { box-sizing: border-box; }
-  /* No -webkit-font-smoothing: macOS then draws text at its normal weight, like the Linux preview, not thinner. */
-  body { margin: 0; background: hsl(var(--cream)); color: hsl(var(--cocoa));
-    font: 15px/1.5 'Pod Sans', system-ui, sans-serif; }
-  body::after { content: ""; position: fixed; inset: 0; z-index: 60; pointer-events: none; opacity: var(--grain); mix-blend-mode: var(--grain-blend);
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.25 0 0 0 0 0.15 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
-  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
-  button:focus-visible { outline: 2px solid hsl(var(--terracotta)); outline-offset: 2px; }
-  .mono { font-family: 'Pod Mono', ui-monospace, Menlo, monospace; font-size: 12px; color: hsl(var(--muted-fg)); }
-  .tab { font-variant-numeric: tabular-nums; }
+  /* Pod Board on the UI design system (UDS v3.0): title bar, sage sidebar, main panel. Tokens in theme.css; notes in ../DESIGN.md.
+     No raw colour here: every colour is a token, except inside the Pod Cat logo drawing. */
+  body { display: grid; grid-template-rows: 48px minmax(0, 1fr); height: 100vh; overflow: hidden; }
+  .ic { stroke-width: 1.75; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
-  .shell { display: grid; grid-template-columns: 248px minmax(0, 1fr); gap: 16px; padding: 16px; min-height: 100vh;
-    transition: grid-template-columns .28s cubic-bezier(.22, 1, .36, 1); }
-  /* Collapsed by the owner: the sidebar keeps only its icons, as in a narrow window. */
-  .shell.collapsed { grid-template-columns: 74px minmax(0, 1fr); }
-  @media (max-width: 860px) { .shell { grid-template-columns: 64px minmax(0, 1fr); gap: 10px; padding: 10px; } }
+  /* Title bar: the window's own. On macOS the window buttons sit on its left (--tb-inset); a press anywhere on it but the
+     button drags the window, and a double-click zooms it. Where the system draws its own title bar (the app on Linux), it is not shown. */
+  :root { --tb-inset: 18px; }
+  :root.mac { --tb-inset: 84px; }
+  :root.native-tb body { grid-template-rows: minmax(0, 1fr); }
+  :root.native-tb .titlebar { display: none; }
+  .titlebar { display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 18px 0 var(--tb-inset); -webkit-user-select: none; user-select: none; }
+  .pod-logo { flex: none; display: block; width: 20px; height: 20px; pointer-events: none; }
+  .pod-logo .tile { fill: var(--pod-brand-bg); } .pod-logo .body { fill: var(--pod-brand-cat); stroke: var(--pod-brand-cat); } .pod-logo .eye { fill: var(--pod-brand-eye); }
+  .crumb { min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg-muted); font-size: 14px; }
+  .crumb b { color: var(--fg); font-weight: 500; }
+
+  /* Shell: sidebar and main panel, 12 px apart and from the window edge. */
+  /* The width changes at once when the sidebar collapses (no transition): the thumb is placed from the new sizes right after. */
+  .shell { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); gap: var(--shell-gap); padding: 0 var(--shell-gap) var(--shell-gap); min-height: 0; }
+  .shell.collapsed { grid-template-columns: 64px minmax(0, 1fr); }
+  @media (max-width: 860px) { .shell { grid-template-columns: 64px minmax(0, 1fr); } #sidebar { display: none; } }
 
   /* Sidebar */
-  .side { position: sticky; top: 16px; height: calc(100vh - 32px); display: flex; flex-direction: column; gap: 12px; padding: 14px; min-width: 0;
-    border-radius: 32px; background: hsl(var(--sage)); border: 1px solid var(--edge); box-shadow: var(--shadow-clay); overflow: hidden; }
-  .brand { display: flex; align-items: center; gap: 12px; padding: 0 4px; }
-  .brand .logo { flex: none; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 14px; background: hsl(var(--sage-deep)); box-shadow: var(--shadow-clay); font-size: 24px; color: hsl(var(--on-accent)); }
-  .brand b { display: block; font-size: 18px; font-weight: 700; line-height: 1.2; }
-  .brand small { color: hsl(var(--cocoa) / .6); font-size: 12px; }
-  /* The list scrolls by itself, so the status card at the bottom always stays in view. */
-  .nav { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 2px; overflow: hidden auto; scrollbar-width: thin; scrollbar-color: hsl(var(--cocoa) / .25) transparent; }
+  .side { display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 0; padding: 16px 10px 12px; border-radius: 28px; background: var(--side); overflow: hidden; }
+  /* The list scrolls by itself, so the status box always stays in view. A small inset keeps each focus ring visible. */
+  .nav { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 2px; padding: 3px; overflow: hidden auto; scrollbar-width: thin; }
   .nav > * { flex: none; }
-  /* A soft fade at the bottom says the list goes on when it does not fit. */
-  .nav.more { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent); }
-  .group { margin: 6px 0 -2px; padding: 0 12px; font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--cocoa) / .55); }
-  .thumb { position: absolute; left: 0; right: 0; top: 0; height: 42px; border-radius: 20px; background: hsl(var(--paper)); box-shadow: var(--shadow-soft);
-    transition: transform .32s cubic-bezier(.22, 1, .36, 1), height .32s cubic-bezier(.22, 1, .36, 1); pointer-events: none; }
-  .item { position: relative; z-index: 1; display: flex; align-items: center; gap: 12px; width: 100%; min-height: 38px; padding: 0 12px; border-radius: 19px;
-    font-size: 14px; font-weight: 600; text-align: left; color: hsl(var(--cocoa) / .72); transition: color .15s; }
-  .item:hover, .item[aria-current="page"] { color: hsl(var(--cocoa)); }
-  /* Project and machine rows are filters, not pages: smaller, so the whole list fits a short window. */
-  .item.sub { min-height: 30px; font-size: 13px; font-weight: 500; }
-  /* A chosen filter reads like the chosen page: a paper pill, plus a terracotta edge and text so it differs from the page pill. */
-  .item.sub[data-on="1"] { color: hsl(var(--terracotta)); font-weight: 800; background: hsl(var(--paper)); box-shadow: inset 0 0 0 1.5px hsl(var(--terracotta)), var(--shadow-xs); }
-  .item.sub[data-on="1"] .n { background: hsl(var(--terracotta)); color: hsl(var(--on-accent)); }
-  .item.clear { justify-content: center; margin-top: 4px; color: hsl(var(--terracotta)); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
-  .item .dot.warn { background: hsl(var(--butter-deep)); }
-  /* The icon sprite holds no visible drawing. The app's content policy drops inline style attributes, so hide it here. */
-  .sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
-  .ic { width: 1em; height: 1em; display: block; fill: currentColor; }
-  .item .ico { flex: none; display: grid; place-items: center; width: 22px; font-size: 20px; }
-  .item .lbl { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .item .n { flex: none; min-width: 24px; padding: 0 7px; border-radius: 999px; background: hsl(var(--cocoa) / .08); font-size: 12px; text-align: center; }
-  .item[data-hot="1"] .n { background: hsl(var(--terracotta)); color: hsl(var(--on-accent)); }
-  .item .dot { flex: none; width: 9px; height: 9px; margin: 0 6px; border-radius: 50%; background: hsl(var(--success)); }
-  .item .dot.off { background: transparent; border: 1.5px dashed hsl(var(--muted-fg)); }
-  .status { flex: none; padding: 12px; border-radius: 22px; background: hsl(var(--paper) / .72); display: grid; gap: 6px; }
-  #conn { display: flex; align-items: center; gap: 8px; font-weight: 700; }
-  #conn i { flex: none; width: 10px; height: 10px; border-radius: 50%; background: hsl(var(--success)); }
-  #conn[data-s="stale"] i, #conn[data-s="wait"] i, #conn[data-s="paused"] i { background: hsl(var(--butter-deep)); }
-  #conn[data-s="error"] i { background: hsl(var(--rose-deep)); }
-  #read { font-size: 12px; color: hsl(var(--muted-fg)); }
-  .dnd { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-radius: 14px; background: hsl(var(--butter)); font-size: 12px; font-weight: 700; }
+  .nav.fade { -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 36px), transparent); mask-image: linear-gradient(to bottom, black calc(100% - 36px), transparent); }
+  .group { margin: 0; padding: 14px 12px 6px; font-size: 12px; line-height: 16px; font-weight: 600; color: var(--fg-muted); }
+  .thumb { position: absolute; left: 0; top: 0; height: 38px; border-radius: 9999px; background: var(--surface-2); box-shadow: var(--card-sh); pointer-events: none;
+    transition: transform var(--dur-base) var(--ease-out), height var(--dur-base) var(--ease-out); }
+  .item { position: relative; z-index: 1; display: flex; align-items: center; gap: 10px; width: 100%; height: 38px; padding: 0 12px; border-radius: 9999px;
+    font-size: 14px; line-height: 22px; font-weight: 500; text-align: left; color: var(--fg); transition: background-color var(--dur-fast) var(--ease-out); }
+  .item:hover { background: var(--side-hover); }
+  .item[aria-current="page"] { font-weight: 600; }
+  .item[aria-current="page"]:hover { background: transparent; }
+  .item .ico { flex: none; display: grid; place-items: center; width: 16px; font-size: 16px; color: var(--fg-muted); }
+  .item[aria-current="page"] .ico { color: var(--fg); }
+  .item .lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item .n { flex: none; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 9999px; font-size: 13px; line-height: 22px; font-weight: 500; text-align: center; color: var(--fg-muted); }
+  .item[data-hot="1"] .n { background: var(--session-needs-soft); color: var(--accent-text); }
+  /* Machine rows are filters, not pages: a little lower, so the whole list fits a short window. */
+  .item.sub { height: 34px; font-size: 13px; line-height: 20px; }
+  .item.sub[data-on="1"] { background: var(--surface-2); box-shadow: var(--card-sh); font-weight: 600; }
+  .item.clear { justify-content: center; color: var(--fg-muted); text-decoration: underline; text-underline-offset: 3px; }
+  .item .dot { flex: none; width: 8px; height: 8px; margin: 0 4px; border-radius: 50%; background: var(--success); }
+  .item .dot.off { background: transparent; border: 1.5px dashed var(--fg-subtle); }
+  .item .dot.warn { border-color: var(--warning); }
+
+  /* SidebarStatus: state dot and word, then the read time and Pause. */
+  .sstat { flex: none; display: grid; gap: 4px; padding: 12px; border-radius: 18px; background: var(--surface-2); box-shadow: var(--card-sh); }
+  #conn { display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 20px; font-weight: 500; }
+  #conn i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
+  #conn[data-s="stale"] i, #conn[data-s="wait"] i, #conn[data-s="paused"] i { background: var(--warning); }
+  #conn[data-s="error"] i { background: var(--danger); }
+  .sstat .l2 { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-left: 16px; font-size: 12px; line-height: 16px; color: var(--fg-muted); }
+  #pause { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 10px; border-radius: 9999px; font-size: 12px; font-weight: 500; color: var(--fg);
+    transition: background-color var(--dur-fast) var(--ease-out); }
+  #pause:hover, #pause[aria-pressed="true"] { background: var(--surface-3); }
+  #pause .ic { font-size: 12px; }
+  .dnd { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-radius: 12px; background: var(--warning-soft); font-size: 12px; line-height: 16px; font-weight: 500; }
   .dnd[hidden] { display: none; } /* the flex rule above would otherwise show it while off */
-  .dnd button { font-size: 12px; font-weight: 700; color: hsl(var(--terracotta)); text-decoration: underline; text-underline-offset: 3px; }
-  .pill-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 0 16px; border-radius: 999px; font-size: 13px; font-weight: 700; background: hsl(var(--terracotta)); color: hsl(var(--on-accent));
-    box-shadow: var(--shadow-soft); transition: transform .15s; }
-  .pill-btn:active { transform: scale(.97); }
-  .pill-btn.ghost { background: hsl(var(--paper)); color: hsl(var(--cocoa)); border: 1px solid var(--edge); }
-  @media (max-width: 860px) {
-    .side { padding: 8px; border-radius: 24px; top: 10px; height: calc(100vh - 20px); align-items: center; }
-    .brand div, .item .lbl, .item .n, .group, .status #read, .status .pill-btn span { display: none; }
-    .brand { padding: 0; } .item { justify-content: center; padding: 0; width: 46px; } .nav { align-items: center; }
-    .status { padding: 8px; background: none; justify-items: center; } #connText { display: none; }
-    .status .pill-btn { width: 40px; padding: 0; }
-  }
-  .shell.collapsed .side { padding: 10px 8px; align-items: center; }
-  .shell.collapsed :is(.brand div, .item .lbl, .item .n, .group, .status #read, .status .pill-btn span, #connText, .dnd #dndText) { display: none; }
-  .shell.collapsed .brand { padding: 0; }
-  .shell.collapsed .item { justify-content: center; padding: 0; width: 46px; }
-  .shell.collapsed .nav { align-items: center; }
-  .shell.collapsed .status { padding: 8px; background: none; justify-items: center; }
-  .shell.collapsed .status .pill-btn { width: 40px; padding: 0; }
-  .shell.collapsed .dnd { padding: 6px; }
-  /* The toggle sits first in the top bar; a narrow window is always icon-only, so it hides there. */
-  .seg.solo.lead { margin-left: 0; }
-  @media (max-width: 860px) { .seg.lead { display: none; } }
+  .dnd button { font-size: 12px; font-weight: 600; color: var(--accent-text); text-decoration: underline; text-underline-offset: 3px; }
+  .side-foot { flex: none; display: flex; justify-content: center; padding-top: 8px; border-top: 1px solid var(--border); }
 
-  /* Main */
-  /* main fills the window height, so the stopped strip can sit at the bottom even when the lanes are short. */
-  main { min-width: 0; min-height: calc(100vh - 32px); display: flex; flex-direction: column; }
-  @media (max-width: 860px) { main { min-height: calc(100vh - 20px); } }
-  .top { display: flex; align-items: center; gap: 12px; padding: 6px 4px 12px; }
-  .crumb { min-width: 0; color: hsl(var(--muted-fg)); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .crumb b { color: hsl(var(--cocoa)); font-weight: 600; }
-  /* Header controls are one family: each group is a .seg track (42 px, muted, inset); Refresh is a track of one. */
-  .seg.solo { margin-left: auto; }
-  .seg.icons button, .seg.solo button { padding: 0 10px; min-width: 34px; justify-content: center; }
-  .seg.solo button:hover, .seg button[aria-pressed="false"]:hover { background: var(--seg-hover); color: hsl(var(--cocoa)); }
-  .seg button:focus-visible { outline: 2px solid hsl(var(--terracotta)); outline-offset: 1px; }
-  #refresh.spin .ic { animation: spin .8s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .seg { flex: none; display: inline-flex; gap: 2px; padding: 4px; border-radius: 999px; background: hsl(var(--muted) / .8); box-shadow: var(--shadow-pressed); }
-  .seg button { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 14px; border-radius: 999px; font-size: 13px; font-weight: 700; color: hsl(var(--muted-fg)); transition: background .2s, color .2s; }
-  .seg button .ic { font-size: 17px; }
-  .seg button[aria-pressed="true"] { background: var(--seg-on); color: hsl(var(--cocoa)); box-shadow: var(--shadow-soft), inset 0 0 0 1px var(--seg-ring); }
+  /* Segmented control: a pressed track, the chosen option raised on it. */
+  .seg { flex: none; display: inline-flex; gap: 2px; padding: 3px; border-radius: 9999px; background: var(--surface-3); box-shadow: var(--pressed-sh); }
+  .seg button { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: 9999px; font-size: 13px; font-weight: 500; color: var(--fg-muted);
+    transition: background-color var(--dur-base) var(--ease-out), color var(--dur-base) var(--ease-out); }
+  .seg button .ic { font-size: 16px; }
+  .seg.icons button { padding: 0 8px; }
+  .seg button:hover { color: var(--fg); }
+  .seg button[aria-pressed="true"] { background: var(--surface-2); color: var(--fg); box-shadow: var(--card-sh); }
   @media (max-width: 620px) { .seg button span { display: none; } .seg button { padding: 0 10px; } }
-  #banner { display: none; margin: 0 0 14px; padding: 10px 16px; border-radius: 20px; background: hsl(var(--rose)); font-weight: 600; }
-  #banner.on { display: block; }
-  #view { flex: 1; display: flex; flex-direction: column; transition: opacity .3s; }
-  #view.dim { opacity: .55; }
-  #view.enter { animation: enter .4s cubic-bezier(.22, 1, .36, 1); }
-  @keyframes enter { from { opacity: 0; transform: translateY(10px); filter: blur(6px); } }
+  .iconbtn { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 9999px; font-size: 16px; color: var(--fg-muted);
+    transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+  .iconbtn.sm { width: 30px; height: 30px; }
+  .iconbtn:hover { background: var(--surface-3); color: var(--fg); }
+  #refresh.spin .ic { animation: spin .8s linear infinite; }
 
-  .card { position: relative; min-width: 0; border-radius: 28px; padding: 20px; background: hsl(var(--paper)); border: 1px solid var(--edge); box-shadow: var(--shadow-clay); }
-  .tone-peach { background: hsl(var(--peach)); } .tone-sky { background: hsl(var(--sky)); } .tone-sage { background: hsl(var(--sage)); }
-  .tone-butter { background: hsl(var(--butter)); } .tone-rose { background: hsl(var(--rose)); }
-  .summary { display: flex; align-items: center; gap: 14px; padding: 12px 18px; border-radius: 24px; }
-  .summary.hot { background: hsl(var(--peach)); }
-  .mascot { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; font-size: 26px; background: hsl(var(--paper)); box-shadow: var(--shadow-xs); color: hsl(var(--sage-deep)); }
-  .mascot.needs { color: hsl(var(--terracotta)); } .mascot.busy { color: hsl(var(--sky-deep)); }
-  .words { min-width: 0; flex: 1; }
-  .words h1 { margin: 0; font-size: 19px; font-weight: 700; line-height: 1.25; }
-  .words p { margin: 0; font-size: 13px; color: hsl(var(--cocoa) / .72); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Icon-only sidebar: collapsed by the owner (button or ⌘B), and always in a narrow window. */
+  .shell.collapsed .side { padding: 12px 8px; align-items: center; }
+  .shell.collapsed :is(.item .lbl, .item .n, .group, .sstat .l2 #read, #pause span, #connText, .dnd #dndText) { display: none; }
+  .shell.collapsed :is(.item) { justify-content: center; width: 38px; padding: 0; }
+  .shell.collapsed .nav { align-items: center; }
+  .shell.collapsed .sstat { padding: 8px; justify-items: center; background: none; box-shadow: none; }
+  .shell.collapsed .sstat .l2 { padding: 0; }
+  .shell.collapsed .side .seg { flex-direction: column; }
+  .shell.collapsed .dnd { padding: 6px; }
+  @media (max-width: 860px) {
+    .side { padding: 12px 8px; align-items: center; }
+    :is(.item .lbl, .item .n, .group, .sstat .l2 #read, #pause span, #connText, .dnd #dndText) { display: none; }
+    .item { justify-content: center; width: 38px; padding: 0; }
+    .nav { align-items: center; }
+    .sstat { padding: 8px; justify-items: center; background: none; box-shadow: none; }
+    .sstat .l2 { padding: 0; }
+    .side .seg { flex-direction: column; }
+  }
+
+  /* Main panel */
+  main { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 16px; padding: 24px 28px 28px; border-radius: 28px; background: var(--surface-1); overflow: auto; }
+  @media (max-width: 860px) { main { padding: 16px; } }
+  .page-h { flex: none; display: flex; align-items: center; gap: 12px; }
+  .page-h h1 { margin: 0; min-width: 0; font-size: 26px; line-height: 34px; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #titleState { display: flex; align-items: center; gap: 8px; margin-right: auto; }
+  #titleState b { font-size: 18px; line-height: 26px; }
+  #banner { display: none; flex: none; margin: 0; padding: 10px 16px; border-radius: 18px; background: var(--danger-soft); font-size: 13px; line-height: 20px; font-weight: 500; }
+  #banner.on { display: block; }
+  #summary, #view { transition: opacity var(--dur-base) var(--ease-out); }
+  :is(#summary, #view).dim { opacity: .55; }
+  #view { flex: 1; display: flex; flex-direction: column; gap: 16px; }
+  #view.enter { animation: enter var(--dur-base) var(--ease-out); }
+  @keyframes enter { from { opacity: 0; transform: translateY(8px); } }
+
+  /* SummaryRow with the AppCharacter: one sentence, one sub line, the other counts as quiet buttons. */
+  .summary { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 24px; background: var(--surface-2);
+    border: 1px solid var(--border); box-shadow: var(--card-sh); }
+  .summary[hidden] { display: none; }
+  .mascot { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--side); box-shadow: var(--card-sh); }
+  .words { flex: 1 1 240px; min-width: 0; }
+  .words h2 { margin: 0; font-size: 15px; line-height: 24px; }
+  .words p { margin: 0; font-size: 13px; line-height: 20px; color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .counts { flex: none; display: flex; flex-wrap: wrap; gap: 6px; }
-  .count { padding: 4px 12px; border-radius: 999px; background: hsl(var(--paper) / .75); font-size: 13px; color: hsl(var(--cocoa) / .8); }
-  .count:hover { background: hsl(var(--paper)); }
+  .count { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 10px; border-radius: 9999px; background: var(--surface-3); font-size: 12px; line-height: 16px;
+    font-weight: 500; color: var(--fg-muted); transition: color var(--dur-fast) var(--ease-out); }
+  .count b { color: var(--fg); }
+  .count:hover { color: var(--fg); }
   @media (max-width: 620px) { .counts { display: none; } }
 
-  .lanes { display: grid; gap: 16px; margin: 16px 0; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+  /* State pill: soft fill + icon + word, the same in the lane head, the list group, the page head and the peek. */
+  .pill { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 10px; border-radius: 9999px; font-size: 12px; line-height: 16px; font-weight: 500; white-space: nowrap; }
+  .pill .ic { font-size: 12px; }
+  .pill.needs { background: var(--session-needs-soft); color: var(--accent-text); }
+  .pill.busy { background: var(--session-working-soft); color: var(--session-working); }
+  .pill.idle { background: var(--session-idle-soft); color: var(--session-idle); }
+  .pill.stopped { border: 1px solid var(--border-strong); color: var(--fg-muted); }
+  :is(.pill.busy, .sic.busy) .ic { animation: spin 1.4s linear infinite; }
+
+  /* Lanes: neutral, on the page colour; the state shows in the pill. */
+  .lanes { display: grid; gap: 12px; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
   @media (max-width: 1040px) { .lanes { grid-template-columns: minmax(0, 1fr); } }
-  .lane { padding: 14px; }
-  .lane h2 { display: flex; align-items: center; gap: 10px; margin: 2px 4px 12px; font-size: 16px; font-weight: 700; }
-  .lane h2 .n { margin-left: auto; font-size: 22px; }
-  .more { margin: 10px 4px 2px; font-size: 13px; font-weight: 700; color: hsl(var(--cocoa) / .7); text-decoration: underline; text-underline-offset: 4px; }
-  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-  ul.wide { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
-  .row { min-width: 0; padding: 10px 12px; border-radius: 18px; background: hsl(var(--paper)); border: 1px solid var(--edge); box-shadow: var(--shadow-xs); }
-  .row.link, .lrow.link { cursor: pointer; transition: box-shadow .2s, transform .2s, background .2s; }
-  .row.link:hover { box-shadow: var(--shadow-lift); transform: translateY(-1px); }
-  .lrow.link:hover { background: hsl(var(--muted) / .6); }
-  .row.link:focus-visible, .lrow.link:focus-visible { outline: 2px solid hsl(var(--terracotta)); outline-offset: 2px; }
-  .row.flash { animation: flash 1.2s ease-out 1; }
-  @keyframes flash { from { box-shadow: 0 0 0 3px hsl(var(--terracotta)); } to { box-shadow: 0 0 0 3px transparent; } }
-  .rtop { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-  .title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 700; }
-  .wait { flex: none; font-size: 13px; font-weight: 800; color: hsl(var(--terracotta)); }
-  .when { flex: none; font-size: 11px; color: hsl(var(--muted-fg)); }
-  .what { margin: 2px 0 3px; font-size: 13px; line-height: 1.45; color: hsl(var(--cocoa) / .82); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .what.fallback { font-style: italic; color: hsl(var(--muted-fg)); }
-  .meta { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
-  .tag { padding: 1px 8px; border-radius: 999px; background: hsl(var(--butter)); color: hsl(var(--cocoa)); font: 700 11px 'Pod Sans', system-ui, sans-serif; }
-  .tag.wait { background: hsl(var(--terracotta)); color: hsl(var(--on-accent)); }
-  .tag.done { background: hsl(var(--success)); color: hsl(var(--on-accent)); }
+  .lane { min-width: 0; padding: 12px; border-radius: 24px; background: var(--bg); }
+  .lane-h { display: flex; align-items: center; gap: 8px; margin: 2px 6px 10px; font-size: 14px; }
+  .lane-h .n { margin-left: auto; font-size: 18px; line-height: 26px; font-weight: 600; }
+  .more { margin: 10px 6px 2px; font-size: 13px; font-weight: 500; color: var(--fg-muted); text-decoration: underline; text-underline-offset: 4px; }
+  .more:hover { color: var(--fg); }
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  ul.wide { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .none { margin: 6px; color: var(--fg-muted); font-size: 13px; }
+
+  /* SessionCard. Row 1: title, time, peek. Then the body (what it does) and the meta row (place and tags), then links.
+     New parts for a session (reason, step, sub-agents) go between row 1 and the meta row. */
+  .row { position: relative; min-width: 0; display: flex; flex-direction: column; gap: 8px; padding: 16px 20px; border-radius: 24px; background: var(--surface-2);
+    border: 1px solid var(--border); box-shadow: var(--card-sh); transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out); }
+  .row.link { cursor: pointer; }
+  .row.link:hover { transform: translateY(-3px); box-shadow: var(--card-sh-hover); }
+  .row.flash, .lrow.flash { animation: flash 1.2s ease-out 1; }
+  @keyframes flash { from { box-shadow: 0 0 0 3px var(--accent); } to { box-shadow: 0 0 0 3px transparent; } }
+  .rtop { display: flex; align-items: baseline; gap: 8px; }
+  .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; line-height: 24px; font-weight: 600; }
+  .wait { flex: none; font-size: 13px; line-height: 20px; font-weight: 600; color: var(--accent-text); }
+  .when { flex: none; font-size: 13px; line-height: 20px; color: var(--fg-subtle); }
+  .what { margin: 0; font-size: 13px; line-height: 20px; color: var(--fg-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .what.fallback { font-style: italic; color: var(--fg-subtle); }
+  .meta { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+  .where { font-size: 13px; line-height: 20px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+  /* Tags and link buttons: 22 px pills. */
+  .tag { display: inline-flex; align-items: center; height: 22px; padding: 0 10px; border-radius: 9999px; background: var(--surface-3); color: var(--fg-muted);
+    font-size: 12px; line-height: 16px; font-weight: 500; white-space: nowrap; }
+  .tag.wait { background: var(--session-needs-soft); color: var(--accent-text); }
+  .tag.done { background: var(--session-finished-soft); color: var(--session-finished); }
   /* A session's links (pull requests, issues, artifacts): small buttons that open the page in the browser. */
-  .links { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin: 5px 0 0; }
-  .lrow .links { display: inline-flex; flex-wrap: nowrap; margin: 0 0 0 8px; vertical-align: middle; }
-  .lk { max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 1px 9px; border-radius: 999px; cursor: pointer;
-    border: 1px solid hsl(var(--muted-fg) / .45); background: transparent; color: hsl(var(--cocoa)); font: 700 11px 'Pod Sans', system-ui, sans-serif; }
-  .lk:hover { background: hsl(var(--muted)); border-color: hsl(var(--muted-fg)); }
-  .lk:focus-visible { outline: 2px solid hsl(var(--terracotta)); outline-offset: 2px; }
-  .lk.more { border-style: dashed; cursor: default; color: hsl(var(--muted-fg)); }
-  .row.done { box-shadow: inset 3px 0 0 hsl(var(--success)), var(--shadow-xs); }
-  .compact .row { padding: 7px 12px; }
-  .row .mono { font-size: 11px; }
-  .pill { display: inline-flex; align-items: center; gap: 7px; padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; }
-  .pill .ic { font-size: 17px; }
-  .pill.needs { background: hsl(var(--terracotta)); color: hsl(var(--on-accent)); }
-  .pill.busy { background: hsl(var(--sky-deep)); color: hsl(var(--on-accent)); }
-  .pill.idle { border: 1.5px solid hsl(var(--sage-deep)); }
-  .pill.stopped { border: 1.5px dashed hsl(var(--muted-fg)); color: hsl(var(--muted-fg)); }
-  .pill.busy .ic { animation: jog 1.2s ease-in-out infinite; }
-  @keyframes jog { 50% { transform: translateY(-2px); } }
-  /* List layout: one dense row per session, grouped under a heading per state. */
-  .list { margin: 16px 0; padding: 6px 0; }
+  .links { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .lk { display: inline-flex; align-items: center; max-width: 14rem; height: 22px; padding: 0 10px; border-radius: 9999px; border: 1px solid var(--border-strong);
+    color: var(--accent-text); font-size: 12px; line-height: 16px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    transition: background-color var(--dur-fast) var(--ease-out); }
+  .lk:hover { background: var(--surface-3); }
+  .lk.more { margin: 0; border-style: dashed; color: var(--fg-muted); text-decoration: none; cursor: default; }
+  .lrow .links { flex: none; flex-wrap: nowrap; margin-left: 8px; }
+
+  /* List layout: one card, one dense row per session, grouped under a state pill. */
+  .list { padding: 6px 0; border-radius: 24px; background: var(--surface-2); border: 1px solid var(--border); box-shadow: var(--card-sh); overflow: hidden; }
   .lgroup { display: flex; align-items: center; gap: 10px; padding: 12px 18px 6px; }
-  .lgroup .n { font-size: 13px; color: hsl(var(--muted-fg)); }
-  .lrow { display: grid; grid-template-columns: minmax(0, 14rem) minmax(0, 1fr) minmax(0, 14rem) 6.5rem; align-items: center; gap: 4px 16px;
-    padding: 9px 18px; border-top: 1px solid hsl(var(--border) / .7); font-size: 13px; }
-  .lrow.needs { background: hsl(var(--rose) / .45); }
-  .lrow.flash { animation: flash 1.2s ease-out 1; }
-  .lrow .lt { display: flex; align-items: center; gap: 9px; min-width: 0; font-size: 14px; font-weight: 700; }
-  .lrow .lt span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .lrow .sic { flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 9px; font-size: 16px; color: hsl(var(--on-accent)); }
-  .sic.needs { background: hsl(var(--terracotta)); } .sic.busy { background: hsl(var(--sky-deep)); } .sic.idle { background: hsl(var(--sage-deep)); }
-  .lrow .lw { display: flex; align-items: center; min-width: 0; color: hsl(var(--cocoa) / .8); }
-  .lrow .lw .txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .lrow .lw .links { flex: none; }
-  .lrow .lw.fallback { font-style: italic; color: hsl(var(--muted-fg)); }
-  .lrow .lp { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .lrow .lc { text-align: right; font-size: 12px; color: hsl(var(--muted-fg)); }
-  .lrow .lc.wait { font-size: 13px; color: hsl(var(--terracotta)); }
-  @media (max-width: 900px) { .lrow { grid-template-columns: minmax(0, 1fr) auto; } .lrow .lw { grid-column: 1 / -1; grid-row: 2; } .lrow .lp { display: none; } }
-  .none { margin: 6px 4px; color: hsl(var(--muted-fg)); font-size: 13px; }
-  .page-h { margin: 0 4px 14px; display: flex; align-items: center; gap: 12px; }
-  .page-h h1 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -.02em; }
-  .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-  .chip { padding: 3px 12px; border: 1px dashed hsl(var(--muted-fg) / .7); border-radius: 999px; }
-  .chip.off { border-style: solid; background: hsl(var(--muted)); }
-  /* The stopped and offline chips stay pinned to the bottom of the window while the lanes scroll. */
-  .strip { position: sticky; bottom: 16px; z-index: 5; margin-top: auto; padding: 12px 18px; background: hsl(var(--paper) / .92);
-    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: var(--shadow-lift); }
-  @media (max-width: 860px) { .strip { bottom: 10px; } }
-  /* The cat sits in the bottom-right corner, beside the pinned Stopped strip, never over it. */
-  .cat { position: fixed; z-index: 6; right: calc(16px + env(safe-area-inset-right, 0px)); bottom: 16px; width: 80px; height: 80px; pointer-events: none;
-    display: grid; place-items: center; border-radius: 26px; background: hsl(var(--paper) / .92); border: 1px solid var(--edge);
-    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: var(--shadow-lift); }
-  .cat svg { display: block; overflow: visible; width: 68px; height: 68px; filter: var(--cat-rim); }
-  .cat .s { fill: var(--sil); }
-  .cat .tail, .cat .arm { fill: none; stroke: var(--sil); stroke-linecap: round; }
+  .lgroup .n { font-size: 13px; color: var(--fg-muted); }
+  .lrow { display: grid; grid-template-columns: minmax(0, 14rem) minmax(0, 1fr) minmax(0, 14rem) 6.5rem; align-items: center; gap: 4px 16px; min-height: 50px;
+    padding: 8px 18px; border-top: 1px solid var(--border); font-size: 13px; line-height: 20px; transition: background-color var(--dur-fast) var(--ease-out); }
+  .lrow.link { cursor: pointer; }
+  .lrow.link:hover { background: var(--surface-3); }
+  .lt { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 14px; font-weight: 600; }
+  .lt > span:not(.sic) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lt .peekbtn { margin-left: auto; }
+  .sic { flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; font-size: 14px; }
+  .sic.needs { background: var(--session-needs-soft); color: var(--accent-text); }
+  .sic.busy { background: var(--session-working-soft); color: var(--session-working); }
+  .sic.idle { background: var(--session-idle-soft); color: var(--session-idle); }
+  .lw { display: flex; align-items: center; min-width: 0; color: var(--fg-muted); }
+  .lw .txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lw.fallback .txt { font-style: italic; color: var(--fg-subtle); }
+  .lp { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+  .lp .place { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lc { text-align: right; color: var(--fg-subtle); }
+  .lc.wait { color: var(--accent-text); font-weight: 600; }
+  @media (max-width: 900px) { .lrow { grid-template-columns: minmax(0, 1fr) auto; } .lw { grid-column: 1 / -1; grid-row: 2; } .lp { display: none; } }
+
+  /* StoppedStrip: a plain card that stays at the bottom of the panel while the lanes scroll. */
+  .strip { position: sticky; bottom: 0; z-index: 5; margin-top: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 18px;
+    background: var(--surface-2); border: 1px solid var(--border); box-shadow: var(--card-sh); font-size: 13px; line-height: 20px; }
+  .chip { display: inline-flex; align-items: center; height: 22px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 9999px; font-size: 12px; line-height: 16px;
+    font-weight: 500; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+  .chip.off { background: var(--surface-3); border-color: var(--surface-3); }
+
+  /* AppCharacter: Pod Board's own cat, in the round tile of the summary row. Its pose follows the board: needs = waves a paw,
+     busy = types, idle = sleeps. Logo colours (--pod-brand-*). */
+  .cat { display: block; width: 40px; height: 40px; }
+  .cat svg { display: block; width: 100%; height: 100%; overflow: visible; }
+  :root[data-theme="dark"] .cat svg { filter: drop-shadow(0 0 .6px var(--fg-subtle)) drop-shadow(0 0 .6px var(--fg-subtle)); }
+  .cat .s { fill: var(--pod-brand-cat); }
+  .cat .tail, .cat .arm { fill: none; stroke: var(--pod-brand-cat); stroke-linecap: round; }
   .cat .tail { stroke-width: 5; }
   .cat .arm { stroke-width: 7; }
-  .cat .arm-gap { fill: none; stroke: hsl(var(--paper)); stroke-width: 10.5; stroke-linecap: round; }
-  .cat .paw-gap { fill: hsl(var(--paper)); }
-  .cat .eye { fill: var(--glow); } .cat .pupil { fill: var(--sil); }
-  .cat .eyes-shut { fill: none; stroke: var(--glow); stroke-width: 1.8; stroke-linecap: round; }
-  .cat .screen-glow { fill: var(--glow-soft); }
-  .cat .lid { fill: var(--sil2); } .cat .lamp { fill: var(--glow); opacity: .7; }
-  .cat .zzz text { font: 700 9px 'Pod Sans', system-ui, sans-serif; fill: var(--glow); }
-  .cat .bang circle { fill: hsl(var(--terracotta)); } .cat .bang text { font: 800 9px 'Pod Sans', system-ui, sans-serif; fill: hsl(var(--on-accent)); text-anchor: middle; }
+  .cat .arm-gap { fill: none; stroke: var(--side); stroke-width: 10.5; stroke-linecap: round; }
+  .cat .paw-gap { fill: var(--side); }
+  .cat .eye { fill: var(--pod-brand-eye); } .cat .pupil { fill: var(--pod-brand-cat); }
+  .cat .eyes-shut { fill: none; stroke: var(--pod-brand-eye); stroke-width: 1.8; stroke-linecap: round; }
+  .cat .screen-glow { fill: var(--pod-brand-eye); fill-opacity: .28; }
+  .cat .lid { fill: var(--border-strong); } .cat .lamp { fill: var(--pod-brand-eye); opacity: .7; }
+  .cat .zzz text { font: 600 9px var(--font-ui); fill: var(--fg-muted); }
+  .cat .bang circle { fill: var(--accent); } .cat .bang text { font: 600 9px var(--font-ui); fill: var(--accent-fg); text-anchor: middle; }
   .cat .eyes-shut, .cat .screen-glow, .cat .laptop, .cat .wave, .cat .zzz, .cat .bang { display: none; }
   .cat.idle .eyes-open { display: none; } .cat.idle .eyes-shut, .cat.idle .zzz { display: inline; }
   .cat.busy .screen-glow, .cat.busy .laptop { display: inline; }
@@ -234,7 +248,7 @@
      WebKit needs transform-box on SVG groups, or it turns them about the page corner. */
   .cat .tap-l, .cat .tap-r, .cat .head, .cat .pupils, .cat .sparks text, .cat .tail, .cat .screen-glow { transform-box: fill-box; transform-origin: center; }
   .cat .tail { transform-origin: left bottom; }
-  .cat .sparks text { font: 700 10px 'Pod Mono', ui-monospace, monospace; fill: var(--spark); opacity: 0; }
+  .cat .sparks text { font: 400 10px var(--font-code); fill: var(--fg-muted); opacity: 0; }
   .cat .sparks { display: none; } .cat.busy .sparks { display: inline; }
   .cat.busy .tap-l { animation: hit-l 4.2s infinite; } .cat.busy .tap-r { animation: hit-r 4.2s infinite; }
   .cat.busy .head { animation: bob 4.2s infinite; }
@@ -268,88 +282,84 @@
   @keyframes swish { 50% { transform: rotate(5deg); } }
   @keyframes wave { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-16deg); } }
   @keyframes pop { 50% { transform: scale(1.12); } }
-  /* Room for the cat: the strip ends before it, and the last cards can scroll clear of it. */
-  .strip { margin-right: 96px; }
-  #view { padding-bottom: 8px; }
-  #view:not(:has(.strip)) { padding-bottom: 90px; }
-  @media (max-width: 860px) { .cat { bottom: 10px; transform: scale(.85); transform-origin: right bottom; } .strip { margin-right: 80px; } }
 
-
-  /* Peek: a button on each card opens a side panel with the session's last reply and prompt (podbay-dev detail). */
-  .peekbtn { flex: none; display: grid; place-items: center; width: 26px; height: 26px; margin: -3px -4px -3px 0; border-radius: 50%;
-    color: hsl(var(--muted-fg)); opacity: 0; transition: opacity .15s, background .15s, color .15s; }
-  .peekbtn .ic { font-size: 16px; }
+  /* Peek: a button on each card opens a side sheet with the session's last reply and prompt (podbay-dev detail). */
+  .peekbtn { flex: none; display: grid; place-items: center; width: 28px; height: 28px; margin: -4px -8px -4px 0; border-radius: 50%; font-size: 14px; color: var(--fg-muted);
+    opacity: 0; transition: opacity var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
   .row:hover .peekbtn, .lrow:hover .peekbtn, .peekbtn:focus-visible, .row.needs .peekbtn, .lrow.needs .peekbtn, .peekbtn[aria-expanded="true"] { opacity: 1; }
-  .peekbtn:hover, .peekbtn[aria-expanded="true"] { background: hsl(var(--muted)); color: hsl(var(--cocoa)); }
-  .row.needs .peekbtn { color: hsl(var(--terracotta)); }
-  #peek { position: fixed; top: 16px; right: 16px; bottom: 16px; z-index: 50; width: min(420px, calc(100vw - 32px)); display: flex; flex-direction: column;
-    border-radius: 28px; background: hsl(var(--paper)); border: 1px solid var(--edge); box-shadow: var(--shadow-lift), 0 0 0 1px hsl(var(--border));
-    transform: translateX(calc(100% + 32px)); visibility: hidden; transition: transform .3s cubic-bezier(.22, 1, .36, 1), visibility 0s linear .3s; }
-  #peek.open { transform: none; visibility: visible; transition: transform .3s cubic-bezier(.22, 1, .36, 1), visibility 0s; }
-  .ph { display: flex; align-items: center; gap: 10px; padding: 16px 16px 0 20px; }
-  .ph .x { margin-left: auto; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; font-size: 20px; line-height: 1; color: hsl(var(--muted-fg)); }
-  .ph .x:hover { background: hsl(var(--muted)); color: hsl(var(--cocoa)); }
-  .ptitle { margin: 8px 20px 0; font-size: 18px; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+  .peekbtn:hover, .peekbtn[aria-expanded="true"] { background: var(--surface-3); color: var(--fg); }
+  .row.needs .peekbtn { color: var(--accent-text); }
+  #peek { position: fixed; top: 60px; right: 12px; bottom: 12px; z-index: 50; width: min(400px, calc(100vw - 24px)); display: flex; flex-direction: column;
+    border-radius: 28px; background: var(--surface-2); box-shadow: var(--elev-lg);
+    transform: translateX(calc(100% + 24px)); visibility: hidden; transition: transform var(--dur-base) var(--ease-out), visibility 0s linear var(--dur-base); }
+  #peek.open { transform: none; visibility: visible; transition: transform var(--dur-base) var(--ease-out), visibility 0s; }
+  .ph { display: flex; align-items: center; gap: 10px; padding: 16px 12px 0 20px; }
+  .ph .iconbtn { margin-left: auto; width: 32px; height: 32px; }
+  .ptitle { margin: 8px 20px 0; font-size: 18px; line-height: 26px; overflow-wrap: anywhere; }
   .pmeta { margin: 4px 20px 12px; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
-  .pbody { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 20px 16px; display: flex; flex-direction: column; gap: 14px; border-top: 1px solid hsl(var(--border)); padding-top: 14px; }
-  .plabel { margin: 0 0 6px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: hsl(var(--muted-fg)); display: flex; gap: 8px; }
-  .plabel .tab { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 500; }
-  .bubble { margin: 0; padding: 12px 14px; border-radius: 18px 18px 18px 6px; background: hsl(var(--cream)); font-size: 13.5px; line-height: 1.55;
-    white-space: pre-wrap; overflow-wrap: anywhere; }
-  .bubble.me { border-radius: 18px 18px 6px 18px; background: hsl(var(--sky) / .7); }
-  .bubble code { font-family: 'Pod Mono', ui-monospace, Menlo, monospace; font-size: 12px; padding: 1px 5px; border-radius: 6px; background: hsl(var(--muted)); }
-  .pnote { margin: 0; font-size: 13px; color: hsl(var(--muted-fg)); }
-  .pnote.err { color: hsl(var(--rose-deep)); }
-  .shimmer { height: 12px; border-radius: 6px; background: linear-gradient(90deg, hsl(var(--muted)) 0%, hsl(var(--cream)) 50%, hsl(var(--muted)) 100%);
+  .pbody { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 16px; border-top: 1px solid var(--border); }
+  .pbody section { display: grid; gap: 6px; }
+  .plabel { margin: 0; font-size: 12px; line-height: 16px; font-weight: 600; color: var(--fg-muted); display: flex; gap: 8px; }
+  .plabel .tab { margin-left: auto; font-weight: 500; color: var(--fg-subtle); }
+  .bubble { margin: 0; padding: 10px 14px; border-radius: 18px; background: var(--surface-3); font-size: 13px; line-height: 20px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .bubble.me { background: var(--bg); border: 1px solid var(--border); }
+  .bubble code { font-size: 12px; padding: 1px 6px; border-radius: 6px; background: var(--surface-2); }
+  .pnote { margin: 0; font-size: 13px; line-height: 20px; color: var(--fg-muted); }
+  .pnote.err { color: var(--danger); }
+  .shimmer { height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--surface-3) 0%, var(--surface-1) 50%, var(--surface-3) 100%);
     background-size: 200% 100%; animation: shimmer 1.2s linear infinite; }
   .shimmer.s2 { width: 86%; } .shimmer.s3 { width: 62%; }
   @keyframes shimmer { to { background-position: -200% 0; } }
-  .pfoot { display: flex; gap: 8px; padding: 12px 16px 16px; border-top: 1px solid hsl(var(--border)); }
-  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; padding: 0 16px; border-radius: 999px;
-    font-size: 13px; font-weight: 700; background: hsl(var(--muted)); box-shadow: var(--shadow-pressed); }
-  .btn:hover { background: var(--seg-hover); }
-  .btn.primary { flex: 1; background: hsl(var(--terracotta)); color: hsl(var(--on-accent)); box-shadow: var(--shadow-soft); }
-  .btn.primary:hover { filter: brightness(1.05); }
+  .pfoot { display: flex; gap: 8px; padding: 12px 20px 16px; border-top: 1px solid var(--border); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 16px; border-radius: 9999px; font-size: 14px; font-weight: 500;
+    background: var(--surface-2); border: 1px solid var(--border); box-shadow: var(--card-sh); transition: background-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out); }
+  .btn:hover { background: var(--surface-3); }
+  .btn:active { transform: scale(.97); }
+  .btn.primary { flex: 1; background: var(--accent); color: var(--accent-fg); border-color: transparent; box-shadow: var(--btn-sh); }
+  .btn.primary:hover { background: var(--accent-hover); box-shadow: var(--btn-sh-hover); }
   .btn[disabled] { opacity: .5; cursor: default; }
-  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; } }
 </style>
 </head>
 <body>
-<!-- Icons: Phosphor Icons, duotone weight, MIT (see THIRD-PARTY.md). -->
-<svg class="sprite" width="0" height="0" aria-hidden="true" fill="currentColor"><symbol id="i-hand" viewBox="0 0 256 256"><path d="M208,116v36a80,80,0,0,1-160,0V76a20,20,0,0,1,40,0V44a20,20,0,0,1,40,0V60a20,20,0,0,1,40,0v56a20,20,0,0,1,40,0Z" opacity="0.2"/><path d="M188,88a27.75,27.75,0,0,0-12,2.71V60a28,28,0,0,0-41.36-24.6A28,28,0,0,0,80,44v6.71A27.75,27.75,0,0,0,68,48,28,28,0,0,0,40,76v76a88,88,0,0,0,176,0V116A28,28,0,0,0,188,88Zm12,64a72,72,0,0,1-144,0V76a12,12,0,0,1,24,0v44a8,8,0,0,0,16,0V44a12,12,0,0,1,24,0v68a8,8,0,0,0,16,0V60a12,12,0,0,1,24,0v68.67A48.08,48.08,0,0,0,120,176a8,8,0,0,0,16,0,32,32,0,0,1,32-32,8,8,0,0,0,8-8V116a12,12,0,0,1,24,0Z"/></symbol><symbol id="i-bolt" viewBox="0 0 256 256"><path d="M96,240l16-80L48,136,160,16,144,96l64,24Z" opacity="0.2"/><path d="M215.79,118.17a8,8,0,0,0-5-5.66L153.18,90.9l14.66-73.33a8,8,0,0,0-13.69-7l-112,120a8,8,0,0,0,3,13l57.63,21.61L88.16,238.43a8,8,0,0,0,13.69,7l112-120A8,8,0,0,0,215.79,118.17ZM109.37,214l10.47-52.38a8,8,0,0,0-5-9.06L62,132.71l84.62-90.66L136.16,94.43a8,8,0,0,0,5,9.06l52.8,19.8Z"/></symbol><symbol id="i-coffee" viewBox="0 0 256 256"><path d="M208,88v48a88,88,0,0,1-51.3,80H83.3A88,88,0,0,1,32,136V88Z" opacity="0.2"/><path d="M80,56V24a8,8,0,0,1,16,0V56a8,8,0,0,1-16,0Zm40,8a8,8,0,0,0,8-8V24a8,8,0,0,0-16,0V56A8,8,0,0,0,120,64Zm32,0a8,8,0,0,0,8-8V24a8,8,0,0,0-16,0V56A8,8,0,0,0,152,64Zm96,56v8a40,40,0,0,1-37.51,39.91,96.59,96.59,0,0,1-27,40.09H208a8,8,0,0,1,0,16H32a8,8,0,0,1,0-16H56.54A96.3,96.3,0,0,1,24,136V88a8,8,0,0,1,8-8H208A40,40,0,0,1,248,120ZM200,96H40v40a80.27,80.27,0,0,0,45.12,72h69.76A80.27,80.27,0,0,0,200,136Zm32,24a24,24,0,0,0-16-22.62V136a95.78,95.78,0,0,1-1.2,15A24,24,0,0,0,232,128Z"/></symbol><symbol id="i-moon" viewBox="0 0 256 256"><path d="M210.69,158.18A88,88,0,1,1,97.82,45.31,96.08,96.08,0,0,0,192,160,96.78,96.78,0,0,0,210.69,158.18Z" opacity="0.2"/><path d="M240,96a8,8,0,0,1-8,8H216v16a8,8,0,0,1-16,0V104H184a8,8,0,0,1,0-16h16V72a8,8,0,0,1,16,0V88h16A8,8,0,0,1,240,96ZM144,56h8v8a8,8,0,0,0,16,0V56h8a8,8,0,0,0,0-16h-8V32a8,8,0,0,0-16,0v8h-8a8,8,0,0,0,0,16Zm72.77,97a8,8,0,0,1,1.43,8A96,96,0,1,1,95.07,37.8a8,8,0,0,1,10.6,9.06A88.07,88.07,0,0,0,209.14,150.33,8,8,0,0,1,216.77,153Zm-19.39,14.88c-1.79.09-3.59.14-5.38.14A104.11,104.11,0,0,1,88,64c0-1.79,0-3.59.14-5.38A80,80,0,1,0,197.38,167.86Z"/></symbol><symbol id="i-house" viewBox="0 0 256 256"><path d="M216,120v96H152V152H104v64H40V120a8,8,0,0,1,2.34-5.66l80-80a8,8,0,0,1,11.32,0l80,80A8,8,0,0,1,216,120Z" opacity="0.2"/><path d="M219.31,108.68l-80-80a16,16,0,0,0-22.62,0l-80,80A15.87,15.87,0,0,0,32,120v96a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V160h32v56a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V120A15.87,15.87,0,0,0,219.31,108.68ZM208,208H160V152a8,8,0,0,0-8-8H104a8,8,0,0,0-8,8v56H48V120l80-80,80,80Z"/></symbol><symbol id="i-folder" viewBox="0 0 256 256"><path d="M128,80H32V56a8,8,0,0,1,8-8H92.69a8,8,0,0,1,5.65,2.34Z" opacity="0.2"/><path d="M216,72H131.31L104,44.69A15.86,15.86,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200.62A15.4,15.4,0,0,0,39.38,216H216.89A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72ZM92.69,56l16,16H40V56ZM216,200H40V88H216Z"/></symbol><symbol id="i-warn" viewBox="0 0 256 256"><path d="M224,128a96,96,0,1,1-96-96A96,96,0,0,1,224,128Z" opacity="0.2"/><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm-8-80V80a8,8,0,0,1,16,0v56a8,8,0,0,1-16,0Zm20,36a12,12,0,1,1-12-12A12,12,0,0,1,140,172Z"/></symbol><symbol id="i-sun" viewBox="0 0 256 256"><path d="M184,128a56,56,0,1,1-56-56A56,56,0,0,1,184,128Z" opacity="0.2"/><path d="M120,40V16a8,8,0,0,1,16,0V40a8,8,0,0,1-16,0Zm72,88a64,64,0,1,1-64-64A64.07,64.07,0,0,1,192,128Zm-16,0a48,48,0,1,0-48,48A48.05,48.05,0,0,0,176,128ZM58.34,69.66A8,8,0,0,0,69.66,58.34l-16-16A8,8,0,0,0,42.34,53.66Zm0,116.68-16,16a8,8,0,0,0,11.32,11.32l16-16a8,8,0,0,0-11.32-11.32ZM192,72a8,8,0,0,0,5.66-2.34l16-16a8,8,0,0,0-11.32-11.32l-16,16A8,8,0,0,0,192,72Zm5.66,114.34a8,8,0,0,0-11.32,11.32l16,16a8,8,0,0,0,11.32-11.32ZM48,128a8,8,0,0,0-8-8H16a8,8,0,0,0,0,16H40A8,8,0,0,0,48,128Zm80,80a8,8,0,0,0-8,8v24a8,8,0,0,0,16,0V216A8,8,0,0,0,128,208Zm112-88H216a8,8,0,0,0,0,16h24a8,8,0,0,0,0-16Z"/></symbol><symbol id="i-night" viewBox="0 0 256 256"><path d="M227.89,147.89A96,96,0,1,1,108.11,28.11,96.09,96.09,0,0,0,227.89,147.89Z" opacity="0.2"/><path d="M233.54,142.23a8,8,0,0,0-8-2,88.08,88.08,0,0,1-109.8-109.8,8,8,0,0,0-10-10,104.84,104.84,0,0,0-52.91,37A104,104,0,0,0,136,224a103.09,103.09,0,0,0,62.52-20.88,104.84,104.84,0,0,0,37-52.91A8,8,0,0,0,233.54,142.23ZM188.9,190.34A88,88,0,0,1,65.66,67.11a89,89,0,0,1,31.4-26A106,106,0,0,0,96,56,104.11,104.11,0,0,0,200,160a106,106,0,0,0,14.92-1.06A89,89,0,0,1,188.9,190.34Z"/></symbol><symbol id="i-pause" viewBox="0 0 256 256"><path d="M208,48V208a8,8,0,0,1-8,8H160a8,8,0,0,1-8-8V48a8,8,0,0,1,8-8h40A8,8,0,0,1,208,48ZM96,40H56a8,8,0,0,0-8,8V208a8,8,0,0,0,8,8H96a8,8,0,0,0,8-8V48A8,8,0,0,0,96,40Z" opacity="0.2"/><path d="M200,32H160a16,16,0,0,0-16,16V208a16,16,0,0,0,16,16h40a16,16,0,0,0,16-16V48A16,16,0,0,0,200,32Zm0,176H160V48h40ZM96,32H56A16,16,0,0,0,40,48V208a16,16,0,0,0,16,16H96a16,16,0,0,0,16-16V48A16,16,0,0,0,96,32Zm0,176H56V48H96Z"/></symbol><symbol id="i-play" viewBox="0 0 256 256"><path d="M228.23,134.69,84.15,222.81A8,8,0,0,1,72,216.12V39.88a8,8,0,0,1,12.15-6.69l144.08,88.12A7.82,7.82,0,0,1,228.23,134.69Z" opacity="0.2"/><path d="M232.4,114.49,88.32,26.35a16,16,0,0,0-16.2-.3A15.86,15.86,0,0,0,64,39.87V216.13A15.94,15.94,0,0,0,80,232a16.07,16.07,0,0,0,8.36-2.35L232.4,141.51a15.81,15.81,0,0,0,0-27ZM80,215.94V40l143.83,88Z"/></symbol><symbol id="i-board" viewBox="0 0 256 256"><path d="M216,56v64H160V56ZM40,208a8,8,0,0,0,8,8H88a8,8,0,0,0,8-8V120H40Z" opacity="0.2"/><path d="M216,48H40a8,8,0,0,0-8,8V208a16,16,0,0,0,16,16H88a16,16,0,0,0,16-16V160h48v16a16,16,0,0,0,16,16h40a16,16,0,0,0,16-16V56A8,8,0,0,0,216,48Zm-8,64H168V64h40ZM88,64v48H48V64Zm0,144H48V128H88Zm16-64V64h48v80Zm64,32V128h40v48Z"/></symbol><symbol id="i-list" viewBox="0 0 256 256"><path d="M216,152v40a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V152a8,8,0,0,1,8-8H208A8,8,0,0,1,216,152Zm-8-96H48a8,8,0,0,0-8,8v40a8,8,0,0,0,8,8H208a8,8,0,0,0,8-8V64A8,8,0,0,0,208,56Z" opacity="0.2"/><path d="M208,136H48a16,16,0,0,0-16,16v40a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V152A16,16,0,0,0,208,136Zm0,56H48V152H208v40Zm0-144H48A16,16,0,0,0,32,64v40a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V64A16,16,0,0,0,208,48Zm0,56H48V64H208v40Z"/></symbol><symbol id="i-refresh" viewBox="0 0 256 256"><path d="M216,128a88,88,0,1,1-88-88A88,88,0,0,1,216,128Z" opacity="0.2"/><path d="M240,56v48a8,8,0,0,1-8,8H184a8,8,0,0,1,0-16H211.4L184.81,71.64l-.25-.24a80,80,0,1,0-1.67,114.78,8,8,0,0,1,11,11.63A95.44,95.44,0,0,1,128,224h-1.32A96,96,0,1,1,195.75,60L224,85.8V56a8,8,0,1,1,16,0Z"/></symbol><symbol id="i-r-refresh" viewBox="0 0 256 256"><path d="M224,48V96a8,8,0,0,1-8,8H168a8,8,0,0,1,0-16h28.69L182.06,73.37a79.56,79.56,0,0,0-56.13-23.43h-.45A79.52,79.52,0,0,0,69.59,72.71,8,8,0,0,1,58.41,61.27a96,96,0,0,1,135,.79L208,76.69V48a8,8,0,0,1,16,0ZM186.41,183.29a80,80,0,0,1-112.47-.66L59.31,168H88a8,8,0,0,0,0-16H40a8,8,0,0,0-8,8v48a8,8,0,0,0,16,0V179.31l14.63,14.63A95.43,95.43,0,0,0,130,222.06h.53a95.36,95.36,0,0,0,67.07-27.33,8,8,0,0,0-11.18-11.44Z"/></symbol><symbol id="i-r-sun" viewBox="0 0 256 256"><path d="M120,40V16a8,8,0,0,1,16,0V40a8,8,0,0,1-16,0Zm72,88a64,64,0,1,1-64-64A64.07,64.07,0,0,1,192,128Zm-16,0a48,48,0,1,0-48,48A48.05,48.05,0,0,0,176,128ZM58.34,69.66A8,8,0,0,0,69.66,58.34l-16-16A8,8,0,0,0,42.34,53.66Zm0,116.68-16,16a8,8,0,0,0,11.32,11.32l16-16a8,8,0,0,0-11.32-11.32ZM192,72a8,8,0,0,0,5.66-2.34l16-16a8,8,0,0,0-11.32-11.32l-16,16A8,8,0,0,0,192,72Zm5.66,114.34a8,8,0,0,0-11.32,11.32l16,16a8,8,0,0,0,11.32-11.32ZM48,128a8,8,0,0,0-8-8H16a8,8,0,0,0,0,16H40A8,8,0,0,0,48,128Zm80,80a8,8,0,0,0-8,8v24a8,8,0,0,0,16,0V216A8,8,0,0,0,128,208Zm112-88H216a8,8,0,0,0,0,16h24a8,8,0,0,0,0-16Z"/></symbol><symbol id="i-r-moon" viewBox="0 0 256 256"><path d="M233.54,142.23a8,8,0,0,0-8-2,88.08,88.08,0,0,1-109.8-109.8,8,8,0,0,0-10-10,104.84,104.84,0,0,0-52.91,37A104,104,0,0,0,136,224a103.09,103.09,0,0,0,62.52-20.88,104.84,104.84,0,0,0,37-52.91A8,8,0,0,0,233.54,142.23ZM188.9,190.34A88,88,0,0,1,65.66,67.11a89,89,0,0,1,31.4-26A106,106,0,0,0,96,56,104.11,104.11,0,0,0,200,160a106,106,0,0,0,14.92-1.06A89,89,0,0,1,188.9,190.34Z"/></symbol><symbol id="i-r-system" viewBox="0 0 256 256"><path d="M208,40H48A24,24,0,0,0,24,64V176a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V64A24,24,0,0,0,208,40Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V64a8,8,0,0,1,8-8H208a8,8,0,0,1,8,8Zm-48,48a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,224Z"/></symbol><symbol id="i-r-peek" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.5a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H11l-4.5 4v-4a2 2 0 0 1-2-2z"/><circle cx="8.6" cy="9.6" r=".7" fill="currentColor"/><circle cx="12" cy="9.6" r=".7" fill="currentColor"/><circle cx="15.4" cy="9.6" r=".7" fill="currentColor"/></symbol><symbol id="i-r-sidebar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M9.5 4.5v15"/><path d="M5.8 8.5h1.6M5.8 11h1.6"/></symbol></svg>
+<!-- Icons: Lucide, ISC licence (see THIRD-PARTY.md). Stroke 1.75, drawn at 12, 14 or 16 px. -->
+<svg class="sprite" width="0" height="0" aria-hidden="true"><symbol id="i-hand" viewBox="0 0 24 24"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></symbol><symbol id="i-loader" viewBox="0 0 24 24"><path d="M12 2v4"/><path d="m16.2 7.8 2.9-2.9"/><path d="M18 12h4"/><path d="m16.2 16.2 2.9 2.9"/><path d="M12 18v4"/><path d="m4.9 19.1 2.9-2.9"/><path d="M2 12h4"/><path d="m4.9 4.9 2.9 2.9"/></symbol><symbol id="i-coffee" viewBox="0 0 24 24"><path d="M10 2v2"/><path d="M14 2v2"/><path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"/><path d="M6 2v2"/></symbol><symbol id="i-moon-star" viewBox="0 0 24 24"><path d="M18 5h4"/><path d="M20 3v4"/><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></symbol><symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></symbol><symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol><symbol id="i-monitor" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></symbol><symbol id="i-house" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol><symbol id="i-layout-grid" viewBox="0 0 24 24"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></symbol><symbol id="i-list" viewBox="0 0 24 24"><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/></symbol><symbol id="i-message-square" viewBox="0 0 24 24"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/></symbol><symbol id="i-refresh-cw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol><symbol id="i-pause" viewBox="0 0 24 24"><rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/></symbol><symbol id="i-play" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></symbol><symbol id="i-panel-left" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></symbol><symbol id="i-triangle-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol><symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol></svg>
+<header class="titlebar" data-tauri-drag-region="deep">
+  <button type="button" class="iconbtn sm" id="sidebar" aria-controls="side" aria-expanded="true"></button>
+  <svg class="pod-logo" viewBox="64 64 896 896" aria-hidden="true"><rect class="tile" x="64" y="64" width="896" height="896" rx="200"/><path class="body" d="M280 470 L312 262 L440 392 Z M744 470 L712 262 L584 392 Z" stroke-width="34" stroke-linejoin="round"/><rect class="body" x="212" y="360" width="600" height="380" rx="190"/><rect class="eye" x="378" y="520" width="84" height="56" rx="28"/><rect class="eye" x="562" y="520" width="84" height="56" rx="28"/><rect x="322" y="800" width="104" height="36" rx="18" fill="#EB7D4C"/><rect x="460" y="800" width="104" height="36" rx="18" fill="#8FB3DE"/><rect x="598" y="800" width="104" height="36" rx="18" fill="#4E6E58"/></svg>
+  <p class="crumb" id="crumb">Pod Board › <b>Overview</b></p>
+</header>
 <div class="shell">
   <aside class="side" id="side" aria-label="Navigation">
-    <div class="brand"><span class="logo" id="logo" aria-hidden="true"></span><div><b>Pod Board</b><small>Session control room</small></div></div>
     <nav class="nav" id="nav" aria-label="Sections"><span class="thumb" id="thumb"></span></nav>
-    <div class="status">
-      <span id="conn" data-s="wait"><i></i><span id="connText">Reading Pod Bay…</span></span>
-      <span id="read" class="tab"></span>
+    <div class="sstat">
+      <span id="conn" data-s="wait" role="status"><i></i><span id="connText">Reading Pod Bay…</span></span>
+      <span class="l2"><span id="read" class="tab"></span><button id="pause" type="button" aria-pressed="false" title="Pause updates"></button></span>
       <span id="dnd" class="dnd" hidden><span id="dndText"></span><button id="dndEnd" type="button">End</button></span>
-      <button id="pause" class="pill-btn ghost" type="button" aria-pressed="false" title="Pause updates"></button>
     </div>
-  </aside>
-  <main>
-    <header class="top">
-      <div class="seg solo lead"><button type="button" id="sidebar" aria-controls="side" aria-expanded="true"></button></div>
-      <p class="crumb" id="crumb">Pod Board</p>
-      <div class="seg solo"><button type="button" id="refresh" aria-label="Refresh now" title="Read Pod Bay now"></button></div>
-      <div class="seg" role="group" aria-label="Layout">
-        <button type="button" id="lay-board" aria-pressed="true" title="Board: one lane per state"></button>
-        <button type="button" id="lay-list" aria-pressed="false" title="List: one row per session"></button>
-      </div>
+    <div class="side-foot">
       <div class="seg icons" role="group" aria-label="Theme">
         <button type="button" id="th-light" aria-pressed="false" title="Light" aria-label="Light theme"></button>
         <button type="button" id="th-dark" aria-pressed="false" title="Dark" aria-label="Dark theme"></button>
         <button type="button" id="th-system" aria-pressed="false" title="Follow the system" aria-label="Follow the system theme"></button>
       </div>
+    </div>
+  </aside>
+  <main>
+    <header class="page-h">
+      <h1 id="title">Overview</h1>
+      <span id="titleState"></span>
+      <button type="button" class="iconbtn" id="refresh" aria-label="Refresh now" title="Read Pod Bay now"></button>
+      <div class="seg" role="group" aria-label="Layout">
+        <button type="button" id="lay-board" aria-pressed="true" title="Board: one lane per state"></button>
+        <button type="button" id="lay-list" aria-pressed="false" title="List: one row per session"></button>
+      </div>
     </header>
     <div id="banner" role="alert"></div>
     <p id="say" class="sr" role="status" aria-live="polite"></p>
-    <section id="view"></section>
+    <section class="summary" id="summary" hidden>
 <!-- Pod Board's own cat, drawn for this app (no artwork from any other project): a black silhouette with glowing
-     eyes. Its pose follows the board: needs = waves a paw, busy = types, idle = sleeps. Decorative only; the summary
-     row says the same in words. -->
-<div id="cat" class="cat idle" aria-hidden="true">
+     eyes, in the logo's colours. Decorative only; the summary row says the same in words. -->
+      <span class="mascot" aria-hidden="true"><span id="cat" class="cat idle">
   <svg viewBox="0 0 80 80">
     <ellipse class="screen-glow" cx="40" cy="40" rx="26" ry="16"/>
     <g class="breathe">
@@ -367,13 +377,13 @@
     <g class="laptop">
       <path class="lid" d="M18 72 L62 72 L58 54 L22 54 Z"/>
       <rect class="lamp" x="34" y="60" width="12" height="2" rx="1"/>
-      <!-- The paws rest on the grey laptop, so each lift shows against it rather than against the black body. -->
+      <!-- The paws rest on the laptop, so each lift shows against it rather than against the dark body. -->
       <ellipse class="s tap-l" cx="31" cy="59" rx="5" ry="3.3"/>
       <ellipse class="s tap-r" cx="49" cy="59" rx="5" ry="3.3"/>
       <g class="sparks"><text x="16" y="56">{</text><text x="37" y="52">·</text><text x="59" y="56">}</text><text x="44" y="53">_</text></g>
     </g>
-    <!-- The arm stands a little clear of the head, and a cushion-coloured edge runs under it, so the raised paw
-         reads as its own shape even where black meets black on the dark theme. -->
+    <!-- The arm stands a little clear of the head, and a tile-coloured edge runs under it, so the raised paw
+         reads as its own shape where dark meets dark. -->
     <g class="wave">
       <path class="arm-gap" d="M52 57 Q64 48 67 33"/><circle class="paw-gap" cx="67.5" cy="30" r="6.8"/>
       <path class="arm" d="M52 57 Q64 48 67 33"/><circle class="s" cx="67.5" cy="30" r="5"/>
@@ -381,12 +391,15 @@
     <g class="zzz"><text x="58" y="18">z</text><text x="65" y="10">z</text></g>
     <g class="bang"><circle cx="70" cy="10" r="6"/><text x="70" y="13.2">!</text></g>
   </svg>
-</div>
-
+      </span></span>
+      <div class="words"><h2 id="sumText"></h2><p id="sumSub"></p></div>
+      <div class="counts" id="counts"></div>
+    </section>
+    <section id="view"></section>
   </main>
 </div>
 <aside id="peek" aria-label="Session peek" aria-hidden="true">
-  <div class="ph"><span id="peekPill"></span><button type="button" class="x" id="peekClose" aria-label="Close the peek" title="Close (Esc)">×</button></div>
+  <div class="ph"><span id="peekPill"></span><button type="button" class="iconbtn" id="peekClose" aria-label="Close the peek" title="Close (Esc)"></button></div>
   <h2 class="ptitle" id="peekTitle"></h2>
   <div class="pmeta" id="peekMeta"></div>
   <div class="pbody" id="peekBody" tabindex="-1"></div>
@@ -397,7 +410,11 @@
 // Read-only view of Pod Bay sessions. Data: the `pods` event and the `snapshot` command of the app.
 // No prompts, replies or paths. Every value goes through textContent.
 const STALE_MS = 20000, HOLD_MS = 4000;
-const STATES = { needs: ['Needs you', 'hand', 'rose'], busy: ['Working', 'bolt', 'sky'], idle: ['Idle', 'coffee', 'sage'], stopped: ['Stopped', 'moon', 'butter'] };
+// One meaning, one icon (Lucide names). The loader spins wherever it shows.
+const STATES = { needs: ['Needs you', 'hand'], busy: ['Working', 'loader'], idle: ['Idle', 'coffee'], stopped: ['Stopped', 'moon-star'] };
+// macOS: the window buttons sit on the page's title bar. Elsewhere the app keeps the system's title bar, so the page hides its own.
+if (/Mac/.test(navigator.userAgent)) document.documentElement.classList.add('mac');
+else if (window.__TAURI__) document.documentElement.classList.add('native-tb');
 // One icon from the sprite at the top of the page.
 function ic(id) {
   const NS = 'http://www.w3.org/2000/svg';
@@ -424,6 +441,7 @@ function ago(since) {
   if (a < 86400) return rtf.format(Math.round(s / 3600), 'hour');
   return rtf.format(Math.round(s / 86400), 'day');
 }
+// State pill: soft fill, icon and word.
 function pill(state) {
   const p = el('span', `pill ${state}`);
   p.append(ic(STATES[state][1]), STATES[state][0]);
@@ -438,6 +456,7 @@ const prev = new Map();
 const shown = () => snap.sessions.filter(s => !machine || s.machine === machine);
 const stoppedShown = () => snap.stopped.filter(w => !machine || w.machine === machine);
 
+// SessionCard. `big` is the wide card of a state page: always the text, more links.
 function row(s, big) {
   const key = `${s.machine}|${s.title}`;
   const li = el('li', `row ${s.state}`); li.dataset.key = key;
@@ -448,10 +467,10 @@ function row(s, big) {
   const pb = peekButton(s); if (pb) top.append(pb);
   li.append(top);
   if (s.state !== 'idle' || big) li.append(s.what ? el('p', 'what', s.what) : el('p', 'what fallback', s.branch ? `branch ${s.branch}` : 'no description'));
-  const meta = el('p', 'meta mono'); meta.append(el('span', null, `${s.project}/${s.ws} · ${s.machine}`));
-  if (big && s.prs && !(s.links || []).some(l => l.kind === 'pr')) meta.append(el('span', null, `· ${s.prs} PR`));
+  const meta = el('p', 'meta'); meta.append(el('span', 'where', `${s.project}/${s.ws} · ${s.machine}`));
+  if (big && s.prs && !(s.links || []).some(l => l.kind === 'pr')) meta.append(el('span', 'where', `· ${s.prs} PR`));
   if (s.waiting) meta.append(el('span', 'tag wait', s.waiting));
-  if (s.finished) { li.classList.add('done'); meta.append(doneTag(s)); }
+  if (s.finished) meta.append(doneTag(s));
   if (s.queued) meta.append(el('span', 'tag', `${s.queued} queued`));
   li.append(meta);
   const lk = links(s, big ? 8 : 3); if (lk) li.append(lk);
@@ -465,7 +484,7 @@ function doneTag(s) {
   return t;
 }
 
-// What a link is called on a card: "PR #266", "Issue #7", or an artifact's own title.
+// What a link is called on a card: a pull request or an issue by its number, or an artifact by its own title.
 function linkLabel(l) {
   const n = /#(\d+)$/.exec(l.title || '');
   if (l.kind === 'pr') return n ? `PR #${n[1]}` : 'PR';
@@ -485,30 +504,29 @@ function links(s, limit) {
     b.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation(); });
     box.append(b);
   }
-  if (list.length > limit) { const m = el('span', 'lk more', `+${list.length - limit}`); m.title = 'More links on the session\u2019s own page'; box.append(m); }
+  if (list.length > limit) { const m = el('span', 'lk more', `+${list.length - limit}`); m.title = 'More links on the session’s own page'; box.append(m); }
   return box;
 }
 
 function lane(state, list, limit) {
-  const box = el('section', `card lane tone-${STATES[state][2]}${state === 'idle' ? ' compact' : ''}`);
-  const h = el('h2'); h.append(pill(state), el('span', 'n tab', String(list.length))); box.append(h);
+  const box = el('section', `lane ${state}`);
+  const h = el('h2', 'lane-h'); h.append(pill(state), el('span', 'n tab', String(list.length))); box.append(h);
   if (!list.length) box.append(el('p', 'none', 'No sessions.'));
   const ul = el('ul'); for (const s of list.slice(0, limit)) ul.append(row(s, false)); box.append(ul);
   if (list.length > limit) { const b = el('button', 'more', `Show all ${list.length}`); b.type = 'button'; b.addEventListener('click', () => go(state)); box.append(b); }
   return box;
 }
 
-// One slim row: a small mascot, one sentence, and the other counts as quiet buttons.
+// The summary row (on every page): the cat, one sentence, and the other counts as quiet buttons.
 function summary(list) {
   const c = { needs: 0, busy: 0, idle: 0, stopped: stoppedShown().length }; for (const s of list) c[s.state]++;
-  let face = 'coffee', tone = 'idle', text = 'Nobody needs you.', sub = '';
-  if (!snap.ok) { face = 'warn'; tone = 'needs'; text = 'Cannot read Pod Bay.'; sub = 'Showing the last data that was read.'; }
+  let text = 'Nobody needs you.', sub = '';
+  if (!snap.ok) { text = 'Cannot read Pod Bay.'; sub = 'Showing the last data that was read.'; }
   else if (c.needs) {
     const top = list.find(s => s.state === 'needs');
-    face = 'hand'; tone = 'needs'; text = `${c.needs} ${c.needs === 1 ? 'session needs' : 'sessions need'} you`; sub = `Longest wait: ${top.title} · ${dur(top.since)}`;
+    text = `${c.needs} ${c.needs === 1 ? 'session needs' : 'sessions need'} you`; sub = `Longest wait: ${top.title} · ${dur(top.since)}`;
   } else {
     const done = list.filter(s => s.finished);
-    if (c.busy) { face = 'bolt'; tone = 'busy'; }
     if (done.length) {
       text = `Nobody needs you. ${done.length} ${done.length === 1 ? 'session' : 'sessions'} finished.`;
       // The time sits in its own span with data-ago, so the 30 s tick keeps it current between redraws.
@@ -516,28 +534,25 @@ function summary(list) {
       sub = [`Latest: ${done[0].title} · `, t];
     }
   }
-  $('logo').replaceChildren(ic(face));
-  const box = el('section', `card summary${snap.ok && c.needs ? ' hot' : ''}`);
-  const m = el('span', `mascot ${tone}`); m.append(ic(face));
-  const words = el('div', 'words'); words.append(el('h1', null, text)); if (sub) { const p = el('p'); p.append(...[].concat(sub)); words.append(p); }
-  const counts = el('div', 'counts');
+  $('sumText').textContent = text;
+  $('sumSub').replaceChildren(...[].concat(sub));
+  const counts = $('counts'); counts.textContent = '';
   for (const state of ['busy', 'idle', 'stopped']) {
     const b = el('button', 'count'); b.type = 'button'; b.addEventListener('click', () => go(state));
     b.append(el('b', 'tab', String(c[state])), ` ${STATES[state][0].toLowerCase()}`);
     counts.append(b);
   }
-  box.append(m, words, counts);
-  return box;
+  $('summary').hidden = false;
 }
 
 function stoppedStrip() {
   const list = stoppedShown(), off = snap.machines.filter(m => !m.online && (!machine || m.name === machine));
   if (!list.length && !off.length) return null;
-  const box = el('section', 'card strip chips');
+  const box = el('section', 'strip');
   box.append(pill('stopped'), el('b', 'tab', String(list.length)));
-  for (const w of list) box.append(el('span', 'chip mono', `${w.project}/${w.ws}·${w.machine}${w.dirty ? ' ✎' : ''}`));
+  for (const w of list) box.append(el('span', 'chip', `${w.project}/${w.ws} · ${w.machine}${w.dirty ? ' ✎' : ''}`));
   for (const m of off) {
-    const c = el('span', 'chip off mono', m.key_stale ? `${m.name} offline · password out of date` : `${m.name} offline`);
+    const c = el('span', 'chip off', m.key_stale ? `${m.name} offline · password out of date` : `${m.name} offline`);
     if (m.key_stale) c.title = `Pod Bay on this computer holds an old password for ${m.name}, so it cannot reach it. Sign in to Pod Bay again on one of the two machines.`;
     box.append(c);
   }
@@ -566,7 +581,7 @@ function peekButton(s) {
   const b = el('button', 'peekbtn'); b.type = 'button';
   b.setAttribute('aria-label', `Peek at ${s.title}`); b.title = 'Peek: last reply and prompt';
   b.setAttribute('aria-expanded', String(!!peekOf && peekOf.machine === s.machine && peekOf.name === s.name));
-  b.append(ic('r-peek'));
+  b.append(ic('message-square'));
   // The card itself opens the session; the button only opens the peek.
   b.addEventListener('click', e => { e.stopPropagation(); openPeek(s, b); });
   b.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation(); });
@@ -590,9 +605,9 @@ function drawPeekHead() {
   $('peekPill').replaceChildren(pill(s.state));
   $('peekTitle').textContent = s.title;
   const meta = $('peekMeta'); meta.textContent = '';
-  meta.append(el('span', 'mono', `${s.project}/${s.ws} · ${s.machine}`));
+  meta.append(el('span', 'where', `${s.project}/${s.ws} · ${s.machine}`));
   if (s.waiting) meta.append(el('span', 'tag wait', s.waiting));
-  if (s.state !== 'idle' && s.since) meta.append(el('span', 'mono', `· ${dur(s.since)}`));
+  if (s.state !== 'idle' && s.since) meta.append(el('span', 'where', `· ${dur(s.since)}`));
   const open = $('peekOpen'); open.disabled = !s.rc_id; open.title = s.rc_id ? `Open ${s.title} in the Claude app` : 'This session has no Remote Control link';
 }
 
@@ -656,6 +671,7 @@ function markPeekButtons() {
   for (const b of document.querySelectorAll('.peekbtn')) b.setAttribute('aria-expanded', 'false');
 }
 
+$('peekClose').append(ic('x'));
 $('peekClose').addEventListener('click', closePeek);
 $('peekAgain').addEventListener('click', () => { if (peekOf) readPeek(peekOf, true); });
 $('peekOpen').addEventListener('click', () => {
@@ -663,12 +679,12 @@ $('peekOpen').addEventListener('click', () => {
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && peekOf) closePeek(); });
 
-// Collapse or expand the sidebar with the top-left button or ⌘B (Ctrl+B elsewhere). The choice is remembered.
+// Collapse or expand the sidebar with the title bar button or ⌘B (Ctrl+B elsewhere). The choice is remembered.
 let collapsed = false;
 try { collapsed = localStorage.getItem('pod-board-sidebar') === 'collapsed'; } catch (e) { /* no storage */ }
 function drawSidebar() {
   document.querySelector('.shell').classList.toggle('collapsed', collapsed);
-  const b = $('sidebar'); b.replaceChildren(ic('r-sidebar'));
+  const b = $('sidebar'); b.replaceChildren(ic('panel-left'));
   b.setAttribute('aria-expanded', String(!collapsed));
   const label = collapsed ? 'Expand the sidebar' : 'Collapse the sidebar';
   b.setAttribute('aria-label', label); b.title = `${label} (⌘B)`;
@@ -682,8 +698,6 @@ $('sidebar').addEventListener('click', toggleSidebar);
 document.addEventListener('keydown', e => {
   if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'b') { e.preventDefault(); toggleSidebar(); }
 });
-// The highlight behind the current page is placed from the items' sizes: place it again once the width has settled.
-document.querySelector('.shell').addEventListener('transitionend', e => { if (e.propertyName === 'grid-template-columns') nav(); });
 drawSidebar();
 
 function listRow(s) {
@@ -691,13 +705,13 @@ function listRow(s) {
   const r = el('div', `lrow ${s.state}`); r.dataset.key = key;
   if (!first && prev.has(key) && prev.get(key) !== s.state) r.classList.add('flash');
   const ti = el('span', 'lt'); const si = el('span', `sic ${s.state}`); si.append(ic(STATES[s.state][1])); ti.append(si, el('span', null, s.title));
-  const pb = peekButton(s); if (pb) { pb.style.marginLeft = 'auto'; ti.append(pb); }
+  const pb = peekButton(s); if (pb) ti.append(pb);
   // The text is cut with an ellipsis; the links after it always stay whole.
   const what = el('span', s.what ? 'lw' : 'lw fallback'); what.append(el('span', 'txt', s.what || (s.branch ? `branch ${s.branch}` : 'no description')));
-  const where = el('span', 'lp mono', `${s.project}/${s.ws} · ${s.machine}`);
-  if (s.waiting) where.append(' ', el('span', 'tag wait', s.waiting));
-  if (s.finished) where.append(' ', doneTag(s));
-  if (s.queued) where.append(' ', el('span', 'tag', `${s.queued} queued`));
+  const where = el('span', 'lp'); where.append(el('span', 'place', `${s.project}/${s.ws} · ${s.machine}`));
+  if (s.waiting) where.append(el('span', 'tag wait', s.waiting));
+  if (s.finished) where.append(doneTag(s));
+  if (s.queued) where.append(el('span', 'tag', `${s.queued} queued`));
   const lk = links(s, 2); if (lk) what.append(lk);
   const when = s.state === 'idle' ? el('span', 'lc tab', ago(s.since)) : el('span', 'lc wait tab', dur(s.since));
   if (s.state === 'idle') when.dataset.ago = s.since || ''; else when.dataset.since = s.since || '';
@@ -707,7 +721,7 @@ function listRow(s) {
 
 // One card holding every session, grouped by state when it shows more than one state.
 function listView(list, grouped) {
-  const box = el('section', 'card list');
+  const box = el('section', 'list');
   if (!list.length) { box.append(el('p', 'none', 'No sessions.')); return box; }
   for (const state of ['needs', 'busy', 'idle']) {
     const these = list.filter(s => s.state === state);
@@ -721,8 +735,8 @@ function listView(list, grouped) {
 function render() {
   const v = $('view'); v.textContent = '';
   const list = shown();
+  summary(list);
   if (view === 'home') {
-    v.append(summary(list));
     if (layout === 'list') v.append(listView(list, true));
     else {
       const lanes = el('div', 'lanes');
@@ -731,16 +745,12 @@ function render() {
     }
     const strip = stoppedStrip(); if (strip) v.append(strip);
   } else if (view === 'stopped') {
-    summary(list);
-    const h = el('div', 'page-h'); h.append(el('h1', null, 'Stopped'), pill('stopped')); v.append(h);
     v.append(stoppedStrip() || el('p', 'none', 'No stopped workspaces.'));
   } else {
-    summary(list);
     const these = list.filter(s => s.state === view);
-    const h = el('div', 'page-h'); h.append(el('h1', null, STATES[view][0]), pill(view), el('b', 'tab', String(these.length))); v.append(h);
     if (!these.length) v.append(el('p', 'none', 'No sessions.'));
     if (these.length && layout === 'list') v.append(listView(these, false));
-    else { const ul = el('ul', 'wide'); for (const s of these) ul.append(row(s, true)); v.append(ul); }
+    else if (these.length) { const ul = el('ul', 'wide'); for (const s of these) ul.append(row(s, true)); v.append(ul); }
   }
   const key = `${view}|${machine}|${layout}`;
   if (key !== lastView) { lastView = key; v.classList.remove('enter'); void v.offsetWidth; v.classList.add('enter'); }
@@ -792,23 +802,24 @@ function nav() {
     }
   }
   if (machine) {
-    const clear = el('button', 'item sub clear', 'Clear filter'); clear.type = 'button';
+    const clear = el('button', 'item sub clear'); clear.type = 'button'; clear.title = 'Clear the machine filter'; clear.setAttribute('aria-label', 'Clear filter');
+    const x = el('span', 'ico'); x.append(ic('x')); clear.append(x, el('span', 'lbl', 'Clear filter'));
     clear.addEventListener('click', () => { machine = null; render(); bar(); });
     box.append(clear);
   }
   box.scrollTop = keep; // a redraw every few seconds must not jump the list back to the top
   fadeNav();
   const cur = box.querySelector('[aria-current="page"]');
-  if (cur) { thumb.style.transform = `translate(${cur.offsetLeft}px, ${cur.offsetTop}px)`; thumb.style.height = `${cur.offsetHeight}px`; thumb.style.width = `${cur.offsetWidth}px`; thumb.style.right = 'auto'; }
+  if (cur) { thumb.style.transform = `translate(${cur.offsetLeft}px, ${cur.offsetTop}px)`; thumb.style.height = `${cur.offsetHeight}px`; thumb.style.width = `${cur.offsetWidth}px`; }
 }
 
 function fadeNav() {
   const n = $('nav');
-  n.classList.toggle('more', n.scrollHeight - n.clientHeight - n.scrollTop > 4);
+  n.classList.toggle('fade', n.scrollHeight - n.clientHeight - n.scrollTop > 4);
 }
 $('nav').addEventListener('scroll', fadeNav);
 
-function go(next) { view = next; if (snap) render(); else nav(); bar(); window.scrollTo({ top: 0 }); }
+function go(next) { view = next; if (snap) render(); else nav(); bar(); document.querySelector('main').scrollTo({ top: 0 }); }
 
 function bar() {
   const now = Date.now();
@@ -817,17 +828,26 @@ function bar() {
   else if (!snap) { s = 'wait'; text = 'Reading Pod Bay…'; }
   else if (!snap.ok) { s = 'error'; text = 'Pod Bay error'; }
   else if (!lastMsg || now - lastMsg > STALE_MS) { s = 'stale'; text = 'Stale data'; }
-  $('conn').dataset.s = s; $('connText').textContent = text;
+  // #conn is a live region: write it only when the words change, or a screen reader repeats them every second.
+  if ($('connText').textContent !== text) { $('conn').dataset.s = s; $('connText').textContent = text; $('conn').parentElement.title = text; }
   $('read').textContent = snap && snap.read_at ? `read at ${new Date(snap.read_at).toLocaleTimeString('en-GB', { hour12: false })}` : '';
-  $('view').classList.toggle('dim', s === 'stale' || s === 'error');
+  for (const id of ['view', 'summary']) $(id).classList.toggle('dim', s === 'stale' || s === 'error');
   const until = snap && snap.dnd_until;
   $('dnd').hidden = !until;
   if (until) $('dndText').textContent = `Do not disturb until ${new Date(until).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
   const b = $('banner');
-  if (snap && !snap.ok && snap.error) { b.textContent = `${snap.error} · retrying in 3 s`; b.classList.add('on'); } else b.classList.remove('on');
+  if (snap && !snap.ok && snap.error) { b.textContent = `${snap.error} · retrying in 3 s`; b.classList.add('on'); } else if (snap) b.classList.remove('on');
+  const name = view === 'home' ? 'Overview' : STATES[view][0];
   const crumb = $('crumb'); crumb.textContent = 'Pod Board › ';
-  crumb.append(el('b', null, view === 'home' ? 'Overview' : STATES[view][0]));
+  crumb.append(el('b', null, name));
   if (machine) crumb.append(` · ${machine}`);
+  $('title').textContent = name;
+  // A state page names its state with the same pill as the lanes, and the count.
+  const ts = $('titleState'); ts.textContent = '';
+  if (view !== 'home' && snap) {
+    const n = view === 'stopped' ? stoppedShown().length : shown().filter(x => x.state === view).length;
+    ts.append(pill(view), el('b', 'tab', String(n)));
+  }
 }
 
 function apply(m) { snap = m; pending = null; pendingN = 0; render(); bar(); }
@@ -859,7 +879,7 @@ const media = window.matchMedia('(prefers-color-scheme: dark)');
 function applyTheme() {
   const dark = stored ? stored === 'dark' : media.matches;
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-  for (const [id, icon, on] of [['th-light', 'r-sun', stored === 'light'], ['th-dark', 'r-moon', stored === 'dark'], ['th-system', 'r-system', !stored]]) {
+  for (const [id, icon, on] of [['th-light', 'sun', stored === 'light'], ['th-dark', 'moon', stored === 'dark'], ['th-system', 'monitor', !stored]]) {
     $(id).replaceChildren(ic(icon)); $(id).setAttribute('aria-pressed', String(on));
   }
 }
@@ -874,7 +894,7 @@ for (const [id, value] of [['th-light', 'light'], ['th-dark', 'dark'], ['th-syst
 applyTheme();
 
 let refreshing = false;
-function drawRefresh() { $('refresh').replaceChildren(ic('r-refresh')); $('refresh').classList.toggle('spin', refreshing); }
+function drawRefresh() { $('refresh').replaceChildren(ic('refresh-cw')); $('refresh').classList.toggle('spin', refreshing); }
 $('dndEnd').addEventListener('click', () => {
   const t = window.__TAURI__;
   if (t) t.core.invoke('set_dnd', { minutes: 0 }).catch(() => {});
@@ -890,8 +910,8 @@ $('refresh').addEventListener('click', () => {
 drawRefresh();
 
 function drawLayout() {
-  for (const [id, name, label] of [['lay-board', 'board', 'Board'], ['lay-list', 'list', 'List']]) {
-    $(id).replaceChildren(ic(name), el('span', null, label));
+  for (const [id, name, icon, label] of [['lay-board', 'board', 'layout-grid', 'Board'], ['lay-list', 'list', 'list', 'List']]) {
+    $(id).replaceChildren(ic(icon), el('span', null, label));
     $(id).setAttribute('aria-pressed', String(layout === name));
   }
 }
@@ -902,7 +922,7 @@ for (const name of ['board', 'list']) $(`lay-${name}`).addEventListener('click',
 drawLayout();
 $('view').addEventListener('pointermove', () => { lastMove = Date.now(); });
 $('view').addEventListener('pointerleave', () => { lastMove = 0; if (pending && !paused) apply(pending); });
-function drawPause() { $('pause').replaceChildren(ic(paused ? 'play' : 'pause'), el('span', null, paused ? '\u00a0Resume' : '\u00a0Pause')); }
+function drawPause() { $('pause').replaceChildren(ic(paused ? 'play' : 'pause'), el('span', null, paused ? 'Resume' : 'Pause')); $('pause').setAttribute('aria-label', paused ? 'Resume updates' : 'Pause updates'); }
 drawPause();
 $('pause').addEventListener('click', () => {
   paused = !paused;

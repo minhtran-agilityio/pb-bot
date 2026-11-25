@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "A double-click on the board's title bar zooms the window (macOS)",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:window:allow-internal-toggle-maximize"
+  ]
+}

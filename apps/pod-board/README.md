@@ -8,8 +8,9 @@ It is a Tauri 2 app (Rust and one HTML page). It needs no server, no port and no
 ## What it does
 
 - **Dock:** one icon; a click opens the window. The badge on the icon is the number of sessions that wait for you.
-- **Menu bar:** an icon for the most urgent state and its count: a hand (needs you), a bolt (working), a cup (idle),
-  a moon (nothing running), or a warning sign when Pod Bay cannot be read. Icons: Phosphor, duotone (`THIRD-PARTY.md`).
+- **Menu bar:** an icon for the most urgent state and its count: a hand (needs you), a loader (working), a cup (idle),
+  a moon with a star (nothing running), or a warning triangle when Pod Bay cannot be read. They are the same Lucide
+  shapes as the window's icons, as one-colour template images (`THIRD-PARTY.md`).
   A left click opens the popover (below); a right click shows its menu, which opens the window, turns "start at
   login" and "always on top" on and off, and quits.
 - **Notification:** one system notification when a session starts to need you, and a reminder when it still needs
@@ -30,8 +31,11 @@ It is a Tauri 2 app (Rust and one HTML page). It needs no server, no port and no
   and flash; the board keeps updating. It ends by itself, or with "End" in the window. A reminder that falls inside
   it goes out when it ends. The sound switch and the end time survive a restart (`settings.json` in the app's
   config folder).
-- **Window:** a sidebar that filters by state and machine, one summary row and three lanes. Closing the window hides it; the app keeps watching.
-  The button at the top left (or ⌘B) collapses the sidebar to its icons and expands it again; the choice is remembered.
+- **Window:** a 48 px title bar (the Pod Cat logo and where you are, `Pod Board › Overview`; drag it to move the
+  window), a sage sidebar that filters by state and machine, and a main panel with the page title, one summary row
+  and three lanes. Closing the window hides it; the app keeps watching. The button on the title bar (or ⌘B)
+  collapses the sidebar to its icons and expands it again; the choice is remembered. The theme switch (light, dark,
+  follow the system) is at the foot of the sidebar; the popover follows the same choice.
 - **Open a session:** click a card (or press Enter on it). On macOS this opens `claude://code/<id>`, so the Claude
   desktop app switches to that session; elsewhere it opens `https://claude.ai/code/<id>` in the browser.
 - **Peek:** a speech-bubble button on each card (always shown on a card that needs you, on hover for the others)
@@ -41,15 +45,22 @@ It is a Tauri 2 app (Rust and one HTML page). It needs no server, no port and no
 - **Menu bar popover:** a left click on the menu bar icon opens a small panel under it with the sessions that need
   you, the ones that finished and the ones working; a row opens that session in the Claude app, and "Open Pod Board" opens the window. A
   right click (or Control-click) shows the menu. The popover closes when you click anywhere else.
-- **Cat:** a small black cat with glowing eyes, drawn for this app, sits in the window's bottom-right corner, beside the Stopped strip. It
-  shows the heaviest state of the whole board: it waves when a session needs you, types when one is working, and
+- **Cat:** a small black cat with glowing eyes, drawn for this app in the logo's colours, sits in the round tile at
+  the start of the summary row, on every page. It shows the heaviest state of the whole board: it waves when a session needs you, types when one is working, and
   sleeps otherwise. It is decorative (hidden from screen readers) and does nothing when clicked.
+
+## Look
+
+Pod Board uses the UI design system (UDS v3.0) that Shape Board uses: the same tokens (`ui/theme.css` copies
+`apps/pod-shape/src/styles/tokens.css`, and `cargo test` fails when a shared token differs), the Outfit font
+(JetBrains Mono for code only), Lucide icons at stroke 1.75, soft state pills (colour, icon and word), neutral lanes,
+and a 2 px focus ring on every control. Fonts and icons ship inside the app. Design notes: [`DESIGN.md`](DESIGN.md).
 
 ## Build and run
 
 ```
 cd apps/pod-board/src-tauri
-cargo test                 # the model: order, allow list, notification rule
+cargo test                 # the model: order, allow list, notification rule; the theme token check
 cargo run                  # run from source
 cargo install tauri-cli --version '^2' --locked
 cargo tauri build          # macOS: target/release/bundle/macos/Pod Board.app
@@ -76,8 +87,9 @@ Linux needs the WebKitGTK 4.1 development packages. The app looks for `podbay-de
 
 ## Limits
 
-- Verifies: `cargo test` (32 cases: the model and its links, alerts and the finished rule, the Pod Bay reader, the
-  peek text, the menu bar count and the popover position).
+- Verifies: `cargo test` (the model and its links, alerts and the finished rule, the Pod Bay reader, the peek text,
+  the menu bar count, the popover position, and the theme tokens against Shape Board's). The look:
+  `bash apps/pod-board/tests/acceptance/run.sh` (headless Chrome over the two pages, no data).
 - Does not verify: that `asks` means a human is awaited (on 2026-11-21 four sessions had `asks: true` with no dialog
   on screen); the window, the Dock badge, the menu bar item and notifications in an automated test; that Pod Bay
   never reports a working session as `idle` for more than 8 seconds in the middle of a run, which would mark it
