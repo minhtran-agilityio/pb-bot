@@ -42,8 +42,9 @@ const SETTLE: std::time::Duration = std::time::Duration::from_secs(1);
 pub struct Cache {
     /// Folder -> (its change time, when it was listed, the files kept: the newest first, at most the cap).
     lists: HashMap<PathBuf, (SystemTime, SystemTime, Vec<PathBuf>)>,
-    /// A finished sub-agent's `.meta.json` -> its row.
-    done: HashMap<PathBuf, Agent>,
+    /// A finished sub-agent's `.meta.json` -> (its change time and size when read, its row). A file that changed
+    /// since is read again.
+    done: HashMap<PathBuf, (SystemTime, u64, Agent)>,
     used: HashSet<PathBuf>,
 }
 
@@ -149,29 +150,24 @@ fn fold_path(p: &str) -> String {
 }
 
 /// The second pass over each word that holds a `/` (a path after `file://`, `host:` or a comma, which the first pass
-/// does not see as a path): `$HOME` becomes `~`, the folder after `home/` or `Users/` becomes `~`, and each login
-/// name becomes `~`. Words without a `/` are left as written.
+/// does not see as a path): a whole folder name that comes after a `home` or `Users` folder, or that is a login name,
+/// becomes `~`. Only whole folder names change (`src/device.rs` stays with the login `dev`); words without a `/` are
+/// left as written.
 fn scrub(s: &str) -> String {
+    const CLOSE: &str = "\"'`)]}>,;:";
     let word = |w: &str| -> String {
         if !w.contains('/') {
             return w.to_string();
         }
-        let mut w = match home() { Some(h) => w.replace(h, "~"), None => w.to_string() };
-        for mark in ["home/", "Users/"] {
-            let mut from = 0;
-            while let Some(i) = w[from..].find(mark).map(|i| from + i + mark.len()) {
-                let end = w[i..].find(|c: char| c == '/' || "\"'`)]}>,;:".contains(c)).map_or(w.len(), |e| i + e);
-                if end > i && &w[i..end] != "~" {
-                    w.replace_range(i..end, "~");
-                }
-                from = i + 1;
-                if from >= w.len() { break; }
-            }
+        let mut prev = "";
+        let mut out: Vec<String> = Vec::new();
+        for seg in w.split('/') {
+            let (core, tail) = seg.split_at(seg.find(|c: char| CLOSE.contains(c)).unwrap_or(seg.len()));
+            let hide = !core.is_empty() && core != "~" && (prev == "home" || prev == "Users" || logins().iter().any(|n| n == core));
+            out.push(if hide { format!("~{tail}") } else { seg.to_string() });
+            prev = core;
         }
-        for n in logins().iter().filter(|n| n.chars().count() >= 2) {
-            w = w.replace(n.as_str(), "~");
-        }
-        w
+        out.join("/")
     };
     let mut out = String::with_capacity(s.len());
     let mut start = 0;
@@ -335,10 +331,13 @@ fn agents_in(dir: &Path, now: u64, cache: &mut Cache) -> Option<Agents> {
     let (mut running, mut done) = (0usize, 0usize);
     for path in metas {
         cache.used.insert(path.clone());
-        if let Some(a) = cache.done.get(&path) {
-            done += 1;
-            list.push((a.clone(), path));
-            continue;
+        let stamp = std::fs::symlink_metadata(&path).ok().and_then(|m| Some((m.modified().ok()?, m.len())));
+        if let (Some((t, n)), Some((at, len, a))) = (stamp, cache.done.get(&path)) {
+            if t == *at && n == *len {
+                done += 1;
+                list.push((a.clone(), path));
+                continue;
+            }
         }
         let Some(stem) = path.file_name().and_then(|n| n.to_str()).and_then(|n| n.strip_suffix(".meta.json")) else { continue };
         let Some(v) = read_json(&path, 16 << 10) else { continue };
@@ -364,8 +363,8 @@ fn agents_in(dir: &Path, now: u64, cache: &mut Cache) -> Option<Agents> {
             took_s: if finished { start.zip(last).map(|(a, b)| b.saturating_sub(a) / 1000) } else { None },
             depth: v["spawnDepth"].as_u64().unwrap_or(1).saturating_sub(1).min(8) as u32,
         };
-        if finished {
-            cache.done.insert(path.clone(), row.clone());
+        if let (true, Some((t, n))) = (finished, stamp) {
+            cache.done.insert(path.clone(), (t, n, row.clone()));
         }
         list.push((row, path));
     }
@@ -624,14 +623,19 @@ mod tests {
         set_time(&sessions, old);
         set_time(&subs, old);
         let host = |got: &[Local]| got.iter().find(|l| l.title == "Sub-agent host").unwrap().agents.clone().unwrap();
-        let first = read_with(&dir, now(), &all_alive, &mut cache);
-        assert_eq!((host(&first).running, host(&first).done), (5, 2));
         let finished = std::fs::read_dir(&subs).unwrap().flatten().map(|e| e.path())
             .find(|p| std::fs::read_to_string(p).map_or(false, |t| t.contains("\"Finished one\""))).unwrap();
+        set_time(&finished, old);
+        set_time(&subs, old);
+        let first = read_with(&dir, now(), &all_alive, &mut cache);
+        assert_eq!((host(&first).running, host(&first).done), (5, 2));
 
-        // A file added while the folder time stays the same, and a finished sub-agent's file changed in place.
+        // A file added while the folder time stays the same, and a finished sub-agent's file rewritten with the same
+        // size and change time: neither is seen, so neither the folder nor that file was read again.
         std::fs::write(sessions.join("7777.json"), r#"{"pid": 7777, "kind": "interactive", "entrypoint": "cli", "status": "idle", "name": "Newcomer", "cwd": "/w/new"}"#).unwrap();
-        std::fs::write(&finished, r#"{"agentType": "general-purpose", "description": "Rewritten", "model": "sonnet", "spawnDepth": 1, "finished": true}"#).unwrap();
+        let text = std::fs::read_to_string(&finished).unwrap();
+        std::fs::write(&finished, text.replace("Finished one", "Finished two")).unwrap();
+        set_time(&finished, old);
         set_time(&sessions, old);
         set_time(&subs, old);
         let second = read_with(&dir, now(), &all_alive, &mut cache);
@@ -639,13 +643,13 @@ mod tests {
         assert!(host(&second).list.iter().any(|a| a.task == "Finished one"), "a finished sub-agent is not read again");
         assert_eq!(second.iter().filter(|l| l.title != "Newcomer").count(), first.len(), "each session file is still read");
 
-        // The folder changed: it is listed again.
+        // The folder changed: it is listed again. The finished file changed (review of #158, F6): it is read again.
         set_time(&sessions, old + 1);
+        std::fs::write(&finished, r#"{"agentType": "general-purpose", "description": "Rewritten", "model": "sonnet", "spawnDepth": 1, "finished": true}"#).unwrap();
+        set_time(&subs, old);
         let third = read_with(&dir, now(), &all_alive, &mut cache);
         assert!(third.iter().any(|l| l.title == "Newcomer"));
-        // A fresh cache reads everything.
-        let fresh = read(&dir, now(), &all_alive);
-        assert!(host(&fresh).list.iter().any(|a| a.task == "Rewritten"));
+        assert!(host(&third).list.iter().any(|a| a.task == "Rewritten"), "a changed finished file is read again");
     }
 
     #[test]
@@ -669,7 +673,7 @@ mod tests {
             format!("copy host:/home/{user}/x"),
             format!("a.rs,/home/{user}/b and -v{home}/w:/w"),
             format!("in /srv/data/{user} and /{user}"),
-            format!("cd ~/.claude/projects/-home-{user}-repo"),
+            format!("cd ~/.claude/projects/{user}/repo"),
             format!("ask /Users/{user}x/y and other:/var/home/bob/z"),
         ];
         for c in &cases {
@@ -680,5 +684,8 @@ mod tests {
         assert_eq!(cut(&format!("see \u{200B}/home/{user}/x"), 80), "see ~/x");
         assert_eq!(cut(&format!("in /srv/data/{user} and /{user}"), 80), "in ~ and ~");
         assert_eq!(cut("see https://x.test/a/b, ok", 80), "see https://x.test/a/b, ok");
+        // Only whole folder names change (review of #158, F4).
+        assert_eq!(cut(&format!("edit src/{user}ice.rs and host:/home/{user}ice/x"), 200), format!("edit src/{user}ice.rs and host:/home/~/x"));
+        assert_eq!(cut(&format!("copy host:/home/{user}/x,y"), 80), "copy host:/home/~/x,y");
     }
 }

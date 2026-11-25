@@ -425,8 +425,8 @@ fn flash_tray(app: AppHandle) {
 }
 
 /// Turn one read into the snapshot and the alerts. When `ls` failed (`error`), the Pod Bay part is the last read
-/// (`raw.ls` keeps it) and marked as not read, so it raises nothing; this machine's own sessions are fresh and alert
-/// as usual (issue #158). The snapshot then says why the read failed and keeps the time of the last good read.
+/// (`raw.ls` keeps it) and marked as not read, so it raises nothing; this machine's terminal sessions (local ones that
+/// Pod Bay does not list) are fresh and alert as usual (issue #158). A session Pod Bay lists stays as last read. The snapshot then says why the read failed and keeps the time of the last good read.
 fn apply_read(held: &mut Snapshot, raw: &mut Raw, error: Option<String>, alerts: &mut Alerts, now: u64) -> alerts::Outcome {
     raw.stale = error.is_some();
     let mut model = build(raw);
@@ -930,5 +930,45 @@ mod tests {
         let titles: Vec<&str> = back.alerts.iter().map(|a| a.title.as_str()).collect();
         assert!(titles.iter().all(|t| !t.ends_with(" needs you")), "{titles:?}");
         assert!(held.ok);
+    }
+
+    #[test]
+    fn a_failed_first_read_does_not_make_the_first_good_read_announce_every_wait() {
+        // Review of #158, F1: the first good Pod Bay read only learns what already waits, even after a failed one.
+        let waits: Vec<serde_json::Value> = (1..=3).map(|i| serde_json::json!({"title": format!("0{i}"), "name": format!("claude-x-0{i}"),
+            "project": "x", "context": format!("x/x@0{i}"), "status": "waiting", "waiting_for": "input needed",
+            "remote_url": format!("https://claude.ai/code/session_01Wait{i}")})).collect();
+        let mut raw = Raw { machines: serde_json::json!([{"machine": "UA", "me": true, "online": true}]), ..Raw::default() };
+        let (mut held, mut alerts) = (Snapshot::default(), Alerts::new(true));
+        let failed = apply_read(&mut held, &mut raw, Some("podbay-dev ls failed".into()), &mut alerts, 1_000);
+        assert!(failed.alerts.is_empty());
+        raw.ls = serde_json::json!([{"machine": "UA", "result": waits}]);
+        let good = apply_read(&mut held, &mut raw, None, &mut alerts, 4_000);
+        assert!(good.alerts.is_empty() && !good.sound && !good.flash, "{:?}", good.alerts.iter().map(|a| &a.title).collect::<Vec<_>>());
+        // A wait that starts after that is told.
+        raw.local = vec![term("waiting", "input needed")];
+        let next = apply_read(&mut held, &mut raw, None, &mut alerts, 7_000);
+        assert_eq!(next.alerts.iter().map(|a| a.title.as_str()).collect::<Vec<_>>(), vec!["Term needs you"]);
+    }
+
+    #[test]
+    fn a_terminal_session_that_waits_again_during_one_ls_outage_alerts_again() {
+        // Review of #158, F2: an ended local wait was kept while this machine counted as not read.
+        let mut raw = Raw {
+            ls: serde_json::json!([{"machine": "UA", "result": []}]),
+            machines: serde_json::json!([{"machine": "UA", "me": true, "online": true}]),
+            local: vec![term("idle", "")],
+            ..Raw::default()
+        };
+        let (mut held, mut alerts) = (Snapshot::default(), Alerts::new(true));
+        apply_read(&mut held, &mut raw, None, &mut alerts, 1_000);
+        let fail = || Some("podbay-dev ls failed".to_string());
+        let mut told = Vec::new();
+        for (i, (status, waiting)) in [("waiting", "input needed"), ("busy", ""), ("waiting", "permission prompt")].into_iter().enumerate() {
+            raw.local = vec![term(status, waiting)];
+            let out = apply_read(&mut held, &mut raw, fail(), &mut alerts, 100_000 * (i as u64 + 1));
+            told.extend(out.alerts.into_iter().map(|a| a.title));
+        }
+        assert_eq!(told, vec!["Term needs you", "Term needs you"]);
     }
 }

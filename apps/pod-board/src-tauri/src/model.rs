@@ -128,6 +128,9 @@ pub struct Model {
     /// missing from `sessions` only for now, so alerts keep what they knew about them.
     #[serde(skip)]
     pub unread: Vec<String>,
+    /// Built from a failed `ls` (`Raw::stale`): the Pod Bay part is the last read.
+    #[serde(skip)]
+    pub stale: bool,
 }
 
 /// Raw output of the read-only commands. A value that was never read is `Value::Null`.
@@ -369,7 +372,7 @@ pub fn build(raw: &Raw) -> Model {
             _ => counts.idle += 1,
         }
     }
-    Model { machines, sessions, stopped, counts, unread }
+    Model { machines, sessions, stopped, counts, unread, stale: raw.stale }
 }
 
 /// The name of this machine in Pod Bay (`me: true` in `podbay-dev machines`), else empty.

@@ -109,6 +109,8 @@ Linux needs the WebKitGTK 4.1 development packages. The app looks for `podbay-de
     odd file, a link or a pipe. The newest 512 files are looked at and at most 64 live sessions kept, each file at
     most 64 KB. A folder's listing is used again while the folder has not changed (for at most a minute); each
     session file is read on every poll.
+  - The environment variables `HOME`, `USER` and `LOGNAME`, only to know the home folder and the login names to hide
+    (below).
   - `/proc/<pid>/stat` (Linux only), for the `pid` of each session file: only its start time (field 22) is read and
     compared with `procStart`.
   - `~/.claude/projects/<folder>/<sessionId>/subagents/agent-*.meta.json`, the sub-agent files: `agentType`,
@@ -122,8 +124,8 @@ Linux needs the WebKitGTK 4.1 development packages. The app looks for `podbay-de
     folders: a home path (`$HOME/…`, `…/home/<user>/…`, `/Users/<user>/…`, `/root/…`) becomes `~/…`, a path that
     ends at the login name becomes `~`, and any other path of two or more parts keeps only its last part
     (`/srv/data/x/log.txt` becomes `…/log.txt`); a one-part path (`/tmp`) stays. In every other word with a `/` in
-    it (`file:///…`, `host:/…`, `a,/…`), `$HOME`, the folder after `home/` or `Users/` and the login name become
-    `~`, but the rest of the path stays. So the model holds no login name in a path, no home path, no account, no
+    it (`file:///…`, `host:/…`, `a,/…`), a whole folder name after a `home` or `Users` folder, or equal to a login
+    name, becomes `~`, but the rest of the path stays. So the model holds no login name in a path, no home path, no account, no
     Claude session id and no process id; the only id it holds is the Remote Control id. A path below the home folder
     (`~/…`), the rest of a path in such a word, and a name written as a plain word in the text (a sub-agent's task)
     can still show. Prompt, reply and transcript text are read only when a peek opens, and only for Pod Bay
