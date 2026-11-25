@@ -18,7 +18,7 @@ command -v jq >/dev/null 2>&1 || { echo "merge-trim: jq is required (install jq,
 
 jq -e 'type == "object" and ((.enabledPlugins // {}) | type == "object")' "$TRIM" >/dev/null 2>&1 \
   || { echo "merge-trim: $TRIM is not a valid trim file" >&2; exit 2; }
-if [ -f "$FILE" ]; then
+if [ -f "$FILE" ] && [ -n "$(tr -d ' \t\r\n' < "$FILE")" ]; then
   jq -e 'type == "object" and ((.enabledPlugins // {}) | type == "object")' "$FILE" >/dev/null 2>&1 \
     || { echo "merge-trim: $FILE is not a valid JSON object or its enabledPlugins is not an object; not touching it" >&2; exit 2; }
   CUR=$(cat "$FILE")
@@ -27,7 +27,8 @@ else
 fi
 
 NEW=$(printf '%s' "$CUR" | jq --slurpfile t "$TRIM" '
-  .disableClaudeAiConnectors = ($t[0].disableClaudeAiConnectors // true)
+  .disableClaudeAiConnectors = (if ($t[0] | has("disableClaudeAiConnectors"))
+                                then $t[0].disableClaudeAiConnectors else true end)
   | .enabledPlugins = ((.enabledPlugins // {}) + ($t[0].enabledPlugins // {}))
   | if .enabledPlugins == {} then del(.enabledPlugins) else . end')
 

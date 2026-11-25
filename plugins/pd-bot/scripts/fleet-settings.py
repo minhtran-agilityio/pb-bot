@@ -14,8 +14,9 @@ session start:
                              connectors and no unused plugins, so each request carries about 20k
                              fewer tokens of tool and skill lists. --keep-connectors skips it.
 
-Model guard: a worker runs Sonnet. An Opus or Fable model for --role worker is refused unless
---depth L or --escalated (a Sonnet worker already failed once on this ticket) is given.
+Model guard: a worker runs Sonnet. For --role worker, a model that is not a Sonnet or Haiku id or
+alias (Opus, Fable, or an alias such as `best` that can resolve to Opus) is refused unless --depth L
+or --escalated (a Sonnet worker already failed once on this ticket) is given.
 
 Every other key is kept. The values those keys had before (or that they were absent, or that the
 file did not exist) are saved in the checkout's git directory (`pd-bot-fleet-settings.json` under
@@ -61,7 +62,7 @@ KEYS = (("model",), ("permissions", "defaultMode"), ("env", "PD_BOT_ROLE"),
         ("env", "PD_BOT_TICKET"), ("env", "PD_BOT_RUN"))
 ABSENT = {"absent": True}
 TRIM_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fleet-trim.json")
-BIG_MODEL_RE = re.compile(r"opus|fable", re.I)
+WORKER_MODEL_RE = re.compile(r"sonnet|haiku", re.I)
 
 
 def trim_values():
@@ -233,20 +234,29 @@ def apply(a):
     # Every check is done; now write. The first apply's saved values win over a later apply's;
     # a trim key the first apply did not set is added with its value as it stands now.
     if os.path.exists(state):
-        with open(state) as f:
-            try:
+        bad = f"{state} is not a valid restore state; check {path} by hand and delete it"
+        try:
+            with open(state) as f:
                 saved = json.load(f)
-            except ValueError:
-                refuse(f"{state} is not valid JSON; check {path} by hand and delete it")
-        if not isinstance(saved, dict):
-            refuse(f"{state} is not a JSON object; check {path} by hand and delete it")
+        except (OSError, ValueError, RecursionError):
+            refuse(bad)
+        if not isinstance(saved, dict) or not isinstance(saved.get("extra", []), list):
+            refuse(bad)
+        for item in saved.get("extra", []):
+            if not (isinstance(item, dict) and isinstance(item.get("path"), list) and item["path"]
+                    and all(isinstance(k, str) for k in item["path"])):
+                refuse(bad)
     else:
         saved = {"file_existed": existed, "keys": {".".join(k): get(data, k) for k in KEYS}}
     extra = saved.setdefault("extra", [])
-    known = {tuple(i.get("path", ())) for i in extra if isinstance(i, dict)}
+    known = {tuple(i["path"]) for i in extra}
     for key, _ in trim:
         if key not in known:
             extra.append({"path": list(key), "saved": get(data, key)})
+    if a.keep_connectors:
+        # An earlier apply may have written the trim: put the owner's values back.
+        for item in extra:
+            put(data, tuple(item["path"]), item.get("saved", ABSENT))
     write_atomic(state, dump(saved))
     os.makedirs(cdir, exist_ok=True)
     new = {("model",): a.model, ("permissions", "defaultMode"): a.mode,
@@ -296,7 +306,8 @@ def main(argv):
         v = getattr(a, name)
         if v is not None and not ID_RE.match(v):
             p.error(f"--{name} must be letters, digits, dot, dash or underscore")
-    if a.role == "worker" and BIG_MODEL_RE.search(a.model) and not (a.depth == "L" or a.escalated):
+    if (a.role == "worker" and not WORKER_MODEL_RE.search(a.model)
+            and not (a.depth == "L" or a.escalated)):
         refuse(f"a worker runs Sonnet; {a.model} needs --depth L, or --escalated after a Sonnet "
                "worker failed once on this ticket")
     apply(a)

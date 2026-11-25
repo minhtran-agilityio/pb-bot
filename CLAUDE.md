@@ -32,10 +32,11 @@ The plugin lives in `plugins/pd-bot/`; the marketplace file is `.claude-plugin/m
   conditions, the depth L rule below and the worker rule are hard limits: a worker at depth S or M runs
   Sonnet 5.5 (raise its effort, not its model) unless a Sonnet worker already failed once on the ticket;
   `fleet-settings.py` refuses Opus or Fable for a worker otherwise.
-- Token trim: the repo's `.claude/settings.json` sets `disableClaudeAiConnectors` and turns off unused
-  plugins (same values as `plugins/pd-bot/scripts/fleet-trim.json`, which `fleet-settings.py` writes
-  into each fleet workspace). It cuts about 20k tokens from every request. To use a claude.ai connector
-  here, set `"disableClaudeAiConnectors": false` in your own local settings file (see Gotchas).
+- Token trim: the repo's `.claude/settings.json` turns off unused plugins and denies every claude.ai
+  connector except Claude Docs and Context7 (the Artifact tool is built in and stays). Fleet sessions go further:
+  `fleet-settings.py` writes `plugins/pd-bot/scripts/fleet-trim.json` (`disableClaudeAiConnectors`, no
+  connector at all) into each workspace. A connector connected later on claude.ai is not denied until
+  it is added to that deny list.
 - Effort levels differ by model. Sonnet 5.5: `medium` for well-specified work, `high` for harder or
   longer work; `low` can skip verification, so use it only for mechanical stages. Opus 5.5: start at
   `medium`. Use `xhigh` or `max` only where a quality gain was measured. To get less thinking, lower

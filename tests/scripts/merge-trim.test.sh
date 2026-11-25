@@ -51,6 +51,20 @@ for body in '{"x": oops' '[]' '{"enabledPlugins":[]}'; do
 done
 [ "$ok" -eq 1 ] && pass || fail "a bad file was accepted or changed"
 
+t "a false disableClaudeAiConnectors in the trim file stays false (jq // would make it true)"
+d=$(work)
+printf '%s' '{"disableClaudeAiConnectors":false,"enabledPlugins":{"x@m":false}}' > "$d/t.json"
+bash "$SCRIPT" "$d/t.json" "$d/s.json" >/dev/null; rc=$?
+if [ "$rc" -eq 0 ] && jq -e '.disableClaudeAiConnectors == false' "$d/s.json" >/dev/null; then pass
+else fail "rc=$rc file: $(cat "$d/s.json")"; fi
+
+t "an empty settings file is treated as {}"
+d=$(work)
+: > "$d/s.json"
+bash "$SCRIPT" "$TRIM" "$d/s.json" >/dev/null; rc=$?
+if [ "$rc" -eq 0 ] && jq -e '.disableClaudeAiConnectors == true' "$d/s.json" >/dev/null; then pass
+else fail "rc=$rc"; fi
+
 t "usage error exits 1"
 bash "$SCRIPT" "$TRIM" >/dev/null 2>&1; rc=$?
 [ "$rc" -eq 1 ] && pass || fail "rc=$rc"

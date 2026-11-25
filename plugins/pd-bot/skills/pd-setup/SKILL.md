@@ -26,7 +26,8 @@ Run once per project, after `claude plugin install pd-bot@pd-bot`. Work in the p
 4. **Merge guard (nothing to install).** The plugin's PreToolUse hook `merge-guard.sh` asks the owner about every merge whose base is not `feat/*`.
    Tell the owner that every PR into a protected base is a human merge (the owner can approve one named PR in the
    hook's confirmation prompt), and that ticket PRs into `feat/<slug>` stay human-merged too unless they merge them:
-   setup writes no allow rule for `gh pr merge`, because no command-text rule can see the PR base. To let a run
+   setup writes no allow rule for `gh pr merge`, because no command-text rule can see the PR base. Plugin hooks are not
+   proven to fire for workflow agents, so the guard is a second line, not a reason to allow the merge. To let a run
    merge ticket PRs, the owner adds an allow rule for `gh pr merge` into `feat/<slug>*` to their own settings; setup never writes it.
 5. **Ignore specs.** Add `specs/` to `${CLAUDE_PROJECT_DIR}/.gitignore` if no line already says
    `specs/`. Skip this if the project tracks files under `specs/`.
@@ -38,8 +39,7 @@ Run once per project, after `claude plugin install pd-bot@pd-bot`. Work in the p
    `{"orchestrator": "off"}` to `${CLAUDE_PROJECT_DIR}/.claude/pd-bot.json` (merge the key when the
    file exists). To keep it, write nothing. `PD_BOT_ROLE=none` switches it off for one session.
 7. **Token trim.** Run `bash ${CLAUDE_SKILL_DIR}/scripts/merge-trim.sh --dry-run ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-trim.json ${CLAUDE_PROJECT_DIR}/.claude/settings.json`
-   and show the diff: it turns off claude.ai connectors and unused plugins, about 20k tokens per request.
-   Merge (no `--dry-run`) only after the owner agrees (AskUserQuestion).
+   and show the diff (claude.ai connectors and unused plugins off). Merge only after the owner agrees.
 
 Never touch: `specs/`, `docs/`, and any skill, agent or hook the
 project wrote itself. Setup never writes `.claude/settings.local.json`.

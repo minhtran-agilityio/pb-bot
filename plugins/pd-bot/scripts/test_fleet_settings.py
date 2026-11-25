@@ -302,8 +302,8 @@ def test_show_exits_0_and_reports_invalid_when_the_restore_state_path_is_a_direc
     assert r.stdout.splitlines()[-1] == "restore state: present (invalid)"
 
 
-@pytest.mark.parametrize("model", ["claude-opus-5-5", "claude-fable-5-2", "opus",
-                                   "us.anthropic.claude-opus-5-5-v1:0"])
+@pytest.mark.parametrize("model", ["claude-opus-5-5", "claude-fable-5-2", "opus", "best", "default",
+                                   "opusplan", "us.anthropic.claude-opus-5-5-v1:0"])
 def test_a_worker_on_opus_or_fable_is_refused_below_depth_l(checkout, model):
     for extra in ([], ["--depth", "S"], ["--depth", "M"]):
         r = run("--checkout", str(checkout), "--role", "worker", "--model", model, "--mode", "auto", *extra)
@@ -320,7 +320,8 @@ def test_a_worker_on_opus_is_allowed_at_depth_l_or_escalated(checkout, extra):
 
 def test_other_roles_and_sonnet_workers_are_not_guarded(checkout):
     for role, model in (("reviewer", "claude-opus-5-5"), ("advisor", "claude-fable-5-2"),
-                        ("worker", "claude-sonnet-5-5")):
+                        ("worker", "claude-sonnet-5-5"), ("worker", "sonnet"), ("worker", "haiku"),
+                        ("worker", "us.anthropic.claude-sonnet-5-5-v1:0")):
         r = run("--checkout", str(checkout), "--role", role, "--model", model, "--mode", "auto")
         assert r.returncode == 0, r.stderr
 
@@ -354,10 +355,40 @@ def test_a_second_apply_adds_the_trim_the_first_skipped(checkout):
     assert json.loads(settings(checkout).read_text()) == {"model": "x"}
 
 
-def test_repo_project_settings_carry_the_same_trim():
+def test_repo_project_settings_carry_the_plugin_trim_and_keep_only_claude_docs():
     repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(SCRIPT))))
     with open(os.path.join(repo, ".claude", "settings.json")) as f:
         proj = json.load(f)
-    assert proj["disableClaudeAiConnectors"] == TRIM["disableClaudeAiConnectors"]
     assert {k: v for k, v in proj["enabledPlugins"].items() if k in TRIM["enabledPlugins"]} \
         == TRIM["enabledPlugins"]
+    # The owner's sessions keep the Claude Docs connector; every other claude.ai connector is denied.
+    deny = proj["permissions"]["deny"]
+    assert "disableClaudeAiConnectors" not in proj
+    assert all(r.startswith("mcp__claude_ai_") for r in deny)
+    assert "mcp__claude_ai_Claude_Docs" not in deny and "mcp__claude_ai_Context7" not in deny
+
+
+def test_keep_connectors_after_a_trimmed_apply_puts_the_owner_values_back(checkout):
+    settings(checkout).parent.mkdir()
+    settings(checkout).write_text('{"enabledPlugins": {"mine@m": true}}')
+    assert apply(checkout).returncode == 0
+    assert json.loads(settings(checkout).read_text())["disableClaudeAiConnectors"] is True
+    assert apply(checkout, "--keep-connectors").returncode == 0
+    data = json.loads(settings(checkout).read_text())
+    assert "disableClaudeAiConnectors" not in data and data["enabledPlugins"] == {"mine@m": True}
+    assert run("--checkout", str(checkout), "--restore").returncode == 0
+    assert json.loads(settings(checkout).read_text()) == {"enabledPlugins": {"mine@m": True}}
+
+
+@pytest.mark.parametrize("body", ["{nope", "[]", '{"extra": {}}', '{"extra": [{"path": [["x"]]}]}',
+                                  '{"extra": [{"path": []}]}', '{"extra": ["x"]}'])
+def test_a_bad_restore_state_is_refused_without_a_traceback(checkout, body):
+    state(checkout).write_text(body)
+    r = apply(checkout)
+    assert r.returncode == 1 and "Traceback" not in r.stderr and "restore state" in r.stderr, r.stderr
+
+
+def test_a_restore_state_that_is_a_directory_is_refused(checkout):
+    state(checkout).mkdir()
+    r = apply(checkout)
+    assert r.returncode == 1 and "Traceback" not in r.stderr, r.stderr

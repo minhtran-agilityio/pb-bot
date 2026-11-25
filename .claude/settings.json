@@ -1,9 +1,22 @@
 {
-  "disableClaudeAiConnectors": true,
   "enabledPlugins": {
     "render@anthropic-plugin-directory": false,
     "slack@anthropic-plugin-directory": false,
     "google-multi-account@anthropic-plugin-directory": false,
     "chrome-devtools-mcp@chrome-devtools-plugins": false
+  },
+  "permissions": {
+    "deny": [
+      "mcp__claude_ai_Airtable",
+      "mcp__claude_ai_github",
+      "mcp__claude_ai_Gmail",
+      "mcp__claude_ai_Google_Calendar",
+      "mcp__claude_ai_Google_Drive",
+      "mcp__claude_ai_Linear",
+      "mcp__claude_ai_Slack",
+      "mcp__claude_ai_Supabase",
+      "mcp__claude_ai_Trello",
+      "mcp__claude_ai_Vercel"
+    ]
   }
 }
