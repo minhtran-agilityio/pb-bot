@@ -16,8 +16,7 @@ head SHA (owner decision, 2026-11-23: "Chờ review độc lập"). It never edi
 - Who starts it: the orchestrator, when the keeper sends it a review request and no
   `Pb Bot UI Reviewer` row exists (`plugins/pd-bot/skills/pd-orchestrate/references/podbay.md`,
   "Project roles started on demand"), or the owner. Settings:
-  `fleet-settings.py --role reviewer --model claude-sonnet-5-5 --effort high`. Use Opus 5.5 only for a
-  pull request that changes `tokens.css` or more than one part.
+  `fleet-settings.py --role reviewer --model claude-sonnet-5-5 --effort high`.
 - It is a different session from the keeper and from the ui-designer agent: that separation is what
   makes the review independent.
 
