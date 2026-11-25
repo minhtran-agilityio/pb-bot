@@ -32,7 +32,7 @@ def run(root: Path, baseline: dict | None = None) -> subprocess.CompletedProcess
     path = root / "baseline.json"
     path.write_text(json.dumps(baseline or {}))
     return subprocess.run(
-        [sys.executable, str(CHECKER), "--root", str(root), "--baseline", str(path)],
+        [sys.executable, str(CHECKER), "--root", str(root), "--baseline", str(path), "--base-ref", ""],
         capture_output=True,
         text=True,
     )
@@ -104,6 +104,14 @@ WIDE = [
     "Edit(./**)",
     "Edit(./.git/**)",
     "Edit(./.claude/**)",
+    # from the reviewer: writes that reach CI, hooks or harness scripts
+    "Edit(./.github/**)",
+    "Edit(./.github/workflows/ci.yml)",
+    "Edit(./scripts/**)",
+    "Edit(./plugins/**)",
+    "Edit(./plugins/pd-bot/hooks/**)",
+    "Write(./plugins/pd-bot/scripts/x.sh)",
+    "Edit(./*.json)",
 ]
 
 NARROW = [
@@ -120,6 +128,8 @@ NARROW = [
     "Read(./**)",
     "Read(~/.claude/plugins/cache/*/pd-bot/**)",
     "Edit(./specs/**)",
+    "Edit(./docs/adr/**)",
+    "Edit(./plugins/pd-bot/skills/x/**)",
     "Grep(./**)",
     "Bash(bash ${CLAUDE_SKILL_DIR}/scripts/publish-check.sh *)",
     "Bash(test -n *)",
@@ -209,3 +219,43 @@ def test_baseline_entry_missing_on_the_base_ref_fails(tmp_path):
     )
     assert result.returncode == 1
     assert "only shrinks" in result.stderr
+
+
+def _checker(*argv, cwd=None):
+    return subprocess.run([sys.executable, str(CHECKER), *argv], capture_output=True, text=True, cwd=cwd)
+
+
+def test_shrink_check_fails_closed_when_the_base_ref_is_missing(tmp_path):
+    git = ["git", "-C", str(tmp_path), "-c", "user.email=t@t", "-c", "user.name=t"]
+    subprocess.run([*git, "init", "-q", "-b", "main"], check=True)
+    build(tmp_path, {"alpha": "Read(./**)"})
+    (tmp_path / "baseline.json").write_text("{}")
+    subprocess.run([*git, "add", "-A"], check=True)
+    subprocess.run([*git, "commit", "-q", "-m", "base"], check=True)
+    result = _checker("--root", str(tmp_path), "--baseline", str(tmp_path / "baseline.json"),
+                      "--base-ref", "no-such-ref")
+    assert result.returncode == 1
+    assert "does not resolve" in result.stderr
+
+
+def test_shrink_check_fails_closed_outside_a_git_repository(tmp_path):
+    build(tmp_path, {"alpha": "Read(./**)"})
+    (tmp_path / "baseline.json").write_text("{}")
+    result = _checker("--root", str(tmp_path), "--baseline", str(tmp_path / "baseline.json"),
+                      "--base-ref", "main")
+    assert result.returncode == 1
+    assert "shrink check cannot run" in result.stderr
+
+
+def test_base_ref_without_a_baseline_file_passes_with_a_note(tmp_path):
+    """The change that adds the baseline: the ref exists but has no baseline file yet."""
+    git = ["git", "-C", str(tmp_path), "-c", "user.email=t@t", "-c", "user.name=t"]
+    subprocess.run([*git, "init", "-q", "-b", "main"], check=True)
+    build(tmp_path, {"alpha": "Read(./**)"})
+    subprocess.run([*git, "add", "-A"], check=True)
+    subprocess.run([*git, "commit", "-q", "-m", "base"], check=True)
+    (tmp_path / "baseline.json").write_text("{}")
+    result = _checker("--root", str(tmp_path), "--baseline", str(tmp_path / "baseline.json"),
+                      "--base-ref", "main")
+    assert result.returncode == 0, result.stderr
+    assert "has no baseline yet" in result.stdout

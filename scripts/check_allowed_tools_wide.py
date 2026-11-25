@@ -16,10 +16,18 @@ Verifies:        every entry of every plugins/pd-bot/skills/*/SKILL.md `allowed-
                  baseline only shrinks. Skills in NEVER_WIDE may have no baseline entry at all.
 Does not verify: that a narrow rule is narrow enough in every Claude Code version, or that a skill
                  still works with fewer grants (check_skill_tool_conformance.py covers the body's
-                 commands).
+                 commands). Known limit: it judges only Bash and the file tools. WebFetch,
+                 WebSearch, Agent, Task, Skill, SendMessage and MCP tools (`mcp__...`) pass
+                 unjudged, although WebFetch with a wide Read can send a file out (a follow-up
+                 ticket covers them).
 
-Stdlib only. Exit 0 = clean; 1 = wide rules found; 2 = could not run.
-Run: python3 scripts/check_allowed_tools_wide.py [--root DIR] [--baseline FILE] [--list]
+Shrink check: each baseline entry must also be in the baseline file at --base-ref (default
+origin/main). It fails closed: when git or the ref is missing, the run fails. A ref that has no
+baseline file yet (the change that adds it) passes with a note. `--base-ref ""` skips the check
+on purpose (tests on temp trees).
+
+Stdlib only. Exit 0 = clean; 1 = wide rules found, or the shrink check cannot run; 2 = could not run.
+Run: python3 scripts/check_allowed_tools_wide.py [--root DIR] [--baseline FILE] [--base-ref REF] [--list]
 """
 
 import argparse
@@ -54,6 +62,10 @@ FILE_TOOLS = {"Read", "Write", "Edit", "MultiEdit", "NotebookEdit", "Grep", "Glo
 WRITE_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit"}
 # Probed: it reads the installed pd-bot's files and denies another plugin's files.
 READ_OUTSIDE = {"Read(~/.claude/plugins/cache/*/pd-bot/**)"}
+# Repo paths where a written file runs as code or config (CI, hooks, harness scripts, settings).
+# A write rule that can reach any of them is wide.
+PROTECTED_WRITE = (".git", ".claude", ".github", "scripts", "hooks",
+                   "plugins/pd-bot/hooks", "plugins/pd-bot/scripts")
 
 
 def frontmatter(text: str):
@@ -120,9 +132,20 @@ def file_rule_wide(entry: str, name: str, arg):
     if not path.startswith("./") or ".." in path.split("/"):
         return f"{entry} reaches outside the repo; use a ./ path"
     if name in WRITE_TOOLS:
-        top = path[2:].split("/")[0]
-        if top in ("*", "**", ".git", ".claude") or top.startswith("*"):
-            return f"{entry} can write the repo root, .git/ or .claude/, where config runs commands"
+        # The fixed part of the path: the segments before the first one with a wildcard.
+        fixed = []
+        for seg in path[2:].split("/"):
+            if any(c in seg for c in "*?[{"):
+                break
+            fixed.append(seg)
+        if len(fixed) == len(path[2:].split("/")):
+            fixed = fixed[:-1]  # a plain file path: judge its folder
+        prefix = "/".join(fixed)
+        for protected in PROTECTED_WRITE:
+            if prefix == "" or protected == prefix or protected.startswith(prefix + "/") \
+                    or prefix.startswith(protected + "/"):
+                return (f"{entry} can write the repo root or {protected}/, where a file runs as "
+                        "code or config")
     return None
 
 
@@ -167,24 +190,34 @@ def scan(root: Path) -> dict[str, list[tuple[str, str]]]:
 
 
 def base_baseline(ref: str, path: Path):
-    """The baseline file at `ref`, or None when git, the ref or the file is missing."""
+    """Return (state, data) for the baseline file at `ref`.
+
+    state is "ok" (data is the file), "absent" (the ref has no baseline file yet), or "error"
+    (data is the reason: no git, not a repository, the ref does not resolve, bad JSON).
+    """
+    def git(*argv):
+        return subprocess.run(["git", *argv], capture_output=True, text=True, timeout=10)
+
     try:
-        top = subprocess.run(["git", "-C", str(path.parent), "rev-parse", "--show-toplevel"],
-                             capture_output=True, text=True, timeout=10)
+        top = git("-C", str(path.resolve().parent), "rev-parse", "--show-toplevel")
         if top.returncode != 0:
-            return None
-        rel = path.resolve().relative_to(Path(top.stdout.strip()).resolve())
-        shown = subprocess.run(["git", "-C", top.stdout.strip(), "show", f"{ref}:{rel.as_posix()}"],
-                               capture_output=True, text=True, timeout=10)
-    except (OSError, ValueError, subprocess.TimeoutExpired):
-        return None
+            return "error", f"{path.parent} is not in a git repository"
+        root = top.stdout.strip()
+        if git("-C", root, "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}").returncode != 0:
+            return "error", f"the base ref {ref} does not resolve (fetch it, or pass --base-ref)"
+        rel = path.resolve().relative_to(Path(root).resolve()).as_posix()
+        if git("-C", root, "cat-file", "-e", f"{ref}:{rel}").returncode != 0:
+            return "absent", None
+        shown = git("-C", root, "show", f"{ref}:{rel}")
+    except (OSError, ValueError, subprocess.TimeoutExpired) as err:
+        return "error", f"git failed: {err}"
     if shown.returncode != 0:
-        return None
+        return "error", f"git show {ref}:{rel} failed"
     try:
         data = json.loads(shown.stdout)
     except json.JSONDecodeError:
-        return None
-    return {k: v for k, v in data.items() if not k.startswith("_")}
+        return "error", f"the baseline at {ref} is not valid JSON"
+    return "ok", {k: v for k, v in data.items() if not k.startswith("_")}
 
 
 def main() -> int:
@@ -193,7 +226,7 @@ def main() -> int:
     parser.add_argument("--baseline", type=Path, default=DEFAULT_BASELINE)
     parser.add_argument("--list", action="store_true", help="print every wide entry, baseline or not")
     parser.add_argument("--base-ref", default="origin/main",
-                        help="a baseline entry must also be in this ref's baseline (skipped when the ref or file is missing)")
+                        help='a baseline entry must also be in this ref\'s baseline; fails when the ref is missing; "" skips')
     args = parser.parse_args()
 
     if not list((args.root / "skills").glob("*/SKILL.md")):
@@ -220,8 +253,16 @@ def main() -> int:
         for entry, reason in wide:
             if entry not in allowed:
                 problems.append(f"{skill}: `{entry}` is wide ({reason})")
-    base = base_baseline(args.base_ref, args.baseline)
-    if base is not None:
+    note = ""
+    if args.base_ref == "":
+        note = "; shrink check skipped (--base-ref \"\")"
+    else:
+        state, base = base_baseline(args.base_ref, args.baseline)
+        if state == "error":
+            problems.append(f"shrink check cannot run: {base}")
+        elif state == "absent":
+            note = f"; {args.base_ref} has no baseline yet, so this change adds it"
+    if args.base_ref and state == "ok":
         for skill, listed in baseline.items():
             for entry in listed:
                 if entry not in base.get(skill, []):
@@ -243,7 +284,7 @@ def main() -> int:
         )
         return 1
     known = sum(len(v) for v in baseline.values())
-    print(f"  ✓ allowed-tools width: no new wide rule ({known} known wide entries in the baseline, none in {', '.join(sorted(NEVER_WIDE))})")
+    print(f"  ✓ allowed-tools width: no new wide rule ({known} known wide entries in the baseline, none in {', '.join(sorted(NEVER_WIDE))}){note}")
     return 0
 
 
