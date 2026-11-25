@@ -85,9 +85,9 @@ The menu bar images (`src-tauri/icons/tray-*.png`) are the same shapes, drawn bl
     source chip goes first in the meta row.
 - **List:** a single card with a state pill per group. Each row is 13/20 with a 26 px round soft state icon. Rows
   get no tint.
-- **StoppedStrip:** a plain card (radius 18) after the lanes, with outline chips; it sits at the bottom of the main
-  panel when the lanes are short and does not stick over them (a sticky strip covered tall cards, issue #159). No
-  blur. A card title that would get less than 9rem puts its time and peek button on a second line.
+- **StoppedStrip:** a plain card (radius 18) that sticks to the bottom of the main panel, with outline chips. No
+  blur. The lanes (or the list) scroll above it, so it covers no card (issue #159). A card title that would get less
+  than 9rem puts its time and peek button on a second line, at the right.
 - **Peek:**
   - A sheet on the right: radius 28, `--surface-2`, `--elev-lg`.
   - Labels are plain. Bubbles use `--surface-3` (the reply) and `--bg` with a border (your prompt), and code is

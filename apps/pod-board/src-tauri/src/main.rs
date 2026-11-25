@@ -362,7 +362,7 @@ fn tray_look(snap: &Snapshot) -> (&'static [u8], String) {
 /// So the running app hands the Dock its icon itself, from the same picture as the bundle icon.
 #[cfg(target_os = "macos")]
 fn dock_icon() {
-    use objc2::{AllocAnyThread, MainThreadMarker};
+    use objc2::{AnyThread, MainThreadMarker};
     use objc2_app_kit::{NSApplication, NSImage};
     use objc2_foundation::NSData;
     // `setup` runs on the main thread; anywhere else, leave the Dock as it is.

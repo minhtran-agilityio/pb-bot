@@ -34,7 +34,7 @@ MOCK = r"""
     s({ title: 'PB Test Working Card With Long Title', state: 'busy', since: now - 3 * MIN, branch: 'LONG_BRANCH', agents: agents(5),
         links: [{ kind: 'pr', url: 'https://example.invalid/1', title: 'PR #1' }, { kind: 'issue', url: 'https://example.invalid/2', title: 'Issue #2' }] }),
     s({ title: 'PB Test Working Two', state: 'busy', since: now - 3 * MIN, agents: agents(4),
-        what: 'A long description of what this session does right now, long enough to need more than one line in the card.' }),
+        what: 'Grill screen work for the owner on LONG_BRANCH today.' }),
     s({ title: 'PB Test Waiting With A Long Title Too', state: 'needs', since: now - 5 * MIN, waiting: 'permission prompt',
         reason: { kind: 'permission', detail: '' }, branch: 'LONG_BRANCH' }),
   ];
@@ -44,7 +44,7 @@ MOCK = r"""
   window.__snap = () => JSON.parse(JSON.stringify(snap));
   window.__TAURI__ = {
     core: { invoke: (cmd) => Promise.resolve(cmd === 'snapshot' ? window.__snap() : null) },
-    event: { listen: () => Promise.resolve(() => {}) },
+    event: { listen: (name, cb) => { (window.__listeners = window.__listeners || []).push(cb); return Promise.resolve(() => {}); } },
   };
 })();
 """.replace("LONG_BRANCH", LONG_BRANCH)
@@ -70,11 +70,16 @@ PROBE = r"""
     out.cards = measure();
     // The Stopped strip may cover no card, at the top of the panel and scrolled to the end.
     const main = document.querySelector('main'), strip = document.querySelector('.strip');
-    out.scrolls = main.scrollHeight > main.clientHeight;
+    // Whatever scrolls (the panel or the lanes) goes to its top, then to its end.
+    const scrollers = [main, document.querySelector('#view .lanes')].filter(Boolean);
+    out.scrolls = scrollers.some((e) => e.scrollHeight > e.clientHeight);
+    out.stripSticky = getComputedStyle(strip).position === 'sticky';
     out.covered = [];
     for (const at of ['top', 'end']) {
-      main.scrollTop = at === 'top' ? 0 : main.scrollHeight; await sleep(150);
-      const sb = box(strip), mb = box(main);
+      for (const e of scrollers) e.scrollTop = at === 'top' ? 0 : e.scrollHeight;
+      await sleep(150);
+      const sb = box(strip), lanes = document.querySelector('#view .lanes'), mb = box(lanes || main), pb = box(main);
+      mb.top = Math.max(mb.top, pb.top); mb.bottom = Math.min(mb.bottom, pb.bottom);
       for (const li of cards()) {
         const cb = box(li);
         // Only the part of the card inside the panel's view counts.
@@ -82,7 +87,26 @@ PROBE = r"""
         if (seen.bottom > seen.top && overlap(seen, sb)) out.covered.push({ at, card: li.querySelector('.title').textContent });
       }
     }
-    main.scrollTop = 0;
+    // The lanes keep their scroll position when the next read draws the board again.
+    const lanesNow = document.querySelector('#view .lanes');
+    lanesNow.scrollTop = 120; await sleep(50);
+    const before = lanesNow.scrollTop;
+    // A new read in which one session changed: the page draws the board again.
+    const next = window.__snap(); next.sessions[0].since -= 60000;
+    for (const cb of (window.__listeners || [])) cb({ payload: next });
+    await sleep(600);
+    out.keptScroll = { before, after: document.querySelector('#view .lanes').scrollTop, redrawn: document.querySelector('#view .lanes') !== lanesNow };
+    for (const e of [main, document.querySelector('#view .lanes')]) e.scrollTop = 0;
+    // A branch name inside a description: the lines its text sits on.
+    out.descBranch = [...document.querySelectorAll('#view .what:not(.fallback)')].filter((p) => p.textContent.includes('LONG_BRANCH')).map((p) => {
+      const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT); let node, tops = new Set();
+      while ((node = walker.nextNode())) {
+        const i = node.textContent.indexOf('LONG_BRANCH'); if (i < 0) continue;
+        const r = document.createRange(); r.setStart(node, i); r.setEnd(node, i + 'LONG_BRANCH'.length);
+        for (const q of r.getClientRects()) if (q.width > 0) tops.add(Math.round(q.top));
+      }
+      return { text: p.textContent, lines: tops.size };
+    });
     // The lanes are wider with the sidebar folded: a title row that fits its time may still not fit the peek button.
     document.getElementById('sidebar').click(); await sleep(300);
     out.cardsCollapsed = measure();
@@ -90,7 +114,7 @@ PROBE = r"""
   const pre = document.createElement('pre'); pre.id = '__probe'; pre.textContent = JSON.stringify(out);
   document.body.append(pre);
 })();
-"""
+""".replace("LONG_BRANCH", LONG_BRANCH)
 
 _cache = {}
 
@@ -142,9 +166,23 @@ class Layout(unittest.TestCase):
             self.assertEqual(b["lines"], 1, b)
             self.assertTrue(b["ellipsis"], b)
 
+    def test_a_branch_name_in_a_description_is_not_split(self):
+        # Item 4c: "pod-shape-" / "grill" in a Working card: the two-line description broke the branch at a hyphen.
+        found = probe()["descBranch"]
+        self.assertTrue(found, "the mock has a description with a branch name")
+        for d in found:
+            self.assertEqual(d["lines"], 1, d)
+
+    def test_the_lanes_keep_their_scroll_position_on_the_next_read(self):
+        k = probe()["keptScroll"]
+        self.assertTrue(k["redrawn"], f"the probe must make the board draw again: {k}")
+        self.assertGreater(k["before"], 0, k)
+        self.assertEqual(k["after"], k["before"], k)
+
     def test_the_stopped_strip_covers_no_card(self):
         out = probe()
         self.assertTrue(out["scrolls"], "the mock must be taller than the panel")
+        self.assertTrue(out["stripSticky"], "the strip stays at the bottom of the panel (#136)")
         self.assertEqual(out["covered"], [], "cards under the Stopped strip")
 
 
