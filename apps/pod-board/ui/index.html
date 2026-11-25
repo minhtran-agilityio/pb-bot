@@ -168,8 +168,10 @@
   .row.link:hover { transform: translateY(-3px); box-shadow: var(--card-sh-hover); }
   .row.flash, .lrow.flash { animation: flash 1.2s ease-out 1; }
   @keyframes flash { from { box-shadow: 0 0 0 3px var(--accent); } to { box-shadow: 0 0 0 3px transparent; } }
-  .rtop { display: flex; align-items: baseline; gap: 8px; }
-  .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; line-height: 24px; font-weight: 600; }
+  /* In a narrow lane the time and the peek button go under a title that would get less than 9rem (issue 159). */
+  .rtop { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; }
+  .rside { flex: none; display: flex; align-items: baseline; gap: 8px; }
+  .title { flex: 1 1 9rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; line-height: 24px; font-weight: 600; }
   .wait { flex: none; font-size: 13px; line-height: 20px; font-weight: 600; color: var(--accent-text); }
   .when { flex: none; font-size: 13px; line-height: 20px; color: var(--fg-subtle); }
   .what { margin: 0; font-size: 13px; line-height: 20px; color: var(--fg-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -215,8 +217,9 @@
   .lc.wait { color: var(--accent-text); font-weight: 600; }
   @media (max-width: 900px) { .lrow { grid-template-columns: minmax(0, 1fr) auto; } .lw { grid-column: 1 / -1; grid-row: 2; } .lp { display: none; } }
 
-  /* StoppedStrip: a plain card that stays at the bottom of the panel while the lanes scroll. */
-  .strip { position: sticky; bottom: 0; z-index: 5; margin-top: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 18px;
+  /* StoppedStrip: a plain card after the lanes, at the bottom of the panel when they are short. It does not stick over
+     the lanes: a sticky strip covered the end of a tall card (issue 159). */
+  .strip { margin-top: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 18px;
     background: var(--surface-2); border: 1px solid var(--border); box-shadow: var(--card-sh); font-size: 13px; line-height: 20px; }
   .chip { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 9999px; font-size: 12px; line-height: 16px;
     font-weight: 500; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
@@ -536,9 +539,12 @@ function row(s, big) {
   const li = el('li', `row ${s.state}`); li.dataset.key = key;
   if (!first && prev.has(key) && prev.get(key) !== s.state) li.classList.add('flash');
   const top = el('div', 'rtop'); top.append(el('span', 'title', s.title));
-  if (s.state !== 'idle') { const w = el('span', 'wait tab', dur(s.since)); w.dataset.since = s.since || ''; top.append(w); }
-  else { const t = el('span', 'when tab', ago(s.since)); t.dataset.ago = s.since || ''; top.append(t); }
-  const pb = peekButton(s); if (pb) top.append(pb);
+  // The time and the peek button keep together: in a narrow lane they go under the title as one (issue 159).
+  const side = el('span', 'rside');
+  if (s.state !== 'idle') { const w = el('span', 'wait tab', dur(s.since)); w.dataset.since = s.since || ''; side.append(w); }
+  else { const t = el('span', 'when tab', ago(s.since)); t.dataset.ago = s.since || ''; side.append(t); }
+  const pb = peekButton(s); if (pb) side.append(pb);
+  top.append(side);
   li.append(top);
   const why = s.state === 'needs' ? whyLine(s) : null; if (why) li.append(why);
   if (s.state === 'busy' && s.step) { const st = el('p', 'stepl'); st.title = s.step; st.append(ic('chevron-right'), el('span', null, s.step)); li.append(st); }

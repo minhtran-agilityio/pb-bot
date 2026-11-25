@@ -357,6 +357,25 @@ fn tray_look(snap: &Snapshot) -> (&'static [u8], String) {
     }
 }
 
+/// The Dock shows the icon it cached for the bundle, and a Dock that pinned Pod Board before the Pod Cat icon (#136) kept
+/// the old one: a new `icon.icns`, `lsregister -f` and a Dock restart did not change it (issue #159, checked on macOS 27).
+/// So the running app hands the Dock its icon itself, from the same picture as the bundle icon.
+#[cfg(target_os = "macos")]
+fn dock_icon() {
+    use objc2::{AllocAnyThread, MainThreadMarker};
+    use objc2_app_kit::{NSApplication, NSImage};
+    use objc2_foundation::NSData;
+    // `setup` runs on the main thread; anywhere else, leave the Dock as it is.
+    let Some(mtm) = MainThreadMarker::new() else { return };
+    let data = NSData::with_bytes(include_bytes!("../icons/icon.png"));
+    if let Some(image) = NSImage::initWithData(NSImage::alloc(), &data) {
+        unsafe { NSApplication::sharedApplication(mtm).setApplicationIconImage(Some(&image)) };
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn dock_icon() {}
+
 fn publish(app: &AppHandle, snap: &Snapshot) {
     let _ = app.emit("pods", snap);
     if let Some(tray) = app.tray_by_id("pod-board") {
@@ -669,6 +688,7 @@ fn main() {
                 })
                 .build(app)?;
 
+            dock_icon();
             // Started at login: stay in the Dock and the menu bar, do not pop a window up.
             if std::env::args().any(|a| a == "--hidden") {
                 if let Some(window) = app.get_webview_window("main") {

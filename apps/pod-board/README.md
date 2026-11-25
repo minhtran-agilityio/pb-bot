@@ -21,7 +21,9 @@ It is a Tauri 2 app (Rust and one HTML page). It needs no server, no port and no
   popover rows, a "sub-agents" count in the summary row, and the full tree in the peek (type, task, model, running
   or how long it took; a nested sub-agent is indented). A step line ("Edit: …") shows when the data holds one; today
   none does, so a working card shows Pod Bay's description as before.
-- **Dock:** one icon; a click opens the window. The badge on the icon is the number of sessions that wait for you.
+- **Dock:** one icon, the Pod Cat; a click opens the window. The badge on the icon is the number of sessions that
+  wait for you. The running app sets the Dock icon itself: a Dock that pinned Pod Board before the Pod Cat icon kept
+  the old icon from its cache, even after a new install (issue #159).
 - **Menu bar:** an icon for the most urgent state and its count: a hand (needs you), a loader (working), a cup (idle),
   a moon with a star (nothing running), or a warning triangle when Pod Bay cannot be read (with the count of
   sessions that wait: the last Pod Bay read and this machine's own sessions, which still alert). They are the same Lucide
@@ -137,6 +139,10 @@ Linux needs the WebKitGTK 4.1 development packages. The app looks for `podbay-de
 
 ## Limits
 
+- A terminal session shows only when Claude Code writes its `~/.claude/sessions/<pid>.json`. Claude Code 2.1.332
+  writes it for an interactive session whether or not it runs in tmux, but not for a child session: a `claude` started
+  from inside another Claude session (its environment holds `CLAUDE_CODE_CHILD_SESSION`) writes no file, so it does
+  not show (issue #159).
 - On macOS a session killed hard (its file left behind) shows until its pid is reused or the file is removed: the
   format of `procStart` there was not seen, so only the pid is checked.
 - Sources not shown, and data not available (step 0, 2026-11-25, on Linux and on M0):
