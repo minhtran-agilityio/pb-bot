@@ -248,7 +248,7 @@ export function GrillScreen({
           placeholder={composerPlaceholder(state, open?.question ?? null)}
           disabled={!waiting || busy !== null}
           thinking={state === "running"}
-          hint={<>Runs <code className="font-mono">claude -p</code> in {shortPath(d.projectPath, home)}</>}
+          hint={<>Runs <code>claude -p</code> in {shortPath(d.projectPath, home)}</>}
         />
       </main>
       {panel && (
