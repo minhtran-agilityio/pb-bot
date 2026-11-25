@@ -7,6 +7,8 @@ file. Versions change only in the release PR (see the release section of `AGENTS
 
 ## [Unreleased]
 
+## [0.6.1] — 2026-11-25
+
 - Changed: sessions compact sooner. `autoCompactWindow` is 300000 in this repo's `.claude/settings.json` and in what `pd-setup` writes (`merge-trim.sh --compact-window 300000`): the orchestrator and owner sessions compact at about 267k. It is 500000 in `fleet-trim.json` for workers and reviewers, which lose more when compacted mid-task. In tokscope, the 4 to 5 longest sessions per role carry most of the cost above 267k (worker 69%, orchestrator 71%); probed with `/context` on Claude Code 2.1.332: the window went from 1M to 300k with a 33k buffer. tokscope, 2026-11-20 to 25: the longest orchestrator session averaged 506k context per request, peak 966k.
 - Added: the orchestrator ledger keeps a `next` per open ticket, is read first at session start as well as after a context summary, and has a backup in the checkout's git directory (`plugins/pd-bot/scripts/ledger-backup.py`, `--restore` when the ledger is missing; it survives `git clean`). The orchestrator stays in its session after a compaction instead of starting a new one.
 - Changed: waiting is message-driven. `pd-orchestrate` (`podbay.md`, Wait) and `pd-work` wait with `notify_when_idle` and `Yield`, never a `ScheduleWakeup` or `/loop` cycle; a wake-up is only a fallback heartbeat of 1200 s or more. Each wake-up re-reads the whole context: tokscope, 2026-11-20 to 25, one loop session woke 151 times at 600 s with about 454k context.
@@ -17,6 +19,47 @@ file. Versions change only in the release PR (see the release section of `AGENTS
 - Security (changed how the owner approves an ADR): `pd-shape` no longer pre-allows wide rules (#123). Its `allowed-tools` had `Bash(git -C *)`, `Bash(git push *)`, `Bash(git commit *)`, `Bash(git add docs/adr*)`, `Bash(git log *)`, `Bash(git fetch *)`, `Bash(git worktree *)`, `Bash(gh pr create *)`, `Bash(gh issue comment *)`, the `write_adrs.py *` rule and a bare `Read`, `Write` and `Edit`. A `*` matches any extra arguments, and a typed slash command applies a skill's `allowed-tools` even in `dontAsk`. Probed with haiku on Claude Code 2.1.330: `git -C <dir> -c core.fsmonitor=<cmd> status` ran `<cmd>`, `git log --output=<file>` wrote a file, and a bare `Read`/`Write` read and wrote files outside the repo, all with no prompt. So prompt injection in a prototype or an issue could run commands, push to `main`, or read files such as `~/.ssh`. `pd-shape` now pre-allows only `Read(./**)`, `Read(~/.claude/plugins/cache/*/pd-bot/**)` (its own references; another plugin's files are denied), `Grep(./**)`, `Glob(./**)`, `Edit(./specs/**)` (this also covers Write), `Agent`, `AskUserQuestion` and `Bash(gh issue view *)`. In the ADR step, the owner now sees one permission prompt for each git, `gh` and `write_adrs.py` command (about 8 per ADR), not one yes for the whole step, and sees the staged ADR diff before `git commit` and the comment text before `gh issue comment`. Under `dontAsk` with no `--allowedTools` for them, those commands are denied.
 - Security: other skills lose wide rules that they did not need. `pd-compound` and `pd-asd-ste100` replace `Bash(python3 *)` with their own scripts. `pd-xia2`, `pd-intent-review`, `pd-intake`, `pd-release-notes` and `pd-session-retro` drop `Bash(git log|show|diff|branch|describe *)`: Claude Code runs plain read-only git with no rule and refuses its writing flags, which those rules let through. `pd-work` and `pd-review` pre-allow `Bash(bash scripts/run-tests.sh)` exactly; the old `run-tests.sh*` also matched other files.
 - Added: `scripts/check_allowed_tools_wide.py`, run by `run-tests.sh`, fails when a skill pre-allows a wide rule: bare `Bash`, `Read`, `Write`, `Edit`, `Grep` or `Glob`; any `git … *`; an interpreter followed by `*` or an option (`python3 *`, `python3 -c*`); a `*` joined to a word; and any other Bash rule with a `*` unless it is `ls`/`test`, a `gh <group> view|list|diff|checks *`, or an interpreter plus a script path under `${CLAUDE_PLUGIN_ROOT}/` or `${CLAUDE_SKILL_DIR}/`. A file rule must be a `./` path, and a write rule (`Edit`, `Write`) is narrow only under `./specs/` or `./docs/` and never on a `package.json`; every other folder can hold a file that runs (CI, hooks, scripts, a SKILL.md, `.husky`, settings). A quoted, list, multi-line or repeated `allowed-tools` value fails, and so does a frontmatter with a control or Unicode line-separator character or a SKILL.md with no frontmatter. WebFetch, WebSearch, Agent, Task, Skill, SendMessage and MCP tools are not judged yet (known limit). The wide rules that existed before are listed in `scripts/allowed-tools-wide-baseline.json` for the owner to decide (the fleet skills' `Bash(git *)`, `pd-orchestrate`'s `gh issue *`, `gh pr *`, `tmux send-keys *`, `podbay *` and `podbay-dev *`, `pd-release-notes`' `mkdir *`, `pd-tickets`' create rules, and bare `Bash`, `Read`, `Write` and `Edit` in most skills). That file can only shrink: an entry that `origin/main`'s copy does not list fails, and the check fails when git or `origin/main` is missing (only a base that has no baseline file yet passes, with a note). `pd-shape` can never be in it. `check_skill_tool_conformance.py` accepts read-only git with no grant and reads a `<!-- pd-bot:owner-approves … -->` marker in a SKILL.md body for commands that the skill leaves to the owner's prompt on purpose.
+- docs(readme): match the README to the current codebase (PR #62)
+- Add the Shape Board step 0 spike for the p2g-questions protocol (PR #63)
+- Set up Pb Bot Storehouse, the Shape Board UI design-system keeper (PR #66)
+- Shape Board Cozy redesign: design system v2.0 (PR #67)
+- [UI] Badge (closes #71) (PR #80)
+- [UI] Tabs (closes #68) (PR #79)
+- feat(ui): add Banner part (warning notice), closes #76 (PR #83)
+- [UI] DropZone (closes #75) (PR #82)
+- [UI] PipelineSteps (closes #70) (PR #84)
+- [UI] Textarea (closes #73) (PR #81)
+- [UI] ArtifactPreviewFrame (closes #77) (PR #85)
+- [UI] Select (closes #72) (PR #86)
+- [UI] ArtifactCard (closes #69) (PR #89)
+- [UI] NewArtifactsBox (closes #74) (PR #90)
+- [UI] AddArtifactDialog (closes #78) (PR #91)
+- [UI] NewArtifactsBox labels (closes #93) (PR #94)
+- [UI] Dialog fits the viewport; AddArtifactDialog nits (closes #92) (PR #95)
+- [UI] Banner wraps children in a div, not a p (closes #87) (PR #96)
+- [UI] Textarea mirror: drop left:-9999px, copy font longhands (closes #88) (PR #97)
+- [DS] Design system v2.2 and the design PR merge rule (PR #98)
+- Shape Board step 2: import artifacts from the hook, versions and sandboxed preview (PR #99)
+- [UI] Type sizes match the prototype; ArtifactCard Preview icon (closes #101) (PR #112)
+- [UI] Kbd (closes #103) (PR #114)
+- [UI] PageHeader: optional steps slot (closes #108) (PR #116)
+- docs(pod-shape): §2 type table and HANDOFF follow v2.3 (PR #120)
+- [UI] Textarea minRows; AddArtifactDialog HTML starts at 8 rows (closes #102) (PR #111)
+- [UI] BriefCard (closes #105) (PR #113)
+- [UI] SessionList and SessionStatus (closes #106) (PR #115)
+- [UI] RightPanel and ReadyBox (closes #107) (PR #118)
+- [UI] ChatMessage and ChatNote (closes #104) (PR #117)
+- [UI] SuggestedAnswers (closes #109) (PR #121)
+- [UI] Composer (closes #110) (PR #125)
+- Shape Board: step 2 follow-ups from the Mac check (#100) (PR #129)
+- CI: run the Shape Board app checks (PR #127)
+- SuggestedAnswers: ignore keys on combobox/menu/tab, drop empty-header separator (closes #126) (PR #130)
+- [DS] Design system v2.4 (Grill parts) and the clean-up rule (PR #128)
+- pd-shape: no wide allowed-tools; CI gate for wide rules (#123) (PR #132)
+- Shape Board step 3: the Grill screen (PR #133)
+- Docs: find the keeper and the UI reviewer by name prefix (PR #135)
+- PR rule: a UI change needs before/after screenshots on the PR (#154) (PR #155)
+- Quota fixes: Sonnet for S/M workers and reviewers, token trim, review order, wait rules, context ceiling (PR #161)
 
 ## [0.6.0] — 2026-11-22
 
