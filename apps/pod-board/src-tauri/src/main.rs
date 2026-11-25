@@ -501,21 +501,18 @@ struct Mon { x: f64, y: f64, w: f64, h: f64, scale: f64 }
 
 /// Where the popover goes, in logical points (the space a `LogicalPosition` takes).
 /// `icon` is the tray rect (x, y, w, h) as tray-icon reports it on macOS: logical points times the
-/// scale of the icon's own screen. That scale is not known, so each monitor's scale is tried and the
-/// monitor whose logical bounds hold the icon is the icon's screen. The popover is centred under the
-/// icon, 6 points below it, and kept 8 points inside that screen.
-fn popover_place(icon: (f64, f64, f64, f64), pop_w: f64, mons: &[Mon]) -> Option<(f64, f64)> {
+/// scale of the icon's own screen. The click point (`cursor`, logical points) names that screen: the
+/// monitor whose logical bounds hold it. Only then is the rect divided by that monitor's scale, so
+/// two screens with different scales cannot be mixed up. The popover is centred under the icon,
+/// 6 points below it, and kept 8 points inside that screen.
+fn popover_place(icon: (f64, f64, f64, f64), cursor: (f64, f64), pop_w: f64, mons: &[Mon]) -> Option<(f64, f64)> {
     let (ix, iy, iw, ih) = icon;
-    mons.iter().find_map(|m| {
-        let (lx, ly) = (ix / m.scale, iy / m.scale);
+    let m = mons.iter().find(|m| {
         let (left, top) = (m.x / m.scale, m.y / m.scale);
-        let (width, height) = (m.w / m.scale, m.h / m.scale);
-        let inside = lx >= left && lx < left + width && ly >= top && ly < top + height;
-        inside.then(|| {
-            let x = popover_x(lx, iw / m.scale, pop_w, (left, width));
-            (x, ly + ih / m.scale + 6.0)
-        })
-    })
+        cursor.0 >= left && cursor.0 < left + m.w / m.scale && cursor.1 >= top && cursor.1 < top + m.h / m.scale
+    })?;
+    let x = popover_x(ix / m.scale, iw / m.scale, pop_w, (m.x / m.scale, m.w / m.scale));
+    Some((x, iy / m.scale + ih / m.scale + 6.0))
 }
 
 /// A left click on the menu bar icon opens the popover under it, or closes it when it is open.
@@ -536,8 +533,11 @@ fn toggle_popover(app: &AppHandle, rect: tauri::Rect) {
         .collect();
     let icon = (rect.position.to_physical::<f64>(1.0), rect.size.to_physical::<f64>(1.0));
     let icon = (icon.0.x, icon.0.y, icon.1.width, icon.1.height);
-    // No monitor holds the icon (should not happen): open under it unclamped, at the popover's own scale.
-    let (x, y) = popover_place(icon, POPOVER_W, &mons).unwrap_or_else(|| {
+    // tao reports the cursor as logical points times the primary screen's scale.
+    let primary = app.primary_monitor().ok().flatten().map(|m| m.scale_factor()).unwrap_or(1.0);
+    let cursor = app.cursor_position().map(|c| (c.x / primary, c.y / primary)).unwrap_or((icon.0, icon.1));
+    // No monitor holds the click (should not happen): open under the icon, unclamped, at the popover's scale.
+    let (x, y) = popover_place(icon, cursor, POPOVER_W, &mons).unwrap_or_else(|| {
         let s = w.scale_factor().unwrap_or(1.0);
         (icon.0 / s + icon.2 / s / 2.0 - POPOVER_W / 2.0, icon.1 / s + icon.3 / s + 6.0)
     });
@@ -753,31 +753,40 @@ mod tests {
     #[test]
     fn the_popover_lands_under_the_icon_on_each_of_two_displays_with_different_scale() {
         // Retina laptop (scale 2, 1440x900 points) at the origin; external (scale 1, 1920x1080 points) to its right.
-        // tao: monitor position = logical origin x scale; the tray rect = logical x the icon screen's scale.
+        // tao: monitor position = logical origin x scale; the tray rect = logical x the icon screen's scale;
+        // the click point is given here in logical points.
         let mons = [
             Mon { x: 0.0, y: 0.0, w: 2880.0, h: 1800.0, scale: 2.0 },
             Mon { x: 1440.0, y: 0.0, w: 1920.0, h: 1080.0, scale: 1.0 },
         ];
-        // Icon on the laptop: logical x 1000, y 0, 24x24 points -> physical x2.
-        let (x, y) = popover_place((2000.0, 0.0, 48.0, 48.0), 340.0, &mons).unwrap();
+        // Icon on the laptop: logical x 1000, 24x24 points -> physical x2.
+        let (x, y) = popover_place((2000.0, 0.0, 48.0, 48.0), (1012.0, 10.0), 340.0, &mons).unwrap();
         assert_eq!((x, y), (1000.0 + 12.0 - 170.0, 24.0 + 6.0));
         // Icon on the external display: logical x 2800, 22x22 points -> physical x1.
-        let (x, y) = popover_place((2800.0, 0.0, 22.0, 22.0), 340.0, &mons).unwrap();
+        // Its rect read at the laptop's scale (x 1400) would also fall on the laptop: the click point decides.
+        let (x, y) = popover_place((2800.0, 0.0, 22.0, 22.0), (2811.0, 10.0), 340.0, &mons).unwrap();
         assert_eq!((x, y), (2800.0 + 11.0 - 170.0, 22.0 + 6.0));
         // Icon at the far right of the laptop: kept inside that display (1440 points wide).
-        let (x, _) = popover_place((2860.0, 0.0, 48.0, 48.0), 340.0, &mons).unwrap();
+        let (x, _) = popover_place((2860.0, 0.0, 48.0, 48.0), (1442.0 - 12.0, 10.0), 340.0, &mons).unwrap();
         assert_eq!(x, 1440.0 - 340.0 - 8.0);
         // Icon at the far right of the external display (logical right edge 3360).
-        let (x, _) = popover_place((3350.0, 0.0, 22.0, 22.0), 340.0, &mons).unwrap();
+        let (x, _) = popover_place((3350.0, 0.0, 22.0, 22.0), (3355.0, 10.0), 340.0, &mons).unwrap();
         assert_eq!(x, 3360.0 - 340.0 - 8.0);
+        // The external display on the left of the laptop (negative origin) works the same way.
+        let left = [
+            Mon { x: -1920.0, y: 0.0, w: 1920.0, h: 1080.0, scale: 1.0 },
+            Mon { x: 0.0, y: 0.0, w: 2880.0, h: 1800.0, scale: 2.0 },
+        ];
+        let (x, _) = popover_place((-500.0, 0.0, 22.0, 22.0), (-489.0, 10.0), 340.0, &left).unwrap();
+        assert_eq!(x, -500.0 + 11.0 - 170.0);
     }
 
     #[test]
     fn one_display_is_unchanged() {
         let mons = [Mon { x: 0.0, y: 0.0, w: 2880.0, h: 1800.0, scale: 2.0 }];
-        let (x, y) = popover_place((2000.0, 0.0, 48.0, 48.0), 340.0, &mons).unwrap();
+        let (x, y) = popover_place((2000.0, 0.0, 48.0, 48.0), (1012.0, 10.0), 340.0, &mons).unwrap();
         assert_eq!((x, y), (1000.0 + 12.0 - 170.0, 30.0));
-        assert!(popover_place((2000.0, 0.0, 48.0, 48.0), 340.0, &[]).is_none());
+        assert!(popover_place((2000.0, 0.0, 48.0, 48.0), (1012.0, 10.0), 340.0, &[]).is_none());
     }
 
     #[test]
