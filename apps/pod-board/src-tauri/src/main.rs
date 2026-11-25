@@ -525,6 +525,21 @@ fn hide_popover(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("popover") { let _ = w.hide(); }
 }
 
+// --- #170, step 1: the base behaviour, so the tests below fail for the ticket's reason ---
+/// Base: only `Focused(false)` of the popover closes it, so a click elsewhere closes nothing when the popover has no focus.
+fn click_hides_popover(_visible: bool, _frame: (f64, f64, f64, f64), _point: (f64, f64)) -> bool { false }
+
+/// Base: the popover is not tied to an icon.
+fn same_icon(_a: (f64, f64), _b: (f64, f64)) -> bool { false }
+
+#[derive(Debug, PartialEq)]
+enum Toggle { Hide, Stay, Show }
+
+/// Base: a click on the icon closes the popover when it is open, otherwise opens it.
+fn toggle_action(visible: bool, _same_icon: bool, _closed_by_click: Option<(u128, f64)>) -> Toggle {
+    if visible { Toggle::Hide } else { Toggle::Show }
+}
+
 /// Where the popover goes: centred under the menu bar icon, 6 px below it, and inside the icon's screen.
 /// All values are in one unit (here logical points); `screen` is (left, width) of the monitor the icon is on.
 fn popover_x(icon_x: f64, icon_w: f64, pop_w: f64, screen: (f64, f64)) -> f64 {
@@ -910,6 +925,47 @@ mod tests {
         assert_eq!(popover_place(icon, click, 340.0, &mons).unwrap().0, 3360.0 - 340.0 - 8.0);
         // A rect no screen holds gives no point (the caller then opens under the icon, unclamped).
         assert!(icon_point((9000.0, 0.0, 22.0, 22.0), &mons, None).is_none());
+    }
+
+    #[test]
+    fn a_click_outside_the_popover_closes_it_whichever_window_has_the_focus() {
+        // Issue #170: on the laptop display the popover opens but the main window (on the other display) stays the
+        // key window, so the popover never sees `Focused(false)`. The click itself decides, not the focus.
+        // Frame and point are in one space (macOS global points, origin bottom left): x, y, width, height.
+        let frame = (707.0, 524.0, 340.0, 333.0);
+        // A click on the desktop of the same screen, on the other display, and on or past each high edge.
+        assert!(click_hides_popover(true, frame, (300.0, 400.0)));
+        assert!(click_hides_popover(true, frame, (500.0, 1500.0)));
+        assert!(click_hides_popover(true, frame, (706.9, 600.0)));
+        assert!(click_hides_popover(true, frame, (1047.0, 600.0)));
+        assert!(click_hides_popover(true, frame, (800.0, 857.0)));
+        assert!(click_hides_popover(true, frame, (800.0, 523.9)));
+        // A click inside the popover keeps it; a hidden popover has nothing to close.
+        assert!(!click_hides_popover(true, frame, (800.0, 600.0)));
+        assert!(!click_hides_popover(true, frame, (707.0, 524.0)));
+        assert!(!click_hides_popover(false, frame, (300.0, 400.0)));
+    }
+
+    #[test]
+    fn a_click_on_a_menu_bar_icon_opens_closes_or_moves_the_popover() {
+        let (laptop, external) = ((864.0, 3.0), (1386.0, -1437.0));
+        // Closed: a click opens it.
+        assert_eq!(toggle_action(false, false, None), Toggle::Show);
+        // Open, same icon: the click closes it. Open for the other display's icon: it moves there (not just closes).
+        assert_eq!(toggle_action(true, true, None), Toggle::Hide);
+        assert_eq!(toggle_action(true, false, None), Toggle::Show);
+        // The mouse-down of this same click already closed it (the click monitor): the mouse-up must not reopen it.
+        assert_eq!(toggle_action(false, true, Some((80, 0.0))), Toggle::Stay);
+        // A click on the other icon closed it on mouse-down too, but that click opens it under its own icon.
+        assert_eq!(toggle_action(false, false, Some((80, 0.0))), Toggle::Show);
+        // Closed long ago, or by a click somewhere else a moment ago (the mouse moved to the icon): open.
+        assert_eq!(toggle_action(false, true, Some((5000, 0.0))), Toggle::Show);
+        assert_eq!(toggle_action(false, true, Some((200, 400.0))), Toggle::Show);
+        // The icon's width changes with its count text and another item can push it sideways, so its left edge
+        // moves; the other display's icon is a whole screen away.
+        assert!(same_icon(laptop, (850.0, 3.0)));
+        assert!(same_icon(laptop, (600.0, 3.0)));
+        assert!(!same_icon(laptop, external));
     }
 
     fn term(status: &str, waiting: &str) -> local::Local {
