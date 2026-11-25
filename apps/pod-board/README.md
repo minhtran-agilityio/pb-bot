@@ -88,6 +88,34 @@ cargo tauri build          # macOS: target/release/bundle/macos/Pod Board.app
 Linux needs the WebKitGTK 4.1 development packages. The app looks for `podbay-dev` in `PATH`, then in
 `~/.local/bin`, `/usr/local/bin` and `/opt/homebrew/bin`, because a desktop app starts with a short `PATH`.
 
+### One installed copy (macOS)
+
+Every new build replaces the old one: after a build there is exactly one `Pod Board.app` on the machine, in
+`~/Applications`. Old copies are not kept (a second copy shows up in Spotlight, and the Dock, Launchpad and
+"Open with" can start the stale one). Install by moving the new bundle in, not by copying it, so no copy stays in
+`target/`:
+
+```
+cd apps/pod-board/src-tauri
+cargo tauri build
+pkill -x pod-board || true                          # quit the running app (pkill exits 1 when it is not running)
+APP="Pod Board.app"
+mkdir -p ~/Applications
+[ -e ~/Applications/"$APP" ] && mv ~/Applications/"$APP" ~/.Trash/"Pod Board $(date +%Y%m%d-%H%M%S).app"
+mv target/release/bundle/macos/"$APP" ~/Applications/
+open ~/Applications/"$APP"
+mdfind "kMDItemFSName == '$APP'"                    # check: only ~/Applications/Pod Board.app
+```
+
+- The old copy goes to the Trash (`mv` to `~/.Trash`, recoverable), never `rm -rf`.
+- Whatever else `mdfind` lists is stale: a bundle in another checkout's `target/release/bundle/macos/` (`src`, `src-NN`,
+  an older clone), a backup, a test copy. Move each to the Trash too, then run the check again. Empty the Trash
+  yourself when you are sure.
+- Do not keep a `.app` as a backup. To go back, check out the older commit and build it, or keep a zip
+  (`ditto -c -k --keepParent "Pod Board.app" PodBoard-<date>.zip`), which Spotlight does not list as an app.
+- To try a build without installing it, run it from `target/` and move it to the Trash when you are done.
+- An agent that builds Pod Board follows this and names, in its report, the copies it moved to the Trash.
+
 ## Data and privacy
 
 - It runs the read-only commands `podbay-dev ls --all` (a 3 s pause after each read) and, every 10th read,
