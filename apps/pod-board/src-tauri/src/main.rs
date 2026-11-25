@@ -525,20 +525,80 @@ fn hide_popover(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("popover") { let _ = w.hide(); }
 }
 
-// --- #170, step 1: the base behaviour, so the tests below fail for the ticket's reason ---
-/// Base: only `Focused(false)` of the popover closes it, so a click elsewhere closes nothing when the popover has no focus.
-fn click_hides_popover(_visible: bool, _frame: (f64, f64, f64, f64), _point: (f64, f64)) -> bool { false }
-
-/// Base: the popover is not tied to an icon.
-fn same_icon(_a: (f64, f64), _b: (f64, f64)) -> bool { false }
-
-#[derive(Debug, PartialEq)]
-enum Toggle { Hide, Stay, Show }
-
-/// Base: a click on the icon closes the popover when it is open, otherwise opens it.
-fn toggle_action(visible: bool, _same_icon: bool, _closed_by_click: Option<(u128, f64)>) -> Toggle {
-    if visible { Toggle::Hide } else { Toggle::Show }
+/// Does a mouse click at `point` close the popover? Yes when it is shown and the click is outside its `frame`
+/// (x, y, width, height; both in one space, the macOS global points). The focus plays no part: on the laptop display
+/// the popover never becomes the key window while the board's window is on the other display, so `Focused(false)`
+/// never fires there (issue #170).
+fn click_hides_popover(visible: bool, frame: (f64, f64, f64, f64), point: (f64, f64)) -> bool {
+    let (x, y, w, h) = frame;
+    // A frame holds its low edges, not its high ones.
+    visible && !(point.0 >= x && point.0 < x + w && point.1 >= y && point.1 < y + h)
 }
+
+/// Where the mouse is, in macOS global points. The same space as a window frame.
+#[cfg(target_os = "macos")]
+fn mouse_point() -> (f64, f64) {
+    let m = objc2_app_kit::NSEvent::mouseLocation();
+    (m.x, m.y)
+}
+
+#[cfg(target_os = "macos")]
+fn note_closed_by_click() {
+    if let Ok(mut g) = POPOVER_CLOSED_BY_CLICK.lock() { *g = Some((Instant::now(), mouse_point())); }
+}
+
+/// macOS: close the popover on a click anywhere else, like a system menu. A global monitor sees the clicks that go
+/// to other apps (the desktop, another display's menu bar); a local one sees the clicks on the board's window, the
+/// only window of this app that is not the popover or the menu bar icon.
+#[cfg(target_os = "macos")]
+fn close_popover_on_click_away(app: &AppHandle) {
+    use block2::RcBlock;
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::{NSEvent, NSEventMask, NSWindow};
+    use std::ptr::NonNull;
+    let Some(mtm) = MainThreadMarker::new() else { return };
+    let mask = NSEventMask::LeftMouseDown | NSEventMask::RightMouseDown | NSEventMask::OtherMouseDown;
+    fn ns_of(app: &AppHandle, label: &str) -> Option<usize> {
+        app.get_webview_window(label).and_then(|w| w.ns_window().ok()).map(|p| p as usize)
+    }
+    // Is the click outside the popover? Read the window's own frame: the same space as the mouse location.
+    fn outside(app: &AppHandle) -> bool {
+        let Some(p) = ns_of(app, "popover") else { return false };
+        let visible = app.get_webview_window("popover").and_then(|w| w.is_visible().ok()).unwrap_or(false);
+        // SAFETY: `ns_window` is this app's own NSWindow, alive while the webview window is; used on the main thread.
+        let f = unsafe { &*(p as *const NSWindow) }.frame();
+        let m = NSEvent::mouseLocation();
+        click_hides_popover(visible, (f.origin.x, f.origin.y, f.size.width, f.size.height), (m.x, m.y))
+    }
+    let other = app.clone();
+    let global = RcBlock::new(move |_: NonNull<NSEvent>| {
+        if outside(&other) { hide_popover(&other); note_closed_by_click(); }
+    });
+    let _ = NSEvent::addGlobalMonitorForEventsMatchingMask_handler(mask, &global);
+    let this = app.clone();
+    let local = RcBlock::new(move |event: NonNull<NSEvent>| -> *mut NSEvent {
+        // Only a click on the board's window counts here. A click on the popover, or on this app's menu bar icon
+        // (whose own click toggles the popover), is left alone.
+        let on_board = MainThreadMarker::new()
+            .and_then(|mtm| unsafe { event.as_ref() }.window(mtm))
+            .map(|w| &*w as *const NSWindow as usize)
+            .is_some_and(|w| Some(w) == ns_of(&this, "main"));
+        if on_board && outside(&this) { hide_popover(&this); note_closed_by_click(); }
+        event.as_ptr()
+    });
+    // SAFETY: the block returns the event it was given, a valid pointer.
+    let _ = unsafe { NSEvent::addLocalMonitorForEventsMatchingMask_handler(mask, &local) };
+    // The monitors live as long as the app.
+    std::mem::forget(global);
+    std::mem::forget(local);
+    let _ = mtm;
+}
+
+#[cfg(not(target_os = "macos"))]
+fn mouse_point() -> (f64, f64) { (0.0, 0.0) }
+
+#[cfg(not(target_os = "macos"))]
+fn close_popover_on_click_away(_app: &AppHandle) {}
 
 /// Where the popover goes: centred under the menu bar icon, 6 px below it, and inside the icon's screen.
 /// All values are in one unit (here logical points); `screen` is (left, width) of the monitor the icon is on.
@@ -586,10 +646,56 @@ fn icon_point(icon: (f64, f64, f64, f64), mons: &[Mon], primary: Option<(f64, f6
     Some(mid(pick))
 }
 
-/// A left click on the menu bar icon opens the popover under it, or closes it when it is open.
+/// The menu bar icon the popover was last opened for (its tray rect's top left), and when a click elsewhere last
+/// closed it. A click on the icon is a mouse-down, which the click monitor sees as a click away, then a mouse-up,
+/// which toggles: the two must not undo each other.
+static POPOVER_ICON: Mutex<Option<(f64, f64)>> = Mutex::new(None);
+static POPOVER_CLOSED_BY_CLICK: Mutex<Option<(Instant, (f64, f64))>> = Mutex::new(None);
+/// A mouse-up this soon after a click closed the popover, and with the mouse still where that click was, belongs to
+/// that click. Without it the icon's own click would close the popover on mouse-down and reopen it on mouse-up.
+const CLICK_PAIR_MS: u128 = 600;
+const CLICK_PAIR_MOVED: f64 = 4.0;
+
+/// Two tray rects are the same icon when their top left is close: the icon's width follows its count text, and
+/// another menu bar item can push it sideways. Another display's icon is a whole screen away.
+fn same_icon(a: (f64, f64), b: (f64, f64)) -> bool {
+    (a.0 - b.0).abs() < 300.0 && (a.1 - b.1).abs() < 20.0
+}
+
+#[derive(Debug, PartialEq)]
+enum Toggle { Hide, Stay, Show }
+
+/// What a click on a menu bar icon does: close the popover that is open under this icon, leave it closed when this
+/// click's own mouse-down just closed it, otherwise open it under this icon (also moving it from the other display's).
+/// `closed_by_click` is, when a click elsewhere closed it, how many ms ago and how many points the mouse moved since.
+fn toggle_action(visible: bool, same_icon: bool, closed_by_click: Option<(u128, f64)>) -> Toggle {
+    match (visible, same_icon) {
+        (true, true) => Toggle::Hide,
+        (true, false) => Toggle::Show,
+        (false, true) if closed_by_click.is_some_and(|(ms, moved)| ms < CLICK_PAIR_MS && moved < CLICK_PAIR_MOVED) => Toggle::Stay,
+        (false, _) => Toggle::Show,
+    }
+}
+
+/// A left click on the menu bar icon opens the popover under it, or closes it when it is open under that icon.
 fn toggle_popover(app: &AppHandle, rect: tauri::Rect) {
     let Some(w) = app.get_webview_window("popover") else { return };
-    if w.is_visible().unwrap_or(false) { let _ = w.hide(); return; }
+    let at = rect.position.to_physical::<f64>(1.0);
+    let at = (at.x, at.y);
+    let same = POPOVER_ICON.lock().ok().and_then(|g| *g).is_some_and(|i| same_icon(i, at));
+    let closed = POPOVER_CLOSED_BY_CLICK.lock().ok().and_then(|g| *g).map(|(t, at)| {
+        let now = mouse_point();
+        (t.elapsed().as_millis(), (now.0 - at.0).hypot(now.1 - at.1))
+    });
+    let action = toggle_action(w.is_visible().unwrap_or(false), same, closed);
+    // The stamp belongs to one click: spent now, whatever the action.
+    if let Ok(mut g) = POPOVER_CLOSED_BY_CLICK.lock() { *g = None; }
+    match action {
+        Toggle::Hide => { let _ = w.hide(); return; }
+        Toggle::Stay => return,
+        Toggle::Show => {}
+    }
+    if let Ok(mut g) = POPOVER_ICON.lock() { *g = Some(at); }
     let mons: Vec<Mon> = w
         .available_monitors()
         .unwrap_or_default()
@@ -704,6 +810,7 @@ fn main() {
                 .build(app)?;
 
             dock_icon();
+            close_popover_on_click_away(app.handle());
             // Started at login: stay in the Dock and the menu bar, do not pop a window up.
             if std::env::args().any(|a| a == "--hidden") {
                 if let Some(window) = app.get_webview_window("main") {
