@@ -212,3 +212,42 @@ code, pre { font-family: var(--font-code); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+/* ============ D. Session parts (issue #137): shared by the board and the popover ============ */
+/* SourceChip: one outline look for every source, icon and word, no colour per source. */
+.src { flex: none; display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 10px 0 7px; border: 1px solid var(--border-strong); border-radius: 9999px;
+  font-size: 12px; line-height: 16px; font-weight: 500; color: var(--fg-muted); white-space: nowrap; }
+.src .ic { font-size: 12px; }
+/* WaitReason: the kind in accent text, then the detail in the code font (the detail may be empty: then the kind stands alone). */
+.why { display: flex; align-items: baseline; gap: 8px; min-width: 0; margin: 0; font-size: 13px; line-height: 20px; }
+.why b { flex: none; font-weight: 600; color: var(--accent-text); }
+.why code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-code); font-size: 12px; color: var(--fg); }
+.why.box { display: block; padding: 10px 14px; border-radius: 18px; background: var(--surface-3); }
+.why.box b { margin-right: 8px; }
+.why.box code { display: inline; white-space: pre-wrap; overflow-wrap: anywhere; }
+/* StepLine: what the session does now, on one line. */
+.stepl { display: flex; align-items: center; gap: 6px; min-width: 0; margin: 0; font-size: 13px; line-height: 20px; color: var(--fg-muted); }
+.stepl .ic { font-size: 14px; color: var(--fg-subtle); }
+.stepl span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* SubagentList: an inset box in a working card; at most three running rows. */
+.subs { display: grid; gap: 2px; padding: 6px 12px; border-radius: 18px; background: var(--surface-3); }
+.sa { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 24px; font-size: 12px; line-height: 16px; color: var(--fg-muted); }
+.sa.d1 { margin-left: 16px; }
+.sa .ic { font-size: 12px; color: var(--session-working); }
+.sa .ic.spin { animation: spin 1.4s linear infinite; }
+.sa b { flex: none; font-weight: 600; color: var(--fg); }
+.sa .task { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sa .tm { flex: none; color: var(--fg-subtle); }
+.subs .rest { margin: 0; font-size: 12px; line-height: 16px; color: var(--fg-muted); }
+/* SubagentTree (peek): one row per sub-agent; a nested one is indented 16 px behind a 1 px guide, no elbows. */
+.atree { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.an { display: grid; gap: 2px; padding: 8px 12px; border-radius: 14px; background: var(--surface-3); font-size: 12px; line-height: 16px; color: var(--fg-muted); }
+.an.d1 { margin-left: 16px; padding-left: 12px; border-left: 1px solid var(--border-strong); border-radius: 0 14px 14px 0; }
+.an .h { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.an .h .ic { font-size: 12px; }
+.an .h .ic.run { color: var(--session-working); animation: spin 1.4s linear infinite; }
+.an .h .ic.fin { color: var(--session-finished); }
+.an .h b { font-weight: 600; color: var(--fg); }
+.an .h .w { margin-left: auto; color: var(--fg-subtle); white-space: nowrap; }
+.an .t { color: var(--fg); overflow-wrap: anywhere; }
+.an .m { overflow-wrap: anywhere; }

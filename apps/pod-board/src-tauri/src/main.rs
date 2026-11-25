@@ -1,11 +1,13 @@
 // Pod Board: a small desktop window with every Pod Bay session by state (needs you, busy, idle).
 // It only observes. It polls the read-only commands `podbay-dev ls --all`, `checkouts --all`, `machines` and
-// `queue ls --all`. It runs `podbay-dev detail` only when the owner opens a session's peek, for that one session,
+// `queue ls --all`, and reads this machine's Claude session files and sub-agent files (`local.rs`; read only, no
+// hook). It runs `podbay-dev detail` only when the owner opens a session's peek, for that one session,
 // and keeps only its last prompt and reply (never the screen). It never sends anything anywhere. A click can open
 // a session in the Claude app, or one of its links (a pull request, an issue, an artifact) in the browser.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod alerts;
+mod local;
 mod model;
 
 use alerts::Alerts;
@@ -274,6 +276,11 @@ fn find_podbay() -> PathBuf {
     dirs.into_iter().map(|d| d.join("podbay-dev")).find(|p| p.is_file()).unwrap_or_else(|| PathBuf::from("podbay-dev"))
 }
 
+/// `~/.claude`, where Claude Code keeps its session files.
+fn claude_dir() -> Option<PathBuf> {
+    std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".claude"))
+}
+
 /// Run one read-only Pod Bay command and parse its JSON. The error text names the subcommand, never stderr.
 fn read(cmd: &PathBuf, args: &[&str]) -> Result<Value, String> {
     read_for(cmd, args, COMMAND_TIMEOUT)
@@ -435,6 +442,8 @@ fn poll_loop(app: AppHandle, wake: Receiver<()>) {
             }
             Err(e) => error = Some(e),
         }
+        // This machine's own Claude sessions: a few small files, read on every poll.
+        raw.local = claude_dir().map(|d| local::read(&d, now_ms(), &local::alive)).unwrap_or_default();
 
         let mut outcome = alerts::Outcome::default();
         let snap = {

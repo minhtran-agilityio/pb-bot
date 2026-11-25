@@ -42,9 +42,11 @@
   .r.busy .w { color: var(--session-working); }
   .r.done .w { color: var(--session-finished); }
   .r .s { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
-  .r .s span:last-child { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .r .s .txt { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tag.sub { background: var(--session-working-soft); color: var(--session-working); }
   .tag { flex: none; display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 9999px; background: var(--session-needs-soft); color: var(--accent-text);
     font-size: 12px; line-height: 16px; font-weight: 500; }
+  .r .why { grid-column: 1 / -1; }
   .quiet { margin: 16px 10px 20px; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--fg-muted); }
   .quiet .ic { font-size: 16px; }
   .more { margin: 2px 6px 8px; font-size: 12px; color: var(--fg-muted); }
@@ -57,7 +59,7 @@
 </head>
 <body>
 <!-- Icons: Lucide, ISC licence (see THIRD-PARTY.md); the same symbols as index.html. -->
-<svg class="sprite" aria-hidden="true"><symbol id="i-hand" viewBox="0 0 24 24"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></symbol><symbol id="i-loader" viewBox="0 0 24 24"><path d="M12 2v4"/><path d="m16.2 7.8 2.9-2.9"/><path d="M18 12h4"/><path d="m16.2 16.2 2.9 2.9"/><path d="M12 18v4"/><path d="m4.9 19.1 2.9-2.9"/><path d="M2 12h4"/><path d="m4.9 4.9 2.9 2.9"/></symbol><symbol id="i-coffee" viewBox="0 0 24 24"><path d="M10 2v2"/><path d="M14 2v2"/><path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"/><path d="M6 2v2"/></symbol><symbol id="i-moon-star" viewBox="0 0 24 24"><path d="M18 5h4"/><path d="M20 3v4"/><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></symbol><symbol id="i-triangle-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol></svg>
+<svg class="sprite" aria-hidden="true"><symbol id="i-server" viewBox="0 0 24 24"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></symbol><symbol id="i-monitor" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></symbol><symbol id="i-terminal" viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></symbol><symbol id="i-hand" viewBox="0 0 24 24"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></symbol><symbol id="i-loader" viewBox="0 0 24 24"><path d="M12 2v4"/><path d="m16.2 7.8 2.9-2.9"/><path d="M18 12h4"/><path d="m16.2 16.2 2.9 2.9"/><path d="M12 18v4"/><path d="m4.9 19.1 2.9-2.9"/><path d="M2 12h4"/><path d="m4.9 4.9 2.9 2.9"/></symbol><symbol id="i-coffee" viewBox="0 0 24 24"><path d="M10 2v2"/><path d="M14 2v2"/><path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"/><path d="M6 2v2"/></symbol><symbol id="i-moon-star" viewBox="0 0 24 24"><path d="M18 5h4"/><path d="M20 3v4"/><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></symbol><symbol id="i-triangle-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol></svg>
 <div class="wrap">
   <header>
     <span class="mascot" id="face" aria-hidden="true">
@@ -100,13 +102,26 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme
 addEventListener('storage', applyTheme);
 addEventListener('focus', applyTheme);
 
+// Where a session runs: the same outline chip as the board. Only a Pod Bay chip names the machine.
+const SRC = { podbay: 'server', desktop: 'monitor', terminal: 'terminal' };
+const srcOf = s => (SRC[s.source] ? s.source : 'podbay');
+const srcWords = s => { const k = srcOf(s); return k === 'podbay' ? (s.machine ? `Pod Bay · ${s.machine}` : 'Pod Bay') : k === 'terminal' ? 'Terminal · RC' : 'Desktop'; };
+const REASON = { permission: 'Permission', question: 'Question', plan: 'Plan approval' };
+const nSub = n => `${n} sub-agent${n === 1 ? '' : 's'}`;
+const subRun = s => { const a = s.agents; return a ? (Number(a.running) || (a.list || []).filter(x => !x.done).length) : 0; };
+
 function row(s) {
   // A finished session shows how long ago it finished; the others how long they wait or work.
   const b = el('button', `r ${s.finished ? 'done' : s.state}`); b.type = 'button';
   b.append(el('span', 't', s.title), el('span', 'w tab', s.finished ? `${dur(s.finished)} ago` : dur(s.since)));
-  const sub = el('span', 's');
-  if (s.waiting) sub.append(el('span', 'tag', s.waiting));
-  sub.append(el('span', null, `${s.what || (s.branch ? `branch ${s.branch}` : `${s.project}/${s.ws}`)} · ${s.machine}`));
+  const k = REASON[s.reason && s.reason.kind];
+  if (s.state === 'needs' && k) { const why = el('p', 'why'); why.append(el('b', null, k)); if (s.reason.detail) why.append(el('code', null, s.reason.detail)); b.append(why); }
+  const sub = el('span', 's'); const chip = el('span', 'src'); chip.append(ic(SRC[srcOf(s)]), el('span', null, srcWords(s)));
+  sub.append(chip);
+  if (s.state === 'needs') sub.append(el('span', 'tag', 'needs you')); // no lane head here says it
+  if (s.state === 'needs' && s.waiting && !k) sub.append(el('span', 'tag', s.waiting)); // no reason: keep the waiting text
+  if (s.state === 'busy' && subRun(s)) sub.append(el('span', 'tag sub', nSub(subRun(s))));
+  sub.append(el('span', 'txt', (s.state === 'busy' && s.step) || s.what || (s.branch ? `branch ${s.branch}` : s.ws && srcOf(s) === 'podbay' ? `${s.project}/${s.ws}` : s.project)));
   b.append(sub);
   b.title = s.rc_id ? `Open ${s.title} in Claude` : `${s.title}: open the board`;
   b.addEventListener('click', () => {
