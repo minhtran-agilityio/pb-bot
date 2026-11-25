@@ -2,7 +2,7 @@
 name: pd-orchestrate
 description: "Lead a fleet of free agent sessions from tickets to reviewed pull requests: triage, assign workers in Pod Bay workspaces, route review, check evidence, call an advisor when stuck. Use when the owner asks to run one or more tickets (bug or feature) with agents, or to coordinate sessions across workspaces."
 argument-hint: "<milestone | #n [#m ...] | free text> [base=<branch>] [local]"
-allowed-tools: Read, Write, Edit, Grep, Glob, Agent, Skill, Artifact, SendMessage, ListAgents, AskUserQuestion, Bash(podbay-dev *), Bash(podbay *), Bash(tmux send-keys *), Bash(git *), Bash(gh issue *), Bash(gh pr *), Bash(gh repo view *), Bash(python3 ${CLAUDE_PLUGIN_ROOT}/skills/pd-orchestrate/scripts/plan_groups.py *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-gate.sh *), Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-settings.py *)
+allowed-tools: Read, Write, Edit, Grep, Glob, Agent, Skill, Artifact, SendMessage, ListAgents, AskUserQuestion, Bash(podbay-dev *), Bash(podbay *), Bash(tmux send-keys *), Bash(git *), Bash(gh issue *), Bash(gh pr *), Bash(gh repo view *), Bash(python3 ${CLAUDE_PLUGIN_ROOT}/skills/pd-orchestrate/scripts/plan_groups.py *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-gate.sh *), Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-settings.py *), Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ledger-backup.py *)
 ---
 
 # Orchestrate a fleet
@@ -21,7 +21,7 @@ report, ledger, outcome contract), `podbay.md` (commands, waiting, stuck session
 - **The owner's attention.** Ask every open question early and in one batch (`run.md`). Record each answer verbatim in the ledger and on the
   issue. Later, go back to the owner only for their decisions.
 - **The ledger.** `specs/fleet/<run>/ledger.json` is your memory. Write it at every state change.
-  After a context summary, read it before anything else.
+  At start or after a summary, read it first (`protocol.md`).
 - **The assignment.** Who works on what, where, with which model and effort, in what order.
   `run.md` gives defaults. Leave one when the ticket gives you a reason, and write the reason in
   the ledger. A brief states the ticket and the outcome; it never lists steps.
@@ -31,7 +31,7 @@ report, ledger, outcome contract), `podbay.md` (commands, waiting, stuck session
   merge a ticket into the run's `feat/*` branch after the merge gate passes (`run.md`, step 5).
 
 You do not write ticket code, and you do not review it alone: that would remove the independent
-check this design rests on.
+check.
 
 ## When something is stuck
 

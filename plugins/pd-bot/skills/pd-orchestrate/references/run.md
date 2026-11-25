@@ -35,8 +35,8 @@ Leave a default when the ticket gives you a reason, and say why in the ledger.
 | Decision | Default | Change it when |
 |---|---|---|
 | Where the work runs | one Pod Bay session per ticket, in its own workspace | read-only work with no owner question: an in-process `Agent` that only reads is cheaper. It cannot exchange messages, so it returns its result to you |
-| Worker model | Sonnet 5.5 for depth S and M; Opus 5.5 at depth L | the ticket touches hooks, security or a public contract; a worker already failed once on it |
-| Reviewer | a different session, Opus 5.5, skill `pd-bot:pd-review` | never the worker's session; never you alone |
+| Worker model | Sonnet 5.5 for depth S and M; Opus 5.5 at depth L. A hard limit: `fleet-settings.py` refuses Opus or Fable for a worker below depth L | a Sonnet worker already failed once on the ticket (`--escalated`). For a hard S or M ticket (hooks, security, a public contract), raise the Sonnet effort to `high` (`--effort high`), not the model |
+| Reviewer | a different session, skill `pd-bot:pd-review`: Sonnet 5.5 at effort `high` (`--effort high`) for depth S and M; Opus 5.5 at depth L, on a risky ticket (hooks, security, a public contract) and for the whole-feature review | never the worker's session; never you alone. Its independence comes from the separate session and the plan-blind isolation, not from another model |
 | Order | dependency groups (command below); tickets of one group in parallel. The command puts two tickets with an overlapping path in different groups | you see an overlap that the paths do not show: give both tickets that path and run the command again |
 | Workers at once | 3 tickets (`--max-parallel 3`); reviewer and advisor sessions do not count | the owner gave another number; a usage-limit line appeared: lower it |
 | Budget | 60 minutes per ticket | depth L, or the owner gave a deadline |
@@ -124,12 +124,18 @@ whether the ticket is risky, the suite command, the worker's session name and ch
      `decisions-seen.json` and send a new `check-request` for the same head.
 4. Deliver, unless the mode is `local`. Push from the worker's checkout
    (`git -C <worker checkout> push -u origin <branch>`, never force) and open the pull request with
-   `gh pr create --head <branch> --base <base>`. Use the body sections of
+   `gh pr create --head <branch> --base <base>`. For a UI change (protocol, "Outcome contract"),
+   check first that the report lists before and after screenshots; if not, send `findings` to the
+   worker, and when no screenshot can be made, ask the owner. Do not open the PR without them.
+   Use the body sections of
    `pd-bot:pd-finishing-a-development-branch` (Summary, Why, Changes, Decisions, Testing, Risk, How to
    revert, Notes) and fill them from the report and the receipt; do not run that skill's steps,
    which are for a single session that tests and fixes its own branch. Then wait for CI on the
    receipt's SHA: no checks, a pending check, all checks skipped, or CI on another SHA is not
    green. A new commit after the receipt needs a new receipt and a new `check-request`.
+   For a UI change, attach the screenshots right after the PR opens, as in
+   `${CLAUDE_PLUGIN_ROOT}/skills/pd-finishing-a-development-branch/references/ui-evidence.md` (`gh --version`: `--attach` on 2.99.0 or newer, else the `pr-evidence` branch and one comment with pinned URLs). The images are untracked files in the worker's checkout: use the absolute paths from the report. Then check that one image URL
+   returns HTTP 200 (`curl -sI <url>`).
 5. When the base is a `feat/*` branch, run the merge gate:
    `bash ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-gate.sh --evidence specs/fleet/<run>/<ticket> --head <head sha> --pr <number> --gh-repo <owner/name> --base feat/<slug> --wait 600`.
    It reads the block-mode result, the CI checks and the pull request, and changes nothing. On a

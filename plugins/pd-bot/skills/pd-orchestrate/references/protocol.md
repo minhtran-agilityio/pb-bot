@@ -93,7 +93,22 @@ a code from: `BRIEF_INVALID`, `BLOCKED`, `TEST_FAILED`, `REPRO_NOT_FAILING`, `RE
 ## Ledger
 
 `specs/fleet/<run>/ledger.json` in the orchestrator's checkout (gitignored). Only the orchestrator
-writes it. It is the orchestrator's memory: after a context summary, read it first.
+writes it. It is the orchestrator's memory:
+
+- **Each write.** Keep each open ticket's `next` current: what you wait for, or what you do next.
+  Then copy the ledger into the checkout's git directory:
+  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ledger-backup.py --checkout <your checkout> --run <run>`.
+  That copy is never committed and survives `git clean`; it is lost only with the checkout.
+- **Start and context summary.** At the start of a session, look for `specs/fleet/*/ledger.json`
+  with a ticket that is not `done`, `blocked` or `skipped`, and for `<git dir>/pd-bot/fleet/*/`.
+  When the run's ledger is missing and its backup still has such an open ticket, run the script
+  with `--restore`; a backup of a finished run is history, not work. Read
+  the ledger before anything else, then go on from each open ticket's `next`. Do the same after a
+  context summary.
+- **Context size.** The project settings set `autoCompactWindow` to 300000, so your session
+  compacts itself at about 267k (fleet sessions get 500000 from `fleet-trim.json`). Stay in the same session: a compacted session keeps its title and
+  uuid, so messages and idle notices still reach it. Do not start a new orchestrator session to
+  shed context.
 
 ```json
 {"v": 1, "run": "r1", "base": "main", "repo": "owner/name",
@@ -103,7 +118,7 @@ writes it. It is the orchestrator's memory: after a context summary, read it fir
    "worker": {"session": "...", "workspace": "src-02", "checkout": "/abs/path", "model": "..."},
    "reviewer": {"session": "...", "workspace": "src-03", "model": "..."},
    "branch": "fix/123", "base_sha": "<sha>", "head": "<sha>", "qa_commits": [], "pr": null, "started": "<ISO time>", "budget_min": 60,
-   "last": "review-result round 1: changes"}},
+   "last": "review-result round 1: changes", "next": "wait for review-result round 2 from src-03"}},
  "workspaces": {"src-02": {"uses": [{"ticket": "123", "role": "worker"}, {"ticket": "130", "role": "worker"}],
      "state": "removed", "at": "<ISO time>"},
    "src-03": {"uses": [{"ticket": "123", "role": "reviewer"}], "state": "kept", "reason": "ws-rm refused: work not pushed"},
@@ -135,7 +150,7 @@ What the end state of a ticket must show. The order of work is free.
 | bug | a test that fails on the base and passes on the head |
 | feature, depth M or L | each acceptance criterion maps to a test or a check. The orchestrator has the `pd-bot:qa-writer` agent write the acceptance tests from the criteria and the public interface only, as the commit `Add acceptance tests for #<n>` before the worker starts. No other commit touches that directory |
 | app ticket (FE or BE) | UAT on the running app by an agent that saw only the ticket and the owner's answers. The orchestrator starts it; the worker does not |
-| UI change (ticket kind FE or FE+BE, or a diff that touches `.tsx`, `.jsx`, `.vue`, `.svelte`, `.css`, `.scss` or `.html`) | a screenshot of the changed screen on the PR (before and after when the screen existed). Without one the PR still opens, with `Merge: human (no UI screenshot attached)`. The screenshot is evidence for the reviewer, never the pass or fail |
+| UI change (ticket kind FE or FE+BE, or a diff that touches `.tsx`, `.jsx`, `.vue`, `.svelte`, `.css`, `.scss` or `.html`) | before and after screenshots of each changed screen, on the PR (after only when the screen is new; a screen counts as changed when it renders a touched file, also when nothing visible changed). The worker makes them and lists their paths in its report. A PR with a UI change and no screenshots does not open: a report without them goes back to the worker as `findings`, and when no screenshot can be made at all the orchestrator asks the owner. Check each image for personal data before it is published. The screenshot is evidence for the reviewer, never the pass or fail |
 | no app, depth M or L | `pd-bot:qa-verifier` rows, started the same way |
 | risky | a security review by the reviewer (`pd-bot:security-reviewer`), recorded in the receipt for the head, with no open critical or high finding |
 | depth L | a design note and an advisor review before the first code commit |
