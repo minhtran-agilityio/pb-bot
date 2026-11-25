@@ -334,3 +334,79 @@ def test_prompt_payload_under_references_is_excluded(tmp_path):
         references={"reviewer-prompt.md": "Run `python3 subagent-only.py`.\n"},
     )
     assert run(tmp_path).returncode == 0
+
+
+# ── issue #123: commands a skill leaves to the owner, or that Claude Code runs read-only ──
+
+
+def test_owner_approved_command_passes(tmp_path):
+    """pd-shape shape: git and gh writes are not pre-allowed; the owner approves each one."""
+    build(
+        tmp_path,
+        skill(
+            "Read(./**), Bash(gh issue view *)",
+            "Run `git push -u origin adr/x`, then `gh pr create`.\n"
+            "<!-- pd-bot:owner-approves git; gh pr create -->",
+        ),
+    )
+    assert run(tmp_path).returncode == 0
+
+
+def test_owner_marker_covers_only_its_prefixes(tmp_path):
+    build(
+        tmp_path,
+        skill(
+            "Read(./**)",
+            "Run `python3 tools/x.py`.\n<!-- pd-bot:owner-approves git; python3 tools/y.py -->",
+        ),
+    )
+    result = run(tmp_path)
+    assert result.returncode == 1
+    assert "tools/x.py" in result.stderr
+
+
+def test_owner_marker_in_a_reference_file_does_not_count(tmp_path):
+    """The marker is read from SKILL.md only, where the owner reviews the skill's grants."""
+    build(
+        tmp_path,
+        skill("Read(./**)", "See references."),
+        references={"r.md": "Run `git push`.\n<!-- pd-bot:owner-approves git -->"},
+    )
+    assert run(tmp_path).returncode == 1
+
+
+def test_read_only_git_needs_no_grant(tmp_path):
+    build(tmp_path, skill("Read", "Read `git log --oneline` and `git describe --tags`."))
+    assert run(tmp_path).returncode == 0
+
+
+def test_writing_git_still_needs_a_grant(tmp_path):
+    build(tmp_path, skill("Read", "Then `git commit -m x`."))
+    result = run(tmp_path)
+    assert result.returncode == 1
+    assert "git commit" in result.stderr
+
+
+def test_bare_script_name_matches_the_granted_full_path(tmp_path):
+    build(
+        tmp_path,
+        skill(
+            "Read, Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/write_adrs.py *)",
+            "Then run `write_adrs.py`.",
+        ),
+    )
+    assert run(tmp_path).returncode == 0
+
+
+def test_bare_script_name_needs_a_grant_of_that_script(tmp_path):
+    build(
+        tmp_path,
+        skill("Read, Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/other.py *)", "Run `write_adrs.py`."),
+    )
+    assert run(tmp_path).returncode == 1
+
+
+def test_read_only_git_with_output_flag_still_needs_a_grant(tmp_path):
+    """Claude Code refuses `git log --output=<file>` without a rule (probe), so it is an under-grant."""
+    build(tmp_path, skill("Read", "Run `git log --output=x.txt`."))
+    assert run(tmp_path).returncode == 1

@@ -1,7 +1,7 @@
 ---
 name: pd-work
 description: "Carry one ticket (bug or feature) to a reviewed, committed result as a free worker session: choose your own method, call the skills and agents the work needs, exchange review with another session, and report with evidence. Use when a brief or an assign message tells you to follow this skill."
-allowed-tools: Read, Write, Edit, Grep, Glob, Agent, Skill, SendMessage, AskUserQuestion, Bash(git *), Bash(gh issue view *), Bash(bash scripts/run-tests.sh*)
+allowed-tools: Read, Write, Edit, Grep, Glob, Agent, Skill, SendMessage, AskUserQuestion, Bash(git *), Bash(gh issue view *), Bash(bash scripts/run-tests.sh)
 ---
 
 # Work one ticket

@@ -1,7 +1,7 @@
 ---
 name: pd-intake
 description: "Readiness gate for one ticket (issue number, issue URL or free text). Judges READY, CONFIRM, GRILL or BLOCKED and picks a depth of S, M or L before any research, planning or edit. Use before starting work on a ticket."
-allowed-tools: Read, Write, Grep, Glob, AskUserQuestion, Bash(gh issue view *), Bash(git log *), Bash(git branch *), Bash(ls *), Bash(test -n *)
+allowed-tools: Read, Write, Grep, Glob, AskUserQuestion, Bash(gh issue view *), Bash(ls *), Bash(test -n *)
 ---
 
 # Intake — is this ticket ready?

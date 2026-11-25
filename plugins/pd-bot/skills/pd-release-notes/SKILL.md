@@ -2,7 +2,7 @@
 name: pd-release-notes
 description: Drafts technical GitHub Release notes and a fact-list JSON from a milestone or a git range. Use when the user asks for release notes, a changelog draft, or what shipped in a version. Draft only. It never tags, pushes, publishes or merges.
 disable-model-invocation: true
-allowed-tools: Read, Write, Grep, Glob, Bash(gh pr list *), Bash(gh pr view *), Bash(gh issue list *), Bash(gh issue view *), Bash(git log *), Bash(git describe *), Bash(mkdir *)
+allowed-tools: Read, Write, Grep, Glob, Bash(gh pr list *), Bash(gh pr view *), Bash(gh issue list *), Bash(gh issue view *), Bash(mkdir *)
 ---
 
 # Release Notes - draft only

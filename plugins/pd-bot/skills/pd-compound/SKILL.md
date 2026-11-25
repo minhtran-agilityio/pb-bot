@@ -1,7 +1,7 @@
 ---
 name: pd-compound
 description: Preserve durable bugs, patterns and failed approaches as `docs/solutions/` lessons, and decisions as `docs/adr/` ADRs. Use only after a session produced a reusable learning.
-allowed-tools: Read, Write, Grep, Glob, Agent, Task, Bash(python3 *)
+allowed-tools: Read, Write, Grep, Glob, Agent, Task, Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/write_adrs.py *), Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/rebuild_solution_index.py *)
 ---
 
 # Compound — durable session knowledge
@@ -36,7 +36,7 @@ Read the selected `templates/` file before writing. Use the context category/slu
 `docs/solutions/<category>/`. On a high-overlap collision, update the existing record. Otherwise,
 allocate the next numeric suffix.
 
-The decision track is the exception: it writes `docs/adr/`, not `docs/solutions/`. Map each decision to `${CLAUDE_PLUGIN_ROOT}/skills/pd-compound/templates/decision-consolidated.md` and run `${CLAUDE_PLUGIN_ROOT}/scripts/write_adrs.py`. The extractor returns `How_to_Reverse` and `Confidence` for each decision. Copy them as given. Set `stage` to `compound`. If `How_to_Reverse` is `[none]` or empty, use `n/a` for `how_to_reverse`. If `Confidence` is not exactly `high`, `medium` or `low`, use `low`, because `write_adrs.py` exits 2 on any other value. Never invent a value.
+The decision track is the exception: it writes `docs/adr/`, not `docs/solutions/`. Map each decision to `${CLAUDE_PLUGIN_ROOT}/skills/pd-compound/templates/decision-consolidated.md` and run `${CLAUDE_PLUGIN_ROOT}/scripts/write_adrs.py`. The extractor returns `How_to_Reverse` and `Confidence` for each decision. Set `stage` to `compound`. If `How_to_Reverse` is `[none]` or empty, use `n/a` for `how_to_reverse`. If `Confidence` is not exactly `high`, `medium` or `low`, use `low`, because `write_adrs.py` exits 2 on any other value. Never invent a value.
 
 Pass `--table-out <file>` to `write_adrs.py`. Report `not recorded: <reason>` for each decision that wrote no file. Rules: `${CLAUDE_PLUGIN_ROOT}/skills/pd-compound/references/not-recorded.md`.
 

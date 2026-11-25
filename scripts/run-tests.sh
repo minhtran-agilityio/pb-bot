@@ -55,6 +55,11 @@ bash scripts/check-md-links.sh || fail "scripts/check-md-links.sh"
 
 echo "== L1: skill allowed-tools =="
 bash scripts/check-allowed-tools.sh || fail "scripts/check-allowed-tools.sh"
+if command -v python3 >/dev/null 2>&1; then
+  python3 scripts/check_allowed_tools_wide.py || fail "scripts/check_allowed_tools_wide.py"
+else
+  echo "  skip — no python3"
+fi
 
 echo "== L1: skill and agent registry (scanned from disk) =="
 if command -v python3 >/dev/null 2>&1; then

@@ -1,7 +1,7 @@
 ---
 name: pd-review
 description: "Review one ticket's commits as an isolated reviewer session: re-run the tests yourself on the base and the head, judge the diff against the owner's verbatim request, and return a receipt pinned to the commit. Use when an assign message tells you to follow this skill, or a review-request arrives."
-allowed-tools: Read, Grep, Glob, Agent, Skill, SendMessage, Bash(git *), Bash(gh issue view *), Bash(bash scripts/run-tests.sh*), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-check.sh *)
+allowed-tools: Read, Grep, Glob, Agent, Skill, SendMessage, Bash(git *), Bash(gh issue view *), Bash(bash scripts/run-tests.sh), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-check.sh *)
 ---
 
 # Review one ticket
