@@ -13,12 +13,15 @@ On a public repository, use mock data. Check `gh --version`, then attach after `
   Add on top of the current tip, so the push is a fast-forward (use absolute paths for the files):
   ```bash
   git fetch origin pr-evidence || true            # the branch may not exist yet
-  export GIT_INDEX_FILE=$(mktemp -u); P=()
+  export GIT_INDEX_FILE=$(mktemp -u)
+  PARENT=""
   if git rev-parse -q --verify origin/pr-evidence >/dev/null; then
-    git read-tree origin/pr-evidence; P=(-p origin/pr-evidence); fi
+    git read-tree origin/pr-evidence
+    PARENT=origin/pr-evidence
+  fi
   git update-index --add --cacheinfo 100644,$(git hash-object -w <file>),pr-<n>/<name>   # once per file
   T=$(git write-tree); rm -f "$GIT_INDEX_FILE"; unset GIT_INDEX_FILE
-  C=$(git commit-tree "$T" "${P[@]}" -m "Evidence for PR #<n>")
+  C=$(git commit-tree "$T" ${PARENT:+-p "$PARENT"} -m "Evidence for PR #<n>")
   git push origin "$C:refs/heads/pr-evidence"
   ```
   On a non-fast-forward push, fetch and run it again. Never force-push. Pin each image URL to `$C`:
