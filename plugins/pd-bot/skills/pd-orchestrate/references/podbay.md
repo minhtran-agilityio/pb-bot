@@ -86,7 +86,14 @@ it for a slash command, or when a session does not accept cross-session messages
    one. One ticket per workspace; a reviewer or an advisor gets its own workspace too, so no
    session shares a working tree with another.
 2. Before you start it, set its model, its permission mode and its role in the checkout:
-   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-settings.py --checkout <checkout> --role worker|reviewer|tester|advisor --model <model id> --mode <your mode> --ticket <id> --run <run>`.
+   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-settings.py --checkout <checkout> --role worker|reviewer|tester|advisor --model <model id> --mode <your mode> --ticket <id> --run <run> --depth <S|M|L> [--effort low|medium|high|xhigh]`.
+   A worker runs Sonnet: the script refuses an Opus or Fable model for `--role worker` unless
+   `--depth L`, or `--escalated` after a Sonnet worker already failed once on that ticket. For a
+   harder S or M ticket, raise the Sonnet worker's effort to `high` (`--effort high`) instead.
+   `--effort` sets the session's `effortLevel`; leave it out to keep the model's default.
+   It also writes the token trim of `scripts/fleet-trim.json` (no claude.ai connectors, unused
+   plugins off: about 20k fewer tokens on every request). Pass `--keep-connectors` only when the
+   ticket needs a claude.ai connector.
    It writes them into the checkout's `.claude/settings.local.json`, keeps every other key, and
    saves the file as it was. Claude Code reads that file when the session starts, so the session
    runs on that model and in that mode with no keystrokes, and its hooks see `PD_BOT_ROLE`. Use
@@ -107,6 +114,10 @@ it for a slash command, or when a session does not accept cross-session messages
 
 - One idle notice arrives for each `notify_when_idle` send. Do other work until then; if there is
   none, yield. Never loop on `ls` or `detail`.
+- Never wait with a `ScheduleWakeup` or `/loop` cycle: each wake-up re-reads your whole context
+  (tokscope, 2026-11-20 to 25: a loop session woke 151 times at 600 s with about 454k context).
+  Use a wake-up only as a fallback heartbeat, 1200 s or more, when no message or idle notice will
+  wake you.
 - Look at a session with `detail` only when it is silent past its budget, or an idle notice came
   with no message from it. `ls` shows `asks: true` when a dialog waits.
 - What you may see, and what it means:

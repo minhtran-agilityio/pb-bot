@@ -93,7 +93,22 @@ a code from: `BRIEF_INVALID`, `BLOCKED`, `TEST_FAILED`, `REPRO_NOT_FAILING`, `RE
 ## Ledger
 
 `specs/fleet/<run>/ledger.json` in the orchestrator's checkout (gitignored). Only the orchestrator
-writes it. It is the orchestrator's memory: after a context summary, read it first.
+writes it. It is the orchestrator's memory:
+
+- **Each write.** Keep each open ticket's `next` current: what you wait for, or what you do next.
+  Then copy the ledger into the checkout's git directory:
+  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ledger-backup.py --checkout <your checkout> --run <run>`.
+  That copy is never committed and survives `git clean`; it is lost only with the checkout.
+- **Start and context summary.** At the start of a session, look for `specs/fleet/*/ledger.json`
+  with a ticket that is not `done`, `blocked` or `skipped`, and for `<git dir>/pd-bot/fleet/*/`.
+  When the run's ledger is missing and its backup still has such an open ticket, run the script
+  with `--restore`; a backup of a finished run is history, not work. Read
+  the ledger before anything else, then go on from each open ticket's `next`. Do the same after a
+  context summary.
+- **Context size.** The project settings set `autoCompactWindow` to 300000, so your session
+  compacts itself at about 267k (fleet sessions get 500000 from `fleet-trim.json`). Stay in the same session: a compacted session keeps its title and
+  uuid, so messages and idle notices still reach it. Do not start a new orchestrator session to
+  shed context.
 
 ```json
 {"v": 1, "run": "r1", "base": "main", "repo": "owner/name",
@@ -103,7 +118,7 @@ writes it. It is the orchestrator's memory: after a context summary, read it fir
    "worker": {"session": "...", "workspace": "src-02", "checkout": "/abs/path", "model": "..."},
    "reviewer": {"session": "...", "workspace": "src-03", "model": "..."},
    "branch": "fix/123", "base_sha": "<sha>", "head": "<sha>", "qa_commits": [], "pr": null, "started": "<ISO time>", "budget_min": 60,
-   "last": "review-result round 1: changes"}},
+   "last": "review-result round 1: changes", "next": "wait for review-result round 2 from src-03"}},
  "workspaces": {"src-02": {"uses": [{"ticket": "123", "role": "worker"}, {"ticket": "130", "role": "worker"}],
      "state": "removed", "at": "<ISO time>"},
    "src-03": {"uses": [{"ticket": "123", "role": "reviewer"}], "state": "kept", "reason": "ws-rm refused: work not pushed"},

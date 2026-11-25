@@ -47,7 +47,7 @@ request goes into `main` after the full review, and the owner merges it.
 Start it when every ticket of the milestone is in the feature branch, before the feature test, so
 its fixes are tested too.
 
-Start a fresh reviewer session in a workspace of its own, with a checkout of `feat/<slug>` at its
+Start a fresh reviewer session on Opus 5.5 in a workspace of its own, with a checkout of `feat/<slug>` at its
 tip. It follows `pd-bot:pd-review` for the range from the base `main` to the tip: `/code-review` on
 the feature pull request, the `pd-bot:intent-reviewer` agent against every ticket's verbatim text
 and the owner's answers, the full suite on the tip. It sends you a receipt. Each real finding

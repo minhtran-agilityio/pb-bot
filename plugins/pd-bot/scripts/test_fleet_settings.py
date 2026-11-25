@@ -7,6 +7,14 @@ import sys
 import pytest
 
 SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fleet-settings.py")
+with open(os.path.join(os.path.dirname(SCRIPT), "fleet-trim.json")) as _f:
+    TRIM = json.load(_f)
+_SCALARS = sorted(k for k in TRIM if k not in ("disableClaudeAiConnectors", "enabledPlugins"))
+TRIM_LINES = ["disableClaudeAiConnectors: " + json.dumps(TRIM["disableClaudeAiConnectors"])] + [
+    f"{k}: {json.dumps(TRIM[k])}" for k in _SCALARS] + [
+    f"enabledPlugins.{n}: false" for n in sorted(TRIM["enabledPlugins"])]
+TRIM_ABSENT = ["disableClaudeAiConnectors: absent"] + [f"{k}: absent" for k in _SCALARS] + [
+    f"enabledPlugins.{n}: absent" for n in sorted(TRIM["enabledPlugins"])]
 
 
 # A global excludes file (common: **/.claude/settings.local.json) would hide the "not ignored" case,
@@ -48,6 +56,9 @@ def test_writes_model_mode_and_role(checkout):
     assert data["model"] == "claude-haiku-5-5"
     assert data["permissions"]["defaultMode"] == "auto"
     assert data["env"] == {"PD_BOT_ROLE": "worker", "PD_BOT_TICKET": "12", "PD_BOT_RUN": "r1"}
+    assert data["disableClaudeAiConnectors"] is True
+    assert data["autoCompactWindow"] == TRIM["autoCompactWindow"] >= 100000
+    assert data["enabledPlugins"] == {n: False for n in TRIM["enabledPlugins"]}
 
 
 def test_keeps_other_keys_and_restores_the_file(checkout):
@@ -112,7 +123,8 @@ def test_not_a_git_checkout_is_named(tmp_path):
 
 def test_bedrock_and_vertex_model_ids_are_accepted(checkout):
     for m in ("us.anthropic.claude-opus-5-5-v1:0", "claude-opus-5-5@20261101"):
-        r = run("--checkout", str(checkout), "--role", "worker", "--model", m, "--mode", "auto")
+        r = run("--checkout", str(checkout), "--role", "worker", "--model", m, "--mode", "auto",
+                "--depth", "L")
         assert r.returncode == 0, r.stderr
 
 
@@ -199,6 +211,13 @@ def test_refuses_a_non_object_env(checkout):
     ["--show", "--ticket="],
     ["--show", "--run="],
     ["--show", "--model="],
+    ["--show", "--depth", "L"],
+    ["--show", "--escalated"],
+    ["--show", "--effort", "high"],
+    ["--restore", "--effort", "high"],
+    ["--role", "worker", "--model", "m", "--mode", "auto", "--effort", "max"],
+    ["--restore", "--keep-connectors"],
+    ["--role", "worker", "--model", "m", "--mode", "auto", "--depth", "XL"],
 ])
 def test_usage_errors_exit_2(checkout, args):
     assert run("--checkout", str(checkout), *args).returncode == 2
@@ -224,7 +243,8 @@ def test_show_prints_absent_keys_and_no_restore_state(checkout):
     assert r.returncode == 0, r.stderr
     assert r.stdout.splitlines() == [
         "model: absent", "permissions.defaultMode: absent", "env.PD_BOT_ROLE: absent",
-        "env.PD_BOT_TICKET: absent", "env.PD_BOT_RUN: absent", "restore state: none"]
+        "env.PD_BOT_TICKET: absent", "env.PD_BOT_RUN: absent", "effortLevel: absent", *TRIM_ABSENT,
+        "restore state: none"]
     assert not (checkout / ".claude").exists() and not state(checkout).exists()
 
 
@@ -235,7 +255,8 @@ def test_show_prints_values_after_apply_and_writes_nothing(checkout):
     assert r.returncode == 0, r.stderr
     assert r.stdout.splitlines() == [
         'model: "claude-haiku-5-5"', 'permissions.defaultMode: "auto"', 'env.PD_BOT_ROLE: "worker"',
-        'env.PD_BOT_TICKET: "12"', 'env.PD_BOT_RUN: "r1"', "restore state: present"]
+        'env.PD_BOT_TICKET: "12"', 'env.PD_BOT_RUN: "r1"', "effortLevel: absent", *TRIM_LINES,
+        "restore state: present"]
     assert (settings(checkout).read_text(), state(checkout).read_text()) == before
 
 
@@ -287,3 +308,114 @@ def test_show_exits_0_and_reports_invalid_when_the_restore_state_path_is_a_direc
     r = show(checkout)
     assert r.returncode == 0, r.stderr
     assert r.stdout.splitlines()[-1] == "restore state: present (invalid)"
+
+
+@pytest.mark.parametrize("model", ["claude-opus-5-5", "claude-fable-5-2", "opus", "best", "default",
+                                   "opusplan", "us.anthropic.claude-opus-5-5-v1:0"])
+def test_a_worker_on_opus_or_fable_is_refused_below_depth_l(checkout, model):
+    for extra in ([], ["--depth", "S"], ["--depth", "M"]):
+        r = run("--checkout", str(checkout), "--role", "worker", "--model", model, "--mode", "auto", *extra)
+        assert r.returncode == 1 and "worker runs Sonnet" in r.stderr, (extra, r.stderr)
+    assert not settings(checkout).exists() and not state(checkout).exists()
+
+
+@pytest.mark.parametrize("extra", [["--depth", "L"], ["--escalated"], ["--depth", "M", "--escalated"]])
+def test_a_worker_on_opus_is_allowed_at_depth_l_or_escalated(checkout, extra):
+    r = run("--checkout", str(checkout), "--role", "worker", "--model", "claude-opus-5-5",
+            "--mode", "auto", *extra)
+    assert r.returncode == 0, r.stderr
+
+
+def test_other_roles_and_sonnet_workers_are_not_guarded(checkout):
+    for role, model in (("reviewer", "claude-opus-5-5"), ("advisor", "claude-fable-5-2"),
+                        ("worker", "claude-sonnet-5-5"), ("worker", "sonnet"), ("worker", "haiku"),
+                        ("worker", "us.anthropic.claude-sonnet-5-5-v1:0")):
+        r = run("--checkout", str(checkout), "--role", role, "--model", model, "--mode", "auto")
+        assert r.returncode == 0, r.stderr
+
+
+def test_keep_connectors_writes_no_connector_trim_but_keeps_the_compact_window(checkout):
+    assert apply(checkout, "--keep-connectors").returncode == 0
+    data = json.loads(settings(checkout).read_text())
+    assert "disableClaudeAiConnectors" not in data and "enabledPlugins" not in data
+    assert data["autoCompactWindow"] == TRIM["autoCompactWindow"]
+
+
+def test_restore_puts_back_the_owner_plugin_choices(checkout):
+    settings(checkout).parent.mkdir()
+    name = sorted(TRIM["enabledPlugins"])[0]
+    before = {"enabledPlugins": {name: True, "mine@market": True}, "disableClaudeAiConnectors": False}
+    settings(checkout).write_text(json.dumps(before))
+    assert apply(checkout).returncode == 0
+    data = json.loads(settings(checkout).read_text())
+    assert data["enabledPlugins"][name] is False and data["enabledPlugins"]["mine@market"] is True
+    assert data["disableClaudeAiConnectors"] is True
+    assert run("--checkout", str(checkout), "--restore").returncode == 0
+    assert json.loads(settings(checkout).read_text()) == before
+
+
+def test_a_second_apply_adds_the_trim_the_first_skipped(checkout):
+    settings(checkout).parent.mkdir()
+    settings(checkout).write_text('{"model": "x"}')
+    assert apply(checkout, "--keep-connectors").returncode == 0
+    assert apply(checkout).returncode == 0
+    assert json.loads(settings(checkout).read_text())["disableClaudeAiConnectors"] is True
+    assert run("--checkout", str(checkout), "--restore").returncode == 0
+    assert json.loads(settings(checkout).read_text()) == {"model": "x"}
+
+
+def test_repo_project_settings_carry_the_plugin_trim_and_keep_only_claude_docs():
+    repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(SCRIPT))))
+    with open(os.path.join(repo, ".claude", "settings.json")) as f:
+        proj = json.load(f)
+    assert {k: v for k, v in proj["enabledPlugins"].items() if k in TRIM["enabledPlugins"]} \
+        == TRIM["enabledPlugins"]
+    # The owner's sessions keep the Claude Docs connector; every other claude.ai connector is denied.
+    deny = proj["permissions"]["deny"]
+    assert "disableClaudeAiConnectors" not in proj
+    # The orchestrator and owner sessions compact sooner (300k) than fleet sessions (fleet-trim.json).
+    assert proj["autoCompactWindow"] == 300000 < TRIM["autoCompactWindow"]
+    assert all(r.startswith("mcp__claude_ai_") for r in deny)
+    assert "mcp__claude_ai_Claude_Docs" not in deny and "mcp__claude_ai_Context7" not in deny
+
+
+def test_keep_connectors_after_a_trimmed_apply_puts_the_owner_values_back(checkout):
+    settings(checkout).parent.mkdir()
+    settings(checkout).write_text('{"enabledPlugins": {"mine@m": true}}')
+    assert apply(checkout).returncode == 0
+    assert json.loads(settings(checkout).read_text())["disableClaudeAiConnectors"] is True
+    assert apply(checkout, "--keep-connectors").returncode == 0
+    data = json.loads(settings(checkout).read_text())
+    assert "disableClaudeAiConnectors" not in data and data["enabledPlugins"] == {"mine@m": True}
+    assert data["autoCompactWindow"] == TRIM["autoCompactWindow"]
+    assert run("--checkout", str(checkout), "--restore").returncode == 0
+    assert json.loads(settings(checkout).read_text()) == {"enabledPlugins": {"mine@m": True}}
+
+
+@pytest.mark.parametrize("body", ["{nope", "[]", '{"extra": {}}', '{"extra": [{"path": [["x"]]}]}',
+                                  '{"extra": [{"path": []}]}', '{"extra": ["x"]}'])
+def test_a_bad_restore_state_is_refused_without_a_traceback(checkout, body):
+    state(checkout).write_text(body)
+    r = apply(checkout)
+    assert r.returncode == 1 and "Traceback" not in r.stderr and "restore state" in r.stderr, r.stderr
+
+
+def test_a_restore_state_that_is_a_directory_is_refused(checkout):
+    state(checkout).mkdir()
+    r = apply(checkout)
+    assert r.returncode == 1 and "Traceback" not in r.stderr, r.stderr
+
+
+def test_effort_is_written_and_restored(checkout):
+    settings(checkout).parent.mkdir()
+    settings(checkout).write_text('{"effortLevel": "low"}')
+    assert apply(checkout, "--effort", "high").returncode == 0
+    assert json.loads(settings(checkout).read_text())["effortLevel"] == "high"
+    assert run("--checkout", str(checkout), "--restore").returncode == 0
+    assert json.loads(settings(checkout).read_text()) == {"effortLevel": "low"}
+
+
+def test_no_effort_option_removes_an_earlier_apply_effort(checkout):
+    assert apply(checkout, "--effort", "high").returncode == 0
+    assert apply(checkout).returncode == 0
+    assert "effortLevel" not in json.loads(settings(checkout).read_text())

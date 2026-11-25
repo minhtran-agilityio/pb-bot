@@ -19,6 +19,8 @@ The plugin lives in `plugins/pd-bot/`; the marketplace file is `.claude-plugin/m
 - The main session chooses the model and effort for each subagent from the task
   itself, whatever model the main session runs on. It always passes `model` to an agent that has no
   model in its frontmatter, because such an agent otherwise inherits the main session's model.
+- Fleet reviewer session (`pd-review`): Sonnet 5.5 at effort `high` for depth S and M; Opus 5.5 at
+  depth L, on a risky ticket and for the whole-feature review (`run.md`).
 - Coding: Sonnet 5.5 (`implementer` agent). Testing: Haiku 5.5
   (`test-runner`). Research and search: Haiku 5.5 (`researcher`). Intent review: Sonnet 5.5
   (`intent-reviewer`). Checking a ticket with no app: Sonnet 5.5 (`qa-verifier`).
@@ -29,7 +31,19 @@ The plugin lives in `plugins/pd-bot/`; the marketplace file is `.claude-plugin/m
 - The orchestrator chooses the model and the effort for each subagent and each session,
   based on how hard the task is. It thinks for itself; the models above are defaults, not fixed
   assignments, and it may raise or lower the model or the effort. Effort is not fixed. The Fable 5.2
-  conditions and the depth L rule below are hard limits.
+  conditions, the depth L rule below and the worker rule are hard limits: a worker at depth S or M runs
+  Sonnet 5.5 (raise its effort, not its model) unless a Sonnet worker already failed once on the ticket;
+  `fleet-settings.py` refuses Opus or Fable for a worker otherwise.
+- Context ceiling: `autoCompactWindow` is 300000 in the repo's `.claude/settings.json` (the
+  orchestrator and owner sessions compact at about 267k) and 500000 in `fleet-trim.json` (workers
+  and reviewers, which lose more when compacted mid-task), instead of running toward 1M. The
+  orchestrator stays in its session after a compaction and reads its ledger first; the ledger has a
+  backup in the git directory (`plugins/pd-bot/scripts/ledger-backup.py`).
+- Token trim: the repo's `.claude/settings.json` turns off unused plugins and denies every claude.ai
+  connector except Claude Docs and Context7 (the Artifact tool is built in and stays). Fleet sessions go further:
+  `fleet-settings.py` writes `plugins/pd-bot/scripts/fleet-trim.json` (`disableClaudeAiConnectors`, no
+  connector at all) into each workspace. A connector connected later on claude.ai is not denied until
+  it is added to that deny list.
 - Effort levels differ by model. Sonnet 5.5: `medium` for well-specified work, `high` for harder or
   longer work; `low` can skip verification, so use it only for mechanical stages. Opus 5.5: start at
   `medium`. Use `xhigh` or `max` only where a quality gain was measured. To get less thinking, lower

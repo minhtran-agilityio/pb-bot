@@ -32,16 +32,14 @@ command or a `file:line`:
 2. **Is the evidence real?** For a bug, run the new test on the base with the old code: it must
    fail there for the ticket's reason, and pass on the head. For a feature with acceptance tests,
    check that only the commit `Add acceptance tests for #<n>` touches their directory and that it
-   comes before the first code commit. Run the full suite on the head yourself.
-3. **Is the code correct?** Run `/code-review` on the range, or read the diff yourself when it is
-   small. 
+   comes before the first code commit. Run the full suite on the head through the `pd-bot:test-runner` agent.
+3. **Is the code correct?** Run `/code-review` on the range first, before tests or other reads
+   (`references/order.md`), or read the diff yourself when it is small.
    When the ticket is risky, run the `pd-bot:security-reviewer` agent yourself and put its
    findings in the receipt's `security` object. Check the other evidence of the ticket's contract
    row too.
 4. **Was a test weakened?** An assertion removed, a case skipped, an expected value changed to
    match the code: each is a finding of severity high unless the ticket asks for it.
-
-Check an agent's load-bearing claim before it goes into the receipt.
 
 ## Verdict
 
