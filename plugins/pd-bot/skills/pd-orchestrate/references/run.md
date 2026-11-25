@@ -124,12 +124,19 @@ whether the ticket is risky, the suite command, the worker's session name and ch
      `decisions-seen.json` and send a new `check-request` for the same head.
 4. Deliver, unless the mode is `local`. Push from the worker's checkout
    (`git -C <worker checkout> push -u origin <branch>`, never force) and open the pull request with
-   `gh pr create --head <branch> --base <base>`. Use the body sections of
+   `gh pr create --head <branch> --base <base>`. For a UI change (protocol, "Outcome contract"),
+   check first that the report lists before and after screenshots; if not, send `findings` to the
+   worker, and when no screenshot can be made, ask the owner. Do not open the PR without them.
+   Use the body sections of
    `pd-bot:pd-finishing-a-development-branch` (Summary, Why, Changes, Decisions, Testing, Risk, How to
    revert, Notes) and fill them from the report and the receipt; do not run that skill's steps,
    which are for a single session that tests and fixes its own branch. Then wait for CI on the
    receipt's SHA: no checks, a pending check, all checks skipped, or CI on another SHA is not
    green. A new commit after the receipt needs a new receipt and a new `check-request`.
+   For a UI change, attach the screenshots right after the PR opens, as in
+   `pd-bot:pd-finishing-a-development-branch` step 4 (`gh --version`: `--attach` on 2.99.0 or newer,
+   else the `pr-evidence` branch and one comment with pinned URLs). Then check that one image URL
+   returns HTTP 200 (`curl -sI <url>`).
 5. When the base is a `feat/*` branch, run the merge gate:
    `bash ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-gate.sh --evidence specs/fleet/<run>/<ticket> --head <head sha> --pr <number> --gh-repo <owner/name> --base feat/<slug> --wait 600`.
    It reads the block-mode result, the CI checks and the pull request, and changes nothing. On a
