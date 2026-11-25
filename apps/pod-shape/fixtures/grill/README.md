@@ -60,7 +60,23 @@ Pass: exit 0. That means:
 
 ## Mac check list (step 3)
 
-Status: not run yet. It runs after the review, on the owner's Mac.
+Status: run on 2026-11-25 on the owner's Mac (macOS 27.2) with the debug build of `0b9b814`. Every item
+passed except the ADR item, which was not run (optional):
+
+- `TMPDIR` folder: pass. `--add-dir` and the `Read(//…/proto/**)` rule start with `/private/var/folders/`;
+  Claude read `proto/prototype.html` in pages, with no "Denied" row.
+- Cmd+Q during a turn: pass. `pgrep` was empty right after quitting; the session showed "Stopped" with the
+  note; Resume, the brief and Confirm brief ended "Confirmed".
+- Force quit during a turn: pass. The turn outlived the app, the reopened app swept its group, the session
+  was "Stopped", and Resume worked.
+- An answer that is not the first option shows up in the brief: pass.
+- Stop during a turn: pass, "Stopped" and `pgrep` empty after 0.64 s; Resume continued.
+- ADR: not run. Add project needs an `origin` that is a GitHub repo, so the local bare `origin` this item
+  needs cannot be used as is.
+- Auto-memory: pass. The only new files are Claude Code's session transcripts; Claude Code also made an
+  empty `memory/` folder for the repo. No other file under `~/.claude` names the clone.
+
+The headless done line and the injection check passed in the same run.
 
 Run on the owner's Mac with the built app (`npm run tauri build -- --debug`). Use a project that points
 at a throwaway clone with a dead push URL.
