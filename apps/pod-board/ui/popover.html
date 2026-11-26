@@ -123,9 +123,10 @@ function row(s) {
   if (s.state === 'busy' && subRun(s)) sub.append(el('span', 'tag sub', nSub(subRun(s))));
   sub.append(el('span', 'txt', (s.state === 'busy' && s.step) || s.what || (s.branch ? `branch ${s.branch}` : s.ws && srcOf(s) === 'podbay' ? `${s.project}/${s.ws}` : s.project)));
   b.append(sub);
-  b.title = s.rc_id ? `Open ${s.title} in Claude` : `${s.title}: open the board`;
+  const opens = s.rc_id ? ['open_session', s.rc_id] : s.desktop_id ? ['open_desktop', s.desktop_id] : null;
+  b.title = opens ? `Open ${s.title} in Claude` : `${s.title}: open the board`;
   b.addEventListener('click', () => {
-    if (s.rc_id) { call('open_session', { id: s.rc_id }); call('close_popover'); } else call('show_board');
+    if (opens) { call(opens[0], { id: opens[1] }); call('close_popover'); } else call('show_board');
   });
   return b;
 }

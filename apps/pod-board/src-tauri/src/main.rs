@@ -130,6 +130,22 @@ fn open_claude(id: &str) -> Result<(), String> {
     spawn_reaped(Command::new(opener).arg(&url)).map_err(|_| "could not open the session".to_string())
 }
 
+/// Open a session of the Claude desktop app with `claude://code/continue?session=local_<uuid>`. The link form is the
+/// one the desktop app's own handler accepts (read in its bundle, 2026-11-26: `/continue` with a `session` that is
+/// `last` or `local_` and letters, digits and `-`); opening one was not run here (README, Limits). Only macOS has the app.
+fn open_desktop_app(id: &str) -> Result<(), String> {
+    if !local::desktop_id(id) {
+        return Err("not a Claude desktop session id".into());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let url = format!("claude://code/continue?session={id}");
+        spawn_reaped(Command::new("open").arg(&url)).map_err(|_| "could not open the session".to_string())
+    }
+    #[cfg(not(target_os = "macos"))]
+    Err("the Claude desktop app is not available here".into())
+}
+
 /// The owner looked at a session: its "finished" mark goes, at once on the page and in the menu bar.
 fn looked(app: &AppHandle, session: &str) {
     let had = app.state::<AlertState>().0.lock().map(|mut a| a.looked(session)).unwrap_or(false);
@@ -155,6 +171,21 @@ fn open_session(app: AppHandle, id: String) -> Result<(), String> {
     open_claude(&id)?;
     // A session with a Remote Control id has that id as its key.
     looked(&app, &id);
+    Ok(())
+}
+
+/// Open a desktop-app session. Only an id the snapshot holds right now passes, so the page cannot make the app open
+/// anything else.
+#[tauri::command]
+fn open_desktop(app: AppHandle, id: String) -> Result<(), String> {
+    let known = {
+        let state = app.state::<Shared>();
+        let held = state.0.lock().map_err(|_| "no data".to_string())?;
+        held.model.sessions.iter().any(|s| s.desktop_id == id)
+    };
+    if !known { return Err("not a desktop session of the board".into()); }
+    open_desktop_app(&id)?;
+    looked(&app, &format!("desktop|{id}"));
     Ok(())
 }
 
@@ -342,6 +373,13 @@ fn claude_dir() -> Option<PathBuf> {
     std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".claude"))
 }
 
+/// The Claude desktop app's data folder (`~/Library/Application Support/Claude`), on macOS only: that is where it
+/// keeps one file per session (issue #176). No other system has the app's folder in a place that was seen.
+fn desktop_dir() -> Option<PathBuf> {
+    if !cfg!(target_os = "macos") { return None; }
+    std::env::var_os("HOME").map(|h| PathBuf::from(h).join("Library/Application Support/Claude"))
+}
+
 /// Run one read-only Pod Bay command and parse its JSON. The error text names the subcommand, never stderr.
 fn read(cmd: &PathBuf, args: &[&str]) -> Result<Value, String> {
     read_for(cmd, args, COMMAND_TIMEOUT)
@@ -522,6 +560,7 @@ fn poll_loop(app: AppHandle, wake: Receiver<()>) {
     let cmd = find_podbay();
     let mut raw = Raw::default();
     let mut cache = local::Cache::default();
+    let mut desktop_cache = local::DesktopCache::default();
     let mut n: u32 = 0;
     loop {
         let mut error = None;
@@ -541,6 +580,8 @@ fn poll_loop(app: AppHandle, wake: Receiver<()>) {
         }
         // This machine's own Claude sessions: a few small files, read on every poll.
         raw.local = claude_dir().map(|d| local::read_with(&d, now_ms(), &local::alive, &mut cache)).unwrap_or_default();
+        raw.desktop = desktop_dir().map(|d| local::read_desktop_with(&d, &mut desktop_cache)).unwrap_or_default();
+        raw.now = now_ms();
 
         let outcome;
         let snap = {
@@ -799,7 +840,7 @@ fn main() {
         .manage(AlertState(Mutex::new(Alerts::new(true))))
         .manage(DndMenu(Mutex::new(None)))
         .manage(Told::default())
-        .invoke_handler(tauri::generate_handler![snapshot, refresh, open_session, open_link, set_dnd, peek, show_board, close_popover])
+        .invoke_handler(tauri::generate_handler![snapshot, refresh, open_session, open_desktop, open_link, set_dnd, peek, show_board, close_popover])
         .setup(move |app| {
             let handle = app.handle().clone();
             // With a handler registered, the plugin reports a click on a notification (`tap`).

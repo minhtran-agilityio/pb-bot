@@ -59,3 +59,31 @@ order, `n working`, `n sub-agents`, `n idle`, `n stopped`; `#crumb` names the ac
 | 17 README and GUIDE | `Docs` |
 | Changes 8 lanes 1.25 / 1.25 / 1 | `Layout` |
 | Changes 7 closed desktop sessions in the Stopped strip | `FiltersDesktop` |
+
+
+# Pod Board acceptance tests (issue #176: Desktop source)
+
+Run: `bash apps/pod-board/tests/acceptance/run_176.sh` (python3 and Chrome/Chromium, on PATH or the macOS app).
+It runs `test_sources_and_steps.py` of #137 with `POD_BOARD_SKIP_DESKTOP` cleared, so the Desktop rows (the classes ending in
+`Desktop` and the tests marked `needs_desktop`) are required, and with no Chrome the run fails instead of skipping. Then it runs
+`test_desktop_176.py` (README and GUIDE). The mock contract above stays as it is: `source: "desktop"` sessions and the closed
+desktop entry of the Stopped strip.
+
+`AC<n>` counts the boxes of the #176 "Acceptance" list from the top.
+
+| Criterion (#176 "Acceptance", in order) | Where |
+|---|---|
+| 1 `cargo test`: desktop fixture gives source `desktop`; archived not shown; a twin shows once under the other source | cargo test by worker (reviewer checks) on `src-tauri/tests/fixtures/desktop` (its README says what each file must produce) |
+| 2 On M0: desktop sessions with a `Desktop` chip; Source filter "Desktop" only them, a second click clears it | page: `FiltersDesktop` of #137 via `run_176.sh`; live data: manual on M0 (M0-176-1) |
+| 3 a card click opens a desktop session, or the peek says why | manual on M0 (M0-176-2): it opens the desktop app |
+| 4 a desktop session that starts to wait: Dock badge, sound, one notification | manual on M0 (M0-176-3) |
+| 5 README and GUIDE: the Desktop source, what is read, what was not verified | `test_desktop_176.py` `Docs` |
+| 6 `cargo test` and `bash scripts/run-tests.sh` exit 0 | the two commands, run by the reviewer |
+
+Manual checks on M0 (the installed app, with the Claude desktop app open):
+- M0-176-1: every non-archived desktop session of the Mac shows once, with a `Desktop` chip on its card, list row (tooltip),
+  peek head and popover row; one that Pod Bay or Terminal · RC lists shows once under that source; an archived one does not
+  show; "Desktop" under Source shows only them, the breadcrumb names it, the counts match, and a second click clears it.
+- M0-176-2: a click on a desktop card opens that session in the Claude desktop app; if it cannot, the card is not a link and
+  the peek says why.
+- M0-176-3: a desktop session that starts to wait raises the Dock badge by one, plays the sound and sends one notification.

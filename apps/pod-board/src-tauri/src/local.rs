@@ -9,6 +9,13 @@
 //!   sub-agent's transcript `agent-*.jsonl` next to it is never opened: only its file times are used (created = the
 //!   start, last change = the end).
 //!
+//! - `~/Library/Application Support/Claude/claude-code-sessions/<id>/<id>/local_<uuid>.json`, one per session of the
+//!   Claude desktop app (issue #176): `sessionId` (`local_<uuid>`, the id its `claude://` link takes), `cliSessionId`
+//!   (the id of the CLI session behind it, which ties it to `~/.claude/sessions/<pid>.json` and to the transcript),
+//!   `title`, `cwd`, `isArchived`, `lastActivityAt` (a file is about 300 KB: the app keeps much more than these). The file has no status: a desktop session that runs has a
+//!   `~/.claude/sessions/<pid>.json` whose `sessionId` is its `cliSessionId`. Nothing else in the file is read; in
+//!   particular `remoteMcpServersConfig` (it can hold addresses and tokens) is skipped by the parser and never built.
+//!
 //! Each field is copied by name into `Local`. `cwd`, `sessionId` and `pid` are used to find the files and to check
 //! that the session still runs, and are then dropped: only the last folder name of `cwd` is kept, as the project.
 
@@ -86,6 +93,9 @@ impl Cache {
 /// One local session, with only the fields the board shows.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Local {
+    /// The Claude session id (`sessionId`), to tie a desktop-app session file to the process behind it and to tell
+    /// a session two sources list. It is used inside `model::build` only and never reaches the page.
+    pub session_id: String,
     /// The tmux session it runs in (Pod Bay's `name` for the sessions Pod Bay runs), else empty.
     pub tmux: String,
     /// The Remote Control id (`bridgeSessionId`), when Remote Control is on and the id is well formed; else empty.
@@ -233,8 +243,8 @@ fn ms(t: SystemTime) -> u64 {
     t.duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
 }
 
-/// A small JSON file: a plain file (not a link, not a pipe), read once and at most `cap` bytes.
-fn read_json(path: &Path, cap: u64) -> Option<Value> {
+/// A small text file: a plain file (not a link, not a pipe), read once and at most `cap` bytes.
+fn read_text(path: &Path, cap: u64) -> Option<String> {
     use std::io::Read;
     let mut open = std::fs::OpenOptions::new();
     open.read(true);
@@ -257,7 +267,12 @@ fn read_json(path: &Path, cap: u64) -> Option<Value> {
     if text.len() as u64 > cap {
         return None;
     }
-    serde_json::from_str(&text).ok()
+    Some(text)
+}
+
+/// A small JSON file, see `read_text`.
+fn read_json(path: &Path, cap: u64) -> Option<Value> {
+    serde_json::from_str(&read_text(path, cap)?).ok()
 }
 
 /// The last folder name of a path, as the project. A home folder (`$HOME`, `<any>/home/<user>`, `/Users/<user>`,
@@ -416,6 +431,7 @@ fn read_sessions(claude: &Path, now: u64, alive: &dyn Fn(i64, &str) -> bool, cac
         };
         let bridge = v["bridgeSessionId"].as_str().unwrap_or("");
         out.push(Local {
+            session_id: if safe_id(sid) { sid.to_string() } else { String::new() },
             tmux: safe_name(v["tmux"].as_str().unwrap_or("").split(':').next().unwrap_or("")),
             rc_id: session_id(&format!("https://claude.ai/code/{bridge}")),
             entrypoint: cut(v["entrypoint"].as_str().unwrap_or(""), 40),
@@ -429,6 +445,150 @@ fn read_sessions(claude: &Path, now: u64, alive: &dyn Fn(i64, &str) -> bool, cac
         });
     }
     out
+}
+
+/// One session of the Claude desktop app, with only the fields the board needs.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Desktop {
+    /// `sessionId` (`local_<uuid>`) when it is well formed: the one id the app needs to open the session in the
+    /// desktop app (`claude://code/continue?session=<id>`). Empty when the id is not one the desktop app accepts.
+    pub open_id: String,
+    /// `cliSessionId` when well formed: only to find the process behind the session and to tell a twin. Never shown.
+    pub cli_id: String,
+    pub title: String,
+    /// The last folder name of `cwd`.
+    pub project: String,
+    /// `lastActivityAt` (ms since the epoch), 0 when missing.
+    pub last_activity: i64,
+}
+
+/// Limits of one desktop poll: folders per level, entries listed in all (the nested folders together), non-archived
+/// sessions kept, and the size of one file. A real file is about 300 KB (the app keeps more than the fields read
+/// here), so the cap is a few MB.
+const MAX_DESKTOP_DIRS: usize = 64;
+const MAX_DESKTOP_LISTED: usize = 4096;
+const MAX_DESKTOP_FILES: usize = 256;
+const MAX_DESKTOP_FILE: u64 = 4 << 20;
+
+/// The only fields of a desktop session file that are looked at. Any other field, `remoteMcpServersConfig` included,
+/// is skipped by the parser and never built. Each field is kept as a `Value` so one of another type is not an error.
+#[derive(serde::Deserialize, Default)]
+#[serde(default)]
+struct DesktopFile {
+    #[serde(rename = "sessionId")]
+    session_id: Option<Value>,
+    #[serde(rename = "cliSessionId")]
+    cli_session_id: Option<Value>,
+    title: Option<Value>,
+    cwd: Option<Value>,
+    #[serde(rename = "isArchived")]
+    is_archived: Option<Value>,
+    #[serde(rename = "lastActivityAt")]
+    last_activity_at: Option<Value>,
+}
+
+/// The desktop app's own id for a session: `local_` and then letters, digits and `-` (the shape its link accepts).
+pub fn desktop_id(id: &str) -> bool {
+    id.strip_prefix("local_").map_or(false, |r| !r.is_empty() && r.len() <= 64 && r.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'))
+}
+
+/// What `read_desktop_with` keeps from one poll to the next: per file, its change time and size when read and what it
+/// gave (`None`: archived, broken or odd). A file that has not changed is not opened again (a file is about 300 KB and
+/// the board polls every few seconds). Only the files the last poll listed are kept.
+#[derive(Default)]
+pub struct DesktopCache {
+    files: HashMap<PathBuf, (SystemTime, u64, Option<Desktop>)>,
+    /// How many files were opened and parsed, in all (for the test of the cache).
+    pub opened: usize,
+}
+
+/// A file changed less than this long ago is not kept: a rewrite in the same clock tick would leave its time as it was.
+const DESKTOP_SETTLE: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// `read_desktop` with a fresh cache: every file is read.
+#[cfg(test)]
+pub fn read_desktop(app: &Path) -> Vec<Desktop> {
+    read_desktop_with(app, &mut DesktopCache::default())
+}
+
+/// The Claude desktop app's sessions, from `<app>/claude-code-sessions/<id>/<id>/local_*.json` (`app` is the folder
+/// `~/Library/Application Support/Claude`). An archived session, a broken or odd file and a link are skipped; a
+/// missing folder gives none. Read only. The newest files come first, and at most `MAX_DESKTOP_FILES` sessions that
+/// are not archived are kept: archived files do not use that budget.
+pub fn read_desktop_with(app: &Path, cache: &mut DesktopCache) -> Vec<Desktop> {
+    let mut listed = 0usize;
+    // The entries of `dir`, counted in `listed` for the whole poll, that `keep`.
+    let mut list = |dir: &Path, keep: &dyn Fn(&std::fs::DirEntry) -> bool| -> Vec<std::fs::DirEntry> {
+        let Ok(rd) = std::fs::read_dir(dir) else { return Vec::new() };
+        let mut out = Vec::new();
+        for e in rd.flatten() {
+            if listed >= MAX_DESKTOP_LISTED { break; }
+            listed += 1;
+            if keep(&e) { out.push(e); }
+        }
+        out
+    };
+    let is_dir = |e: &std::fs::DirEntry| e.file_type().map_or(false, |t| t.is_dir());
+    let is_session = |e: &std::fs::DirEntry| {
+        e.file_name().to_str().map_or(false, |n| n.starts_with("local_") && n.ends_with(".json")) && e.file_type().map_or(false, |t| t.is_file())
+    };
+    let mut files: Vec<(SystemTime, u64, PathBuf)> = Vec::new();
+    let mut outer: Vec<PathBuf> = list(&app.join("claude-code-sessions"), &is_dir).into_iter().map(|e| e.path()).collect();
+    outer.sort();
+    outer.truncate(MAX_DESKTOP_DIRS);
+    for a in outer {
+        let mut inner: Vec<PathBuf> = list(&a, &is_dir).into_iter().map(|e| e.path()).collect();
+        inner.sort();
+        inner.truncate(MAX_DESKTOP_DIRS);
+        for b in inner {
+            for e in list(&b, &is_session) {
+                let m = e.metadata().ok();
+                files.push((m.as_ref().and_then(|m| m.modified().ok()).unwrap_or(UNIX_EPOCH), m.map_or(0, |m| m.len()), e.path()));
+            }
+        }
+    }
+    files.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.2.cmp(&b.2)));
+    let mut out = Vec::new();
+    let mut kept = HashMap::new();
+    for (time, size, path) in files {
+        if out.len() >= MAX_DESKTOP_FILES { break; }
+        let got = match cache.files.remove(&path) {
+            Some((t, n, got)) if t == time && n == size => got,
+            _ => {
+                cache.opened += 1;
+                let got = read_desktop_file(&path);
+                if SystemTime::now().duration_since(time).map_or(false, |d| d >= DESKTOP_SETTLE) {
+                    kept.insert(path.clone(), (time, size, got.clone()));
+                }
+                out.extend(got);
+                continue;
+            }
+        };
+        kept.insert(path, (time, size, got.clone()));
+        out.extend(got);
+    }
+    cache.files = kept;
+    out
+}
+
+/// One desktop session file: None when it is archived, too big, broken or not an object.
+fn read_desktop_file(path: &Path) -> Option<Desktop> {
+    let text = read_text(path, MAX_DESKTOP_FILE)?;
+    // A derived struct also accepts a JSON array: only an object is a session file.
+    if !text.trim_start().starts_with('{') { return None; }
+    let f = serde_json::from_str::<DesktopFile>(&text).ok()?;
+    let text = |v: &Option<Value>| v.as_ref().and_then(Value::as_str).unwrap_or("").to_string();
+    if f.is_archived == Some(Value::Bool(true)) {
+        return None;
+    }
+    let (id, cli) = (text(&f.session_id), text(&f.cli_session_id));
+    Some(Desktop {
+        open_id: if desktop_id(&id) { id } else { String::new() },
+        cli_id: if safe_id(&cli) { cli } else { String::new() },
+        title: cut(&text(&f.title), TEXT_CHARS),
+        project: project_of(&text(&f.cwd)),
+        last_activity: f.last_activity_at.as_ref().and_then(Value::as_i64).unwrap_or(0),
+    })
 }
 
 /// A fresh copy of the fixture folder, so the sub-agent files have new times (a running one is not stale).
@@ -687,5 +847,76 @@ mod tests {
         // Only whole folder names change (review of #158, F4).
         assert_eq!(cut(&format!("edit src/{user}ice.rs and host:/home/{user}ice/x"), 200), format!("edit src/{user}ice.rs and host:/home/~/x"));
         assert_eq!(cut(&format!("copy host:/home/{user}/x,y"), 80), "copy host:/home/~/x,y");
+    }
+    #[test]
+    fn desktop_files_are_read_by_name_and_a_bad_one_is_skipped() {
+        let app = std::env::temp_dir().join(format!("pod-board-desktop-{}-{}", std::process::id(), now()));
+        let dir = app.join("claude-code-sessions/a/b");
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = |name: &str, body: &str| std::fs::write(dir.join(name), body).unwrap();
+        file("local_ok.json", r#"{"sessionId": "local_0f1e-22", "cliSessionId": "0f1e2d3c-aaaa-4bbb-8ccc-1234567890ab", "title": "  Plain  ", "cwd": "/home/someone/secret/alpha/", "isArchived": false, "lastActivityAt": 77}"#);
+        file("local_bad_id.json", r#"{"sessionId": "../x", "cliSessionId": "zz/..", "title": "Odd ids", "cwd": "/w/beta"}"#);
+        file("local_archived.json", r#"{"sessionId": "local_a", "title": "Archived", "isArchived": true}"#);
+        file("local_broken.json", "{not json");
+        file("local_list.json", "[1, 2]");
+        file("other.json", r#"{"sessionId": "local_other", "title": "Not a session file"}"#);
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(dir.join("local_ok.json"), dir.join("local_link.json")).unwrap();
+        let mut got = read_desktop(&app);
+        got.sort_by(|a, b| a.title.cmp(&b.title));
+        assert_eq!(got.iter().map(|d| d.title.as_str()).collect::<Vec<_>>(), vec!["Odd ids", "Plain"]);
+        assert_eq!(got[1], Desktop { open_id: "local_0f1e-22".into(), cli_id: "0f1e2d3c-aaaa-4bbb-8ccc-1234567890ab".into(), title: "Plain".into(), project: "alpha".into(), last_activity: 77 });
+        assert_eq!((got[0].open_id.as_str(), got[0].cli_id.as_str(), got[0].last_activity), ("", "", 0), "an id the desktop app would not accept is dropped");
+        assert!(read_desktop(Path::new("/nonexistent/pod-board")).is_empty());
+        for bad in ["", "local_", "local_a/b", "local_..", "session_01x", "local_a b"] { assert!(!desktop_id(bad), "{bad}"); }
+        assert!(desktop_id("local_d1000000-0000-4000-8000-000000000001"));
+    }
+    #[test]
+    fn a_real_sized_desktop_file_is_read_and_archived_files_do_not_use_up_the_budget() {
+        // Issue #176 review F1 and F3: real files are about 300 KB, and archived ones must not push a live one off.
+        let app = std::env::temp_dir().join(format!("pod-board-desktop-big-{}-{}", std::process::id(), now()));
+        let dir = app.join("claude-code-sessions/a/b");
+        std::fs::create_dir_all(&dir).unwrap();
+        let big = serde_json::json!({"sessionId": "local_big-1", "cliSessionId": "0f1e2d3c-aaaa-4bbb-8ccc-1234567890ab", "title": "Big one", "cwd": "/w/alpha",
+            "isArchived": false, "lastActivityAt": 5, "remoteMcpServersConfig": [{"name": "x", "headers": {"Authorization": "Bearer TOKEN"}}],
+            "extra": "x".repeat(300_000)});
+        std::fs::write(dir.join("local_big.json"), big.to_string()).unwrap();
+        assert!(std::fs::metadata(dir.join("local_big.json")).unwrap().len() > 64 << 10);
+        for i in 0..(MAX_DESKTOP_FILES + 20) {
+            std::fs::write(dir.join(format!("local_arch{i}.json")), r#"{"sessionId": "local_a", "title": "Archived", "isArchived": true}"#).unwrap();
+        }
+        let got = read_desktop(&app);
+        assert_eq!(got.iter().map(|d| d.title.as_str()).collect::<Vec<_>>(), vec!["Big one"]);
+        assert_eq!((got[0].open_id.as_str(), got[0].last_activity), ("local_big-1", 5));
+        // A field of another type is not an error: the session still shows, without that field.
+        std::fs::write(dir.join("local_odd.json"), r#"{"sessionId": "local_odd", "title": 7, "lastActivityAt": "x", "isArchived": "no"}"#).unwrap();
+        assert!(read_desktop(&app).iter().any(|d| d.open_id == "local_odd" && d.title.is_empty()));
+    }
+    #[cfg(unix)]
+    #[test]
+    fn an_unchanged_desktop_file_is_not_opened_again_and_a_changed_one_is() {
+        // Issue #176 review F5: archived and live files are read once, until they change.
+        let app = std::env::temp_dir().join(format!("pod-board-desktop-cache-{}-{}", std::process::id(), now()));
+        let dir = app.join("claude-code-sessions/a/b");
+        std::fs::create_dir_all(&dir).unwrap();
+        let old = (now() / 1000) as i64 - 60;
+        let put = |name: &str, body: &str| { std::fs::write(dir.join(name), body).unwrap(); set_time(&dir.join(name), old); };
+        put("local_live.json", r#"{"sessionId": "local_live", "title": "Live one", "cwd": "/w/alpha"}"#);
+        put("local_arch.json", r#"{"sessionId": "local_arch", "title": "Archived", "isArchived": true}"#);
+        let mut cache = DesktopCache::default();
+        assert_eq!(read_desktop_with(&app, &mut cache).len(), 1);
+        assert_eq!(cache.opened, 2);
+        assert_eq!(read_desktop_with(&app, &mut cache).iter().map(|d| d.title.as_str()).collect::<Vec<_>>(), vec!["Live one"]);
+        assert_eq!(cache.opened, 2, "nothing changed: no file was opened again");
+        put("local_live.json", r#"{"sessionId": "local_live", "title": "Renamed longer", "cwd": "/w/alpha"}"#);
+        assert_eq!(read_desktop_with(&app, &mut cache)[0].title, "Renamed longer");
+        assert_eq!(cache.opened, 3, "only the changed file was opened");
+        // A file that is gone is dropped; one changed just now is not kept.
+        std::fs::remove_file(dir.join("local_arch.json")).unwrap();
+        std::fs::write(dir.join("local_new.json"), r#"{"sessionId": "local_new", "title": "Fresh"}"#).unwrap();
+        assert_eq!(read_desktop_with(&app, &mut cache).len(), 2);
+        assert_eq!(cache.files.len(), 1, "the fresh file is not kept yet, the removed one is gone");
+        read_desktop_with(&app, &mut cache);
+        assert_eq!(cache.opened, 5, "a file changed just now is read again");
     }
 }

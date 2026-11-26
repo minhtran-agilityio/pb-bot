@@ -10,10 +10,19 @@ It is a Tauri 2 app (Rust and one HTML page). It needs no server, no port and no
 
 - **Source:** each session says where it runs, with one outline chip (icon and word): `Pod Bay · <machine>` for a
   session Pod Bay lists, `Terminal · RC` for a Claude session in a terminal of this machine with Remote Control on,
-  which Pod Bay does not list. A session that both list (the same tmux session or the same Remote Control id) shows
-  once, as Pod Bay's. The chip is on every card, the peek head and every popover row; a list row shows its icon with
-  the words as a tooltip. The machine shows only on a Pod Bay chip. A Desktop source (Claude desktop-app sessions)
-  is not shown: no file of this machine lists them (see Limits).
+  which Pod Bay does not list, and `Desktop` for a session of the Claude desktop app on this machine (macOS). A
+  session that two sources list (the same tmux session, the same Remote Control id, or the same Claude session id)
+  shows once, under Pod Bay first, then Terminal, then Desktop. The chip is on every card, the peek head and every
+  popover row; a list row shows its icon with the words as a tooltip. The machine shows only on a Pod Bay chip.
+- **Desktop sessions:** a session of the Claude desktop app that is not archived and whose process runs (its
+  `~/.claude/sessions/<pid>.json` has the same session id) shows as a card and takes its state, wait reason and
+  sub-agents from that file, so it counts for the Dock badge, the sound and the notification like a terminal
+  session. One whose process is gone shows in the Stopped strip (`<title> · <project> · closed <time>`, with the
+  Desktop icon) while its last activity is less than 12 hours old, and is not shown after that (owner, 2026-11-26:
+  hide it after 12 hours). A click on a card opens the session in the Claude desktop app
+  (`claude://code/continue?session=local_<uuid>`); a session whose file holds no id that link accepts is not a
+  link, and its peek says why. The Desktop filter under Source toggles like the others. The app writes no status
+  of its own: a state that no file holds is not shown.
 - **Why it waits:** a waiting session whose file says it waits on a permission shows `Permission` under its title,
   in the peek ("Why it waits") and in its popover row. Otherwise only the `input needed` tag shows.
 - **Sub-agents:** a session on this machine (Pod Bay or terminal) shows its sub-agents: a box in a working card with
@@ -56,7 +65,8 @@ It is a Tauri 2 app (Rust and one HTML page). It needs no server, no port and no
   collapses the sidebar to its icons and expands it again; the choice is remembered. The theme switch (light, dark,
   follow the system) is at the foot of the sidebar; the popover follows the same choice.
 - **Open a session:** click a card (or press Enter on it). A terminal session opens by its Remote Control id too. On macOS this opens `claude://code/<id>`, so the Claude
-  desktop app switches to that session; elsewhere it opens `https://claude.ai/code/<id>` in the browser.
+  desktop app switches to that session; elsewhere it opens `https://claude.ai/code/<id>` in the browser. A Desktop session opens with
+  `claude://code/continue?session=local_<uuid>`.
 - **Peek:** a speech-bubble button on each card (always shown on a card that needs you, on hover for the others)
   opens a side panel with the session's last reply and your last prompt, so you can see what it asks without
   switching to it. It reads them on demand with `podbay-dev --on <machine> detail <name>`; another machine can take
@@ -192,6 +202,14 @@ mdfind "kMDItemFSName == '$APP'"                    # check: only ~/Applications
 - It sends nothing anywhere: no network code, and the page may only talk to the app itself. A clicked link is
   handed to the system (`open`, or `xdg-open` on Linux), which opens it in your browser.
 - On every read it also reads this machine's Claude session files, with no hook and no write:
+  - `~/Library/Application Support/Claude/claude-code-sessions/<id>/<id>/local_<uuid>.json`, one per session of the
+    Claude desktop app (macOS only): `title`, `isArchived`, `lastActivityAt`; `cwd` only for the project (its last
+    folder name); `sessionId` (`local_<uuid>`) only for the link that opens the session in the desktop app, and
+    `cliSessionId` only to find that session's process in `~/.claude/sessions` and to tell a session that Pod Bay or
+    Terminal already shows. `remoteMcpServersConfig`, `originCwd`, `worktreePath`, `model` and the other fields are
+    never read into the model (the parser skips them). At most 4096 entries are listed in one poll and 256 sessions that
+    are not archived kept, each file at most 4 MB (a real file is about 300 KB); a link, a broken file and an odd file
+    are skipped. Nothing is written to the folder.
   - `~/.claude/sessions/<pid>.json`, one per running Claude session: `status`, `waitingFor`, `bridgeSessionId` (the
     Remote Control id), `tmux`, `entrypoint`, `kind`, `name`, `statusUpdatedAt`; `cwd`, `sessionId` and `pid` only
     to find the sub-agent folder and to check that the process still runs. When a file has no `statusUpdatedAt`, its
@@ -217,7 +235,8 @@ mdfind "kMDItemFSName == '$APP'"                    # check: only ~/Applications
     (`/srv/data/x/log.txt` becomes `…/log.txt`); a one-part path (`/tmp`) stays. In every other word with a `/` in
     it (`file:///…`, `host:/…`, `a,/…`), a whole folder name after a `home` or `Users` folder, or equal to a login
     name, becomes `~`, but the rest of the path stays. So the model holds no login name in a path, no home path, no account, no
-    Claude session id and no process id; the only id it holds is the Remote Control id. A path below the home folder
+    Claude session id and no process id; the only ids it holds are the Remote Control id and, for a Desktop session,
+    its `local_<uuid>` id (the one the desktop app's link needs). A path below the home folder
     (`~/…`), the rest of a path in such a word, and a name written as a plain word in the text (a sub-agent's task)
     can still show. Prompt, reply and transcript text are read only when a peek opens, and only for Pod Bay
     sessions (with `podbay-dev detail`).
@@ -257,8 +276,12 @@ mdfind "kMDItemFSName == '$APP'"                    # check: only ~/Applications
 - On macOS a session killed hard (its file left behind) shows until its pid is reused or the file is removed: the
   format of `procStart` there was not seen, so only the pid is checked.
 - Sources not shown, and data not available (step 0, 2026-11-25, on Linux and on M0):
-  - **Desktop:** the Claude desktop app wrote no session file on M0, and its own folders are not read. No Desktop
-    source, Desktop filter or closed desktop sessions in the Stopped strip.
+  - **Desktop state:** the desktop app's session file has no status. A desktop session shows busy, waiting or idle
+    only while a `~/.claude/sessions/<pid>.json` with its session id exists (on 2026-11-26 the desktop app ran on M0
+    with no session of its own running, so no such file was seen: its `entrypoint` is assumed to be `claude-desktop`
+    from the prototype, and the rule matches on the session id, not on the entry point). Without a process a session
+    is closed, and shows only for 12 hours; the board cannot tell a closed chat from one that was never opened, and
+    the closed time is the last activity, not the end of the process.
   - **Reason:** `waitingFor` is `permission prompt` for a permission and for a plan approval (they cannot be told
     apart) and `input needed` for a question and for other input (they cannot be told apart either). No file holds
     the command, so the reason line has no command text. A question or a plan approval shows only `input needed` or
@@ -272,8 +295,14 @@ mdfind "kMDItemFSName == '$APP'"                    # check: only ~/Applications
   `bash apps/pod-board/tests/acceptance/run.sh` (headless Chrome over the two pages, no data).
 - Does not verify on the app (Mac checks): the source chips, filters, sub-agent rows and reason on live data; a
   click that opens a terminal session; alerts for a terminal session (the rule itself is in `cargo test`).
-  `bash apps/pod-board/tests/acceptance/run_137.sh` checks the pages with mock data, run with
-  `POD_BOARD_SKIP_DESKTOP=1` since Desktop is left out.
+  `bash apps/pod-board/tests/acceptance/run_176.sh` checks the pages with mock data, Desktop rows included.
+- Not verified for desktop sessions (#176): that the link `claude://code/continue?session=local_<uuid>` opens the
+  session (its form was read in the installed desktop app's code, version of 2026-11-25, and not run; the app can
+  ignore it when its entry points setting is off); that a running desktop session writes a `~/.claude/sessions` file
+  with its `cliSessionId` as `sessionId` (none was running on M0), so the live state, the Dock badge, the sound and
+  the notification for a desktop session that starts to wait are checked in `cargo test` only; the Desktop chips and
+  the Stopped strip on the real app (M0-176-1 to M0-176-3 of `tests/acceptance/README.md`). A notification for a desktop session opens the board,
+  not the session.
 - Does not verify: that `asks` means a human is awaited (on 2026-11-21 four sessions had `asks: true` with no dialog
   on screen); the window, the Dock badge, the menu bar item and notifications in an automated test; that Pod Bay
   never reports a working session as `idle` for more than 8 seconds in the middle of a run, which would mark it
