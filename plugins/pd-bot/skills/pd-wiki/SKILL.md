@@ -7,6 +7,8 @@ allowed-tools: Read(./**), Grep(./**), Glob(./**), Write(./docs/wiki/**), Edit(.
 
 # Project wiki
 
+<!-- pd-bot:owner-approves git -->
+
 The wiki is a folder of markdown pages in the project's own repository (`docs/wiki/` by default).
 Agents read `index.md` first and then one page. A page states what is true on the default branch now.
 
