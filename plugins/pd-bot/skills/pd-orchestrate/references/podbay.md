@@ -94,8 +94,8 @@ it for a slash command, or when a session does not accept cross-session messages
    It also writes the token trim of `scripts/fleet-trim.json` (no claude.ai connectors, unused
    plugins off: about 20k fewer tokens on every request). Pass `--keep-connectors` only when the
    ticket needs a claude.ai connector. It sets no context cap, so the owner's `autoCompactWindow` in
-   `~/.claude/settings.json` applies; pass `--compact-window N` only to override it for this workspace
-   (`--restore` undoes it).
+   `~/.claude/settings.json` applies. Pass `--compact-window N` only to override it for this workspace.
+   `--restore` undoes it.
    It writes them into the checkout's `.claude/settings.local.json`, keeps every other key, and
    saves the file as it was. Claude Code reads that file when the session starts, so the session
    runs on that model and in that mode with no keystrokes, and its hooks see `PD_BOT_ROLE`. Use

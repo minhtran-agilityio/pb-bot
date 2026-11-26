@@ -106,9 +106,9 @@ writes it. It is the orchestrator's memory:
   the ledger before anything else, then go on from each open ticket's `next`. Do the same after a
   context summary.
 - **Context size.** No pd-bot file sets `autoCompactWindow` by default, so your session compacts at
-  Claude Code's own window. When the owner wants a cap, they set `"autoCompactWindow": N` once in
-  `~/.claude/settings.json`; it applies to every session on that machine, fleet sessions included,
-  because `fleet-settings.py` writes none. `fleet-settings.py --compact-window N` overrides it for one workspace. Stay in the same session when it compacts: a compacted session keeps its title and
+  Claude Code's own window. The owner sets a cap once, as `"autoCompactWindow": N` in
+  `~/.claude/settings.json`. It applies to every session on that machine, fleet sessions included,
+  because `fleet-settings.py` writes none. The `CLAUDE_CODE_AUTO_COMPACT_WINDOW` variable, `--autocompact` and `/autocompact` win over it. `fleet-settings.py --compact-window N` overrides it for one workspace. Stay in the same session: a compacted session keeps its title and
   uuid, so messages and idle notices still reach it. Do not start a new orchestrator session to
   shed context.
 

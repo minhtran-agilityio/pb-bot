@@ -85,8 +85,9 @@ def trim_values():
     if not isinstance(data, dict):
         refuse(f"{TRIM_FILE} does not hold a JSON object")
     pairs = [(("disableClaudeAiConnectors",), data.get("disableClaudeAiConnectors", True))]
+    # autoCompactWindow is never copied from the trim file (as merge-trim.sh): only --compact-window sets it.
     pairs += [((k,), v) for k, v in sorted(data.items())
-              if k not in ("disableClaudeAiConnectors", "enabledPlugins")]
+              if k not in ("disableClaudeAiConnectors", "enabledPlugins") + WINDOW_KEY]
     plugins = data.get("enabledPlugins", {})
     if not isinstance(plugins, dict):
         refuse(f"{TRIM_FILE}: enabledPlugins is not an object")
@@ -216,7 +217,7 @@ def restore(checkout):
 def show(checkout):
     _, path, state = paths(checkout)
     data = read_settings(path) or {}
-    for key in KEYS + trim_keys() + (() if WINDOW_KEY in trim_keys() else (WINDOW_KEY,)):
+    for key in KEYS + trim_keys() + (WINDOW_KEY,):
         got = get(data, key)
         print(f"{'.'.join(key)}: " + (json.dumps(got["value"]) if "value" in got else "absent"))
     label = "none"

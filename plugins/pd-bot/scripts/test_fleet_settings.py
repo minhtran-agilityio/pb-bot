@@ -361,6 +361,19 @@ def test_a_run_without_the_flag_leaves_no_compact_window_in_the_workspace_settin
     assert not settings(checkout).exists()
 
 
+def test_a_cap_in_the_trim_file_is_never_copied(checkout, tmp_path, monkeypatch):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("fleet_settings", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    trim = tmp_path / "trim.json"
+    trim.write_text(json.dumps({"autoCompactWindow": 500000, "someOtherKey": 1,
+                                "enabledPlugins": {"x@m": False}}))
+    monkeypatch.setattr(mod, "TRIM_FILE", str(trim))
+    keys = [k for k, _ in mod.trim_values()]
+    assert ("autoCompactWindow",) not in keys and ("someOtherKey",) in keys
+
+
 def test_compact_window_flag_writes_the_value_and_restore_puts_the_owner_value_back(checkout):
     settings(checkout).parent.mkdir()
     before = {"autoCompactWindow": 777000, "model": "x"}

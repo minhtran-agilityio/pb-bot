@@ -39,7 +39,8 @@ The plugin lives in `plugins/pd-bot/`; the marketplace file is `.claude-plugin/m
   window and long runs are not cut short. To cap every session on a machine (owner, orchestrator,
   workers, reviewers), set it once in Claude Code's user settings, `~/.claude/settings.json`:
   `{"autoCompactWindow": 400000}` (N from 100000); nothing else to remember, because no pd-bot file
-  writes the key at project or local level. `fleet-settings.py --compact-window N` (one workspace;
+  writes the key at project or local level. The `CLAUDE_CODE_AUTO_COMPACT_WINDOW` variable, `--autocompact`
+  and a window saved with `/autocompact` still win over it. `fleet-settings.py --compact-window N` (one workspace;
   `--restore` undoes it) and `merge-trim.sh --compact-window N` (one project) override that. The orchestrator stays in its session after a compaction and reads its
   ledger first; the ledger has a backup in the git directory (`plugins/pd-bot/scripts/ledger-backup.py`).
 - Token trim: the repo's `.claude/settings.json` turns off unused plugins and denies every claude.ai
