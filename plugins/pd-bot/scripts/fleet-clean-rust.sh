@@ -34,8 +34,10 @@
 # holds cargo's tag, no source, no `.git` at any depth and no git-tracked file; a folder that changed is
 # kept and the exit status is 1. Paths in the output are printed with every byte that is not printable ASCII
 # replaced by `?`.
-# Known limit: the window between that last check and the `rm` itself (a few milliseconds), in which a
-# same-user process could still swap the folder, and a process that starts using the folder in that window.
+# On a very large target the scans take seconds, so the last check is ordered: scans, then a fresh list of
+# open files and the in-use check, then the quick checks (inode, symlink, tag) right before the `rm`.
+# Known limit: the few milliseconds between those quick checks and the `rm` itself, in which a same-user
+# process could still swap the folder or start using it.
 # If the script stops before its last line it exits 1.
 #
 # Usage:
@@ -116,6 +118,9 @@ cleanup() {
   if [ "$finished" != 1 ] && [ "$rc" = 0 ]; then echo "fleet-clean-rust: stopped before the end" >&2; exit 1; fi
 }
 trap cleanup EXIT
+# refresh_open: take the list of open files of every process (and check that it is usable). Run at the
+# start, and again right before a delete, so that "a process uses it" is not a minutes-old answer.
+refresh_open() {
 # The processes of the user that can be inspected, taken before lsof runs. A zombie, and on Linux a
 # process whose /proc/<pid>/cwd cannot be read (not dumpable, another credential), is not in the list:
 # lsof cannot list those either, and they would make a full lsof list look partial.
@@ -156,6 +161,8 @@ if ! OWN="$own_cwd" awk -F'\t' -v me="$$" '$1 == me && $3 == "cwd" && $4 == ENVI
   echo "fleet-clean-rust: lsof gave no usable list of open files (it lists $covered of the $alive processes of yours that I can inspect), so I cannot tell whether a process uses a build folder; deleted nothing" >&2
   exit 1
 fi
+}
+refresh_open
 
 canon() { (cd "$1" 2>/dev/null && "$PWDP" -P); }
 
@@ -193,7 +200,7 @@ in_use() {
 }
 
 # keeps_source <dir>: true when its top level holds something that is source, not build output.
-keeps_source() { [ -e "$1/.git" ] || [ -e "$1/Cargo.toml" ] || [ -e "$1/src" ] || [ -e "$1/package.json" ]; }
+keeps_source() { [ -n "$(find "$1" -mindepth 1 -maxdepth 1 \( -iname .git -o -iname Cargo.toml -o -iname src -o -iname package.json \) -print -quit 2>/dev/null)" ]; }
 
 # has_cargo_tag <dir>: a regular CACHEDIR.TAG written by cargo.
 has_cargo_tag() {
@@ -203,7 +210,7 @@ has_cargo_tag() {
 }
 
 # has_git_inside <dir>: a `.git` anywhere inside. git_tracks <dir>: git tracks a file in it.
-has_git_inside() { [ -n "$(find "$1" -name .git -prune -print -quit 2>/dev/null)" ]; }
+has_git_inside() { [ -n "$(find "$1" -iname .git -prune -print -quit 2>/dev/null)" ]; }
 git_tracks() { [ -n "$(git -C "$1" -c core.fsmonitor=false ls-files 2>/dev/null | head -n 1)" ]; }
 
 # devino <dir>: device and inode, to see that a folder is still the one that was checked.
@@ -227,85 +234,105 @@ bad_path() {
 }
 
 # tree_stray <dir>: one scan of the whole folder tree, at every depth (find -P: a symlink is never
-# followed). It allows only what cargo and tauri write, by path shape, and prints the first thing that
-# is anything else, as a path inside <dir>, returning 0; it returns 1 when everything is plain build
-# output.
+# followed). It allows only what cargo and tauri write, at the positions where cargo writes it, and prints
+# the first thing that is anything else, as a path inside <dir>, returning 0; it returns 1 when everything
+# is plain build output. A find that fails (an unreadable folder) counts as a stray: the folder is kept.
 #   Anywhere, also in the opaque zones: a symlink, a special file (fifo, socket, device), a name with a
-#   control or non-ASCII byte, a `.git` (folder or file) and a `Cargo.toml` are never build output.
+#   control or non-ASCII byte, a `.git` (folder or file) and a `Cargo.toml`, whatever the case of the name
+#   (a disk can ignore case), are never build output.
 #   Top level: CACHEDIR.TAG, .rustc_info.json, .rustdoc_fingerprint.json, .future-incompat-report.json,
-#   .cargo-* files; the folders doc, tmp, package, cargo-timings, flycheck*; profile folders (debug,
-#   release, and any folder that holds deps or .fingerprint); and target-triple folders, which hold
-#   profile folders, a doc folder and CACHEDIR.TAG.
-#   Profile folder: build, deps, examples, incremental, .fingerprint, bundle and *.dSYM folders; .cargo-*
-#   files; artifact files (*.d *.rlib *.rmeta *.o *.a *.so *.dylib *.dll *.lib *.pdb *.exe *.wasm *.dwo
-#   *.dwp *.exp); and executables (no extension, executable bit, not starting with `#!`).
-#   deps and examples hold only artifact files, executables and *.dSYM folders.
+#   .cargo-lock, .cargo-build-lock, .cargo-artifact-lock; the folders doc, tmp, package, cargo-timings,
+#   flycheck*; profile folders (debug, release, and any folder that holds deps or .fingerprint); and
+#   target-triple folders, which hold CACHEDIR.TAG, doc and profile folders, and at least one profile.
+#   Profile folder: build, deps, examples, incremental, .fingerprint, bundle and *.dSYM folders; the three
+#   .cargo-* lock files; artifact files (*.rlib *.rmeta *.o *.a *.so *.dylib *.dll *.lib *.pdb *.exe
+#   *.wasm *.dwo *.dwp *.exp); `*.d` dep-info files (first line `<path>:`); and executables, which are
+#   recognised by content only (an ELF, Mach-O or PE header), never by the executable bit.
+#   deps and examples hold only artifact files, `*.d` files, executables and *.dSYM folders.
 #   Opaque zones, whose content cargo or a build script writes freely and which are not judged beyond
-#   the first rule: doc, tmp, package, cargo-timings, flycheck*, build/<package>/, incremental/*/,
-#   .fingerprint/*/, bundle/ and *.dSYM/.
+#   the first rule: doc, tmp, package, cargo-timings, flycheck* (at the top level or in a triple folder, doc
+#   only), build/<package>/, incremental/*/, .fingerprint/*/, bundle/ and *.dSYM/ (inside a profile folder).
+#   A folder with one of these names at any other position is judged like any other folder.
 # Known limit: a source tree that a build script writes into build/<package>/out/ is deleted when it holds
 # no `.git` and no `Cargo.toml`; so is a source file in tmp/. Nothing outside an opaque zone passes.
 tree_stray() {
-  local d="$1" hit line rel
+  local d="$1" hit line rel frc m
   hit=$(find -P "$d" -mindepth 1 \( -type l -o \( ! -type f ! -type d \) -o -name '*[![:print:]]*' \
-         -o -name .git -o -name Cargo.toml \) -print -quit 2>/dev/null)
+         -o -iname .git -o -iname Cargo.toml \) -print -quit 2>"$WORK/find.err"); frc=$?
+  if [ "$frc" != 0 ] || [ -s "$WORK/find.err" ]; then printf '%s' "(unreadable: find failed)"; return 0; fi
   if [ -n "$hit" ]; then printf '%s' "${hit#"$d"/}"; return 0; fi
   # Every name is printable now, so no name holds a newline or a tab: one path per line is safe.
-  hit=$({ find -P "$d" -mindepth 1 -type d -print 2>/dev/null | sed 's/^/d /'
-          find -P "$d" -mindepth 1 -type f -print 2>/dev/null | sed 's/^/f /'; } | D="$d" awk '
-    function art(n) { return (n ~ /\.(d|rlib|rmeta|o|a|so|dylib|dll|lib|pdb|exe|wasm|dwo|dwp|exp)$/ || n ~ /\.so\.[0-9.]+$/) }
-    function stray(r) { print "STRAY " r; found = 1; exit }
-    function profile_top(t) { return (type[t "/deps"] == "d" || type[t "/.fingerprint"] == "d") }
+  find -P "$d" -mindepth 1 -type d -print 2>"$WORK/find.err" | sed 's/^/d /' > "$WORK/tree.txt"; frc=${PIPESTATUS[0]}
+  if [ "$frc" != 0 ] || [ -s "$WORK/find.err" ]; then printf '%s' "(unreadable: find failed)"; return 0; fi
+  find -P "$d" -mindepth 1 -type f -print 2>"$WORK/find.err" | sed 's/^/f /' >> "$WORK/tree.txt"; frc=${PIPESTATUS[0]}
+  if [ "$frc" != 0 ] || [ -s "$WORK/find.err" ]; then printf '%s' "(unreadable: find failed)"; return 0; fi
+  hit=$(D="$d" awk '
+    function art(n) { return (n ~ /\.(rlib|rmeta|o|a|so|dylib|dll|lib|pdb|exe|wasm|dwo|dwp|exp)$/ || n ~ /\.so\.[0-9.]+$/) }
+    function lock(n) { return (n ~ /^\.cargo-(lock|build-lock|artifact-lock)$/) }
+    function stray(r) { print "STRAY " r; exit }
+    function isprofile(x, y) { return (y == "debug" || y == "release" || type[x "/" y "/deps"] == "d" || type[x "/" y "/.fingerprint"] == "d") }
+    function profile_top(t) { return isprofile("", t) }
     BEGIN { d = ENVIRON["D"] }
-    { t = substr($0, 1, 1); rel = substr($0, 3); rel = substr(rel, length(d) + 2); type[rel] = t; paths[++n] = rel
-      k = split(rel, c, "/"); if (k == 2 && t == "d") childdir[c[1]] = 1 }
+    { t = substr($0, 1, 1); rel = substr($0, 3); rel = substr(rel, length(d) + 2); type[rel] = t; paths[++n] = rel }
     END {
-      if (found) exit
+      for (i = 1; i <= n; i++) {                       # profile folders inside each top-level folder
+        k = split(paths[i], c, "/")
+        if (k == 2 && type[paths[i]] == "d" && (c[2] == "debug" || c[2] == "release" || type[paths[i] "/deps"] == "d" || type[paths[i] "/.fingerprint"] == "d")) tp[c[1]]++
+      }
       for (i = 1; i <= n; i++) {
         rel = paths[i]; t = type[rel]; k = split(rel, c, "/"); top = c[1]
         if (k == 1) {
-          if (t == "f") { if (!(top ~ /^(CACHEDIR\.TAG|\.rustc_info\.json|\.rustdoc_fingerprint\.json|\.future-incompat-report\.json)$/ || top ~ /^\.cargo-/)) stray(rel); continue }
-          if (top ~ /^(doc|tmp|package|cargo-timings)$/ || top ~ /^flycheck/ || top == "debug" || top == "release" || profile_top(top)) continue
-          if (!childdir[top]) stray(rel)          # a folder that is neither a profile nor holds one
+          if (t == "f") { if (!(top ~ /^(CACHEDIR\.TAG|\.rustc_info\.json|\.rustdoc_fingerprint\.json|\.future-incompat-report\.json)$/ || lock(top))) stray(rel); continue }
+          if (top ~ /^(doc|tmp|package|cargo-timings)$/ || top ~ /^flycheck/ || top == "debug" || top == "release" || type[top "/deps"] == "d" || type[top "/.fingerprint"] == "d") continue
+          if (!tp[top]) stray(rel)                      # neither a profile nor a triple folder that holds one
           continue
         }
         if (top ~ /^(doc|tmp|package|cargo-timings)$/ || top ~ /^flycheck/) continue
-        if (top == "debug" || top == "release" || profile_top(top)) pd = 1
-        else {                                      # a target-triple folder
-          if (k == 2) { if (t == "f" && c[2] != "CACHEDIR.TAG") stray(rel); continue }
-          if (c[2] == "doc" || type[top "/" c[2]] != "d") continue
+        if (top == "debug" || top == "release" || type[top "/deps"] == "d" || type[top "/.fingerprint"] == "d") pd = 1
+        else {                                          # a target-triple folder
+          if (k == 2) {
+            if (t == "f") { if (c[2] != "CACHEDIR.TAG") stray(rel) }
+            else if (c[2] != "doc" && !isprofile(top, c[2])) stray(rel)
+            continue
+          }
+          if (c[2] == "doc") continue
           pd = 2
         }
         e = c[pd + 1]
         if (k == pd + 1) {
           if (t == "d") { if (!(e ~ /^(build|deps|examples|incremental|\.fingerprint|bundle)$/ || e ~ /\.dSYM$/)) stray(rel) }
-          else if (e ~ /^\.cargo-/ || art(e)) { }
+          else if (lock(e) || art(e)) { }
+          else if (e ~ /\.d$/) print "DEPINFO " rel
           else if (e !~ /\./) print "MAGIC " rel
           else stray(rel)
           continue
         }
         if (e ~ /\.dSYM$/ || e == "bundle") continue
         if (e == "incremental" || e == ".fingerprint") { if (k == pd + 2 && t != "d") stray(rel); continue }
-        if (e == "build") { if (k == pd + 2 && t == "f" && c[pd + 2] !~ /^\.cargo-/) stray(rel); continue }
+        if (e == "build") { if (k == pd + 2 && t == "f" && !lock(c[pd + 2])) stray(rel); continue }
         if (e == "deps" || e == "examples") {
           if (k == pd + 2) {
             n2 = c[pd + 2]
             if (t == "d") { if (n2 !~ /\.dSYM$/) stray(rel) }
-            else if (art(n2)) { }
+            else if (art(n2) || n2 ~ /\.d$/) { }
             else if (n2 !~ /\./) print "MAGIC " rel
             else stray(rel)
           }
           continue
         }
       }
-    }')
+    }' "$WORK/tree.txt")
   rel=""
   while IFS= read -r line; do
     case "$line" in
       "STRAY "*) rel=${line#STRAY }; break ;;
       "MAGIC "*)
-        # An extensionless file is an executable only with the executable bit and no `#!` script start.
-        if [ ! -x "$d/${line#MAGIC }" ] || [ "$(head -c 2 "$d/${line#MAGIC }" 2>/dev/null)" = '#!' ]; then rel=${line#MAGIC }; break; fi ;;
+        # An extensionless file is an executable only by its content: an ELF, Mach-O or PE header.
+        m=$(LC_ALL=C head -c 4 "$d/${line#MAGIC }" 2>/dev/null | od -An -tx1 | tr -d ' \n')
+        case "$m" in 7f454c46|feedface|feedfacf|cefaedfe|cffaedfe|cafebabe|4d5a*) ;; *) rel=${line#MAGIC }; break ;; esac ;;
+      "DEPINFO "*)
+        # A .d file in a profile folder is dep-info: its first line is `<path>: <sources>`.
+        if ! head -n 1 "$d/${line#DEPINFO }" 2>/dev/null | grep -Eq '^[^ ]+:( |$)'; then rel=${line#DEPINFO }; break; fi ;;
     esac
   done <<EOF
 $hit
@@ -372,11 +399,17 @@ consider() {
   if [ "$dry" = 1 ]; then
     echo "would delete $(esc "$p") ($(human "$kib"))"
   else
-    # Look again just before the delete: still the same folder (device and inode), a directory, not a
-    # symlink, still carrying cargo's tag and no source. Something swapped in during the checks is kept.
+    # Look again just before the delete. On a big target the scans take seconds, so: the slow checks come
+    # first (source, git, the whole tree, then a fresh list of open files and the in-use check), and the
+    # quick ones right before the rm: the same folder (device and inode), a directory, not a symlink,
+    # carrying cargo's tag. Something swapped in or started in the meantime keeps the folder.
+    if keeps_source "$p" || has_git_inside "$p" || git_tracks "$p" || tree_stray "$p" >/dev/null; then
+      kept "$p" "changed while I checked it; deleted nothing here"; failed=1; return
+    fi
+    refresh_open
+    if why=$(in_use "$p" "$parent"); then kept "$p" "in use: $why"; return; fi
     ids=$(devino "$p")
-    if [ -L "$p" ] || [ ! -d "$p" ] || [ "$(canon "$p")" != "$p" ] || [ "$ids" != "$id1" ] \
-       || keeps_source "$p" || ! has_cargo_tag "$p" || has_git_inside "$p" || git_tracks "$p" || tree_stray "$p" >/dev/null; then
+    if [ -L "$p" ] || [ ! -d "$p" ] || [ "$(canon "$p")" != "$p" ] || [ "$ids" != "$id1" ] || ! has_cargo_tag "$p"; then
       kept "$p" "changed while I checked it; deleted nothing here"; failed=1; return
     fi
     rm -rf -- "$p"

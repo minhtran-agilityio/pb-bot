@@ -396,7 +396,7 @@ fi
 t "debug and release: an empty profile folder is deleted with the target; real cargo files (executable, .d, rlib, dSYM, bundle) are fine"
 S=$(new_dir); mk_target "$S/ct"; rm -rf "$S/ct/release"; mkdir -p "$S/ct/debug" "$S/ct/release"
 mk_target "$S/ct2"; mkdir -p "$S/ct2/release/bundle/macos" "$S/ct2/release/build" "$S/ct2/release/app.dSYM" "$S/ct2/x86_64-unknown-linux-gnu/release/deps"
-printf 'bin' > "$S/ct2/release/app"; chmod +x "$S/ct2/release/app"; echo 'x' > "$S/ct2/release/app.d"; echo 'x' > "$S/ct2/release/libapp.rlib"; echo 'x' > "$S/ct2/release/libapp.dylib"; : > "$S/ct2/release/.cargo-lock"; : > "$S/ct2/release/.cargo-build-lock"; : > "$S/ct2/release/.cargo-artifact-lock"
+printf '\177ELF\002\001\001' > "$S/ct2/release/app"; chmod +x "$S/ct2/release/app"; echo '/t/ct2/release/app: src/main.rs' > "$S/ct2/release/app.d"; echo 'x' > "$S/ct2/release/libapp.rlib"; echo 'x' > "$S/ct2/release/libapp.dylib"; : > "$S/ct2/release/.cargo-lock"; : > "$S/ct2/release/.cargo-build-lock"; : > "$S/ct2/release/.cargo-artifact-lock"
 run bash "$CL" --target "$S/ct" --target "$S/ct2"
 if [ "$RC" = 0 ] && [ ! -e "$S/ct" ] && [ ! -e "$S/ct2" ] && echo "$OUT" | grep -q 'in 2 folder(s), kept 0'; then pass; else fail "rc=$RC out: $OUT"; fi
 
@@ -447,9 +447,21 @@ lay r23_triple_stray KEEP 'mkdir -p x86_64-unknown-linux-gnu/release/deps; echo 
 lay c1_notes_in_deps KEEP 'echo notes > release/deps/notes.txt'
 lay c2_main_c_profile KEEP 'echo "int main(){}" > release/main.c'
 lay c3_rustdoc DELETE 'echo "{}" > .rustdoc_fingerprint.json; mkdir -p doc/demo; echo "<html>" > doc/demo/index.html'
-lay c4_cargo_out DELETE 'mkdir -p release/build/x-1/out release/.fingerprint/x-1 release/incremental/x-1/s-1 release/examples; echo "pub fn f(){}" > release/build/x-1/out/gen.rs; printf bin > release/app; chmod +x release/app; : > release/.cargo-lock; : > release/.cargo-build-lock; echo x > release/app.d; echo x > release/examples/ex.d'
+lay c4_cargo_out DELETE 'mkdir -p release/build/x-1/out release/.fingerprint/x-1 release/incremental/x-1/s-1 release/examples; echo "pub fn f(){}" > release/build/x-1/out/gen.rs; printf "\177ELF\002\001\001" > release/app; chmod +x release/app; : > release/.cargo-lock; : > release/.cargo-build-lock; : > release/.cargo-artifact-lock; echo "/t/release/app: src/main.rs" > release/app.d; echo x > release/examples/ex.d'
 lay c5_triple_cargo DELETE 'mkdir -p x86_64-unknown-linux-gnu/release/deps x86_64-unknown-linux-gnu/release/build/y-2/out x86_64-unknown-linux-gnu/doc; echo x > x86_64-unknown-linux-gnu/release/deps/libz.rmeta; echo "pub fn f(){}" > x86_64-unknown-linux-gnu/release/build/y-2/out/gen.rs; printf x > x86_64-unknown-linux-gnu/CACHEDIR.TAG'
 lay c6_empty_profiles DELETE 'rm -rf release; mkdir debug release'
+lay c7_macho_exec DELETE 'printf "\317\372\355\376\007\000" > release/app; chmod +x release/app'
+lay c8_deps_d DELETE 'echo x > release/deps/dep.d; printf "\177ELF\002" > release/deps/test-1a2b3c; chmod +x release/deps/test-1a2b3c'
+lay f3a_text_exec_mainrs KEEP 'echo "fn main(){}" > release/deps/mainrs; chmod +x release/deps/mainrs'
+lay f3b_text_exec_readme KEEP 'echo notes > release/deps/README; chmod +x release/deps/README'
+lay f3c_text_exec_run KEEP 'mkdir -p debug; echo "cargo build" > debug/run; chmod +x debug/run'
+lay f7a_backup_old_build KEEP 'mkdir -p backup/old/build/x/src; echo "fn main(){}" > backup/old/build/x/src/main.rs'
+lay f7b_triple_notaprofile KEEP 'mkdir -p x86_64-unknown-linux-gnu/release/deps x86_64-unknown-linux-gnu/notaprofile/build/x; echo "fn main(){}" > x86_64-unknown-linux-gnu/notaprofile/build/x/main.rs'
+lay f7c_build_in_deps KEEP 'mkdir -p release/deps/build/x; echo "fn main(){}" > release/deps/build/x/main.rs'
+lay f8a_git_upper_dir KEEP 'mkdir -p release/build/x-1/out/real/.GIT; echo "ref: refs/heads/main" > release/build/x-1/out/real/.GIT/HEAD'
+lay f8b_cargo_toml_lower KEEP 'mkdir -p release/build/x-1/out/crate/src; echo "[package]" > release/build/x-1/out/crate/cargo.toml'
+lay f9a_cargo_dotfile KEEP 'echo "fn main(){}" > release/.cargo-notes.rs'
+lay f9b_d_source KEEP 'echo "void main(){}" > release/app.d'
 largs=(); for n in ${LNAMES[@]+"${LNAMES[@]}"}; do largs+=(--target "$LT/$n"); done
 run bash "$CL" ${largs[@]+"${largs[@]}"}
 bad=""
@@ -474,5 +486,26 @@ if [ ! -d "$RC_DIR/rc/target" ]; then fail "the cargo build did not run"; else
      && echo "$OUT" | grep -q '^deleted '; then pass; else fail "rc=$RC out: $OUT"; fi
 fi
 fi
+
+t "F10: a folder that cannot be read keeps the whole target (a find error never leads to a partial delete)"
+if [ "$(id -u)" = 0 ]; then skip "root reads every folder"; else
+S=$(new_dir); mk_target "$S/ct"; mkdir -p "$S/ct/release/deps/locked"; echo "fn main(){}" > "$S/ct/release/deps/locked/main.rs"; chmod 000 "$S/ct/release/deps/locked"
+run bash "$CL" --target "$S/ct"
+chmod 755 "$S/ct/release/deps/locked"
+if [ "$RC" = 0 ] && [ -f "$S/ct/release/deps/libx.rlib" ] && [ -f "$S/ct/release/deps/locked/main.rs" ] && echo "$OUT" | grep -q 'unreadable'; then pass; else fail "rc=$RC out: $OUT"; fi
+fi
+
+t "F11: the in-use check runs again right before the delete: a process that starts using the folder after the first look keeps it"
+S=$(new_dir); mk_target "$S/ct"; FB=$(new_dir); REAL_LSOF=$(command -v lsof); CT_REAL=$(cd "$S/ct" && /bin/pwd -P)
+cat > "$FB/lsof" <<EOF
+#!/bin/sh
+# The first call is the real lsof. Every later call adds a process that works in the target.
+"$REAL_LSOF" "\$@"
+n=\$(cat "$FB/n" 2>/dev/null || echo 0); n=\$((n + 1)); echo "\$n" > "$FB/n"
+if [ "\$n" -gt 1 ]; then printf 'p999999\ncfake\nfcwd\nn%s/release\n' "$CT_REAL"; fi
+EOF
+chmod +x "$FB/lsof"
+run env PATH="$FB:$PATH" bash "$CL" --target "$S/ct"
+if [ "$RC" = 0 ] && [ -d "$S/ct/release" ] && echo "$OUT" | grep -q 'in use: fake (pid 999999)'; then pass; else fail "rc=$RC out: $OUT"; fi
 
 finish
