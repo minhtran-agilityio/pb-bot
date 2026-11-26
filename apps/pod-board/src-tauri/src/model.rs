@@ -109,6 +109,10 @@ pub struct Machine {
     /// The app gets "No route to host" from this machine's local network address (issue #174). The cause can be
     /// macOS Local Network access for Pod Board or the host being off.
     pub unreachable: bool,
+    /// Pod Bay gave no address for this machine and `ls --all` returned no rows for it (issue #177): the app has
+    /// nothing to probe, so it cannot say why. The cause can be the host being off, an out-of-date password or macOS
+    /// Local Network access for Pod Board.
+    pub no_address: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, PartialEq, Eq)]
@@ -358,13 +362,23 @@ pub fn build(raw: &Raw) -> Model {
         .into_iter()
         .map(|((project, ws, machine), dirty)| Stopped { machine, project, ws, dirty })
         .collect();
+    let ls_read = !raw.stale && raw.ls.is_array();
+    let read_rows: Vec<String> = raw.ls.as_array().map(|list| {
+        list.iter().filter(|m| m["result"].is_array() && truthy(&m["machine"])).map(|m| text(&m["machine"])).collect()
+    }).unwrap_or_default();
     let machines = raw
         .machines
         .as_array()
         .map(|list| {
             list.iter()
                 .filter(|m| truthy(&m["machine"]))
-                .map(|m| Machine { name: text(&m["machine"]), online: truthy(&m["online"]), key_stale: m["password_current"] == Value::Bool(false), unreachable: raw.unreachable.contains(&text(&m["machine"])) })
+                .map(|m| {
+                    let name = text(&m["machine"]);
+                    // Only a fresh `ls` can say a machine returned no rows: before the first read, or after a failed one, it cannot.
+                    let no_rows = ls_read && !read_rows.contains(&name);
+                    let no_address = no_rows && m["me"] != Value::Bool(true) && !truthy(&m["addr"]);
+                    Machine { online: truthy(&m["online"]), key_stale: m["password_current"] == Value::Bool(false), unreachable: raw.unreachable.contains(&name), no_address, name }
+                })
                 .collect()
         })
         .unwrap_or_default();
@@ -458,6 +472,40 @@ mod tests {
         };
         let got: Vec<(String, bool)> = build(&r).machines.into_iter().map(|m| (m.name, m.unreachable)).collect();
         assert_eq!(got, vec![("M0".to_string(), false), ("U0".to_string(), true), ("UA".to_string(), false)]);
+    }
+
+    #[test]
+    fn a_machine_that_gave_no_rows_and_no_address_is_marked_not_reachable() {
+        // Issue #177: with Local Network off for the app, Pod Bay lists U0 offline with no address, so the app cannot
+        // probe it and the #174 mark never shows. No rows and no address is what the app can say plainly.
+        let r = Raw {
+            ls: json!([
+                {"machine": "M0", "result": []},
+                {"machine": "U0", "result": "unreachable"},
+                {"machine": "UC", "result": []}]),
+            machines: json!([
+                {"machine": "M0", "me": true, "online": true, "password_current": true},
+                {"machine": "U0", "me": false, "online": false, "password_current": false},
+                {"machine": "UB", "me": false, "online": false, "password_current": true},
+                {"machine": "UC", "me": false, "online": true, "password_current": true},
+                {"machine": "UD", "me": false, "online": false, "password_current": true, "addr": "192.168.1.5:7880"}]),
+            unreachable: vec!["UD".to_string()],
+            ..Raw::default()
+        };
+        let got: Vec<(String, bool, bool)> = build(&r).machines.into_iter().map(|m| (m.name, m.no_address, m.unreachable)).collect();
+        assert_eq!(got, vec![
+            ("M0".to_string(), false, false),
+            ("U0".to_string(), true, false),  // named by ls but not read, no address to try
+            ("UB".to_string(), true, false),  // not in ls at all, no address to try
+            ("UC".to_string(), false, false), // returned rows: it was reached
+            ("UD".to_string(), false, true),  // has an address: the probe decides (#174)
+        ]);
+        // Before the first `ls` read nothing is known about any machine: no mark.
+        let none = Raw { machines: r.machines.clone(), ..Raw::default() };
+        assert!(build(&none).machines.iter().all(|m| !m.no_address));
+        // After a failed `ls` the rows are the last read, not this one: no mark from them either.
+        let stale = Raw { stale: true, ..r.clone() };
+        assert!(build(&stale).machines.iter().all(|m| !m.no_address));
     }
 
     use super::*;
@@ -621,8 +669,8 @@ mod tests {
             Stopped { machine: "UA".into(), project: "mnemo".into(), ws: "src-07".into(), dirty: true },
         ]);
         assert_eq!(m.machines, vec![
-            Machine { name: "UA".into(), online: true, key_stale: false, unreachable: false },
-            Machine { name: "Old".into(), online: false, key_stale: true, unreachable: false },
+            Machine { name: "UA".into(), online: true, key_stale: false, unreachable: false, no_address: false },
+            Machine { name: "Old".into(), online: false, key_stale: true, unreachable: false, no_address: true },
         ]);
     }
 

@@ -82,11 +82,44 @@ cd apps/pod-board/src-tauri
 cargo test                 # the model: order, allow list, notification rule; the theme token check
 cargo run                  # run from source
 cargo install tauri-cli --version '^2' --locked
-cargo tauri build          # macOS: target/release/bundle/macos/Pod Board.app
+cargo tauri build          # macOS: target/release/bundle/macos/Pod Board.app (ad hoc; use build-mac.sh below to sign)
 ```
 
 Linux needs the WebKitGTK 4.1 development packages. The app looks for `podbay-dev` in `PATH`, then in
 `~/.local/bin`, `/usr/local/bin` and `/opt/homebrew/bin`, because a desktop app starts with a short `PATH`.
+
+### Keep Local Network across rebuilds (macOS)
+
+macOS ties the Local Network permission to the app's code signature. A build signed ad hoc (`-`) has its cdhash as
+designated requirement, so every rebuild is a new app to macOS and the permission granted to the last build does not
+apply. Sign every build with one fixed local identity and the requirement stays the same. `build-mac.sh` does this
+when the keychain holds a code-signing certificate named `Pod Board Local` (a different name: set
+`POD_BOARD_SIGN_IDENTITY`). Without it the build still works, ad hoc, and says so. The repo holds no certificate, key
+or personal name; the script never creates or imports one.
+
+Create the certificate once, by hand:
+
+1. Open **Keychain Access**, then the menu **Keychain Access > Certificate Assistant > Create a Certificate…**
+2. Name: `Pod Board Local`. Identity Type: **Self Signed Root**. Certificate Type: **Code Signing**. Create.
+3. Check that the keychain lists it: `security find-identity -p codesigning` shows `"Pod Board Local"`. If `codesign`
+   later says it cannot find the identity, open the certificate in Keychain Access, **Trust**, and set **Code Signing**
+   to **Always Trust**.
+
+Check the signature of an installed or built app:
+
+```
+codesign -dr - ~/Applications/"Pod Board.app"
+```
+
+- Signed with the certificate: `designated => identifier "io.pdbot.podboard" and certificate leaf = H"…"`. The same
+  line after the next build.
+- Ad hoc: `designated => cdhash H"…"`, a different value after each build.
+
+The first signed build asks for Local Network once; allow it. Later builds signed with the same certificate do not
+ask again. If a machine still shows as unreachable after that, check **System Settings > Privacy & Security > Local
+Network**: **Pod Board** must be on. If it is on and the line stays, switch it off and on, quit and start the app
+again. If **Pod Board** is not in the list at all, the app has not asked yet: quit it and start it again. If you
+rebuilt it ad hoc in between, the list can hold an entry for an older build; switch that one off too.
 
 ### One installed copy (macOS)
 
@@ -96,13 +129,13 @@ Every new build replaces the old one: after a build there is exactly one `Pod Bo
 `target/`:
 
 ```
-cd apps/pod-board/src-tauri
-cargo tauri build
+cd apps/pod-board
+bash build-mac.sh                                   # cargo tauri build, signed when the certificate exists (below)
 pkill -x pod-board || true                          # quit the running app (pkill exits 1 when it is not running)
 APP="Pod Board.app"
 mkdir -p ~/Applications
 [ -e ~/Applications/"$APP" ] && mv ~/Applications/"$APP" ~/.Trash/"Pod Board $(date +%Y%m%d-%H%M%S).app"
-mv target/release/bundle/macos/"$APP" ~/Applications/
+mv src-tauri/target/release/bundle/macos/"$APP" ~/Applications/
 open ~/Applications/"$APP"
 mdfind "kMDItemFSName == '$APP'"                    # check: only ~/Applications/Pod Board.app
 ```
@@ -177,15 +210,22 @@ mdfind "kMDItemFSName == '$APP'"                    # check: only ~/Applications
 - Other machines (U0 and so on): the board shows what `podbay-dev` returns. Pod Bay itself reaches a machine only
   some of the time: on 2026-11-25, in a shell, `podbay-dev machines` said U0 `online: true, password_current: true`
   and a few minutes later `online: false, password_current: false`, and `ls --all` then returned no U0 rows; the board
-  said `U0 offline · password out of date`, which was true. A code signature with the identifier `io.pdbot.podboard`
-  against the linker's `pod_board-<hash>` was tried in place on the installed app and showed no clear difference,
-  because U0 went on and off in the same minutes; so the bundle is not signed by this repo. It does say why it asks for
-  the local network (`NSLocalNetworkUsageDescription` in `src-tauri/Info.plist`).
+  said `U0 offline · password out of date`, which was true. The bundle is signed with the local certificate when
+  `build-mac.sh` finds it (above); an ad hoc build has the cdhash as requirement and loses the Local Network permission at
+  every rebuild (issue #177). Before that, a code signature with the identifier `io.pdbot.podboard` against the linker's
+  `pod_board-<hash>` was tried in place on the installed app and showed no clear difference, because U0 went on and off
+  in the same minutes. The bundle also says why it asks for the local network (`NSLocalNetworkUsageDescription` in
+  `src-tauri/Info.plist`).
 - When the app gets "No route to host" from a machine's address that Pod Bay lists (a private address such as
   `192.168.x.x`), the Stopped strip adds `<machine> unreachable from Pod Board (no route to host)` next to Pod Bay's own
   `offline` or `password out of date` chip. The line names no cause: macOS gives the same error when the host is off or
   not on this network and when Local Network access is not allowed for the app (System Settings > Privacy & Security >
   Local Network; the `podbay-dev` the app starts inherits it).
+- When Pod Bay gives no address for another machine and `ls --all` returns no sessions for it (Pod Bay lists it offline,
+  or names it and does not read it), the app has nothing to try. The Stopped strip then adds
+  `<machine> unreachable from Pod Board (Pod Bay gave no address)`. This is all the app knows: the machine being off, an
+  out-of-date password and a refused Local Network access look the same here, and the chip's tooltip says so. The
+  chip does not show before the first read of `ls --all` or while the last read failed.
 - On macOS a session killed hard (its file left behind) shows until its pid is reused or the file is removed: the
   format of `procStart` there was not seen, so only the pid is checked.
 - Sources not shown, and data not available (step 0, 2026-11-25, on Linux and on M0):
@@ -216,5 +256,5 @@ mdfind "kMDItemFSName == '$APP'"                    # check: only ~/Applications
   start of the app brings the board forward; each link button on a card opens its page in the browser and not the
   session; the `finished` tag (board and List, light and dark), the summary line, the popover group and `✓n` in
   the menu bar; opening the session from its card clears the mark.
-- The app is not signed or notarized. On another Mac, Gatekeeper asks before the first start.
+- The app is not notarized, and the certificate above is local to one Mac. On another Mac, Gatekeeper asks before the first start.
 - It shows what Pod Bay on this machine sees. A machine that this Pod Bay lists as offline has no sessions here.

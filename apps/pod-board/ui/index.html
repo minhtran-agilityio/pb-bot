@@ -647,7 +647,7 @@ function summary(list) {
 
 function stoppedStrip() {
   // An offline machine belongs to no source or project: its chip shows only while no filter is on.
-  const list = stoppedShown(), off = snap.machines.filter(m => (!m.online || m.unreachable) && !srcF && !projF);
+  const list = stoppedShown(), off = snap.machines.filter(m => (!m.online || m.unreachable || m.no_address) && !srcF && !projF);
   if (!list.length && !off.length) return null;
   const box = el('section', 'strip');
   box.append(pill('stopped'), el('b', 'tab', String(list.length)));
@@ -659,7 +659,7 @@ function stoppedStrip() {
     } else box.append(el('span', 'chip', `${w.project}/${w.ws} · ${w.machine}${w.dirty ? ' ✎' : ''}`));
   }
   for (const m of off) {
-    // Pod Bay's own words stay. When the app also has no route to the machine, one more line says so and names no cause.
+    // Pod Bay's own words stay. When the app also has no route to the machine, or Pod Bay gave it no address to try, one more line says so and names no cause.
     if (!m.online) {
       const c = el('span', 'chip off', m.key_stale ? `${m.name} offline · password out of date` : `${m.name} offline`);
       if (m.key_stale) c.title = `Pod Bay on this computer holds an old password for ${m.name}, so it cannot reach it. Sign in to Pod Bay again on one of the two machines.`;
@@ -668,6 +668,11 @@ function stoppedStrip() {
     if (m.unreachable) {
       const u = el('span', 'chip off', `${m.name} unreachable from Pod Board (no route to host)`);
       u.title = `Pod Board gets "No route to host" from ${m.name}'s network address, although another program may reach it. The machine may be off or not on this network, or macOS may not allow Pod Board on the local network (System Settings > Privacy & Security > Local Network).`;
+      box.append(u);
+    } else if (m.no_address) {
+      // Pod Bay gave no address and no rows, so there is nothing to probe: say that it could not be reached, not why.
+      const u = el('span', 'chip off', `${m.name} unreachable from Pod Board (Pod Bay gave no address)`);
+      u.title = `Pod Bay returned no sessions for ${m.name} and gave Pod Board no address to try, so Pod Board cannot tell why. The machine may be off, Pod Bay may hold an old password for it, or macOS may not allow Pod Board on the local network (System Settings > Privacy & Security > Local Network).`;
       box.append(u);
     }
   }
