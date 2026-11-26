@@ -10,15 +10,19 @@
 #   - a cargo target dir: it holds a regular file CACHEDIR.TAG whose first line is cargo's signature
 #     (`Signature: 8a477f597d28d172789f06886806bc55`). Cargo writes that file itself;
 #   - found by --root: also has a Cargo.toml beside it (the project's own build folder);
-#   - not `/`, not the home folder, not a folder that holds a checkout in --root, and holds no
-#     `.git`, `Cargo.toml`, `src` or `package.json` of its own (that is source, not build output);
+#   - looks like build output: `.rustc_info.json`, `debug` or `release` is in it;
+#   - not `/`, not a folder of fewer than two path parts, not the home folder or a folder above it,
+#     not a folder above a checkout in --root, holds no `.git` (to 4 levels down) and no `Cargo.toml`,
+#     `src` or `package.json` of its own, and no file that git tracks (that is source, not build output);
 #   - not used by a running process: no process has a file or its working directory inside it, and,
 #     for a folder found by --root, no `cargo` or `rustc` process works inside the project that owns it.
 # Anything else is kept, and the line says why. Source, an installed app (~/Applications) and a
 # `target` folder of another tool (no CACHEDIR.TAG) are never touched. Only the target folder is removed:
 # `rm -rf` of that one folder, never of its parent.
 #
-# If it cannot tell what is in use (no `lsof`), it deletes nothing and exits 1.
+# If it cannot tell what is in use (no `lsof`, or `lsof` gives no usable list), it deletes nothing and
+# exits 1. --root and --target must be absolute paths: a value that comes from a session's report is
+# not trusted.
 #
 # Usage:
 #   fleet-clean-rust.sh -h|--help
@@ -33,6 +37,7 @@
 # Exit: 0 when it finished (a path that does not exist is kept, not an error); 1 when a delete failed
 # or it cannot tell what is in use; 2 on a usage error.
 set -u
+unset CDPATH
 
 SIGNATURE='Signature: 8a477f597d28d172789f06886806bc55'
 
@@ -48,7 +53,7 @@ while [ $# -gt 0 ]; do
     --dry-run) dry=1 ;;
     --root|--target)
       [ $# -ge 2 ] || usage "$1 needs a value"
-      case "$2" in -*|'') usage "$1 needs a folder, got: $2" ;; esac
+      case "$2" in /*) ;; *) usage "$1 needs an absolute path, got: $2" ;; esac
       if [ "$1" = --root ]; then roots+=("$2"); else targets+=("$2"); fi
       shift ;;
     *) usage "unknown argument: $1" ;;
@@ -71,7 +76,17 @@ lsof -w -n -F pcfn 2>/dev/null | awk '
   /^p/ { pid = substr($0, 2) }
   /^c/ { cmd = substr($0, 2) }
   /^f/ { fd = substr($0, 2) }
-  /^n/ { print pid "\t" cmd "\t" fd "\t" substr($0, 2) }' > "$WORK/open.tsv"
+  /^n/ {
+    # lsof writes a backslash as two; control characters stay escaped (consider() keeps such a path).
+    name = substr($0, 2); out = ""
+    while ((i = index(name, "\\\\")) > 0) { out = out substr(name, 1, i) ; name = substr(name, i + 2) }
+    print pid "\t" cmd "\t" fd "\t" out name }' > "$WORK/open.tsv"
+# Sanity: the list must show this script's own working directory. An lsof that failed (a sandbox, a
+# limit, a permission error) gives an empty or partial list, and "nothing uses it" would be wrong.
+if ! awk -F'\t' -v me="$$" '$1 == me && $3 == "cwd" { found = 1 } END { exit !found }' "$WORK/open.tsv"; then
+  echo "fleet-clean-rust: lsof gave no usable list of open files, so I cannot tell whether a process uses a build folder; deleted nothing" >&2
+  exit 1
+fi
 
 canon() { (cd "$1" 2>/dev/null && pwd -P); }
 
@@ -96,7 +111,8 @@ kept() { n_kept=$((n_kept + 1)); echo "kept $1: $2"; }
 # in_use <dir> <project dir or empty>: prints why and returns 0 when a running process uses it.
 in_use() {
   local why
-  why=$(awk -F'\t' -v d="$1" -v proj="$2" '
+  why=$(D="$1" PROJ="$2" awk -F'\t' '
+    BEGIN { d = ENVIRON["D"]; proj = ENVIRON["PROJ"] }
     { n = $4 }
     n == d || index(n, d "/") == 1 { print $2 " (pid " $1 ") has " (($3 == "cwd") ? "its working directory" : "a file") " inside it"; found = 1; exit }
     proj != "" && $3 == "cwd" && ($2 ~ /^cargo/ || $2 ~ /^rustc/) && (n == proj || index(n, proj "/") == 1) {
@@ -108,6 +124,7 @@ in_use() {
 # consider <dir> <found by --root: 1|0>
 consider() {
   local dir="$1" scanned="$2" p parent why kib r
+  while [ "${#dir}" -gt 1 ] && [ "${dir%/}" != "$dir" ]; do dir=${dir%/}; done   # `link/` must still be seen as a symlink
   if [ -L "$dir" ]; then kept "$dir" "a symlink"; return; fi
   if [ ! -e "$dir" ]; then
     # Already deleted through another name (a --root scan, then the same folder as --target): not a second report.
@@ -118,16 +135,29 @@ consider() {
   p=$(canon "$dir") || { kept "$dir" "cannot enter it"; return; }
   case "$seen" in *$'\n'"$p"$'\n'*) return ;; esac
   seen="$seen$p"$'\n'
-  if [ "$p" = / ] || [ "$p" = "$home_real" ]; then kept "$p" "the root or home folder"; return; fi
+  if [ -n "$(printf '%s' "$p" | LC_ALL=C tr -d '[:print:]')" ]; then kept "$p" "its path holds a control character"; return; fi
+  if [ "$p" = / ] || [ "$(printf '%s' "$p" | tr -cd / | wc -c | tr -d ' ')" -lt 2 ]; then
+    kept "$p" "the root folder or a folder too close to it"; return
+  fi
+  case "$home_real/" in "$p"/*) kept "$p" "the home folder, or a folder that holds it"; return ;; esac
   for r in ${roots_real[@]+"${roots_real[@]}"}; do
     case "$r/" in "$p"/*) kept "$p" "holds a checkout"; return ;; esac
   done
+  if [ -n "$(find "$p" -maxdepth 4 -name .git -print -quit 2>/dev/null)" ]; then
+    kept "$p" "holds a git checkout"; return
+  fi
   if [ -e "$p/.git" ] || [ -e "$p/Cargo.toml" ] || [ -e "$p/src" ] || [ -e "$p/package.json" ]; then
     kept "$p" "holds source (.git, Cargo.toml, src or package.json)"; return
   fi
   if [ -L "$p/CACHEDIR.TAG" ] || [ ! -f "$p/CACHEDIR.TAG" ] \
      || [ "$(head -n 1 "$p/CACHEDIR.TAG" 2>/dev/null)" != "$SIGNATURE" ]; then
     kept "$p" "not a cargo target dir (no CACHEDIR.TAG with cargo's signature)"; return
+  fi
+  if [ ! -f "$p/.rustc_info.json" ] && [ ! -d "$p/debug" ] && [ ! -d "$p/release" ]; then
+    kept "$p" "does not look like build output (no .rustc_info.json, debug or release)"; return
+  fi
+  if command -v git >/dev/null 2>&1 && [ -n "$(git -C "$p" ls-files 2>/dev/null | head -n 1)" ]; then
+    kept "$p" "git tracks files in it"; return
   fi
   parent=""
   if [ "$scanned" = 1 ]; then

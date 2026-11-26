@@ -140,6 +140,59 @@ W=$(new_dir); mk_project "$W" a; mk_target "$W/apps/a/src-tauri/target"
 run env PATH=/nonexistent-bin /bin/bash "$CL" --root "$W"
 if [ "$RC" = 1 ] && [ -d "$W/apps/a/src-tauri/target" ] && echo "$OUT" | grep -q 'lsof'; then pass; else fail "rc=$RC out: $OUT"; fi
 
+t "a relative --root or --target is a usage error (2): a value from a report is not trusted"
+S=$(new_dir); mk_target "$S/ct"
+run bash -c "cd '$S' && bash '$CL' --target ct"; a=$RC
+run bash -c "cd '$S' && bash '$CL' --root ."; b=$RC
+if [ "$a" = 2 ] && [ "$b" = 2 ] && [ -d "$S/ct/release" ]; then pass; else fail "rc=$a $b"; fi
+
+t "--target keeps a folder with cargo's tag that holds other checkouts (a .git at any of the first 4 levels), and one that is not build output"
+S=$(new_dir); mk_target "$S/c"; mkdir -p "$S/c/proj1/.git" "$S/c/proj2"; echo work > "$S/c/proj2/notes"
+mkdir -p "$S/d"; printf '%s\n' "$SIG" > "$S/d/CACHEDIR.TAG"; mkdir -p "$S/d/other"; echo work > "$S/d/other/f"
+run bash "$CL" --target "$S/c" --target "$S/d"
+if [ "$RC" = 0 ] && [ -d "$S/c/proj1/.git" ] && [ -f "$S/c/proj2/notes" ] && [ -f "$S/d/other/f" ] \
+   && echo "$OUT" | grep -q 'holds a git checkout' && echo "$OUT" | grep -q 'does not look like build output'; then pass; else fail "rc=$RC out: $OUT"; fi
+
+t "--target keeps a folder that holds the home folder, even when it carries the cargo tag"
+S=$(new_dir); mk_target "$S"; mkdir -p "$S/home/user"
+run env HOME="$S/home/user" bash "$CL" --target "$S"
+if [ "$RC" = 0 ] && [ -f "$S/CACHEDIR.TAG" ] && [ -d "$S/home/user" ] && echo "$OUT" | grep -q 'holds it'; then pass; else fail "rc=$RC out: $OUT"; fi
+
+t "--target keeps a symlink written with a trailing slash, and the folder it points to"
+S=$(new_dir); mk_target "$S/real"; ln -s "$S/real" "$S/link"
+run bash "$CL" --target "$S/link/"
+if [ "$RC" = 0 ] && [ -L "$S/link" ] && [ -f "$S/real/release/deps/libx.rlib" ]; then pass; else fail "rc=$RC out: $OUT"; fi
+
+t "keeps a folder whose path holds a backslash while a process works inside it"
+S=$(new_dir); mk_target "$S/b\\tx"
+( cd "$S/b\\tx/release" && exec sleep 60 ) & P=$!; PIDS+=("$P"); sleep 1
+run bash "$CL" --target "$S/b\\tx"
+if [ "$RC" = 0 ] && [ -d "$S/b\\tx/release" ] && echo "$OUT" | grep -q 'in use'; then pass; else fail "rc=$RC out: $OUT"; fi
+kill "$P" 2>/dev/null; wait "$P" 2>/dev/null
+
+t "--target keeps a folder whose path holds a control character (lsof escapes it, so the in-use check could not match)"
+S=$(new_dir); mk_target "$S/tab"$'\t'"x"
+run bash "$CL" --target "$S/tab"$'\t'"x"
+if [ "$RC" = 0 ] && [ -d "$S/tab"$'\t'"x/release" ] && echo "$OUT" | grep -q 'control character'; then pass; else fail "rc=$RC out: $OUT"; fi
+
+t "an lsof that fails with no output: deletes nothing and exits 1 (a missing list is not 'nothing uses it')"
+W=$(new_dir); mk_project "$W" a; mk_target "$W/apps/a/src-tauri/target"
+FAKEBIN=$(new_dir); printf '#!/bin/sh\nexit 1\n' > "$FAKEBIN/lsof"; chmod +x "$FAKEBIN/lsof"
+run env PATH="$FAKEBIN:$PATH" bash "$CL" --root "$W"
+if [ "$RC" = 1 ] && [ -d "$W/apps/a/src-tauri/target" ] && echo "$OUT" | grep -q 'no usable list'; then pass; else fail "rc=$RC out: $OUT"; fi
+
+t "inside a git repo: keeps a committed fake target (git tracks files in it) and deletes the ignored real one"
+if ! command -v git >/dev/null 2>&1; then skip "git not installed"; else
+G=$(new_dir); git -C "$G" init -q; git -C "$G" config user.email t@t; git -C "$G" config user.name t
+mk_project "$G" real; mk_project "$G" fake
+mk_target "$G/apps/real/src-tauri/target"; printf 'target/\n' > "$G/apps/real/src-tauri/.gitignore"
+mk_target "$G/apps/fake/src-tauri/target"
+git -C "$G" add -A >/dev/null 2>&1; git -C "$G" commit -qm init
+run bash "$CL" --root "$G"
+if [ "$RC" = 0 ] && [ ! -e "$G/apps/real/src-tauri/target" ] && [ -f "$G/apps/fake/src-tauri/target/release/deps/libx.rlib" ] \
+   && echo "$OUT" | grep -q 'git tracks files in it'; then pass; else fail "rc=$RC out: $OUT"; fi
+fi
+
 # The docs that tell the orchestrator and the sessions what to do.
 POD="$ROOT/plugins/pd-bot/skills/pd-orchestrate/references/podbay.md"
 RUN="$ROOT/plugins/pd-bot/skills/pd-orchestrate/references/run.md"
