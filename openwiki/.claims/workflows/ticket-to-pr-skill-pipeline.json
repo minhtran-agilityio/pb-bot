@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:3528785d2b1c3fd68e6fe01a07aa2b437324d9e8642519e979f5416d1939e64e",
+  "claims": [
+    {
+      "id": "claim_463b6c8a3c7c41d1a37d7e0c4c8c16c9",
+      "statement": "pd-intake judges one ticket as READY, CONFIRM, GRILL or BLOCKED and picks depth S, M or L before any research, planning or edit; it writes only specs/<slug>/intent.md and does not plan or implement.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/skills/pd-intake/SKILL.md#L7-L41",
+          "version": "repo-lines-v1:sha256:60bbbf8922d71d735f009d5db1139d777534304d2c06a97ad1d915f1443dae7b:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZiNjZlMWVhNDQyMmIwM2I3YmI5NTk0MjI0ZGY5NmZkMjFiMTlmNDY3Y2IwZTM1ZTdhMGU3MmZmOGUzMDY4MmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNkMjZmNTRlZTMyMGVjMzgwZTBlY2YzODZiOTk0OGM5NzIzMmVmMGIyNjhhMzk5YjhiOGY5OGUwNTY2NDk2OGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1YzEzM2QyOTc0Y2YxZmEyOTM1ZjM4NjE0MTdlZDA2ZTAyMmY3YTY2MWVkNGQ0ZDc3M2MwYWQwM2IzYjcyNzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZjMGM2OTcwNmJmNWViM2Y3MTAxZThkYmI5YWVhOGEyNDdhMDJmOWQ0YzJhMDA5NDVjODNkMmYzMzA2MzI4ZTIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3bec2fbb223c4686bc59ec9796b23e9e",
+      "statement": "Intake routes by depth: S goes to writing-plans then implement, M adds pd-shape design first, L adds pd-shape and pd-xia2 research; a bug fix goes to pd-diagnosing-bugs first.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/skills/pd-intake/SKILL.md#L35-L41",
+          "version": "repo-lines-v1:sha256:5254091d90fe89dc8d8275db0308bfa5c629de5ee94a87b8e7c4fd8eee2ecf12:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMmYzNjc2Y2JiMzVkZTVkNzcxNGQwMDE1Yjk2ZTczZWM3OTcwM2FiOTg1NzViMTkyNGU5YzNmZWI5NDdiMzQwZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2QyNmY1NGVlMzIwZWMzODBlMGVjZjM4NmI5OTQ4Yzk3MjMyZWYwYjI2OGEzOTliOGI4Zjk4ZTA1NjY0OTY4ZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTUzNDdhMjMyMjA1YjdlNTdjMDAwN2ZkZWU5NmU3OGQyMTE4N2QyMzYxMjJjMzIwYjcxYTMwNTZiNTQ4OTU3OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmMwYzY5NzA2YmY1ZWIzZjcxMDFlOGRiYjlhZWE4YTI0N2EwMmY5ZDRjMmEwMDk0NWM4M2QyZjMzMDYzMjhlMiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_b4ca2ed3d41648e3b30c1f6f6940620f",
+      "statement": "In auto mode pd-intake never asks the owner: it takes each recommended answer, records it in decisions[], treats a drafted Verify row as a needs_review decision, and may set needs_advisor instead of spawning agents.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/skills/pd-intake/SKILL.md#L65-L78",
+          "version": "repo-lines-v1:sha256:0331a0fcdf98d94c3a225c7295bc1eefc0a120eb86cd1e734eb41cafdf608b87:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjllYzM0N2E2MDNhYWQ5YzJhM2MwZTA1YTQ0MzQ2OTFiZmI0M2I4ZmRmN2MxOTA2YTY5YWZjNDFiMTZkYjFjYzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVhNTUwMmMwZjYwNmFhMjAzNDdiMDBiNzJhMzBlMGZiMmNkZDVhMWI0NTI4NGM2ODgyYjhlMTYyYTUwMjQ2NjkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI2MWVjNjQ2ZjJjNjZhYTdmZDFjYTRlZjM5Njg5YjM0NjlhOTBkYjlmOTVhYjk2ZDBhMzI2NmQ1ZGZhODAxM2MiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5d0cc229f598454bad7d981759b3af65",
+      "statement": "pd-shape acts on nothing until the owner confirms the brief; it maps decisions as a tree, lets the owner answer first on at most 3 big decisions, may propose an ADR for repo-level decisions, writes brief.md (plus design.md at depth M and L and a design ADR decision at depth L), and refuses a prototype in auto mode.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/skills/pd-shape/SKILL.md#L8-L69",
+          "version": "repo-lines-v1:sha256:b839cb047624c6538bc60e449e22aa7a75583933f92dc1f0c619fde33d687285:eyJzZWxlY3RlZExpbmVDb3VudCI6NjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc1Y2MwYzAxYzU3OGQ0MDc5ZjIyNGY0MDhlOWJmZTkzMjQ4ZmU2MzcyNjBmODM5YWQyN2FlZDU3MzA3NTcxOGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAyMThmMjFiOTkxNGEyYmYxMDFjZDIzYTYwZWZjMmZhOThmNDVhYmRjZmFmZGU0NDc4ZDRmZDA3MGIyY2RhYmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJlNDYzMmU5YzFiN2ZkZWVjYjIyZDdhMTM1M2UzMmNkNTJhMDllZDQ3ZTkyZWE4OTNmM2ViZDRiNmE3YmI4N2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_bfe66e17ba684da3801aae63c1e33c52",
+      "statement": "pd-writing-plans writes specs/<slug>/plan.md at every depth, where each step carries Files, Covers acceptance criteria IDs, Effort, a command-based Done-when and a Parallel group, and steps touching the same file go in separate ordered groups.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/skills/pd-writing-plans/SKILL.md#L7-L55",
+          "version": "repo-lines-v1:sha256:1b8e7ef99176d8b407d1b8a73e2719834bd6e8e88b6f9cc44786c9ad512f36f7:eyJzZWxlY3RlZExpbmVDb3VudCI6NDksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNlMzFkNDQyN2EzYWQwMGU5Y2JkODI3Y2E2YjIxOGRmYTc5Y2JjZDEzMWI1YWNiNWZlMzY1NDA1OTY2Y2E3NjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1NzA1OTRiMWE0OTM0MjlhNDI3NmIxNmU5MzU1MDc5NmRmMjQ4Mzk2NjRiMmVkZGU2YzA3NjMyNjNlOTFmYTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVlZTY1MGFkYzMzMDAyMDVhMmExMWVmZWE2Y2UwOGEyZmI5NmQzZjMxMTk3YmJiNGVhMjgwMmFhZDYwOTZhY2MiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk0YTc1Mjk2NDZhZjMxMTFmMDk4ZmMwOWZjZjliYTlhZWY4MjJkN2Q3MGNhYmU4ZWE4YzBmNzlmOTcwNzY4YjIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c17f60322a654d91b1ad0ee083df1dcc",
+      "statement": "pd-implement runs plan steps one at a time on the session's working branch through a fresh implementer subagent each, runs the Done-when command itself, allows at most 3 fix rounds before reporting BLOCKED, and does not include review.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/skills/pd-implement/SKILL.md#L7-L31",
+          "version": "repo-lines-v1:sha256:32cca4576a26a241345046ac897e6ce43f34a44f017a815cd2ac536c9a4b002e:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU0MmFhOGJmZmIyMThlODdlZGZjZWE3NTRkNjFmYTllZmMzZDlhMDEyMTNkNjFhOWJhNjBmNzQ5NTAyODNmMWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk1YjdlMDFiMmYzMjk5ZDVjMDk1ZTljNGYzYjJmZGIxNDVlZmVkYmM0Yjg4Mzk1ZTUzNjM1NmVlMmFkNzIwOTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM4YmQyNGZiNmYxYjQwZWEyNzBkZTJiNWZlOGVmMjhlYjQyMThhYmI2Nzg4MjY0Yjk4OWRmNGExMTdmNDI4ZGMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk0YTc1Mjk2NDZhZjMxMTFmMDk4ZmMwOWZjZjliYTlhZWY4MjJkN2Q3MGNhYmU4ZWE4YzBmNzlmOTcwNzY4YjIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_91b5ed25275242bdadbb153d3cb59f47",
+      "statement": "pd-uat checks the running app from only the issue body and Confirmed decisions comment, uses Playwright MCP tools with assertions deciding pass or fail, and reports BLOCKED rather than FAIL when the app will not start or credentials are missing.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/skills/pd-uat/SKILL.md#L7-L45",
+          "version": "repo-lines-v1:sha256:fbae8b4d5665abf7426c0cf6978cb55493e6e203ddf154217cb3f34b8bcddac8:eyJzZWxlY3RlZExpbmVDb3VudCI6MzksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMwNWU2NmRiZjQyNGI3ZmNiZjk0NzQ4MWMxNDYzNTg0MGJkMThkZTk4ZDQ5ZTliZGM3Y2U5Y2JiNzI3ZTBiOTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQwOTZhNjExZmVkZmJlZjBjNWVhNjAwYjFhMWQ4ZjVkMDZkY2RiZmVkOTJjZTcxYzUxNGU4NTM1OWQyNDczYTAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZhMzU3NjcyOGNkNThjZmNmOWE2Zjc1Y2MzMDJhODJiY2IzMTQxNjZiNDA4OTg0Y2E3Zjk1OWNlZGI2MmRmNzMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdiOWIwMWUwOWMwMGU0NDRhZTQyNzgxMzE2NGYwYTUyODFmYWRjYzQ3MzQxNzdlOGZhYjE4MTY3NzAyYjc4MGEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_784b591283724491b043ba86fc4a4249",
+      "statement": "pd-finishing-a-development-branch runs the repo's tests with at most two retries, never pushes a failing branch, pushes without force, opens one PR with a fixed body structure, writes summary.md, and never merges, force-pushes, runs git add -A or amends commits.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/skills/pd-finishing-a-development-branch/SKILL.md#L7-L41",
+          "version": "repo-lines-v1:sha256:8ad73894b11028350215beef321aa60fb84070ff1bbacdf415f4f497cdcecaf7:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM5NTgyYmEyZGQwYjZlNjZhMWQxN2Q4MzA3OTk0MDZiOGI2Y2MxNjUwYWI1ZTI2NTkzZmQxZTJjZDA2N2VkYzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdjMTU5NzFhYjA1NGQ3MjhiYjBiY2VmYzlhZTc3NmUyYzM2MWQ0NDQxMjdkYzdlNGNhZGIwYjNjZTg0ZDM0NjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFhZjU5OTBkN2E0NmI2ZmZmNWE1NjJjMzk5ZjdjOGNhOGM0MTQ4NmJlODBkNDQ5MDg0MWNhNzg4NmE1MjI1MWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk0YTc1Mjk2NDZhZjMxMTFmMDk4ZmMwOWZjZjliYTlhZWY4MjJkN2Q3MGNhYmU4ZWE4YzBmNzlmOTcwNzY4YjIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_46924a06bff940b5a3160b95f368123c",
+      "statement": "pd-diagnosing-bugs requires all six phases at every depth, works on a fix/<slug> branch, proves a root cause through a red feedback loop, minimised repro, ranked hypotheses and instrumented probes, and requires task-reviewer approval of diagnosis.md before the fix phase.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/skills/pd-diagnosing-bugs/SKILL.md#L14-L60",
+          "version": "repo-lines-v1:sha256:27e5405197786dbb82fb87c1a750246dd12391ac92ba0349168ba6b5b2678c35:eyJzZWxlY3RlZExpbmVDb3VudCI6NDcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJmZWVjOGNiMzkzMTY1ZTk1MTgxMTk3ZWJlZmVjYTQ0YTQyNTZiZWY2ZjRjZmMxMGRlNjg4NDMxMzVkMWVjYjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyNTc0YjExMjNmMGQyZjdkZGVmODgyZmRlNzI3NzFhNjI5NjQxMDUyNzMyMGJlNmViNThkYzhhODlkZDYxNGMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZmYjA4ZDExZWI2MmNhOTNhYjI5NjdlNjI1ZDI3YTRiYTExZTJlNTQwNmFiNTViMGM5ZGFiNDVkZjliYzE2NWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBmNGQ5ZWEwMTk0NTEwYzk0NjUxOWNkMTQ5Yzc2NzMxODM3MzNiZjJjNGI2YjYwZDllY2U5MzMzNjVlYjIwYjAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f31466bb7887462e9ad01f1dccda1f44",
+      "statement": "Most skills accept Mode: interactive or Mode: auto; in auto mode they never ask the owner, return decisions[] instead of writing ADR or specs files, and can set needs_advisor for the caller to act on.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/skills/pd-implement/SKILL.md#L33-L43",
+          "version": "repo-lines-v1:sha256:7be55d999cc653c72dcb416a25905b455859b7bf9565c24a397765c46db8d267:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjllYzM0N2E2MDNhYWQ5YzJhM2MwZTA1YTQ0MzQ2OTFiZmI0M2I4ZmRmN2MxOTA2YTY5YWZjNDFiMTZkYjFjYzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIzMTVmYzI2MDQ4ZTE0OGYwYzE3YmUzZTdkNmNhZWQ5M2JjNzEzOTAyZDc2Yjc0ZTA2YTlhM2VlZjRjY2Q4OGMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ4NzFjNmMwZjU5ZjE2MjRmZTJhNjU5YjExYzMxY2JmNzk1NzM0OTY4OTVkYWE5MmE2NTc5N2FjZGRhNGZhY2QiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/skills/pd-writing-plans/SKILL.md#L57-L68",
+          "version": "repo-lines-v1:sha256:868944db04dc04d9b5de4c23244b9b95320ef3cee818b526ceba243b0aae85cd:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjllYzM0N2E2MDNhYWQ5YzJhM2MwZTA1YTQ0MzQ2OTFiZmI0M2I4ZmRmN2MxOTA2YTY5YWZjNDFiMTZkYjFjYzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVhNTUwMmMwZjYwNmFhMjAzNDdiMDBiNzJhMzBlMGZiMmNkZDVhMWI0NTI4NGM2ODgyYjhlMTYyYTUwMjQ2NjkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY0ZTNjNTdiODdkM2I1MmMwOGEyZDYwYmIzOTlkYmI1MWM1OTUyMDIzN2UzMGE5MzhhNmM5YTBmNzI4NTg3Y2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_12758fde0fc4490495ce010afe5bead9",
+      "statement": "The skills README defines the full-cycle, minimum-viable and bug-fix paths and the skill handoff map from intake through finishing, with orchestration, release and knowledge skills as separate branches.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/skills/README.md#L149-L174",
+          "version": "repo-lines-v1:sha256:995e64f750c6f70fefa626ddc956ade81b2b059d0fbf4d62f8f944c29ddfbffc:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU1ODQ3NDM3NDBmM2UwNjQ4OWNmMjI1NjE5NTgwMWE4MGRmNDYyNjM4Y2YxNmUxYjg1NTdlODVmODU5MzA1ODUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ3YzA2YzU2MWQ1YzMyNzM0MzY4NTI2OGE0NmIzMzkxZjM5OThlZWU4OTBkMmJlNTFmMGQyMWNjNGE1M2FlNmQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYyZmRmZGE2Zjg2NzJiNThlMWJmYTk5OTg2MDA2N2M0NTdjMDRkNGE4MWNjNjg2MWU0MGExNDYzYjBiOTdjOWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEifQ"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/skills/README.md#L16-L80",
+          "version": "repo-lines-v1:sha256:a5b3b395055aacf37271f133f537c5176fa200e61d132d7ba413305e5fe89ebf:eyJzZWxlY3RlZExpbmVDb3VudCI6NjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxYjk1ZjkwNmE0MWI2MWY3M2I2NDY2MDM4NGQyNGQ1N2ZlMTIxNWQ5ZmNiNTEzZDQzNDlmMThlMGM2ZmQ5NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ3YzA2YzU2MWQ1YzMyNzM0MzY4NTI2OGE0NmIzMzkxZjM5OThlZWU4OTBkMmJlNTFmMGQyMWNjNGE1M2FlNmQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-26T15:02:34.678Z"
+  }
+}

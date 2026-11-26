@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:10dddfacc84d3a1040c1f3a88c8e72e4711141743dea672a2e6ad6a3bf804ab0",
+  "claims": [
+    {
+      "id": "claim_9e171c82e11d49e385781037be70653d",
+      "statement": "Pod Board only observes: it polls read-only podbay-dev commands (ls --all each poll; checkouts, machines and queue every 10th read), reads local Claude session files, runs podbay-dev detail only on a peek, and sends nothing anywhere.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/main.rs#L1-L7",
+          "version": "repo-lines-v1:sha256:0a30cf5299435296f85de4200d3b716c427e74dd9325a8e87705402c82598fdc:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNGNlNjg2MDgzZjc5MWM0NmQ3MDFkMzIxNjdmZTAyYjViNDNjMTQ3MWFmNTA1MGI1MWI4NmU4MTZhZTFjODhlYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZDMzNWVhNDk2NDAxYWEwOTY0MDdiY2QyOTIwNjZhMTNjYWJjMGQ1OGE2ODliMzdiYmZmNzZhZjZhZTZmODBhYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTE2Y2ZlMzM3MzgzN2VkMDVjYjk1NTY5MzBkZmRkNWExYTY3MzJlNWI3ZjRkMDg4MDQxNzBjYzNjYTFjOTFhNiJ9"
+        },
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/main.rs#L559-L583",
+          "version": "repo-lines-v1:sha256:f40a683ccc42da36f4b2f0ea6ed3d2e63cdbc5a1893f25e19259c4f14d60b174:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY4Yjc2MDUwOTNmZGQwNTJlZWUzOTk5OGU2MjFjYzcxNzg5YWMyMTc1MWEyZGRjNDJjNmFjYTRhZGZjOWZkMTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiOWQ1ODA3ZTA4YTFkZDg3YTJhZDk0Y2FmMmY2ZTNkMGZkOTcyOWM4MWJlZTZhYTFjZmQ2OWMwMmFmYzRjNGIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE5OGU5MzIxNmJiZjliYjZkMmZjOTA1YzU4YjNjN2QyMzI1NDNjYzU2OTg3OTI5MThhOTM3MThkY2RhMTlhMjIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNmMzg0NDVkNjkxNDNhODAxNDQ3Zjc0NTkxZWM3Mzg1ZTI1YjcyZTFlOTFhNzk3Y2IwNjg0YWMwMmQ0MDk1YWUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_54ed0f8610ad4cc3964593ef3d8603d9",
+      "statement": "The poll loop reads Pod Bay and local session files, builds the model, feeds it to the alert state machine, then releases the snapshot lock before sending notifications, sound and tray flash, and sleeps 3 seconds or less when Refresh wakes it.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/main.rs#L31-L33",
+          "version": "repo-lines-v1:sha256:1a8766617d6ece83b8c2fc8f96a3673b02ff9fb32c4257061b886fa9c3f55b8d:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODc4ZTIzNWQ3OTdiY2FiZjU1ZGQxNzg2N2IxZjNiOTU4MmY5ZGYxMThmMmQ4NDljNGRmMjE5YTVlMDU4NmE2NyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzY1YmE0NDVkOGQ1MGVkYmRiNDkwMjkzZmQzMmQxZDRkODYyODI0NWViNDJhZTUzYzYwNDI1Zjg3YzRiOTgxNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmQxZjZhNDRlZDAwYjlkZjkzYWVmZjAxYTVlNzE5NzM0NjEwZDJkNjk4NTIxMTFmOTI3NjA2MzIwMGFhM2IyNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZGI5NjVjNzcwZWRjNDNlYWQ5ZTRkODM0MGVjMjhhNDk2MjMzNDBmZGZhMjEwZWQ1ZjRkNDc2ZjNiNjRmMDg3YSJ9"
+        },
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/main.rs#L586-L617",
+          "version": "repo-lines-v1:sha256:45044cd93f1afe8621a5711ac244664fd3069ec0e56c8002bdb3d05f9325cacc:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYzNmQzOGY2NTdmMTM0ZjJjYjE2OTc3NzIzODk5OTVkNjNlOGQ0MDkzMjY0ZjY3MWIxMGU4ZDQ4MTdjMzBhYTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZhMDVlOTQxZWMxZTQ1YWJkYTFhN2E4NTNiYzQ0YjljOTE1Yzc0YTI2YTkyMDA2YjEzNWNlYjg0MTUwNTIwNTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc2NTI4NzA5MGJlZWIwZjA5ZGI4NWQ4NTM3NDMyMjAwYjE3OGJmODU4YWFhMzUyZWE1ZWRlNDgzODk3MGVlNDgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_11bceca6528f4feeb9e6b3e3a2276abb",
+      "statement": "When ls fails, the Pod Bay part of the snapshot keeps its last read marked as stale so it raises no alerts, while this machine's local terminal sessions stay fresh and still alert (issue #158).",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/main.rs#L546-L557",
+          "version": "repo-lines-v1:sha256:e137a440bbe5e11aaeb57d724ed3baea4a69c2eb45982cf14291c30ec5e612d1:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFmNTY0OGFkM2FhOTQzNTkxMGU5YWZkNTc4MWVkNDgxZGE4NDUzYjliODcxZDllMjM1NTVjMDQ3M2Q4M2RmMTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRmYWI3MTBkZGY3ODU5ZTU3NTc2NGE5MTNhMDAyYzc0NTg1ZmZhNzAwMTUxMGNiODgxMWRhODNkMmNmNzRiMzQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJhOGIxYjBmOTZkMjdmOGJkZDc3ZjZhYjY0MzY5YTU1YTdjM2I5Yzc5ZTg3NzU4MzJiY2E5YzQwNmMyODI4NjcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f66b8311c68442329ccfbd7fc73f92ba",
+      "statement": "The podbay-dev child process gets ~/.local/bin, /usr/local/bin and /opt/homebrew/bin appended to its PATH because a desktop app starts with a short PATH and podbay-dev needs tmux; errors name only the subcommand and never stderr.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/main.rs#L299-L323",
+          "version": "repo-lines-v1:sha256:b23f385aec0eb480d0e4fe6c01f9195f71c9086b3170737a986c3d621c210931:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVmNDQ0YzBhZjRiODE2ZTE1MDNhZGU0ZjQ3MTdmYzhhOTE4MjQzNDFjNjc5MGI5MzQ5M2M1OGZlNWNmMzEyY2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM4MzE2NjE5MjYzYjA0YWRlMmNiODc1OTQ4ZTBkZmUyN2E5ODU0MTExOWEwNzUxYzkzNDBkMTJmYzIwMjMyZmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU1MDgwMjNmYzllZGM2NjBkNTAxMTJjODhlZTI1OTBhMWVkZDZmMWFiMjJiMTNhNGJkY2Y5OTE1MjllYmRjMjMifQ"
+        },
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/main.rs#L383-L427",
+          "version": "repo-lines-v1:sha256:44fa79b88e3f094ef505aac680afec601e239de718b35e78e1640ae9ff544b8a:eyJzZWxlY3RlZExpbmVDb3VudCI6NDUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQyMjA1OWRiM2Q4ZjZlODM5ZTVlNTkxNzJlNjlmZTBkODZjYzAyZWQwMjEyMWQ4NDMxMmQ4OThhOTNlNzg4OGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY4YThkMmE1YmJkMThiOWQ4OTAyZDc2MjIxMTIxM2IzZDc2Y2RkZjg5ZmU4MDQyMzY5MWViOTQ4NDZiMWU5NWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ4NTQxNDc4OTU0YjY0YzllZGU1MzBjOWViYzlhMTc4MGU2OTRkM2VmZjkwYWU3MmEzNTNhMTRjNWVkYzVlOTYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_8c1fde4a2dd64cc69f50296480b006a3",
+      "statement": "Machines with a known address but no rows are probed in parallel with a 2 s TCP connect, and only a 'No route to host' on a private address marks the machine unreachable, without naming a cause.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/main.rs#L325-L369",
+          "version": "repo-lines-v1:sha256:e26cd91b3b6fe259b83b198ae53b5753f916e93c065af577eed143c4931234ce:eyJzZWxlY3RlZExpbmVDb3VudCI6NDUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI1ZDUyYWM3ZGUxOGViMGY4NWQwMGFiMmJlNzQyNTJkODE1YzBlMDM4ZjI1OThhZGE2MDdhYTc0NWNjNWZiNzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImExODVlMDg1ODhhOTc3NjhmZTZlYzFhZjI2ZmIxYWZmYjY4MWU5MmQ3NmE5ZWIyMjM2YWNjMjE5YWYyMGFhZDMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI0OTNlZjg5MTVmOTAxMmRhOTdiM2VkNzBmMTRkZWJiNzQ3YmFhNzFmNjE4NGU2NTQyNTJmZGRmZTAyZmQwNjMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e249368a8ed845cebb71fb01d7b0cc34",
+      "statement": "A Pod Bay session is in state needs when waiting_for names something, asks is truthy, or status is anything other than busy or idle; otherwise busy or idle; sessions are ordered needs, busy, then idle with finished ones first.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/model.rs#L228-L243",
+          "version": "repo-lines-v1:sha256:85ff4729e84a71100e2acc452895e0bb49e3b4e88391a431dbc4cecc203e884b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc4N2Y4MDkyOWI0YWQwZDkzNjhiM2QyNzAzNjdmMDAxZjAwZjA1MDFlOGUzN2I5MWYzYjM0YzE1NGRlMGYxMmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE5ZTc2MzU1Y2YxMTk5NDgwYzNmOTk4MzZiMTQ4NmM4NDFkODkxZmFhZDkwNGM2MDhlMDkzMDIyZDM3NTdhZWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU0MzViZGU3OWM0MWUzNzA1ZWMxMTI3YTUxOGVhZjMzN2VjYTBiZjg5NDkzMzM1NTljN2Y4NWQ4OTg0NWIzN2QifQ"
+        },
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/model.rs#L294-L311",
+          "version": "repo-lines-v1:sha256:d1c6ebce63505a841ec6c4874cf71554f002912c5dbf6c0df5e351963770a481:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg5ZTEyYWRiMDRlMDNkZjZmYWIxMjhkN2ViNmE3M2VkOGRiYTM5NjM2NWNlZjZmMDNmMjFhZDBiMDUxOGFhOWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJmOGIyYTAyMGQ5OTY3MTJhNDA5MDRiMDM3MTk1ODkxNWE1NTk5NzEyMjRiYzk0M2MwMzdkNTMzYzI4YWU4M2YiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVlODhlOTkzYjk4MDE3Mjc2MmUxYTJiNjI3ZTA0OTg3OTdjYTA4NWFlZTkwYTZiNTY5NTk1ZGYxYmM2ZTRlNjcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_bdca3401cddf47ebb1fd062ba8ccaeee",
+      "statement": "merge_local counts only interactive cli local sessions, lets a local session matching a Pod Bay row by Remote Control id or tmux name lend that row its sub-agents instead of showing twice, and leaves tmux sessions out while Pod Bay's list for this machine is unknown.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/model.rs#L429-L491",
+          "version": "repo-lines-v1:sha256:a90ace55aa6d5a78c203b51a36013412b93df15025c047372d15c430742f2e01:eyJzZWxlY3RlZExpbmVDb3VudCI6NjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMzODhlM2VlN2RmYWZjMzQwMDJkYjFhMWFlNDI0NGI0YjQ4ODgxNTk2ODA0MTVmYjQ2MGUzZmJlNWQ5NDhiOTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjczNjFjZTI0NWU3ZGQ3ZjM3ZjYwMmVlM2QyZjA2NTMzZjM4MDQ1MGQwYWQ2ZGE0OTk4NWZmY2E4NmJjN2NjMzIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYzZDVhZGE2ZDQxNmVmNTkyM2MyNDNjM2QwNjE1YWM2MGQwNjlmMzQwZTRiY2JkMzhhY2VmN2YyYTE1MDE2ZDAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_396fed05a390468094923c318c7d2466",
+      "statement": "merge_desktop skips desktop sessions already shown, takes state from a live session process file when present, and sends a session with no process to the Stopped strip only if its last activity is under 12 hours old, otherwise leaving it out.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/model.rs#L117-L119",
+          "version": "repo-lines-v1:sha256:078eaf42d72bc6f76797aad463aad897c0324c470783a7f93c3a4f526384e377:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWZhMjYxYTI0Mzk3N2Q2ZTJmNzFlNWJmMTRiODEzYjVmZWI5ODdkM2I5Nzc2MGU5NzI0YTc4Mjg3ZTNhOWQ5MiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzJkMzQwMTBhMzUxMjUyM2JiZmQ0OTRhNDdkZDdhNDg3MWQxMmUyYjk1NmYyNDAwYTRkZmE5ZDc5OTk2NGRkOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzlhZGRhZjhmY2Y0Y2I3ZDNjNmJlOGVhZWVmZjkxZGZlN2JiMDE5Mjk4MzRjNzg3ZDc5YzAyNGY0YjIxZDVkZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZGUxZjU4MjkzZjNjODU5NmZjZTE2MjJjY2E0YmJhNjU3OThhMzdkNzZkNDFiMjRhM2E2NGRlZWRmNjk1NzZkZCJ9"
+        },
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/model.rs#L493-L525",
+          "version": "repo-lines-v1:sha256:71e5c52bbe4688a1e91e69d7694b57cd5fcd3ea934522af12a31bf5e3977b53a:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM2Y2JlMDg4MWE2ODhmYzg1M2ZhMDRjOWJiZTg2ZTdiMmJjZDhkYjM4MmQxY2NlNjlkNzhjOGUzNjc1OTc0ZmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc4NjcyOTA5MGRiNDFhYzRkYWRmODc4NzljNjE0YTRlYTM3NTlhZTU4OTE1YTk0MzhiY2M2NDhhNjgwOTdmNzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZlYTA5MDc0ZjI2NWQ3Y2JiMWZmYTY5OGZiYTFlYTg0OGMzNGU3YWIyNWVmOGQ1ZTBkOTgwY2ViY2E0NTFkYjIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e6a632f347704ce1a193032b0316f5d5",
+      "statement": "A session's identity across polls is its desktop id if a desktop session, else its Remote Control id when present, else machine, project/workspace and title.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/model.rs#L552-L558",
+          "version": "repo-lines-v1:sha256:1a4b56ca518fab7e741f510b5cbf0db88f4cffd55e27536f521c68a4f4e95e6b:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMWM5NGVmMGNkNDQwYjgwZTU5ZjdiNjdhNjA4YWFmNmUyOWRiM2I0Njc4ZGZjMDI2NTM0ZWQwOTJkNjQ3ZmY4ZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDEyY2EzNDVjY2Y3NWJmOWMwODA2YmNlNjk1YmU4ZGU4MDhiNzk5ODQyNTFhN2E1NGQyMDJjZjYxMDFkZDQ1MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTllNzYzNTVjZjExOTk0ODBjM2Y5OTgzNmIxNDg2Yzg0MWQ4OTFmYWFkOTA0YzYwOGUwOTMwMjJkMzc1N2FlZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiN2JjOThkNmIwZGM0OTJjNTAxNmRmMTA4MDVhM2E1NGViOWMxODRhNWE2MTM3ZTdmNGJlY2ZhMGMyMjA1NTBkMCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_d09bbf352a334d789ac57e62d1277a72",
+      "statement": "model.rs validates untrusted strings before use: safe_name admits only plain names not starting with a dash, safe_url admits only https URLs of printable safe ASCII, and session_id accepts a Remote Control id only in a strict form, with at most 8 links per session.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/model.rs#L253-L292",
+          "version": "repo-lines-v1:sha256:e9b9c39efd4b959462ea732743cfacccde48ac9f4d79ddbe238a6e53d09062a3:eyJzZWxlY3RlZExpbmVDb3VudCI6NDAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM5MWM0NjI1ZDlmZjQ3MWZkNzhhM2VkNjg2NDY3YmIyMWVkOWQ0YTgyMzk2MDAzM2Q0MzdmYzBjZTdkNzhjYTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE5ZTc2MzU1Y2YxMTk5NDgwYzNmOTk4MzZiMTQ4NmM4NDFkODkxZmFhZDkwNGM2MDhlMDkzMDIyZDM3NTdhZWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE5MjAwNmNjY2NjNmQ5MTk2NWJjMjA1N2QxMTdkY2U4OWU5NzJkMTYwZTgwNWViZmI4MzBjNGY3OWQzMTQ0MzIifQ"
+        },
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/model.rs#L9-L13",
+          "version": "repo-lines-v1:sha256:7f3c72d8552ea587da8d474bafd9553f342d1b8010d7ee6d12e65cf3aab8e63d:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZGM0OWViOWZhZDgzYzdlZTE0NGE0YTUwYTBiZDkyYmNmZGE1NWYzYTMyZTkwOWYwZmZkYjExYzU2MmNmZjUyNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZDZlZTRiZmE5NjVmMmMxNjNlMzNjMzJhMGMwZTI2NDM4Mjc5ODFhNDM1Mzg2ZDgwYmZkNDVhYTc1NGIyYzRiYSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZjBiZDI4ZTg0NmZjNGEzYjhjYjg1MzQzYTlkODhjMmM5ZDRlYmUyZjhkYzM1ZjZkMzNjNzg5N2ExYjE5ZDk3MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjMzOTA5MTNhYmM5MmI4ZmMyZmJlN2I1MjIwZmUwYzFjMmU4ZGYzOGUxMDI4MWQwMTBhYjdhYjgyMTliZjNjOSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_1863b0273fd042529649d44c59e11463",
+      "statement": "local.rs bounds its file reads: newest 512 session files, at most 64 live sessions, 64 KB per file, a live check on each session's pid, and sub-agent state taken from metadata with a 15-minute staleness rule.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/local.rs#L28-L38",
+          "version": "repo-lines-v1:sha256:3ddca6ea6519803057081f60d111aebdb5173eb1f93caac626de3220a04de454:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRjYTRlODU2OTM5NWQyZjRiY2Y5OTI4NjEyMGMyNmUwNzk5MGFkNWJlZmNkNmJjODA4YTg2ZmU4YjI2ZjU1MjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE5N2M3OGQ5NWU1YjMwYzdlMDE2M2RlZmYxMjVjMjkzZjJmYTY5M2Q3MGJhODExMDUwZDlhOTJjZDhhNGYyOGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU2ZTBjYmUyZGIxZGU0ZjdlMzNjMThkZjY2MTZiMWU1MWY1NjczZmE3YTA4MjQzOWYwNGYwN2VhODBmMTM3NWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkyMzAxODc4MDJlY2MwN2U5ZmU3MmY4ODljZTZkMDViOGFlOGVjMTk4MzI4YWNkNWY5OTRiYzEyZjMxYWY4M2MifQ"
+        },
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/local.rs#L414-L448",
+          "version": "repo-lines-v1:sha256:341a3c9b1a3507ed50fa05a61ab9ba4cdf1c7039ee778c86075be11161a49e81:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA5OTQzZjNkNTAxZjQyNTJjYWVlNTk5YTM3MGRhYTUzNjhjNTRhMjMyZTA1OWZlMjQ2NGQxNGQ1OTI0MTQ1N2IiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJmOGIyYTAyMGQ5OTY3MTJhNDA5MDRiMDM3MTk1ODkxNWE1NTk5NzEyMjRiYzk0M2MwMzdkNTMzYzI4YWU4M2YiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA5NjkxMDg3ZmMwOWI1MDQ0MjA4MDBjZWZhNDJkMjQyZjZkNzAwZjUzZjk5MGVhNjVmYTViMmNmZGIwNjlmNDEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_83d5b0fceee84d9182747f729e21111e",
+      "statement": "The app's Content Security Policy permits only self, data images and the Tauri IPC, and it defines a main board window and a hidden borderless always-on-top popover window.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-board/src-tauri/tauri.conf.json#L9-L44",
+          "version": "repo-lines-v1:sha256:99c16025426d702042c62ee84130cae35fbb08592c0535be44d7230e2f1a14cf:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI5MzZhYjhlMjQ4MjhiMWZhYTRkNjMzNzZlOGQxMmIwODlkNGQ0YzMzYzRiZmRiMThmNmNjZWQ1MmQ2YzY2MTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRkNWNkMmZiNGYzZGY4ODQ1MTUyNTViMzk1MjNmMmY4YjU0NzJiZWVhOWY1NjZmZmNhMjA0ZGI4MDI1NjEwNDEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5NDkzNzY4MjA1OTk5MzA4ODcyOGNmNjI0MmEzNGU1N2JhZTQ0MTNmNzc2ZTM2OGMyNzAzZTliYWVlYjFkOTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY1MjA3ZjUwZWViZWY4YzdmZDBiMGMyODhhYTBjNThlMDU3ODUyYjZhNTRhNjEyZGVkZGE0NzU2MTdlY2M0YWEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2a8d50b7fbc14b63bff03be4d89d13aa",
+      "statement": "Pod Board persists only the sound switch and the Do Not Disturb end time in settings.json in the app's config folder.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/main.rs#L70-L99",
+          "version": "repo-lines-v1:sha256:d1cb32c22ab3911a73ca9c978919b283a06bdc3477dce5201d3ad12d502276f9:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRjY2JiZmIxNTczZjhkNWVjOTljOTIxZjFmOGQyZWMyMjk5YzM2NDUxZjhkMzYyZmFkOWRiZTUzYjFjOGZmZDkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ2Nzc4ZDkxZWU2Yjg0OThiNTVjOGUxZDcyYjQzZDZiOGEyMzNlZTBhNDBlMjQyOTQ2NzIzMDU1NGU2M2NlYjgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgzNmU1MDc3MWE3NGQ2OGE4MmUyYTBkNzQxYTJiNGNmNGRkNGQyZDI4MjFmNTA5ZGI1NGE5ZjEzNmE4ZmM0ZDMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjgwY2FlY2E1MGI1YTdlYmIyNjEwMGNkYjM5ZjgwMDdhM2M3OTk0ODBhOTFkMTliODEzMjQ5Yjg5NzhjNTUyMWQifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-26T15:02:34.678Z"
+  }
+}

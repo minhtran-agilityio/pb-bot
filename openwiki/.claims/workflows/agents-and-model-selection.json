@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:09ba64efd364afbd396808642b9f5b2757d2148061864f22c780af5486c6e965",
+  "claims": [
+    {
+      "id": "claim_5afc4ab1dba04cd1830617063cb1a8f9",
+      "statement": "Each pd-bot role agent fixes its tools, model and effort in its own frontmatter: advisor (Glob, Grep, Read; Opus 5.5; high), intent-reviewer (Glob, Grep, Read, Bash; Sonnet 5.5; medium), qa-writer (Bash, Read, Write, Glob; Opus 5.5; medium), security-reviewer (Glob, Grep, Read, Bash; Opus 5.5; high), task-reviewer (Glob, Grep, Read; Opus 5.5; medium).",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/agents/advisor.md#L1-L7",
+          "version": "repo-lines-v1:sha256:17b92e67c8a66521a64139a67b9ec73774a30e54cfec03ee296f5565a4317549:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTQwYjcxN2RmOGRlYTA0MjJjMmE4MDQzMDBhMTM0YzI3MTA2YmJlYmY3YmIzYjYyNTVkNzQzNGM4Y2Q5NTNlNiJ9"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/agents/intent-reviewer.md#L1-L7",
+          "version": "repo-lines-v1:sha256:18508ffe78ab14c28f3e7fed5dfd451e216139c347c999fdbdbe7463120a0af9:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjU1NTg1YzExY2U3OThhMmRjMThiN2U0YTMyODIxOGI0MzcxZTgyM2E2MDhiODBiZDZkNzIxNGIyNTZjMzhjNyJ9"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/agents/qa-writer.md#L1-L7",
+          "version": "repo-lines-v1:sha256:0ddd58458c9b0a0f25eac30a5fde8225b938c1350b825532d85252c6ae7637d6:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTRmZDI3NDBhYThlZjA5MTY3YWZhMmY0NjFkMjVjYWE0ZTIxN2M2YTg1OWRhYTJlMmE3ZGNjZGY5NzVkNjA3YyJ9"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/agents/security-reviewer.md#L1-L6",
+          "version": "repo-lines-v1:sha256:4ecb3d3408e09cbbb93b7a375cf1b6250253a125c6902194365bee9af8dccc40:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNmQ5ODcyNzY4Njk4Njk2MDQ0MTE4ODlmZmUyOTVmYWFkZmRkMDBmMDU3M2EzNTA1NzRkOWY5MjVhNmYwY2Y4NyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjcyZjRkZDc2YmU4MmUyZDJiZjEzZGM4ZWNkODA0YWFlMjkxMWYzNGJiZTljYTJlY2FkY2MxMzNhNTY3MWVjOSJ9"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/agents/task-reviewer.md#L1-L7",
+          "version": "repo-lines-v1:sha256:454f1ee40cb50a4b29199cef0f8ea7c1fb61a16b654440351a9b891e4d954061:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjM1OTg2MDk0NzcwNmRlNWEwNmRhMWFlNmUzYTM1ZTAwZjI0YjNjMmI0ZTk1YjA0ZjQ3NzM5NDk3ZjYyOGNiYiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_dbf7a29f3d3841919b607a4a140cb0ea",
+      "statement": "The implementer agent runs Sonnet 5.5 at medium effort with no tools restriction, implements the task as specified and nothing else, and reports BLOCKED instead of changing a schema, public contract, auth, a dependency, settings.json or hooks/.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/agents/implementer.md#L1-L34",
+          "version": "repo-lines-v1:sha256:5d6338195a9392348c041211119c577c09816db9dba950f3840a243d313c4e6f:eyJzZWxlY3RlZExpbmVDb3VudCI6MzQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY1MmQ3MTExMDNkNTBhNDM3ODMwYzZmYmNkMDRmYjRiYWI0OWEwZjgyZjZkMjZkMWM3OTFjNmU4NDg4ZGQwOTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNjODU2YWUxZDdlYmUxYjhjMjlkNjgxNTNjZWNlODNiMzA4YTE5N2VkMDhhNTM2NmI1ZTVhNTc2YmE3NGQyYTgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7df602b232ab49b9959fbd1de6d2803c",
+      "statement": "The qa-writer agent must not read application source code, the plan or the design beyond the public interface, and returns ready: false when the interface is not enough to test a criterion rather than reading code.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/agents/qa-writer.md#L9-L23",
+          "version": "repo-lines-v1:sha256:f396d4a10e00f734f2a1f8dc646438bb481029dfbd8fb99a5a4134774e266f1a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY0N2U0YmM5ZWFhMDRlNTJiNTVlNDQyNzg1YmM5OWYyZDg4NTgzOWQ2MmNkYTQ5ZTllNDZjOTI4M2YyMzcwZWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY2M2ZmOThhMzVmOTljMTE0ZDAzNTNmMGEzZWIxOWM4NWRjZTc1YzkwNjliZTkwYTc3ODEyNDliNzM4NmIwYzQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFmYzMxNWZmN2U5NTVjOWRiMzJjMDkwYmRhMTRiNWM4MzNlMjY5OGY4MzUwNzdjMGI3NTIyM2MyYjJkNDQyMjIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNhMjliODFjZjM0MmRjYjI2MTczY2M2MzVlZGQxYjQyNDQ4MWQ3NDc3MmRhNTRhMGM1ZjFmYjFlOGRkZTk2YzUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d3dc564cb38c4c0bbcbbb711a55ee1c3",
+      "statement": "The intent-reviewer does not read the plan, ignores plan text in its prompt, and limits Bash to read-only git diff, git log, git show and gh issue view.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/agents/intent-reviewer.md#L9-L30",
+          "version": "repo-lines-v1:sha256:2834227aa91de51e2a70bdc01d4f699d17d0d49d32e42fb54953887b53f1701b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJjZDc5NmIzYzY3YzliNTMzZjNlYmQxNjBmMDkyMjVhZGQ1MjI2YTE3N2Y5Nzk0NTgyNjNlOTUzMmVhYmExYWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3NDdhZDEwMmYxMzI5YTAxNjU0YzNiZmJiZjhkYTBjOWFiNjhmZTg2ODE3MGYzMzgyZjkyYjY3ZmMzMGEwMzIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFmYzMxNWZmN2U5NTVjOWRiMzJjMDkwYmRhMTRiNWM4MzNlMjY5OGY4MzUwNzdjMGI3NTIyM2MyYjJkNDQyMjIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA3ZjM2NGExYzAzNmZmZDhjZTE0NmY3YjZkYTI4MjY5MDM3MmQ3YTE0MGEzZDRkMWYxZDU2YmJhZmZiNjE2ZTQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d6046175226b4ccd8fa2f3602f5505ce",
+      "statement": "The advisor is read-only (it cannot write, edit, run shell commands or spawn agents), answers one question with recommendation, reasons, risks and confidence, must cite the search surface for absence claims, and its model is chosen by the caller, Opus by default and Fable 5.2 in special cases.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/agents/advisor.md#L9-L37",
+          "version": "repo-lines-v1:sha256:e270330ed59ac0fe6878a6168c79e63779f20da88bc32473adb9ad7fb52285f4:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkzMzUxZjA0N2MwOGFkYzRhMGU5OTgwYTQzZTI4YTk2ZDNhMGUyNDI3MmIxZjk1NGRkYjlmM2FmNjc2YmJlYTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjczYmY4MjIwZmNlYjJjZDVkOTZiMzA2YTRhOGQ0MDc5ZDViNTUwMjNmMjU2NGYzZTMxMzBlYzgzOTc0MGZhMmQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhhMTIzMTczZTk1NjA4NTlmZjhiNjEzNmJlYzIxYzVkOGQxOWQ1N2JhNGIzMjQzNmY3MjcyOTY3MzQ2YWU2MTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_efafcb697f414caca8486fadaa71c912",
+      "statement": "task-reviewer-readonly.test.sh pins the task reviewer to tools Glob, Grep, Read and model claude-opus-5-5 and fails if its frontmatter lists any mutating or network tool; qa-security-agents.test.sh checks the qa-writer and security-reviewer tool limits and their prompt rules.",
+      "evidence": [
+        {
+          "resource": "repo://tests/scripts/qa-security-agents.test.sh#L1-L29",
+          "version": "repo-lines-v1:sha256:a9682273987ce12177a9c437dc39e3ce3a818db965421f712c9be76a1858ee48:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlkOTljNGZkOTYyNTgyYjI5YmQ5MThjMjM4NDQyN2FhNTcyMjEyYjhiOGM3MDZjNmNiM2VlMWI2OTljYWNkZDgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://tests/scripts/task-reviewer-readonly.test.sh#L1-L16",
+          "version": "repo-lines-v1:sha256:2121a332973ae0cb6a51affe78ff07ed94263cf9873b4feb91a11c9c5cf66781:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRlNDc4ZWJmODViZjZjY2E2MjM1NDMzNzUzYjk1MmE5MTEyZWRiNzBmMmMxZDc5OTk4MTFlZTg1ZjM2NzA2NDYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5f6c51c3700b48c489997a4a76229cf6",
+      "statement": "test-runner and researcher run Haiku 5.5, and qa-verifier runs Sonnet 5.5 with Bash, Read, Glob and Grep.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/agents/qa-verifier.md#L1-L6",
+          "version": "repo-lines-v1:sha256:d02aab3069eafda59967bcd3e2973bb58aac884503f32ab3c7c7f8b38afad30a:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMGE3NGMyMzlkMWIyMTA5N2NiY2M2MTdmOWY2M2VkMThmNTRiZmQ1ZTAxODNkYzYwZTNhYzYzNDA4ODcwYzczMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjI1MzIzZDVkNTgyNmIxYzVjMTdjZDgwOGExMTAwN2FhOWZiMzZiN2I4ODdmY2YzMmQzNGFkNjdmNGY1OTk5YSJ9"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/agents/researcher.md#L1-L5",
+          "version": "repo-lines-v1:sha256:545c1f34ccf61cace2edf18b77e6fac11fd5a64610e8079bb3f81505a66af2d5:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjlkNTE3MDQ2YjQ0ZGEwZjY3YWI2MWJiYWRjNjRlNTZjZGNlYTI0ZDU1ZDQwYjU3ODEwY2I2ZGJiZjcxMjI2OSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOWJiYmJlNWIzM2E4Mzk5ODVkN2MxMGNjYjg4MjI0YjM3ZjVkZGY4MGExODQzZjc3MjRkNGJhMWNiY2NiMGM4OSJ9"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/agents/test-runner.md#L1-L5",
+          "version": "repo-lines-v1:sha256:14e8cdb728d6b2d68b2b35c4bf74ace5d8e1bdda7f11d647d7e0a35212804dbc:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjUyZDcxMTEwM2Q1MGE0Mzc4MzBjNmZiY2QwNGZiNGJhYjQ5YTBmODJmNmQyNmQxYzc5MWM2ZTg0ODhkZDA5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjlkNTE3MDQ2YjQ0ZGEwZjY3YWI2MWJiYWRjNjRlNTZjZGNlYTI0ZDU1ZDQwYjU3ODEwY2I2ZGJiZjcxMjI2OSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYWM1Y2Y4OTg1NzdiMTc0ZTIxNTI0NzczOGE1ZjQ5ZDcwYjE0M2JiNjg4ODc1ODI2NGE1MzE0YTEwZWZkMGY0MyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_2e628d1073374f9a91540ed582a94944",
+      "statement": "CLAUDE.md sets model defaults (Sonnet 5.5 main session, Opus 5.5 orchestrator, workers Sonnet at depth S and M and Opus at depth L), tells the main session to always pass model to an agent that has none in its frontmatter, and treats the Fable 5.2 conditions, the depth L rule and the worker rule as hard limits.",
+      "evidence": [
+        {
+          "resource": "repo://CLAUDE.md#L15-L58",
+          "version": "repo-lines-v1:sha256:6218f6ec12ada54810b4beeb15ee8be9ff8f903248a3a6f31ae08a156c422e5b:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFiYWU4NzAyYzlmMjkzNTU3ZjVhOTMyNzhmYTk1ZDQzZmJhMzcyMjhhZmRmNzgzZmUzZDg2YmI5NjNhOTQzMDAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcyYjE3MmI5ZGNiZjk1ZjMyYjk2MzRlMTUyZDM1ZmI4YjMwMDFhYjU0YzRmODgwMGE5ZjMwZjM0NWU4ZWY3MjQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQwOTZiMmE1NzJmYjZkNGQ2NmFiNDBmYTgyZmEzMzIwNDczODY3OGI5NDExYjA5MmNkOTVlNzJkYTk3MWEwOWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM4ZThiMzM2ODk1ODU5ZTAxNmM5NTFiNzdhODgzMjg2MTVjYTZlZGIyYTAzYzc3MmZjNmQ2YmRiMjUyMzU3M2QifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_cf9073d6e51141a3a1c78443e53467ae",
+      "statement": "CLAUDE.md lists the triggers for calling the advisor: depth L or an important ticket, the same check failing twice, a BLOCKED or low-confidence agent, a blocked or silent worker session, an ADR decision with needs_review, and a pd-shape session reaching a deep design tree.",
+      "evidence": [
+        {
+          "resource": "repo://CLAUDE.md#L59-L67",
+          "version": "repo-lines-v1:sha256:b1bdcfb47d13991fc97ee231bd6e408461fcc4860c52f6a7cc2365e28830d633:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiY2FiMGYyYjBmZDA3ZjJiOGViNWM1MzY5YzZlNDMzOGNhNjEyZTA2NWIyZDA5YTYxMWQ4MzFiZTBlZWFlNjg1MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZWNkZmQzNjAwZGVmZDFmZWE1MjNiYzBkM2U1NGY5YjVlNTkyYTE2NTMzNWZkNjFjNDI2MDliMjE2MDVlNGZlOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTgxMTlmYjU3NDQwNzUxMTMyMTUzODRjZjg4NGJiMWMyODE1NDFhZTE1ZDUyY2E0NzQ3MjU5ZmU3NmQ2ZDhhZiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_7045356b84da4a2497b27482b9fb208d",
+      "statement": "fleet-settings.py enforces the worker model rule: a worker may not use a non-Sonnet, non-Haiku model unless --depth L or --escalated is given.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/scripts/fleet-settings.py#L338-L341",
+          "version": "repo-lines-v1:sha256:b241780e57ccb1c8382a254f7d856767c38002966590db85e7454e88135cab20:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOWVhNTVmZWNlNWI3NTQyZjhkOWUxZGMzZmQyNDdkZjRlY2JiMmQ2MzI4ZTRkNzhhOTZkNWI5OWUxNmVkZTAwYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOWZkNTI0YzVmOGY4NDhjODJhZjE2NDBmNDM3NTIwNzdmNDYzY2VjNGYxZjg3ZmI0YTZiNGRhMTliYjAyZDFiOCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZGU4ZGY0ZDYzYWU0MjdiNDJkYTIzNDRmNDQxMWJlOTk5MTU0MjVkOTU4ZGUzOTY2ZjVhNTUxNThjMmZlNzliMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTdjOWVlNDQyM2UyNmZkYTI3NzMyYTM4MjIxZGNkOWY1YjdiYzU5NDg3MGM4ZmY5OGE4Y2UxZjY5M2Y3MTA4ZSJ9"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-26T15:02:34.678Z"
+  }
+}

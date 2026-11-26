@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:9e1b91cbede3ada6edeeef2625f17a29567f1801921495712ea9a7675d5164df",
+  "claims": [
+    {
+      "id": "claim_e59af1253ff448ce8e577973359f9e07",
+      "statement": "The repo is developed with claude --plugin-dir plugins/pd-bot from the repo root, which loads the plugin's hooks and rule (the repo's settings.json wires no hooks) and exposes its skills as /pd-bot:<name>; scripts/run-tests.sh runs the whole suite and should be run before changing hooks or scripts, and check-shellcheck.sh before the PR.",
+      "evidence": [
+        {
+          "resource": "repo://CLAUDE.md#L5-L13",
+          "version": "repo-lines-v1:sha256:4fecc6bc0c12643994bf32e04896a1310a380a4f416272a95e271f00742787b3:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDNjMjM0ZDlkOGVmZTg5NDA2YmI2YzhmYWNjYzJlMzc1YjQyNWFlZDUwNTJkNTFmODViY2E4ODZkZDhhMmUxNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOGU4OWZkNGMwNDQwMDU3Nzg5NDYzN2Q5N2U2ZDRkMGJhMDAyMGExNzAyMzhjMmNjZDcyYzI0MzNjNjljYjY4OSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDdmYzY0MjY5MTcwYWRiOWJhMzE2NTZiNDRhYmYyMjZjOTY1YjA4MWY3OTRlN2FjYmU2NDI1ZTBlZWJjZWU4NCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzk1NGU1ZGU4YjViYzlkNDE1OGY5OTA4N2FhZTNhOTU4M2FhMmEwN2ZlN2VmZmZiMGQ4YzcyZTYxYTU0ZWM0NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_965934ffc5ea4e70a22efa44bd127be3",
+      "statement": "The marketplace file publishes one plugin, pd-bot, whose source is plugins/pd-bot.",
+      "evidence": [
+        {
+          "resource": "repo://.claude-plugin/marketplace.json#L7-L16",
+          "version": "repo-lines-v1:sha256:220ae3e8af4e7d8ee4e5e069393bd630bed7ad55a5e1f11c110d77de0c33c48d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc5NDY5YzkxZTViNjgyZjYxZWJiNjgzM2FmZjdhZmE2Y2JlNTdiZTZiOWNhNzQ2NWU4MmZlNmYzOWFmOWVjYTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwNjQ4Zjc3ZmQ1YTljNjNiM2NkZDBhZjQ5ZGFhMTI5OTIyMGI3NTQxZTg4Y2ExN2VmZTFhNmExMTRiOWZmMmEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdmNTQ3YTA2ZmZmNTYxMjhiMGQ4MjAwNzE2ZmNlNWYwYzIwYWJmZGVkMWJkNjk5NDBkODVjNDhlNGI3MWIyMGMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_175f53ab059d4429b50d1c1decb1119f",
+      "statement": "scripts/run-tests.sh is the single test entry point that runs lints, hook tests, script tests and pytest unit tests and prints ALL GREEN only when nothing failed.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/run-tests.sh#L1-L10",
+          "version": "repo-lines-v1:sha256:37ebbcd3e1a144c2acd7a00b78bf6240e6e23eaa0fa2518aa981e047d6434c4e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI4NzVmOTI4NTQ2YWVlNzg1NWNiMWRiOWFmYzhhYjNmMWE4YTM0ZDQzZGU1YmJkNjJmNzA3NmQ3YmE5ZjM5MTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg4MTkzZjk0Yjk5YzMyMmI3MWQ2ODY1NWU1Mjg0NjQ1OGIxOGI5MWYxMmFjNzBiMTM5MzBiMDVlNmMzNmU3OGMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBiMTEwNTY1MDA3NmIyYTZiMzJlN2M0NWZhYmE4NTExZWZmZmRlODljNjJjMDQ3Y2Q2ZjA2MTc0OTBkYjMyNDAifQ"
+        },
+        {
+          "resource": "repo://scripts/run-tests.sh#L140-L147",
+          "version": "repo-lines-v1:sha256:cafe2d43e95e6d1d9e4098110d67dc05ae9285d255d9650ff040fe3f5e0433bf:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiM2JkNGFiYjA5NzRmOTAyZTg4NmJlYjM2OWM4ODc2MGJkMGZmNzJlNjg3Zjc4ZjU3NDk0MjhhM2IyNDRkOTU0YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiN2Y2MjAzMDdjZWMwYTZkMDQwM2JlNTc4ZWNkYzYzNTE1ZjFkYWQ5ZmM1YmE4NGI3NDRmOGM5ODcwMDA0ODg1MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDQ0ODhiYjllOWM5YTZiZGVkNDlhMTgzOGUyYWM4ZDIzZDA5MzViMTVjNjA5YjU3NmU5MDkwOWJlNmQ3NDY0MyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_ae36d573dd0b48da901f4150a0244924",
+      "statement": "pd-bot is a Claude Code skill framework whose workflows run from ticket to reviewed pull request that a human merges, and which requires Pod Bay.",
+      "evidence": [
+        {
+          "resource": "repo://CLAUDE.md#L1-L4",
+          "version": "repo-lines-v1:sha256:1ab48b512b8086cb344cc592519da73deea75dabd92e5ae992d11b1771ad99fc:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNGQ1MGViY2U4NWU5NDk4NDlmOGNlMTY2ZDU0ZDlmZWM5Y2Q3MGE4ODFlOGE1ODZhNjAwZmQ4YmMwMzVmZDA2MSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDZlZjUxZDVmOTRmM2FlZDYxMTdjNWVmNDMyYWFiMTAyYzk1ZDg0OTMzOWUzYzg4YTc5ODczYzhjMmVhODcwNyJ9"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/skills/README.md#L1-L14",
+          "version": "repo-lines-v1:sha256:dab6b4143a3385d87daff63c8f69445e0508897c52d3d81a3ce51afffb4af82d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRiNDY3MWQ0ZWI3MmQwNmNiYjA3N2Y4MzMzOTkwNmNlYjE3ODY3NjQ4OTE1MGYwOWUxNTlmODA1YmJlNTNkZWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY1MmQ3MTExMDNkNTBhNDM3ODMwYzZmYmNkMDRmYjRiYWI0OWEwZjgyZjZkMjZkMWM3OTFjNmU4NDg4ZGQwOTAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNlZGQ2OTQ0NDRkNWUxNmE2YjUwMzJjNWI1ZTgwZjY2YmUwYWJmM2VhN2YwNzMyNjg2YWZlOWUyOTA4ZGJjODIifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-26T15:02:34.678Z"
+  }
+}

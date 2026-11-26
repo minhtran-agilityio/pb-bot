@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:e92631bf5c17f55525adbd0dbfb36e3a50a0a6b7baf1e379c7637c3e508e96aa",
+  "claims": [
+    {
+      "id": "claim_113420f3f7654191925fc6f264571e8b",
+      "statement": "pd-bot runs only with Pod Bay: the fleet via /pd-bot:pd-orchestrate is the only run path, and the older ship.js, pd-autopilot, run board and git-worktree isolation were removed.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0005-pd-bot-runs-only-with-pod-bay-and-the-fleet-is-the-only-run-path.md#L24-L28",
+          "version": "repo-lines-v1:sha256:7c2f2868b68f763595f76671da8ddc8d503cffb787e11dcd1cef2871a2b924a2:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiN2QzZGJjNGU3ZTdjYmU1ZGRjODkxYjA4MDcxMmY2MzUxYzk0YjcyOGVjOGJkODU1NmY0NjEyYjA3MGQyN2I0MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTRlYmUxZTM5NDA3MDE5ZmRjOGZkMGEwZDcyZWVjZWQzMmZiNzFkZTBiZjQxYmVlMzE3NjQwNDkwNzY4YjljNCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzY2M2EzNzczNjhjYzljOThlYmRjYjAyZTRlMDVjMDI0MmRlMWQzOTQzMjI3ZTJkNjE5MzEzMzJkMjY4M2RmNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjcyYmE0ZTM5ZGVlNWYwMDk3ZDYzZDM5MGRlMGFhMjUwMWVkNzQ4ZjMwNzAwMGNmMjZlODQzYTE0ODBhNTNlMSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_94545e4bd911418f9ce9696fbd30902c",
+      "statement": "Only the temporary detached worktrees created by pd-review and fleet-check.sh, plus the clean-worktrees.sh hook, were kept after ADR 0005; fleet gates block only on a feat/* base today.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0005-pd-bot-runs-only-with-pod-bay-and-the-fleet-is-the-only-run-path.md#L28-L36",
+          "version": "repo-lines-v1:sha256:99306c7294b3cbbd9ea1e23b5cdfe75269080c673771c66bec8e6b39919d6d4d:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTRlYmUxZTM5NDA3MDE5ZmRjOGZkMGEwZDcyZWVjZWQzMmZiNzFkZTBiZjQxYmVlMzE3NjQwNDkwNzY4YjljNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOTE2OWY3YWMyM2E0NGRmYjBhNzYwNGFmMjcxNDI1MmZhM2EyNDdiMjY4ODdlNzVjMDIxYzU5YjBkNzhiZjBjZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZWE5ODEwNDc4ZDE2NjNjYTEyNDNhZjgwZGM1OTFiNGQ4ODY2YTVmNGEyOGJiNTk2ZjNlYTFkOTM4YWNiYjdhMSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTNiODUxNWVmNDQ3MjFjMGNmZmQ4OGY4MWY2ZGRiNzFhOWM3OWRjMmIwOGRiYjlmNmE4NGQzM2I5ZTI3ZjM2MCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_48a02d4a59834c8b92543b59d512b561",
+      "statement": "The marketplace publishes a single plugin, pd-bot, sourced from ./plugins/pd-bot.",
+      "evidence": [
+        {
+          "resource": "repo://.claude-plugin/marketplace.json#L7-L16",
+          "version": "repo-lines-v1:sha256:220ae3e8af4e7d8ee4e5e069393bd630bed7ad55a5e1f11c110d77de0c33c48d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc5NDY5YzkxZTViNjgyZjYxZWJiNjgzM2FmZjdhZmE2Y2JlNTdiZTZiOWNhNzQ2NWU4MmZlNmYzOWFmOWVjYTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwNjQ4Zjc3ZmQ1YTljNjNiM2NkZDBhZjQ5ZGFhMTI5OTIyMGI3NTQxZTg4Y2ExN2VmZTFhNmExMTRiOWZmMmEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdmNTQ3YTA2ZmZmNTYxMjhiMGQ4MjAwNzE2ZmNlNWYwYzIwYWJmZGVkMWJkNjk5NDBkODVjNDhlNGI3MWIyMGMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_4729dad08bbb4b0888d9437a7f19b532",
+      "statement": "hooks.json wires SessionStart (session-rules, session-role, and clean-worktrees on startup), Stop (stop-evidence), PreToolUse on Bash (secrets-scan, merge-guard) and on MCP merge tools (merge-guard), and PostToolUse on Bash (pr-opened, clean-worktrees).",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/hooks/hooks.json#L2-L94",
+          "version": "repo-lines-v1:sha256:6d327a6d418bd3f915d8a1b3539c3e9b0817851932c6e0d62fce9fd9a2bb2616:eyJzZWxlY3RlZExpbmVDb3VudCI6OTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRhMmI4NWIxOTc1M2Y2MGRkODliZmY3NWUwN2Q3MjU1NGJhN2E2Mzg0YjVlZWExZjhiN2U3YjQxZTU4MWY0MzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjoxLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE2ZmIwOGZkYTFhY2I5NTdiNjExNmJkMzc4MTFhMWZlNDFhMDE2MTFjMDYzMWVkYmY3ODZkNjg4OWEyN2E1NWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_57a0c0e49dfc4c32bdefc8d9abee2746",
+      "statement": "Pod Board polls read-only podbay-dev commands plus local Claude session files, runs podbay-dev detail only on a peek, and never sends anything anywhere.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/main.rs#L1-L7",
+          "version": "repo-lines-v1:sha256:0a30cf5299435296f85de4200d3b716c427e74dd9325a8e87705402c82598fdc:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNGNlNjg2MDgzZjc5MWM0NmQ3MDFkMzIxNjdmZTAyYjViNDNjMTQ3MWFmNTA1MGI1MWI4NmU4MTZhZTFjODhlYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZDMzNWVhNDk2NDAxYWEwOTY0MDdiY2QyOTIwNjZhMTNjYWJjMGQ1OGE2ODliMzdiYmZmNzZhZjZhZTZmODBhYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTE2Y2ZlMzM3MzgzN2VkMDVjYjk1NTY5MzBkZmRkNWExYTY3MzJlNWI3ZjRkMDg4MDQxNzBjYzNjYTFjOTFhNiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_9adf1497f4e24bc09b48034d7c3bc7c3",
+      "statement": "Pod Board's ui/theme.css copies Shape Board's tokens.css, and cargo test fails when a shared token differs.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-board/README.md#L83-L86",
+          "version": "repo-lines-v1:sha256:059ad213a466b568acaef7c24798340a34fd55ae79d8062331c300bb972dfb8d:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYWJjYjM1NTI3NmFkNjdkNWQyOTI5OTMzMWM1MzYzNmQxZmY0NWUyMTdkZmM3MmY1ODg4Yjc1Y2Q3YzM2ZTk5NyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDBkMTlmYzU3NmQ5NzhiZDQ3M2YwODU3NmI1NzhhZDVjYTg1OTk5NzBiODFmNjNkNzZjYzZlMjkyZTNiN2FmZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDc3YWEzZWQyOTFlYTJmNWNmYTE1NGVmODg4ZmI1MTlhYzNiZTcwOTFiYzdiMjg2MGVkNzg1OGVmN2MwY2YzZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiN2I2N2I4OWUwZWI4N2JlZmZjYjUwN2E1NjgxMGY0N2ZjNWNkYmY1MDc0ZTQyNjUzMjViZmUyZTVjYTliOWI2MyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_ab786354a451408ab796e88a6b956b9a",
+      "statement": "scripts/run-tests.sh runs L1 lints, L2 hook tests, L3 script tests and pytest unit tests, and exits nonzero on any failure.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/run-tests.sh#L1-L10",
+          "version": "repo-lines-v1:sha256:37ebbcd3e1a144c2acd7a00b78bf6240e6e23eaa0fa2518aa981e047d6434c4e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI4NzVmOTI4NTQ2YWVlNzg1NWNiMWRiOWFmYzhhYjNmMWE4YTM0ZDQzZGU1YmJkNjJmNzA3NmQ3YmE5ZjM5MTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg4MTkzZjk0Yjk5YzMyMmI3MWQ2ODY1NWU1Mjg0NjQ1OGIxOGI5MWYxMmFjNzBiMTM5MzBiMDVlNmMzNmU3OGMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBiMTEwNTY1MDA3NmIyYTZiMzJlN2M0NWZhYmE4NTExZWZmZmRlODljNjJjMDQ3Y2Q2ZjA2MTc0OTBkYjMyNDAifQ"
+        },
+        {
+          "resource": "repo://scripts/run-tests.sh#L140-L147",
+          "version": "repo-lines-v1:sha256:cafe2d43e95e6d1d9e4098110d67dc05ae9285d255d9650ff040fe3f5e0433bf:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiM2JkNGFiYjA5NzRmOTAyZTg4NmJlYjM2OWM4ODc2MGJkMGZmNzJlNjg3Zjc4ZjU3NDk0MjhhM2IyNDRkOTU0YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiN2Y2MjAzMDdjZWMwYTZkMDQwM2JlNTc4ZWNkYzYzNTE1ZjFkYWQ5ZmM1YmE4NGI3NDRmOGM5ODcwMDA0ODg1MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDQ0ODhiYjllOWM5YTZiZGVkNDlhMTgzOGUyYWM4ZDIzZDA5MzViMTVjNjA5YjU3NmU5MDkwOWJlNmQ3NDY0MyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-26T15:02:34.678Z"
+  }
+}

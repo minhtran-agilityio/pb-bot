@@ -1,0 +1,188 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:8f294301c88324ce64c52ab324ec6cc97513b8e42b5701134ebeeb60bdb9311d",
+  "claims": [
+    {
+      "id": "claim_d7ddaf74c7744f08822cf50364cbd1a8",
+      "statement": "alerts.rs is pure logic fed one model per poll through Alerts::on_read, returning alerts, a sound flag and a flash flag, so it is tested without a window.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/alerts.rs#L1-L4",
+          "version": "repo-lines-v1:sha256:1df7fac67e0e15223d3983fdc5aa08de323082555f041ae9c38d753511ccb7ef:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjE4NTRkNjg4Mzg1MmUwYmM4OGVjOWRiMjI2YjVhMjA0MTNhNWE5ZjBjYjY4NmNlMDc0NjQ1Zjg0N2IwMjE2NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiY2QwZGRlNGQzZTcxZjA0YmU2MGNmMTZkMjQzYjkzMzhiMTcyN2UxNDYwOGU1Zjk3OWM1MjUzZTMwNWNhNDhmNyJ9"
+        },
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/alerts.rs#L133-L190",
+          "version": "repo-lines-v1:sha256:f83d4119e0396b2bf0a49d61adaa17474d0e426adea53b599fc8cab45630f1d3:eyJzZWxlY3RlZExpbmVDb3VudCI6NTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVlODVlY2U2MGQ4NTQ3NWJhOTA0NWU2MTZhZjNhYmQ2NTczYzBlZDI5ZTZkN2I2MmNlODc1NzUzODEzMjRlNzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk5OWJkZWZlZWFjYTYzNDBlMDI5MGRjODZlODg5Yzg5ZDVlMTg5YWE1YmE0NGI1ODViM2I3MDczNGY0YTYyZDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ2NjNhMWY3NDY5NjM0NjU0YjFlMGI5YjMxYzBiZmFhODFjNzRjNjlmODBlOGNjM2JiMDJhZGY0YjFlMzRiNjAifQ"
+        },
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/alerts.rs#L44-L50",
+          "version": "repo-lines-v1:sha256:a8125200a4e12e4b65e9173bcb01de4e85b36f3e98371986ee714db23fea05ee:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjRhNGJmYmNmYzgwOTI3NmI5NDBlNzRhMjgxY2U3YjNlMzExNzVkNmEzZmYzZWE3MWM5YmFmNjNhOTUyMDU4MiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDEyY2EzNDVjY2Y3NWJmOWMwODA2YmNlNjk1YmU4ZGU4MDhiNzk5ODQyNTFhN2E1NGQyMDJjZjYxMDFkZDQ1MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzM2ZDBiZTZjYTgzNzVhY2I2MGIwNjA5MWE3YWM2ZmQ2ZmNkNDZiZTQyNWRkNmIzY2RhMWE4MzFiYjM0MTI3YyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjc2NmFjZjZhNTI1NTAxNmM2YzRlYzgzODY3MzU0ODAzOTNlZTEwMGE1ODI5NTcxMzIwMTcyZThhYWU1MDg2ZCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_6f76962abed6437d946bca67e2990e68",
+      "statement": "The first read announces nothing, and for Pod Bay sessions the first read that actually contains Pod Bay data only learns existing waits, so a failed first ls does not make the first good read announce every wait as new.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/alerts.rs#L134-L141",
+          "version": "repo-lines-v1:sha256:b4af2afe18bba18f264f40c18f709854e3c046145e3965baac081c0cf7ae5707:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTI1NzRhOTkxZTU5NDNiOTFiMjZjNDE5MTRlNDlhNzdlMzhjYjRiMThjMDM5N2RhMWY2NWQ3MTM2ZmY1ZDVlYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOTg3Yzk5YzgzZDFhMjM5YzU4NDVhZTJmNTY1NzU1M2Q4ZDhmY2U2OTM0ZDYwY2EyOGMwYTg0NTVjNmRhYzQ0NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTEzMDE1NTkzOGU3YTdlZGEzYzc5ZjZhYjI5OTdlMjk4NWYzM2IyYTBhNWJkNzk1NGVhNzExNjMxNjIxMDgxZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDQ5Zjc4ZmNhNmVjZGI5ZWYzYTg0YTAwNjJkZDE3MGRiMDAwZjk3ZWI0MjkwM2Q1NTQyZGI3NzkzNGU0ZmIyMCJ9"
+        },
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/alerts.rs#L164-L170",
+          "version": "repo-lines-v1:sha256:bb8cbbff78af581af84d5f76528b2b32ee3d39af818333a38b021e89b0ad5e72:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTMyZjVkNmY3OTg2NDZmOGE1MTMxNjcxM2Y0OGYwNjI3MGQ5YWYyNTUyYTJjMzBjOTFkN2JlZmFlMWM4NTMyOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMGM2NDc5Y2MyMzA0NDBmZDQxZTgyMjQyMTg2Nzk2OTg1NTlkMjg5M2JkNjdiNDM4MGFmYWI4MTFiMzhhNTVhYSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYmZkZmVjMGViNjE1MGZlOTYxYjBlODg1Y2E4MzRjODVhMjAzZDc5MGYxNmMzMWZkZTkwYmI4NWRlNTcyM2EwZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZWJhZjJjYzNhODAxYTkyMTQxZTAyMDJkNmVjYzZhMzJhNjYyYjMxMTRkOTJhYzc3MTE3N2FhZWQ2NTVjNWJiOCJ9"
+        },
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/alerts.rs#L87-L89",
+          "version": "repo-lines-v1:sha256:c1ad2ce944409980469b83c240c1ec97a2fcf0ba55f6a24cfdabbf501d0c79fe:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjQzZTliN2IyOWIxNTc3ZDExODhhZWJhYjY1Y2U3MWMzNzlmY2Q4Y2Q1YjcyZTUxNzllYjU2NTQ3MzNhYzc4ZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZDVlNjY3NTc2NDU5ZGZjYTI4Mjg3NmNmZTk5NGVjZjI0NmY0OGMxOTM5NzkzMjgwZDE3M2ZkNDc0ODVkY2E1YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOGQwNzk3ZDllN2U5OTVhMDViZmIxZGFkNGQxYTA5MTlhMGY3YjJjNTM3NmEzNDRiYzliNWQyMmI2ZmM0OGU5NiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjY3NDliMDZmMzZkNjQ1OTZlZDY3Y2I1YjMyYTcyYzc4MWI2M2I0NGFhYzJhZTgyOGM3Mzk4ZDQzZjk5NmMzMiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_05f05c6ba93d40aabe97db2fadb25b3d",
+      "statement": "A continuing wait gets a reminder after 10 minutes since the last notice, at most 3 per wait; a muted reminder is not spent and goes out when Do Not Disturb ends.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/alerts.rs#L145-L162",
+          "version": "repo-lines-v1:sha256:30e82b68874b71adb8fca43c226f280a50edfdb358487c68ce5199e31ea23cf3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM5MGZjOTE0NTBmMjM0OWExYjBlODI1NzdlNjA1ZGVhZTk0ODE1NjIzNzFmNTY4OGZjNWViNTA2ZTY2ZjljMTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhmMWQ1ZThmNGIwODllY2FmOTU1M2M1ZGYyMDBlNzlhM2MyYzg2ZWQ2OGE0YjFiMTM1ZGRjMjhjYjE2ZmM5MjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA0OWY3OGZjYTZlY2RiOWVmM2E4NGEwMDYyZGQxNzBkYjAwMGY5N2ViNDI5MDNkNTU0MmRiNzc5MzRlNGZiMjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA3ZmQ2MmRhOGIwYWVlYWMwZTU4MjZiNDc2MTIxZDIxMzEwYzVkNmMzYzBhZGU4MjNiOTE2ODk4MTNkYWJiNzcifQ"
+        },
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/alerts.rs#L8-L12",
+          "version": "repo-lines-v1:sha256:d31215b3cb599d0cb0b113b1555eae705ac19e303c5cf5c15fb8cf928d5a4325:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOThkMzVkNzI3ZDc4ZTlkMDVjNjI1ZTdlZTczZDlhZThkNTc5N2I3YzZkNzdkODFkMTVlMDliNGFmZWE1NjU2MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWMxMDRlNjI0OTljM2I4YmVlOTA3ZGRhOGQxNGZmY2Q2YTJiOWJmZGZjMTEyN2JiMmJjMzk4YmQ0MGE4OWM3YyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiY2QwZGRlNGQzZTcxZjA0YmU2MGNmMTZkMjQzYjkzMzhiMTcyN2UxNDYwOGU1Zjk3OWM1MjUzZTMwNWNhNDhmNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTMxMmUwMGU0YzhiN2ZkYjVmZTlhNTYyMmYzYzNlMDg3ZWFmYTAzYzFkYTlmYjAwMmNmOGMyMDVkMTk0ZDc1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_e7d1c021ec4e4ee9b9710a28f3d6e406",
+      "statement": "Only a new wait or a reminder makes a sound (at least 10 s apart and only when sound is on); only a new wait flashes the menu bar icon; a finish is silent.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/alerts.rs#L13-L14",
+          "version": "repo-lines-v1:sha256:25c6775d0b60d9a0657001038513e0001a409d0ae44f7e28eb6981ab6e8825ee:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmEwODUwMGQ2ZDE5MGI1NGIxZDgxZGM5NjU5OGUwOTQ0NGNmZWM4NTg0ZmFiZTY5OTRiYzY1ZWM1YThkNTNmMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzg0NmMzMDhkYWYwNDFlNzMxYmRmNWJkODA0OThjZDYyZjBiOGQzN2M3Njc2NGNkNDkwMDQ1ZDA0MDFkMzQ1NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjg5MDhkMTZmZmM4ZmY1MzRjYjRiNGNjZDA3ZGEyMTAxZjdmNzdmMjE0MDllN2Q5ZTZhZmMxZTU2YWUzZGU2NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDYzZDVmNWZkZDQzNjRmZGI2M2YzMGY5YWE3Y2ZiYzI3NGZhMjgzM2RiNDk0ZDQ1NzVlYjkzNWJkZDM4MzkwZCJ9"
+        },
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/alerts.rs#L181-L189",
+          "version": "repo-lines-v1:sha256:5efb00c96711f7265adce0405fbcd18b7a58355369327b158fa305e01a1df095:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWFmN2JmNjZmZDU5ZGI1ZTU0NDBhY2QzOGIxNGZlZmM2ZDUyNTY5ZmZiYzc1MmFlMDUwYWY1YWQ0MTA2MTM4MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI5YTQ1OGEyM2U1NTIxYTU0MzE5ZDU0ZjczYWI0MTM1ZWQ5ZDg2YTI5YWQ1MjMyNmY4N2IzYWViNWUwZTM4MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjJmNDRkODVjZWU0NmZiOWY4Y2MzMjMxYTNjNmU4NzQ4ODFmY2QyNGFkMTgzODJhMzgyYTI3MGNkYTUxYzRlOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWE1NDBiNDBjZDg5NmEwN2E2NDc0ZGUxZDU3NWVhNmRiOWE3OTEzMDdkZTZhMzBmODc3ZDE5N2NjNGZkNzNmNSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_d98681d809fa4c8282a96ae1b0b8f7da",
+      "statement": "A session finishes when it was busy for at least 2 minutes and stays idle for 8 seconds; a session that moves from busy to needs is not a finish, and an unattended finish is forgotten after 12 hours.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/alerts.rs#L15-L21",
+          "version": "repo-lines-v1:sha256:f0f305bb733003f456cd85583333c4d6fa1cb2612a65c8fd1e0d7edd5254aee1:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTgwMWJkYTc1M2Q5NTQyNmMzM2QxZTM5ZmY5MmVhMTI2NjFhZGE2NDI3Nzg0NjAwNzk4ZGY1MTYxOGQwMGU2ZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWMxOTE4N2E4MTY2NmVlODI4N2E0Yzg3NjMxYmQ5MjBkMWVmMzMyODNkN2Q2ZmI5ZDg0OTkwOGU4YzYxNjIxZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOGIxYWM3ZTRiNWI5MGM0NDQ5NGM3YzU3NjQ1ODg4MmM2YWNlZGQwMzNiZWExZTE2M2M2YjU0YWUyNjhjYWQ0NiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDdiZDE2MjJiZWI0MWRiNmE3ZDVjNzE5ZDU3YTg5Yjk5YzZkODA0OGVjZWJlMTNlZmNjNDU3ZDU2ZmRhNzlhOCJ9"
+        },
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/alerts.rs#L192-L238",
+          "version": "repo-lines-v1:sha256:0928bc07ace1abeb84ccb79f5887329126d85c6e6c4466d3a68e99c022cdaaa0:eyJzZWxlY3RlZExpbmVDb3VudCI6NDcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdjNGM5ZTYzZTU4YTBiZjZmZGNjYzZiZmNkM2Q5YzA1YzZmZmQyMjc0NWQwODIzOGFiN2ZkOGVhZjE5MDVkYzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImMwNzY3NGExOWU2ZDE1NzkxZDA5MGQ5YmNlNjMwM2FmOGFjNTQ4YmUyYzNhNzYwM2VkNzE2ZTg2NGU2YTM2YmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhmNDVkM2FiYTFjZjBkOTM2NTJiZjRkOWZmOGNlZTcwY2RlNzZkYWU5OTZlNmU4NTUxMGZjZjc0NGU4YzAzOWIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ccfc0889d4184084b2481d0551f2814b",
+      "statement": "Alerts::mark writes the finished timestamp only onto settled idle sessions, counts them and sorts finished ones first, and Alerts::looked clears a session's finish when the owner opens or peeks at it.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/alerts.rs#L240-L257",
+          "version": "repo-lines-v1:sha256:9feca50cb9b5ceddb6248e685c821e0b8d06d09c86aaa4ab54c73231ddc39237:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM2MmE1MmYwZDU5ZjlhNWFhNjQyYjVhNWI4MzcyYjg3YWQ2MjlhZTBiZmEwMjRlNzU2Y2Y3ZDlhYTRhNjkyOGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNlNmEyMDFjZTQ0ZWViODJiY2QzZTU1YWRhM2ZhZDM5YTZkMjMyYjRiNGI0NDc2NDQzNjNiMDFkOWYyYjliZTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE1MjE2MDRiMzVmYzQwYWYwMGNiYTRlZWEyZmQ1ZTJjM2FmMTg2M2IzOTExODVkN2JmNGJiMDllNzJkMGM4YjMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c2ba7713b8394e3a846662d3c94b1db3",
+      "statement": "Sessions of a Pod Bay machine that could not be read are treated as stale: their last known state raises no alert and their waits, runs and finishes are kept, so their return is not announced as new; local sessions keep no such state because they are read on every poll.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/alerts.rs#L104-L114",
+          "version": "repo-lines-v1:sha256:2e7585873990eb37f60efdbbedd4f2fe314286ef85888671119f193293729405:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU0MTQwNWMxODIxMzljZjcxNDBmNWY5NDlkYjcxN2UwMzA1ZjRiYWFiOWM2YzI4ZTJmOWIyZjgzNjkyMTZlYjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ1YjNjYWJmZTJiOTlmZmUzMWIwNzJmOTEyZTQ3M2Y4NDNiNTNlMzBhZTA5MDIzMDVhNmQ5NDFlM2RjZWU2MGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhlZTFkN2M1ZmM1MWFkZWYzNGE1NDk5ZjM0YTQwMDQxYTBhOTYzNGZkMGRjNTg4YmQ1YzAwNzA1NzFlZmU2ZWQifQ"
+        },
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/alerts.rs#L174-L177",
+          "version": "repo-lines-v1:sha256:449ed5da4a1eb3e8bcfe186124c8df7d3caf0fddf78ac65ff82d8fd5f0d9b622:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZGViODc4ZTgzNDljZDI2NGFiYTgyZDhmNWNhZmI5ODdiNTNkYzg2NmYxNjkwOGFiZGU1NGE1M2U5OGNjZDNmYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTZiMDQ0OTE0Njk3MjJlODM2M2E5NGU0MDQ0NTM4ZTAxM2EyYTIxN2UzNmIxZTU2OGJhNjBhY2I3YjRjOGYyZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZWJhZjJjYzNhODAxYTkyMTQxZTAyMDJkNmVjYzZhMzJhNjYyYjMxMTRkOTJhYzc3MTE3N2FhZWQ2NTVjNWJiOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjJmNDRkODVjZWU0NmZiOWY4Y2MzMjMxYTNjNmU4NzQ4ODFmY2QyNGFkMTgzODJhMzgyYTI3MGNkYTUxYzRlOSJ9"
+        },
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/alerts.rs#L235-L237",
+          "version": "repo-lines-v1:sha256:9f1d984e35c987f7fe44ff8f90577dcc0405337f34c024da03db4cb01b39590a:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOWIxODUwOWQ4NWE2OWQ0ZDg2YjcwODc1ZDA5OGUwYWJkOTc0MTQxM2Q1Y2VlZmIwYzY2MDdlMGQzZWU5OTgyZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiODkzODY5MmI0NGViYzE3MzAwZTg4NDVlYzg3M2NlYzhhZjBjMDlkMDZkNWExZDFhNjRmOGRjYTYyMGM0OTIwNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODZhYmQxMzI5ZGE1ZjFhYWRhMGY0OWEyMTEzN2Q4ZTc0ZmQyYzIzNzMzYmY5M2NjMDY0MWZhNzJlMjdiYjJmOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZWQwNDVjYzg5ZWMxNDE4NGU2YTVhMmRiZjUzY2YwNDk0ZjRkNjdlZWEwNTkwYjM5MzJhNmI3MjUyNGJmMTQzNCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_478ef57db73245e9ada3441c2992e4bb",
+      "statement": "Do Not Disturb mutes notifications, reminders, sound and flash while active and ends by itself when its time passes, via Alerts::quiet.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-board/src-tauri/src/alerts.rs#L121-L131",
+          "version": "repo-lines-v1:sha256:3e9f3efc98a4cf52b04a50ee6f35ec5f425c84cf2d578356a285a916f68fc886:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIzZGQ3OWFiZDUxMmIyNjlhMmRjZjU2MGFhNGIzNWFlMTcxNjVjZWI5ODYxOWQ0Mjc4ZThmZTJjMDNiYThiZjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg3ZGJiMTNkOTU2OTFlOWViMjFiNjZjODk1ZTI1OTM1YTBiODA1ZTRmMWZmNTFlMTM2NDlhOTdlYzlkZmM5ZDAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE5ZDU3ODQ4YzIwMmVmZGU2Y2EwNzgwZjhhMDUwNWEyYTNmMzAyY2Y5NmI3NjkzMmViNjU0ZGRmZTk5OTQzNGUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_505599685445441384a0950d864e0916",
+      "statement": "build-mac.sh signs the bundle with the one keychain code-signing identity matching POD_BOARD_SIGN_IDENTITY (default Pod Board Local), fails before building on several matches or on a set variable that matches nothing, and falls back to an ad hoc build only when the variable is unset and no default identity exists.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-board/build-mac.sh#L1-L14",
+          "version": "repo-lines-v1:sha256:6535d23fd88033341755afccf98155719efc40a2611204a7ec69ce0a51111281:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI4NzVmOTI4NTQ2YWVlNzg1NWNiMWRiOWFmYzhhYjNmMWE4YTM0ZDQzZGU1YmJkNjJmNzA3NmQ3YmE5ZjM5MTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4YzI5ZmM0ZTA5Yjg4YTIxZjZhMWU4M2EzMDU3NjA3MGQzNThhNjFhNThlYmQ3M2VmMjRjZjkwN2IzZmZjNmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM3YWVjZmYyNTY4NWMwOGRjYWNlNzY0NTcxYTFkNTUxODRmMjFhY2Q5YTA3MGFhZTc5MjExYWZjMGQ0YTZmYWIifQ"
+        },
+        {
+          "resource": "repo://apps/pod-board/build-mac.sh#L44-L57",
+          "version": "repo-lines-v1:sha256:b3fa76d14352b70150ea5d29cb4c680fcb2746482e64a87b13c4d1bcb225b6cb:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2MDI0MzE2Yzk3Y2RjM2Q2YmQyNWY4YjE2NDg3ZjVmMTY0M2Y5ZWU0ODY0MmM5NWYxZTU2NDlhZjBjNTI0N2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM3NjlkMjM3Y2Q0MjBiOWQzOGI5ODFhMGE0ZjY3NzAxOTBhNGE4M2RjYTFmZTU2YzRmNWJhMWUyY2JjMGVmNzYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFkNGQ0ZmFkMWRkNWNlNDc1ZGEwYTJkMmFjMGNhNDliMDEwY2ZlZjE0MTg2ODYxYWM1MzNmZDYyODEwYWQwZTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdkYjQzNGRjY2MxYWYyZjJlNWE4NjAzZTAxNTdiMjIyMDY2ZTE3YzBiMGZjNTI1MjIxYTM5NTZhZmExNjZhM2UifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ee0a20bd934d40d4b9f196430d0ab30b",
+      "statement": "After a signed build, build-mac.sh fails if the designated requirement contains a cdhash, names no certificate, or cannot be read, because Local Network permission would not survive a rebuild; it clears all other Apple signing and notarization variables first and never creates or exports certificates.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-board/build-mac.sh#L14-L17",
+          "version": "repo-lines-v1:sha256:26fe4f40a18f9c77c101615ee392dc044eb6faa3f99d252addf01f9d8994620f:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDhjMjlmYzRlMDliODhhMjFmNmExZTgzYTMwNTc2MDcwZDM1OGE2MWE1OGViZDczZWYyNGNmOTA3YjNmZmM2YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjI2OTFjYTQyODA0MjNkMDI0NGUwOWNhNzc0M2ZjYzg3YmM2MGY3YjM4OWU1YWRjNGExMTBkZTMwNDFiZGUxZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmJlMzYxYzQ3ZjVhY2ZiYjFiMmFkNGRjMTQxNjdkZDU1YTQ1OGU5MWRiMTQ1ZWQ3ODM1NjI3OGQ0MDA0ZGQ3NyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzk0ZWM3NDlkODgxNmMyNDYyNDRkNjM3ODEyNDRlZWE5OWEwMmMxZDFmN2QwNWY3ZTllOTNiZjIwM2ZhYjdhMSJ9"
+        },
+        {
+          "resource": "repo://apps/pod-board/build-mac.sh#L59-L78",
+          "version": "repo-lines-v1:sha256:e896fbd7ddaa1c2e34e420982ce545441c364a68ddac69eb161b8777904652d3:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIyMDg0MDc5ZGZlNTRiNmVhNDVlYmZlMWM5ZDEyYmQwNWQzNTZkNjgyMDIzMjc2NGExMzI0Njk4MTdlYTQ1NzAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM3NjlkMjM3Y2Q0MjBiOWQzOGI5ODFhMGE0ZjY3NzAxOTBhNGE4M2RjYTFmZTU2YzRmNWJhMWUyY2JjMGVmNzYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY2M2UyZjJhOTFiMzVmYWY4YjM0NzUzZDQ4YjgxMTBiNTNmNzc5YTk5MGFhMWJiMDUzNmRmNGMzOGFiNzQzOGQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_4dd65fea071f462f9be6109339dd0423",
+      "statement": "ADR 0006 chose an environment variable plus build script over a signingIdentity in tauri.conf.json, which would break CI where the identity does not exist, and records that a remote machine with no address and no rows gets an unreachable-from-Pod-Board chip.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0006-pod-board-is-signed-by-a-build-script-with-a-keychain-identity.md#L16-L26",
+          "version": "repo-lines-v1:sha256:d439273e273a506a55e2ea61c5193d13095cae729d971ee7cab7f02646a4645b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRlYWZhZGJlNTViNTllYzc5Nzc4OWI5NWZiYzQxMzdhNmFjMWQyMWZiZjkyZWM0ZDhkYWVkNGMxODNjZWQ0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA5NWFhZDkwMjMzMTRmMjI4MjhlNWY0MjU1YmRjNTliODk1YjA0ZmZiOTFjNDIyZDgyZjAxYWNiZjEwMGJiMGMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFkMWMzODYwOTM3MjU1ZWU1ZmQ4MzljMDhmNTUwNzM1MjQ1ZTkwZDJhZjQ4ZDEyZTMyMjcxY2VjYzAxMGM4MWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI3MmJhNGUzOWRlZTVmMDA5N2Q2M2QzOTBkZTBhYTI1MDFlZDc0OGYzMDcwMDBjZjI2ZTg0M2ExNDgwYTUzZTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ada448fe22584f6597f7c51773b7527c",
+      "statement": "bundle_config.rs fails if Info.plist lacks NSLocalNetworkUsageDescription, and theme_tokens.rs fails when a token shared by Pod Board's theme.css and Shape Board's tokens.css differs in value.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-board/src-tauri/tests/bundle_config.rs#L1-L15",
+          "version": "repo-lines-v1:sha256:d12e74d08515c259542474febfd683da43a3c884a9e0802077a6f3af28e1d4ba:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRkYTg3NWFkNzdhY2QwMWNkYTE3Yjk2OTc3ZTBkODEwNWJjZTllMGFlYTE4Y2ZlMjMyMzc5MGU5NTg5ZjIxMzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://apps/pod-board/src-tauri/tests/theme_tokens.rs#L1-L3",
+          "version": "repo-lines-v1:sha256:24bf961fce89dd06c3e2ab9c474aa1fc57f61e2230d362475a674c4e10fa62b3:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODEyMWNmZTY4N2VmNjI3NmE5ZTBmNDcxYTA5NjQ0Mjk0YmQ2YzhkNDk4ZjY4MzJjM2E5ODI3ZjUzYzdhNjZjZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjBjZGVjNDMzYTA4NDllZjhmZjc0ZmI3MDIyYzk0Njg4OGJiNDI5ODI1YmFlNmQ3MTIyYjE5NTBiNWI5MGVmOSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_0ffc784f3a064da68d18666a09767b4b",
+      "statement": "pod-board-build.test.sh tests build-mac.sh using stubs for security, cargo and codesign on PATH, so no keychain or real build is touched.",
+      "evidence": [
+        {
+          "resource": "repo://tests/scripts/pod-board-build.test.sh#L1-L38",
+          "version": "repo-lines-v1:sha256:ee4b8e78b0b43236d4d3601e1e8147b40c03d99d8647d6fbd4ec45c851bc69a8:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI4NzVmOTI4NTQ2YWVlNzg1NWNiMWRiOWFmYzhhYjNmMWE4YTM0ZDQzZGU1YmJkNjJmNzA3NmQ3YmE5ZjM5MTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZlMWVkZGJjNGZlZmI1NGUyMjc3Y2FmODg3ZTMzOTk0MTMxNzM5ZjJjNzFiZjcxMjk0Y2Y4MmFiNzExOTI4YzEifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-26T15:02:34.678Z"
+  }
+}

@@ -1,0 +1,152 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:1e1568bb55ebf5d138450dd4d7accd241d70135f653587509ca27914200aa6c4",
+  "claims": [
+    {
+      "id": "claim_32c5ccc93fc0479a83bd3f87c0eddda2",
+      "statement": "run-tests.sh runs L1 static checks, then the hook (tests/hooks) and script (tests/scripts) suites in parallel with per-suite logs replayed in order, then collected pytest unit tests, records every failed step for a final FAILURES summary, and exits nonzero on any failure.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/run-tests.sh#L1-L36",
+          "version": "repo-lines-v1:sha256:1e5c6de86a4a3863f11c81125816a270c218a6a0aacd89f907e4964d7e36b5dc:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI4NzVmOTI4NTQ2YWVlNzg1NWNiMWRiOWFmYzhhYjNmMWE4YTM0ZDQzZGU1YmJkNjJmNzA3NmQ3YmE5ZjM5MTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI5Y2ZjNWI2NTA3NzZkZDRiM2Y4ODg4YTAwMjNlZTE2Mjc2ZGY3NjgzODdmZDdhMzIxODFiNzA3ZWU2YTdlMTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE4ZWI0N2ZjNWVlNzI4MjliNDkxNTkyZGYyZjJjOWVkYzliNzU3OTk1Yzg4ZDVjZWYyZTBkYzQ1NGY3YjhlZDkifQ"
+        },
+        {
+          "resource": "repo://scripts/run-tests.sh#L89-L147",
+          "version": "repo-lines-v1:sha256:b6db159c0b3abb54d7117bc376ac558623627b9f963b6f57ed02730c95da8a0d:eyJzZWxlY3RlZExpbmVDb3VudCI6NTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA1ZWIwNjIwNjBiN2ViOTljMWQwMGM3MjRkNDhlY2MwZGViYTk2Zjk4MDcxMTgxM2Q4ZjliNDczNjNiMTkwYzgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdmNjIwMzA3Y2VjMGE2ZDA0MDNiZTU3OGVjZGM2MzUxNWYxZGFkOWZjNWJhODRiNzQ0ZjhjOTg3MDAwNDg4NTAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFlMDFjNTZhZjU4ZTc1ZGIyY2IwNDdmYzg5MTMxMTM1NWFiZDY2ZmY0ZWZhNjIyODlmNDg3OWU3OGYzMzE5NDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_21b202c053354aa696f5eacc0340edd5",
+      "statement": "run-tests.sh collects every test_*.py under scripts/ and plugins/pd-bot with find rather than a hand list, because the hand list had drifted and left four test files running nowhere.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/run-tests.sh#L124-L131",
+          "version": "repo-lines-v1:sha256:91483d4972a15a7912646df9645710ab5750c48886cc9d41525415f1750209db:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzUyNjRhZjNiN2ZjZmVmMWVkYjdiYzA4OGI5YjI1Njc4OTUwMmFiNjM4M2FlMzBhYjlmN2ZhMTMyYThiODM1NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMGQwNjVjZmQwYTU1Y2RiMWVjNjc5OGIwYzNiOGU5NDM1NzEwM2Q0YjQ1YzQzZTI1MzYwYThjOGMxMDk1Nzk4YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjY3MDdjYWE2M2IzZjgyZjZiOTY2MDAzM2E1NTUzYzYyMGVjNjE1NWViZGM5YjU5MmZhYzZiYjUyMWE0YTAwOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOWE3MGNmMjMyZDI4OGIwZjBlZjk2OWM1ZGRlYWRiYjEwYjM5NGRiMjkwZTMyZGU2OTNiOWUzYTE5ZDJjYjMxMyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_25d68bee117c4402a0af6e05f3a82d35",
+      "statement": "tests/lib.sh makes contract tests hermetic by copying the hook under test into a throwaway mktemp git repo and running it with that repo as working directory, so nothing in the real repository is touched.",
+      "evidence": [
+        {
+          "resource": "repo://tests/lib.sh#L1-L55",
+          "version": "repo-lines-v1:sha256:f1361546fa677042f9c15c08ae923d0ff77aab8f3d86afb7073e888e76d7ad0c:eyJzZWxlY3RlZExpbmVDb3VudCI6NTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI4NzVmOTI4NTQ2YWVlNzg1NWNiMWRiOWFmYzhhYjNmMWE4YTM0ZDQzZGU1YmJkNjJmNzA3NmQ3YmE5ZjM5MTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVmNzg1MTZmMGM0Y2YxYzNjZDY1ZmZmYjA0M2QzNzU4NzlmZTJiY2YyNDA2MzRjNDkwNTI3ZDEwZDU1NTgzMDgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5c83198f5d2b4dc292bd1f22b162a0af",
+      "statement": "check_allowed_tools_wide.py fails when a skill's allowed-tools pre-allows a wide rule, because a typed slash command applies allowed-tools without a prompt even under dontAsk; wide entries must be in a baseline that may only shrink, checked against the baseline at the base ref and failing closed.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/check_allowed_tools_wide.py#L1-L31",
+          "version": "repo-lines-v1:sha256:ee348c035476af5c86f668ad4706d6c1d840b4b22175fb0ebba336ea60b0edc1:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ2ODJjYmRiNGM4YjA3NTE4YmY0ODZjNTg5OTBmYzM5MTc4M2FhMjBhOTE2YmZiMjdhZDIxMWViMWQ1YzM2NDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEzMDNlY2RkNGE0ZDEwZjE5YzczZmQ0MmZkMTI0MzdmZDMzNTRhODI2ODE2MDVkYTUyNTVhOTdhMzkwNjhkYmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM1YTUzOTAwZDI4Y2ZlNGEzOTU1MWVhOGJkMWY1OTUxMjQ3YTU5ZmEyOWE2ZDUxNzAwOTliYWYzZDE3NTE0Y2QifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d3a99039cd4648148f8b252ce11dc52a",
+      "statement": "check_frontmatter_contract.py requires every skill and agent on disk to have non-empty name (matching its directory or file name) and description containing a trigger cue, using only the standard library so it runs where the claude CLI is unavailable.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/check_frontmatter_contract.py#L1-L31",
+          "version": "repo-lines-v1:sha256:427248f555aaf2d2dad9c1573d1056e729b6566cbc1144d956d6c2836d6dd132:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ2ODJjYmRiNGM4YjA3NTE4YmY0ODZjNTg5OTBmYzM5MTc4M2FhMjBhOTE2YmZiMjdhZDIxMWViMWQ1YzM2NDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEzMDNlY2RkNGE0ZDEwZjE5YzczZmQ0MmZkMTI0MzdmZDMzNTRhODI2ODE2MDVkYTUyNTVhOTdhMzkwNjhkYmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE2MWNjNzkzYWZkOTUyOGNmZWUzNmVjYWY1YzNjNDkzNGNhMDBlYzYyYmU3MGZmMmM4YjNlZDNmMTgxMmY5Y2QifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_06737c5753094d27834a1a9f23d2df7f",
+      "statement": "check_ste_baseline.py compares each prose file's hard STE count with a baseline and by default only warns and exits 0, failing only with --strict.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/check_ste_baseline.py#L1-L28",
+          "version": "repo-lines-v1:sha256:694e657d8d4aa1f4bd3f5e3f0fe1a0ca012e4dd4b7acfa7931a08ea2e8cd12fa:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ2ODJjYmRiNGM4YjA3NTE4YmY0ODZjNTg5OTBmYzM5MTc4M2FhMjBhOTE2YmZiMjdhZDIxMWViMWQ1YzM2NDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEzMDNlY2RkNGE0ZDEwZjE5YzczZmQ0MmZkMTI0MzdmZDMzNTRhODI2ODE2MDVkYTUyNTVhOTdhMzkwNjhkYmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU1YjZlODcwNmI0MzA0N2YyYTZkYjY3ZjEzMjYzODU5NTYwNGU2N2YzNjk2Njg3NmNlMDE1OGYwMDUzZTZiZDEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_59bce562361c4387b310400d378e92d4",
+      "statement": "lint-doc-truth.sh fails when core docs reference nonexistent repo paths or when the CLAUDE.md hook table disagrees with hooks/hooks.json.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/lint-doc-truth.sh#L1-L20",
+          "version": "repo-lines-v1:sha256:9593e90c66e949acc0804bff826ed3d946ab5ea1e8e171f26fcbc73f27086d50:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI4NzVmOTI4NTQ2YWVlNzg1NWNiMWRiOWFmYzhhYjNmMWE4YTM0ZDQzZGU1YmJkNjJmNzA3NmQ3YmE5ZjM5MTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMyYzQ4NThlMjJjYzJjOTY3YjQyMTUwZmE1NTA1NjJhMmM4MzljMmNlYmNhYWI5MWNhYmRmNmY0ZGEwMjAwMjIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVlMzkzZDE5OTY5NWJkMGMwZmQ1ZTRiMTE1MDY1NjRlZDcwNDJlOTExNjkxYTJiOTJhYzNhN2I5ZWNjM2NmZmEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d8666ffa65e14eb6a42f08523421cda9",
+      "statement": "check-shellcheck.sh and the plugin validate and install checks skip with a message when their external tool is missing, but fail when REQUIRE_SHELLCHECK=1 or REQUIRE_CLAUDE_CLI=1 is set, so the gates cannot silently vanish in CI.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/check-plugin-validate.sh#L1-L23",
+          "version": "repo-lines-v1:sha256:f27ac24dc8ef0cde9cdcc10f3a07f767aa7446047754a201408780736cb2370c:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI4NzVmOTI4NTQ2YWVlNzg1NWNiMWRiOWFmYzhhYjNmMWE4YTM0ZDQzZGU1YmJkNjJmNzA3NmQ3YmE5ZjM5MTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM3NjlkMjM3Y2Q0MjBiOWQzOGI5ODFhMGE0ZjY3NzAxOTBhNGE4M2RjYTFmZTU2YzRmNWJhMWUyY2JjMGVmNzYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ2YjJlNTU4MjhlNGZkMDk1M2M3MmY1MGNiOGNlZmY0MDM2NGFjZmUyYzdiZTcxNTQ1Y2RjMzkxN2E1N2Q4MzkifQ"
+        },
+        {
+          "resource": "repo://scripts/check-shellcheck.sh#L1-L23",
+          "version": "repo-lines-v1:sha256:7a0773d2ab63eedb0d13cad7e6f68459902d76912ec5d0246da8fd85b8c198d3:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI4NzVmOTI4NTQ2YWVlNzg1NWNiMWRiOWFmYzhhYjNmMWE4YTM0ZDQzZGU1YmJkNjJmNzA3NmQ3YmE5ZjM5MTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM3NjlkMjM3Y2Q0MjBiOWQzOGI5ODFhMGE0ZjY3NzAxOTBhNGE4M2RjYTFmZTU2YzRmNWJhMWUyY2JjMGVmNzYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRkZjg4NTc3N2M1ZGRlZDFhNDBiYzQzNzcxZDYwZWEzOTA1MGU1NmE0YjgyNDBhMDUxNGM1OWUzZWQ0NDI0MTcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_fe0c1974850c41f3862ba90aaf6ffe42",
+      "statement": "pd-bot-ci runs scripts/run-tests.sh on an ubuntu and macOS matrix with the Claude Code CLI pinned to an exact version and REQUIRE_CLAUDE_CLI=1, plus a separate Linux job running strict shellcheck, the frontmatter, link and version checks, strict plugin validation and the plugin install smoke test.",
+      "evidence": [
+        {
+          "resource": "repo://.github/workflows/pd-bot-ci.yml#L1-L87",
+          "version": "repo-lines-v1:sha256:6b8dafb6b889f2c7cbb8b56a0727fc677a897f7b3fe505bfe7395c7d27b25ada:eyJzZWxlY3RlZExpbmVDb3VudCI6ODcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFjMGFjNDhlMWRkODRkNDczMGJjNjk0ZGQ1MDcyZWQwY2VhYTA3YjczMzlhNjE0YzMxNjY2Njg0ZjY5NmZmYWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRlOGU4NDQ3ZThkM2FiZGFjZmUyY2U3ZDNkNTRjODQzYjFmMmJmYmE1NmY4N2IwMDA3MjFlM2U0NTdlNzA4MzMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_db6bd63fc9a44c6388b44c89719d9d23",
+      "statement": "pod-shape-ci runs only when Shape Board files or its gate script change, on Ubuntu only, running the design-system grep gate, typecheck, Node tests, build, cargo test and cargo clippy with warnings denied.",
+      "evidence": [
+        {
+          "resource": "repo://.github/workflows/pod-shape-ci.yml#L1-L21",
+          "version": "repo-lines-v1:sha256:30d74f83021b40e9d2329c39e0cc0d068d4cd1b48b883bc51626ae7bdda4bd51:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEyYTJlMTk1OGQyMjIwN2I1NWY5MWJmNTA1Njc1NjQ2NjZhYmUzYzVkY2FlMGJjODI3ZmI1MzM4ZTQ0MDQwZGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYxMjY2MDc0NjU3NzQ3ZWU0NDk3YjQxZmI2MzQyNDE4NzUyOWMxYzhiOWRiMDQ0NDU4OGM1ZWQ0MmJlYjkwMjAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdlMjc0MjI0ZTk4Mjg4MWQ5ODFiOGFkZGZkZGM5ODgwYjJmMWQwNzgwMzE1ZDcwZDVkNTE5MWM3NWY5NWE1YjIifQ"
+        },
+        {
+          "resource": "repo://.github/workflows/pod-shape-ci.yml#L66-L84",
+          "version": "repo-lines-v1:sha256:e4737166a09c67ed617caa824edc70f2c8b5548f883c55f2a07732d6d16f8605:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZlYWVjY2E4MGNiZmQzNjI0ZTMwMjMxZWQ4ZWJhNGE4MTE4Y2I3NDJkYjZlOWUyODZjZWVmYmIzMWJhY2JjYjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY4OGVmMjZkNzc2ZTgyZDI2NDIyZWEwOTM1NTM5MDE2YTlkNjJjNWU0NDRkNzJhMGQ0YTM1OGRmOGE5ZjA2YjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ3MTBiMjljYzg5ODRmNWQ5NDRlOWU3Yzk1NTJhY2JiMmQyZTFmZDkxYzlmNjExOGI2YjRmYTk3YzdlNGY5YWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1813a5e3dd494095aa06f8583e0a8984",
+      "statement": "The pd-tickets evals run claude -p in a throwaway directory with a stub gh and a fake token so they cannot reach GitHub, cost model usage, and are not run by CI.",
+      "evidence": [
+        {
+          "resource": "repo://tests/evals/tickets/README.md#L1-L5",
+          "version": "repo-lines-v1:sha256:8b7c447a67ad20dfefaa4fc4639e8b6e5468814a6f60d224dd0d4e6ef6c966b3:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYWY1YTZmY2RiMjViZmE3YWFkNmQwMmY3ZTRlNDk0MWJhM2Y4NzYzZmIwYTFmY2Y4MTQwYmJiMWM4MmVkNDYyNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzAxOTRjYjEwZTkyYTAzYjdhYzViMGNhZThhN2M0MjMzOWM0YmY2N2Y2ODI1Yjc5YjBjYzQ1NzMxYTkyOGI4YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOGMwZjA3ODNhNWZiNjA3OTYxZTY3YzAwZjRmZGMzZWEyNDgyODFhNTkxZDVjYzExNzk1NDcwNzgwYjQ1NzYwNSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_dbdb8b552da3416ba2e196980355ebd1",
+      "statement": "openwiki-update.yml runs daily or on demand, runs openwiki code --update on full history, and opens a docs: update OpenWiki pull request that stages only the openwiki folder, AGENTS.md, the workflow and CLAUDE.md when present.",
+      "evidence": [
+        {
+          "resource": "repo://.github/workflows/openwiki-update.yml#L1-L88",
+          "version": "repo-lines-v1:sha256:0c3567da8887d16fa5adfde23e9106efc87060d3495e473e9399d2e12fd6905e:eyJzZWxlY3RlZExpbmVDb3VudCI6ODgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA2MDI3ODdhZjZkY2MwODM0ZGUxMjFjYmIxY2I5NWY5NDU5YjcyMWVhYjAzNDlmMTA1MDFiOTk2YzFjNzdmZmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM2NzE4ZjA2N2I1ZTVjMWYwOTkxYTZlNzQ3MjZmZTJhMjNkMjY0MzQ1ZTA4ZTRlYWQwNGZhZjczYzI3ZWQ0NDMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_8f48c1208aba4119b154d9b3443661a7",
+      "statement": "No file under .github/workflows references pod-board or runs cargo for it; the only cargo steps are in pod-shape-ci.yml for Shape Board.",
+      "evidence": [
+        {
+          "resource": "repo://.github/workflows/pod-shape-ci.yml#L79-L84",
+          "version": "repo-lines-v1:sha256:e2a4af7eeb9a128c3c886739b6d5e4107760d28dd6563aea200caca4cabdc505:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzVkYmNlMWJkYmZhY2U4MDE2OGE0MzBhN2I0MGM5NmQ1NjA1NzUxNGE0NDk4OGNkYTY3M2JjYWMyMTRmNTdkYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjg4ZWYyNmQ3NzZlODJkMjY0MjJlYTA5MzU1MzkwMTZhOWQ2MmM1ZTQ0NGQ3MmEwZDRhMzU4ZGY4YTlmMDZiNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiY2MzNzFjMmM1MTE4NTcwMGM4MWM4OGNmMmU1OTgwZTI5ZmVhZTJkZWYyMWRlNGRjODEzMmYwZjc1YjJjNzhjNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-26T15:02:34.678Z"
+  }
+}

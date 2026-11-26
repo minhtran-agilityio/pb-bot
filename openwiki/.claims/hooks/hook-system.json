@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:01e02b351b7e524d0d38c9513da264854ef029804dfd086e6c6d3c040d6b3226",
+  "claims": [
+    {
+      "id": "claim_45bed47801ab46e2a30f018ddead0249",
+      "statement": "session-rules.sh delivers rules/behavior.md as SessionStart additionalContext because a plugin has no rules component, and prints nothing when the file is missing.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/hooks/session-rules.sh#L1-L13",
+          "version": "repo-lines-v1:sha256:ee79473a5960a9e348decfee77b4d5d48793b27a3ca222de065b3b064049df70:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI4NzVmOTI4NTQ2YWVlNzg1NWNiMWRiOWFmYzhhYjNmMWE4YTM0ZDQzZGU1YmJkNjJmNzA3NmQ3YmE5ZjM5MTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI4ZDNiOWU4ODBhNzc5NzU0OTNkYzdlMzU5MTQ0YzAyOTVhNGY2OTRjZmUwYWY0ZjkyOGMyMjMwN2JjNWMzMjAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_293fd29cda224435b8d982ed88423303",
+      "statement": "session-role.sh gives the orchestrator role only to an interactive session; a set PD_BOT_ROLE decides alone (orchestrator gives the role, any other value gives none), otherwise tmux options set by Pod Bay (@tn_kind=claude, @claude_dir matching the project, a claude pane command, @tn_context without an @NN suffix) must match.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/hooks/session-role.sh#L9-L62",
+          "version": "repo-lines-v1:sha256:aff30d112fccfd1369a82696bcf82df34c8d4d9a8d71421ac16bfec7e57d3aaa:eyJzZWxlY3RlZExpbmVDb3VudCI6NTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg4M2I5NTY5ZWYyOWNjY2U2ZmVjMmJlMzU1NWNlOTAzNWZjY2Q2MzViMWYwNzU3NTFiMjg4MGVjNDkzMWEzZjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjUxMWFjNGExZDI1ZDY5MDAwZmVjMTgzM2E5MjhmYmJkNDhjMjFiYmY2NzA2YmQ3MDhjNDU5MGVkMjM2NDdjNmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNmN2Q2ZDA5MzFkYWI2OWFhMDE4NDY3OTMwYmM2NGY4MmQ5YmU0MDk2MjFjMjI2MWE5ODhlN2Y1YzNiMzFhYTgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1d0104736ae64404b2511162f015c306",
+      "statement": "The orchestrator role is switched off by {\"orchestrator\": \"off\"} (or false) in .claude/pd-bot.json, and an unreadable or non-object config also switches it off; the check tries python3, then jq, then grep.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/hooks/session-role.sh#L64-L88",
+          "version": "repo-lines-v1:sha256:9e9f66129aa73dda6759cc67e740729619ce01b1792b5fed52c5f574c7767b48:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjliNmY1NTZiYzA2YzY3OGMxN2VjYWExMDIyMGIwMTIwNWM5YTcwMjBhNjBlYTExZjE2ODQ5NWRlNTJkZDJmNjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI2MTQzYjg5ZWViZjBjOTkxZWQ2NzM5MzVmNWVkMjRmZDI3YmYxNTY5ZDRmNmRhMWMwYWU3NDExNGY2ZDUxNWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYyN2Q1YWM1ZjA1MTJkMjA4YjRkZmJhYWVhNWYxYWUwNGUyNzU3ZWJlMTNhMWNiMDMzNDVmZDkyYzIzMjY2NmUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1cb6cc87715442c48b866db1b2e7cf96",
+      "statement": "session-role.sh fails open: any doubt prints nothing and exits 0, and with --role it prints only the word orchestrator or nothing.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/hooks/session-role.sh#L18-L20",
+          "version": "repo-lines-v1:sha256:d0e9017bd631e26cd494ca257a338fa2cb1826b48b584ec92590a58e5a69d389:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOGJmNGU4MjI5MzIxNDBmMjYxY2EwNGYzNDNjY2JmYjgwMGU3OTk2YzE3ZDgxYzJkNmY5ZmU0NGY3MzM5ZjNiNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzllNThkOTA4MDM0MmVhNjE0N2FjMGM2YjA2NjM3MjkwMzBlYmRkZjRjNzg1NDVmNWE4MzgzOTIwZjQ4NDRjMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYmMyODA0ZmUzNTE5NWJlZjM3ZjkyZGE5ZjgxNzIxYmYyMmE4ZWM2MWIzMDUyNzM2NDU0MGJjNmE1MWM0YjVmNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjEwYjM0NTNiM2JkYmJhN2Q0NTNlZjRlNTA0NTY1YTE1ODEwNTEwNjJhYzUyYmEzNThjYWMwZWMwMThjYzgzOSJ9"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/hooks/session-role.sh#L90-L94",
+          "version": "repo-lines-v1:sha256:d5788dcd6b6742ed6ba082275158c072aae858d8efe29a46491b1044b2b798e6:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTkxODY2ZTgxMjIyNzhlY2VkZDQwOTg4ZTI4YjE5ZDE0YTRjNzkwMjkxNDBiYTE4ODU5MzI1MzFlOWVjYzU4OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzc2OWQyMzdjZDQyMGI5ZDM4Yjk4MWEwYTRmNjc3MDE5MGE0YTgzZGNhMWZlNTZjNGY1YmExZTJjYmMwZWY3NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzllMDJmY2M5YmEzOTEwNWZhYWRhNjI1ZWE5NTY5MGY4YjM4ZDcxMGJhMWQ4MzM4NzRkNGUxZDA5ZjdkNTMyMSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTdjYzhmMmUzOTBlNzg5NjAyMWNiM2IyN2NjZDgxYzYzOTk4YmM5MDhkNWRhMTRjNTkxMGExMWNkODUxZDU2YiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_9c085c4f1216455999a2f45bb79e1157",
+      "statement": "pr-opened.sh reminds only and never blocks: it fires after a real gh pr create command whose response holds a PR URL, and the reminder differs for a subagent, the orchestrator (told to hand review to another session) and any other session.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/hooks/pr-opened.sh#L1-L32",
+          "version": "repo-lines-v1:sha256:23a4b2187882e189835a0fb853c4cdc0e5624751953c39cb76f22d877af34fab:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNhNTFiYzJjYThmMzI3YThmMmRkM2I4N2Q0ZjJlNTA0MzNhYjJkYmVjNGFkMTU2ZTY2ZmQwMjA5NjEwMDc5OTAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f411fd2e5d8e4daba6f78aa4ba811854",
+      "statement": "clean-worktrees.sh treats a branch as merged by one of three rules (merged PR with head equal to the local tip removed with git branch -D; upstream gone and tip an ancestor of remote main; a worktree-* agent branch contained in a remote branch after a successful fetch), and uses git branch -d for all rules except the PR rule.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/hooks/clean-worktrees.sh#L1-L9",
+          "version": "repo-lines-v1:sha256:ac47b45ea1028d73be8ef928f4933d90ebd08bb153a1402c7af00e7ef6bce539:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMWQ5NWZjMDRhODBjOTUyZjQ5Y2U0MTg4NjI3YzUzYjBmYmU4YzQ0MDQxYjk1MmQ1OTJhY2QxZGU5OTg2MTQ2NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzUyNWY0YzY3NjIzMWQyOGM5YjQyZWJhYzAzMGYwNTk0YzI2MWExMjVjNzE1ZGRjYzQ4ZTg4ZWFjNGMzZWM4YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjhkNDE5NDVjMzE5MGEyZTkxMmNiMGJlZGM0ZDczZmJmNjQ5YzViMTNkMjg1NmQwODc4MTFhZDQ5ZTcxZjE5ZSJ9"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/hooks/clean-worktrees.sh#L179-L188",
+          "version": "repo-lines-v1:sha256:73d65e60cb67a803c1a568ff059c194a30343c5d7805ccafdf753fa379a67c15:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYxOWVkNDRjZGFjODkzYWIyZjJiOWQ1NjY5M2ExZDY5NDVjMTAwOTEwMWUwYWYwNDIwNDk5ZTBiZmJjOTBiMzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM1ZmM5MGZmOGE0NDE0YzU0NDFkMGY2NzdjNWNiZmRhMzhiNDc0ZTUxYmZkNTU5YTU1NTlkZTBmODc3MDU1MjQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVmNTBlZGJjNmJjZjk3NDI0NzJjOTg4MGNlNDJhY2VmNDg1ZTYyYjk4ZmYzYTgyZmMxNjBmOGQxNDk1ZTJkZTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZlZDE0Y2NhNTY4N2VlZjRlMmM1ZDdmMDVhNjk3M2VmYWJmMTE1MWU1MmIyZDdlZDI4MTc2MWFiOWMzMGU5YjQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_51c126fc902a47f8a820e5146f9c6269",
+      "statement": "clean-worktrees.sh never touches protected branch names (main, master, develop, staging, production, release/*), the current branch or the session's own worktree, removes worktrees without force so dirty or locked ones are kept, and the session-start sweep skips worktrees used by live processes and stops after a time budget (default 20 s).",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/hooks/clean-worktrees.sh#L168-L174",
+          "version": "repo-lines-v1:sha256:f9ad6268f210e59276d0a6707564c53f6e2a8d2be14727b64941ce022f80d5b3:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDZmNjUzNTY5MWRhMjZkZGE0NDA5MzM0ZTE0YmZkMGU0YTJiY2EyYjg5ZGUxMzQxMjBhOGUzZjU5NDU2N2ZkNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYmNiMWJlMDVhMjY1N2M5NjM3MjJlNDU0ZTg2ZDc1ZjIzZDU5YmM1OTJmN2RlMzgyZDVmNGY5NTExZDM2MTVjOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTdiMDZjZmZkYjJkM2E3NjcwNWYxYzZjNzIwNTA4NWQ3NDUwYjRjOTRlMzNiZTBhM2VjMDFmY2UyYzM1MmVkZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGJhZDljNGZmNGZlMmI5Y2UzMWIxNjhlMmVkY2M5ZjQ0Yzg2NDRkZTk1MTQ5MWVjNTdlYTk5YzFkNGZjMGRlYiJ9"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/hooks/clean-worktrees.sh#L190-L203",
+          "version": "repo-lines-v1:sha256:941485e34ea2197c7fb60299192caa4612e6cac5b793c670dafa2b2fe7816390:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRmMjU2ZTM1Y2Q1MDI2MmUxM2M1MmRhMjgwYmFmNzI0ZDg3NGQyNTYwZDcxNzRjNjE1MTc2OGY0OWFiMTZjNjMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM1ZmM5MGZmOGE0NDE0YzU0NDFkMGY2NzdjNWNiZmRhMzhiNDc0ZTUxYmZkNTU5YTU1NTlkZTBmODc3MDU1MjQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFlYTk4MmMxYWM5OGE3OGEwZjJlOTY5YzQ2NmI5NDkxM2Y2ZGE3MjdlNWYzMzEzZTdjYjFhNjVhZGI0YjBkMjQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUxMzhmYWRjYTFkY2Q3N2YyMGIxNzIwY2M5NWZmYzQ5MzZhZGI3YzUwOTEwOGM5M2Y1MGI4NDZiNTg0NDU5MDIifQ"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/hooks/clean-worktrees.sh#L9-L10",
+          "version": "repo-lines-v1:sha256:0c10ac8e3db019809fe7b1e498dcd20384af208c3c4b3affcc3ecf3a4ff6939c:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzUyNWY0YzY3NjIzMWQyOGM5YjQyZWJhYzAzMGYwNTk0YzI2MWExMjVjNzE1ZGRjYzQ4ZTg4ZWFjNGMzZWM4YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYTM1OTEwZDZlNjcxOTQ1NGU4NWQ0YTU3MDc5OWI4OTgwOGQxZDgzYzVhNjRhZjIxNGIwMTg1N2M0NTA3NmUwMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDMxNzc4YzNiZjU5ZWNkZDIzNjY1Nzc3MWUwZDA3OTkzYmE3YmY4YWQ3ZWUzYzA4MDEwOTNkMjRjMmE5YzkxNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOWI2OGMyNGE1NzhkYTljOGZkYzEyYTI1NjUyNTg3NzM0ZjZkYjdmYWJmNjIwNDM0Njk3NTczZmY0MTk2ZjliMyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_086cbdd7d8614ad6a8ba23bf7470351d",
+      "statement": "In PostToolUse mode clean-worktrees.sh acts only on a real gh pr merge or gh api pulls/<n>/merge command (heredoc bodies and quoted strings are ignored) and cleans only branches of PRs whose state is MERGED.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/hooks/clean-worktrees.sh#L28-L95",
+          "version": "repo-lines-v1:sha256:fc627a91e05bbdbec59b386bc26eb9017274fc42a99c5733659b162a35b2da0c:eyJzZWxlY3RlZExpbmVDb3VudCI6NjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM0MDlkOTJiNzBlOWQ2OWJjYmRlNTU0MGE4NzBiYzdiYzFlMzZlYTg0ZTE0YWM2MWJhYmQxODdjNTdlMzRiMjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM3NjlkMjM3Y2Q0MjBiOWQzOGI5ODFhMGE0ZjY3NzAxOTBhNGE4M2RjYTFmZTU2YzRmNWJhMWUyY2JjMGVmNzYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjcwNGQ1YzMwYmVkMDEwYTQzYWViYjhhNjI4NTgyMTQ2ODBhZjgxOTdlZmFlNjY3YWRhNWNmNzIzMGQ5YmQwZWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIyNzVmZDk5ODY1MWNlOWJjNGE2ZGNlMDIyOThjMjllYWFjZjk0ZmU5Zjk5MDg3NWZjNWQxMTMxOTI2ODI1YzIifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-26T15:02:34.678Z"
+  }
+}

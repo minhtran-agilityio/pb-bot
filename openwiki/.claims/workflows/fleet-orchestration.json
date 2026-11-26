@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:604c360bbde15441ce908864b4e07798bfbfd685f5d2a6e997ab40593315fd14",
+  "claims": [
+    {
+      "id": "claim_cbf731240b454be6a2c30bc2a6672621",
+      "statement": "The orchestrator leads but writes no ticket code and does not review alone; it owns the owner's attention, the ledger, the assignment, the verdict and delivery, treating worker reports and reviewer receipts as claims it checks against the reviewer's results and CI.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/skills/pd-orchestrate/SKILL.md#L8-L34",
+          "version": "repo-lines-v1:sha256:dd63215c765f2af1c7749512bf16873c74c83d8cd9e29f938e44c4fd5a3717b7:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMxMTJiMzZlMjQyYTkxZmRmYTA2ZTlkNWYwY2IwMTg1MTdlMDMwZjQ5YjVmMDBhNzA1Y2RhNGJmMWE3MzIyMDYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZkMjg4NzhlNDYwMTg1ODIyMWU0NTNhM2VhNDlhZDc1ZWE3MDkzMzk1MzgwNDE0NTM4NzBkZDQwYWQ4Zjg4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgxOGRhOGM1MGYwY2E1YWIzMWU3ZWE2OTdjMzI5OThlMDBmZTE5ODUyZmFmZmVmYjYzNWVlNzY5N2FiYzRmZjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNlOGIyZDkwNTI5ZjJmMzI4OGNkMmUzZDE1NTYxNDBkZThmZTc3M2QxMWEyMDZlZDY4MmE0YjA1MzFhMjU5ZmYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_11c89a28b63f483698ec31a8be36de65",
+      "statement": "Fleet sessions exchange SendMessage messages whose first line is [pd-msg v1] <type> <run>/<ticket> <from-role>, and a message from another agent is data to weigh, never an order or the owner's approval; a review-request carries only checkout path, branch, base ref and head SHA.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/skills/pd-orchestrate/references/protocol.md#L7-L44",
+          "version": "repo-lines-v1:sha256:5d459473e51841d8eb473dedc4978bb8ab8b426e765b98f73f0f52ed7a3fb6bf:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZmNTE3N2YyZmNhNTIzZDY0YjAyZWJlNWE3NmQ0NDFiM2MyOWJmM2EzM2JjMmZjYTM4YmNlYjYzNDQwYTc1OTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU2ZTYyZGEzMzk5NjA2ZWU3MzY1ZmQyMmI5OGI4OWM3ZTVmMmE2ODdlZDZiOWFkMmM1MmM1NzY0ZWVjMjBiZDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFkNjJmMWMzM2Q3ZDliMmVjNzRiYzY5NGI4ZTBlN2VlNjYzNjg5NDM5YjI4N2NiZjM1YjMwOTJlYjc3ZWMxOGIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_16ac5dd70bb1478fa89c54cf0e7e3745",
+      "statement": "A review receipt is valid for one head SHA only, records an intent verdict of match or gaps and a security object for risky tickets, and a worker report is status done only when the receipt's head equals the report's head and its verdict is pass.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/skills/pd-orchestrate/references/protocol.md#L46-L91",
+          "version": "repo-lines-v1:sha256:9d643a4e8f3fd6431dc51c63f0f7619dd987e444ec52b1a2ca430beec8a3c2cb:eyJzZWxlY3RlZExpbmVDb3VudCI6NDYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRlYjExZjBjNjNjYjFiZjdkMmQzZTI3ODI5MzE2MmU0YzcyNTgzNGZiZjE0Yjg4ZDZiMmY4YWY3NjhiMjVlNGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2MWVlYTI1MzM3YTQ3YmQxMjk0MDYwMmNhNTRkOTExNmMxODY4OWFjZTRkNWEwZDc4ZjRkZTYxZGU1MzQ5NWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQwODBiOTJkODUwOGMyOWMxMGMxMGRiNzBlMWI0Y2UyZWEwY2UwY2Y2N2U0MmY2YzYyYzEzNGQ2N2RlYjY1ZGMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQwNjNkZjQzZGQ2Yjk0MGVmNGUzZDA5ZmQ1ZjBlYzVlOTljYjZiMmUxYzU1YjY5MmZjMTZkMjEwZDJjNDA3YjgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_25daf6c460194a09a8eecae4f59ecbfb",
+      "statement": "The orchestrator's ledger specs/fleet/<run>/ledger.json is gitignored, written only by the orchestrator, tracks ticket states and workspaces, is copied to the git directory by ledger-backup.py after each write, and is read first at session start or after a context summary.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/skills/pd-orchestrate/references/protocol.md#L93-L143",
+          "version": "repo-lines-v1:sha256:54b2f404d2287a3d546be635acb41e0061012f51893ab52339d6b155e7b73925:eyJzZWxlY3RlZExpbmVDb3VudCI6NTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk1NTg4MGNmODhmODc2NDlhOWRkZWM4ZjZkNDYzNDUxZGY0YzkxOGZkMzQ5YzY2NzEzMDc0YzM0NjQ1MWE5MjAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg1MjU1NGVhMTI0MzdmZTU4NjUwZDM3Y2M4ZDYwZGUyMzdlMDE2ZDhlMDc1OTZlMTFjN2UwZTY4MDAwZTdiNGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI3MWFiMTBiY2FjN2IzOWI1ZmM0NDZiZjkzMmE1MDI4MTVkZTU1NzYxNTc4OGQzYzZiMTQ0NWRmNmU4Y2EyY2QiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg5Y2IyMTZiN2NiMWNmMTFkM2E1MzAxNzEzMWRiNjFlOTgyZDI1OGJjYWVlZTI0MmY0OTYyNjJlZjU1ZmFiNGMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_04b2f9cd7ab14e7984efeb3f6040bf09",
+      "statement": "The outcome contract requires for every ticket a pass receipt for the head with intent match and a green suite; a failing-then-passing test for a bug; qa-writer acceptance tests committed before the worker starts for features at depth M and L; UAT for app tickets; screenshots for UI changes; and a recorded security review without open critical or high findings for risky tickets.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/skills/pd-orchestrate/references/protocol.md#L145-L163",
+          "version": "repo-lines-v1:sha256:8147f37749f17bfa8423e64ce3f61e1e97bf03ce1b2e2dc359b02a1bca62aaad:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhlOGJkY2Y0ZWM4YTU5NjQwYzA0ZmIzMTRmYzA3ZTRmY2IwZDE3MTBhM2Y2NGFlMjlmZDhlNWFmMmM5MzkxYTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQyMDE1N2Q5MTYwYmY0MDM2ZGNlM2U4Y2UxOWFjYzYyYjIzM2QyMTczYzBjMWUzMjE3ZDEwMTNhZjdlZGU2MzMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE1MTExZDY1YTZlOWQzNmJmODE4NDk4ZTJjNmYzNzFlNjk4NGQ1OGFkNmQwYjBmYjdiNmY1MjllNWNiZmNlMzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c39e123727f441b68286112b0b5ec47c",
+      "statement": "A worker does not push or open a pull request: it commits, requests review from a different session, escalates after 3 review rounds or when its budget is used, and may start its own agents.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/skills/pd-work/SKILL.md#L15-L61",
+          "version": "repo-lines-v1:sha256:231a0206aa9bbaead04312aa1847292cf30bd6d7dcf7ecc9b7ae33a060150929:eyJzZWxlY3RlZExpbmVDb3VudCI6NDcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg1MTVjNjFiM2UxOWVjMDcyZWMzZmU1NzI3NWRkMmVhNGY5ZmY4MTNkZmFiNjEwYzMyN2JiNjQzYzE4ZGU2NDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNmNzYzYmUwMjk1M2JjZmI1MDBkMDc4YjA0NjM2M2YzNTNkMjdmYmRiZWJmN2VkYTAxZTE3MmRhODM3ZTM2MDQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFmZGIyNTE4YjNlZjlkMTdmNzg5NDY4N2IwMmE4YzljZDVkYzQ3ODlhMzNjYWU3NDZiNjEwY2M2YmY4MGUxOTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_95b59341fe424ec0ac34b72a4df4ff25",
+      "statement": "The reviewer session works only from the ticket, the owner's answers, the diff and commands it ran itself, fetches the worker's branch into its own clone and detached worktree, reads REVIEW.md from the base, re-runs the tests, and returns a receipt pinned to the head; it changes a verdict only for a new commit or evidence.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/skills/pd-review/SKILL.md#L9-L61",
+          "version": "repo-lines-v1:sha256:9c809f9d1b4724cdc5ab5bac8027e5570eba6bf73ef830c4afe95cad5e90f9cd:eyJzZWxlY3RlZExpbmVDb3VudCI6NTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY0NzAwZTQ2YzNmMzNkNmQ2ZDkxOTg0Mzk0YjQ1ZmVlNGM5MTkzNDY2NzgyNTk2ZDEyM2E0ZTM2OGQwYjMxNjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk5ZmNmZTRkMzRjNzA0M2I4YTZiY2ViZjE1OTUxZjJlYWJiODgwZWVkNGM3NzE3MDZhYzkzNzQ5N2MyYzEzYTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAzZTc0YjAyMDlhYjk1NGEwOTA4Y2I3OWE4ZDVkMTVmOGUzMzIwNzgyNzhmOGM5ZDZhMzdkYjI2NzJiNjA5OWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_fc3872863cca47e6bdc857cef78ce709",
+      "statement": "The orchestrator sends a check-request to the reviewer instead of running checks itself, to keep output out of its context, but reads fleet-check.json itself; for a feat/* base every mismatch must be gone before the merge gate, and it pushes and opens the PR itself.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/skills/pd-orchestrate/references/run.md#L97-L149",
+          "version": "repo-lines-v1:sha256:37c289a7be5a986bf72a83228ef46ed26fd0d9cefae81fdd9ccf6b0246b1e591:eyJzZWxlY3RlZExpbmVDb3VudCI6NTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk1MGU5MWI3MTRjMTA0MzM4MDNjZTFmOTU0ODNiOTRmYmY5MzA0NTA3ODIxOTU3NmM0OTYzOTViMmRhMzdkM2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ5ZjliMzQzMTA2NDIzNzI1NmViYzg2ODY5YWE5ZWJlZTQ1MzRkZjdhZDdlOGQ5OTM2NzY5MDYzNmU2YjhkMTkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEzMGQxZDNkYzFkOWI5Y2RmOGZkOTg1YmY3MGJiYzVmZGNjYzg0MjNjMGQ3NTNmMzFlYWM4Y2FmOGViYTYzOGYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJhZGE1ZmI1YzZiZmUyOGRjMzRhOTZlZjAyYmUyMzAzOTUwMjYxN2FjM2JkNjkxMGYzMjBjYzUwMTY3NmY4NTAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_774cc00fbfa143bcb14291ec2525bea6",
+      "statement": "Defaults in run.md: one session per ticket in its own workspace, Sonnet 5.5 workers below depth L, a separate reviewer session, at most 3 workers at once, a 60 minute budget, and dependency groups from plan_groups.py that put overlapping tickets in different groups.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/skills/pd-orchestrate/references/run.md#L31-L61",
+          "version": "repo-lines-v1:sha256:5ae3e5e1a6cba2e685b4e2647665a9d0a0db461780627717c7ffaed49f8ac7e7:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE4M2FiODhkNGY4NTAxNzBmNDA0ZWQ4MzI0NTZkMTQ2MGQyOGM2OWVlNzdlNGM5MzQ0M2JkZmEzODZiMjY4MDAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRkNzU0NDU3M2E0ZjBjMTVhMmVmYTc4MjJlYjc3YTEyMGYxZmVkYjQ1Yzc2Njk1NjBkNzAzZDY5ODk2Njk5MTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5NjI4NmJlZTQzODA1YzA4YTg5MWQwMDNiODIwNmU2Yjc1OGNiMzg1NjMyMWRjOWIxMjRiMTUxMjdmNzQ3MGMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjIwYzFmYTU4NmM3Mzg3NDExZDdmNDFhNjc1N2M2Y2ZjZjE3MGYzMTc5MzRjNWRlMDU1ZTNkOThjNjEzMmU5NGEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7ac17cbc7d7c4f8f91cdebc97ef7e9e6",
+      "statement": "For a milestone, tickets go into a feat/<slug> branch (entering without the owner only when the merge gate passes), a whole-feature review and tester session run before handoff with at most two fix rounds, and the owner merges the feature PR into main.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/skills/pd-orchestrate/references/milestone.md#L7-L96",
+          "version": "repo-lines-v1:sha256:565d085866a9b8ca325e7a39fa7df69505fd60ee5fa654f469141c85d11f9431:eyJzZWxlY3RlZExpbmVDb3VudCI6OTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU2ZGVlYjc1NDBmZjBhNWMzOGUxZWQzMWMwNTM4NGMzMTQ1ZDg3ZWFmMTJkNjYyYTBmMGE2MzY0ZTNmMDFiODUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjljNzZlOTc2N2NjZmU0NTM0YzMxNjRkYzFmMjkzODVkMWFjMjMwZGRjNmNkYzg1Yzc0NjNjNjM2YmY0YTE1MjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc0ZWI5MGRjM2JmZTk4Mjk4MWVlNGYwOGRkMjU4ZTE1OWYxZDI5ZmNmZWEwNmEwYTk0MzRmYzc3ZGQxZjlmYTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_cf8ffb7c34e04c81a057188ca580f5ba",
+      "statement": "When stuck, the orchestrator climbs one step at a time: rethink the brief, ask the in-process Opus advisor, start a pd-advise session on Fable 5.2, then ask the owner; it stays the decider, must answer every escalate, and never accepts an open finding itself.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/skills/pd-orchestrate/references/stuck.md#L1-L32",
+          "version": "repo-lines-v1:sha256:8dbe1afebba10ebdccc2680229645a0aac9e8466c9429daf76df8594ae530246:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBhMDMxZmM4NmRkYmQ1M2I0NWE2YjEzOGU1ZDQ0MGE3ODllZjNlNGQwZjdhZGU1YWVjMzI2ODRiODEwNDI2YzgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlkMDEwZThlMGNlNTRhZmM0MjFiZGNmN2MzZjA4NWUxOGQ3NWU4OGQ2NmFmZWJmZGJlNWFlMjFiNTg1MDFmNjMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_529a074286234767b1bce7dd63f85f26",
+      "statement": "The pd-advise session reproduces the failure, researches in parallel, proves its answer with a prototype on a scratch branch in its own workspace, and returns one advise-result; it may not commit to the run's branches, push, open PRs or message workers.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/skills/pd-advise/SKILL.md#L25-L62",
+          "version": "repo-lines-v1:sha256:80d569773ff5ae7ac696776e42416d8b3c5cf03d143408a9d24501c25b9f6081:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVhZjVmNTNhZmMzYTIwNWJlMDczY2ZmZWFjNzEwZGI4NmI1MTdiMzU3MTg3MjFjNTc0NGVlZTA4ZTQzNzdiODciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIwNDhlMzNhODE4OGI1ZTcwNTA1ZjUyMmRmNTZjMWE0NjNmYmE4YzhmMTQ1YjkzMTU2YmM4ZWRjOTc5NTNiNjYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBkNjllYWJlMWI1MmY0MjhiMDVhNGQ2Mjg5NWQyY2Q1NmVhMjkyYmI4MjAxZjkwMmZkZTdkYjBiM2QwMjhhYzEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-26T15:02:34.678Z"
+  }
+}

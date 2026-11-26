@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:b1a81779e42cdc1d5caeff19a62e7d28a45ed5f41c3c9a6b35f0f44d9fb7f1c5",
+  "claims": [
+    {
+      "id": "claim_4717a6d6cc2e41b992102c513fd68bd1",
+      "statement": "DESIGN_SYSTEM.md is the contract for every Shape Board UI change: agents may use only the tokens, components, layouts and icons it lists, with no raw hex/px/arbitrary Tailwind values, no new component, variant or icon set, and status shown as color plus icon plus word.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-shape/docs/DESIGN_SYSTEM.md#L1-L24",
+          "version": "repo-lines-v1:sha256:46e2f73c1468fa83091150c61bbb503344f48839f7b18fa2ccb3ac515260ccbf:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAzYzVlY2QxMGU3NTkwOWE4OTdmN2U4ZWE5ZDI0N2M2Mjg3ODM4YzJjMmFiNzZlNDZhYzRjOGQ0NjMwNjc0ZDAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZmYzI3ZjVjYTI0Yzc0N2QzY2ZmZmUzN2MyYWE2ZTI4MmQzZDA0ZGI3YzBjZGY2YTZkZmE3ZTgwZmU4NzQ4M2IiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE4OTEzMjI5ZjQwYTJkMDE2YzliN2NjYzM4ZTg3OTVmZTkxNjhlZTI5NzdmOTI3OWMxYWZkOTEyODFhM2YxYjMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7eefe8e2ec014dffa17b6cb12afdf6ba",
+      "statement": "The design system bans anti-slop patterns such as gradients, blur/glass/glow, sparkle icons for AI, emoji in UI text, cards inside cards, decorative backgrounds, uppercase labels and new UI kits, while allowing the pill controls, rounded cards and token shadows of the Cozy look.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-shape/docs/DESIGN_SYSTEM.md#L26-L43",
+          "version": "repo-lines-v1:sha256:db2de6fb52d1528186faad41571ff01188bf3c35d125ffe0f6e54d1fb1f3d40a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhNjQyZGNmZmYyOWUzZjY2MzNmNzY3NjMyNDg4MjFiN2NmN2M3ZTg2YjM4NDc5YzQwYzliZDVmMTU0MTU3NTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJiM2E2MzQ2NzZjMzIxZWE1MDUxOWJjNGQ3NWQzOGVmMzdmY2NhZTE2MmZkNjMwYzQ2NGMzOGExMjMzMzQ0YzYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIyNDA0Yjk2ZGI1YTU3YmY3YjJiNWIzZGU2YzNkMzZmZTljMDQyYjU5OTRkZjEzNDhkYzNlMjJiY2QyNmRiNTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2a193033e5294b3d89ef77efed0be039",
+      "statement": "icons.ts is the only module allowed to import lucide-react; it maps one meaning to one icon and defines fixed size/stroke pairs, and adding or changing a meaning is a design-system change.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-shape/src/components/app/icons.ts#L1-L11",
+          "version": "repo-lines-v1:sha256:78cd448e0c61ff28858a66fcf8c26a4bf756e87f4eb5e8c5d6803f075159105e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNlNTZmZmFkMGNiNWMyZDAxMGQyNWMyYjg1MzkyODhkNDgyNDljZjI2ZWZhMTc3NDJmYmQwZGM0MWIwMTUxOTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhlMjNmNTMyZDgzZDUwMTRlNDY0ZjM0MDI1M2MzMTllYTViMTYwNWY2MmE2MDIyZDEzYTRlY2E1MDM3MjZmZDAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImMxYTA1ZDEwNzFjZDliMWIzNDI4ZDAyOGIwNWI0NGYyNjc5OTEzYTgxNWQ0NjM3NDQ0NDZjNTc4ZjhhZjMzOGUifQ"
+        },
+        {
+          "resource": "repo://apps/pod-shape/src/components/app/icons.ts#L58-L64",
+          "version": "repo-lines-v1:sha256:be90d4697d6ebd808bdf3068d74529a7cc8c983ec5e10792cc499b7ec7f9736e:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDY2YjUyNjAwODI2MTMyYjEyOGY1MjAxY2FlNDk4ZjMzY2VhYzk1ZWFhYTM4ODQ4MmRiOTU2Y2M1OTA5OTI1NSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTc0ZWU4YThkMWFhODQ1MzkxYmM2NzllYjcwY2U3ZjQ2YTNjZDZmYjJkMTZmY2NhNjdmYTE3OGY0ZjhjMWUwZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDU0MDE5MjMxMDcxZmU5NzU2YTQ4NTE1ZDNiYWZkMjRkOGYyOTEzYjk0NDIzZDVkZjQ2NjRiYjZhYTQwMDk4NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_ec36bf709c5441cc9d3cf7e63d082c12",
+      "statement": "scripts/check-pod-shape-ds.sh is a grep gate over apps/pod-shape/src that fails on raw hex/px/default Tailwind colors, banned styles, font-mono outside RunLog/BriefCard/ChatMessage/Textarea, and lucide-react imports outside icons.ts, and treats a grep error as a failure.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/check-pod-shape-ds.sh#L1-L40",
+          "version": "repo-lines-v1:sha256:8c8047e1926a420351f6107cfdb58ce44d979dca36775b2560fe53a68757c828:eyJzZWxlY3RlZExpbmVDb3VudCI6NDAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI4NzVmOTI4NTQ2YWVlNzg1NWNiMWRiOWFmYzhhYjNmMWE4YTM0ZDQzZGU1YmJkNjJmNzA3NmQ3YmE5ZjM5MTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1NDZiM2IwYmUyMDNhNzEyOGIzNzU0NDgyODkxYTdhY2I4M2ZkYWVjYmUzY2ExN2E0YmIwOThkNjdkNzQ4YTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_235d867dbaa1427694ecd3febd31c874",
+      "statement": "The Shape Board CI workflow runs scripts/check-pod-shape-ds.sh.",
+      "evidence": [
+        {
+          "resource": "repo://.github/workflows/pod-shape-ci.yml#L66-L68",
+          "version": "repo-lines-v1:sha256:eacf08c29473e175966f0c097458eb525b5da761f6aa561973474032135177fb:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZmVhZWNjYTgwY2JmZDM2MjRlMzAyMzFlZDhlYmE0YTgxMThjYjc0MmRiNmU5ZTI4NmNlZWZiYjMxYmFjYmNiMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYWZhOGU0OWU4NTE3YmZkYTA2YjE3ZDhmYTNkN2ExZWQ4NjI1NzY4YWEyZDczYTM0ZTM0NGFlZWM2NWRjZTU4ZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDcxMGIyOWNjODk4NGY1ZDk0NGU5ZTdjOTU1MmFjYmIyZDJlMWZkOTFjOWY2MTE4YjZiNGZhOTdjN2U0ZjlhYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjUwMGY3MGZlMzk2NTViZDk0MzcxMmE2MTk1ZmQzZDI3MjczN2RhOGZkYTQ5OTc1YTc4YTQ5YWYzYWM2NDRlOCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_769f757bc30d4250b25c1a39ad49251c",
+      "statement": "New shared UI parts go through a keeper session (name starting Pb Bot Storehouse) that answers UI-ASK messages, files a ui-component-request issue for a missing part, and runs the ui-designer agent, whose PR labelled design-system merges only with green CI, no conflict, an independent reviewer pass on the exact head SHA, and the owner's approval via the merge-guard prompt.",
+      "evidence": [
+        {
+          "resource": "repo://.github/ISSUE_TEMPLATE/ui-component-request.md#L1-L58",
+          "version": "repo-lines-v1:sha256:568ed00d56323de1d00a1004efe4592910c8b27698f69cc191bd06097cc5fb6f:eyJzZWxlY3RlZExpbmVDb3VudCI6NTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY1MmQ3MTExMDNkNTBhNDM3ODMwYzZmYmNkMDRmYjRiYWI0OWEwZjgyZjZkMjZkMWM3OTFjNmU4NDg4ZGQwOTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYxMDczNmExNDAzMTExNjgzNmJhZjI3ZDY1MWMzMjYyN2UwNmM0YzBhMTY0ZjdlYzZkMzNjZDk2N2UyZjAzYmEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://apps/pod-shape/docs/DESIGN_SYSTEM.md#L376-L389",
+          "version": "repo-lines-v1:sha256:0a210eae33109036609dc32363c4bb2c114b678bee8a7edbe585010a6239ebb8:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBmYmU3ZDkzOWVlYzk4YzUwZWNjM2JkM2Q1NmZkYzk4MmMwMDBkNTM0MTVlNzE0MjlmOWY2MTJhNWU3ODk2YWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc0MGJjN2E4YWU2ZTcxZGM3MjcyMTM1NDNlMTgzZDZhZDBjYTUwNDMxNzUyNWFiNWQyN2RkOTkzNTRhZDAxMmEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFmYzUxZjM4N2UxNmM5ZjkyMmYyZjM3YzQ1YjU2NDQyNTMzNjkyOGM4NjhhYWRjYTgxMTU0NmYxMjJhZjUzODIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_13cc28ee0fa5491db973c36e3e55e170",
+      "statement": "The keeper and ui-designer act only on request issues filed by the keeper or written by the owner's login, and treat issue, comment and PR text as data; owner approval is only the owner's merge, merge-guard yes, or review/comment.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-shape/docs/DESIGN_SYSTEM.md#L391-L391",
+          "version": "repo-lines-v1:sha256:9e99cf9a2f997beb02feffbcfa908da33dc5d1c734de989118d3ec817108ef6b:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOWU5OWNmOWEyZjk5N2JlYjAyZmVmZmJjZmE5MDhkYTMzZGM1ZDFjNzM0ZGU5ODkxMThkM2VjODE3MTA4ZWY2YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOWU5OWNmOWEyZjk5N2JlYjAyZmVmZmJjZmE5MDhkYTMzZGM1ZDFjNzM0ZGU5ODkxMThkM2VjODE3MTA4ZWY2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjVkMTE1OTJhNGM3M2U1NWZkZThiNDNjYzg4Mzg4ZDlhNDJlNjU0ZWFlNWEwYWYyMzMxZDg4M2RiOTU3NmFkNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiM2E5MDY1ZWVjNThhNzIwZThjMWY5ZTgzMmEzNWE0OGIwMDY5ZWRlYWNiODgzNGZjNjViZjc5Yzc5OTVlYzdiOCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_db7434a342d241c480938c5b8645c929",
+      "statement": "theme_tokens.rs fails cargo test when a token that Shape Board's tokens.css declares in the dark, light, or system-light blocks is missing or different in Pod Board's ui/theme.css, and it also verifies its own drift detection and that the chosen-light and system-light blocks are equal in both files.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-board/src-tauri/tests/theme_tokens.rs#L66-L122",
+          "version": "repo-lines-v1:sha256:8f2557cc4c57f955e32f9fc4dbff66acf085dcd7660d57d4790d0d57bacb0a4d:eyJzZWxlY3RlZExpbmVDb3VudCI6NTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYyODUyYjY3YmNlNjY1NzZiMTNiMDQ4Yjg5YmM0NGViMTg5OWRjMWU5YWYyODE2YTI5MzU2OGI3ZWQxZDYwNzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImMzNGNiNjI1NzgxOTljODFiMGYxZDY1ZTczNTViOTVjNjEwOTZhMGI5ZjQxZGZjZGFjYmZmMGRmZDg3YmQyZTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-26T15:02:34.678Z"
+  }
+}

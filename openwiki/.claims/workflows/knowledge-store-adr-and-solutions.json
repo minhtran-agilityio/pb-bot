@@ -1,0 +1,170 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:b90bf725b0427fd5ff11e78adf0cd50c3eff30f7debbc3553ab210d3af118af4",
+  "claims": [
+    {
+      "id": "claim_8b11578cebd24143a8c9239e1926b9f8",
+      "statement": "write_adrs.py writes an ADR file only for a decision with adr true, at least two real options, a title that is not a Boundary or UAT-not-run note, and a stage from the early set (intake, grilling, intent, research, design, plan, plan-review); a qualifying decision from a later or missing stage is late and gets no file.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/scripts/write_adrs.py#L131-L161",
+          "version": "repo-lines-v1:sha256:571a07a998de3c4de98c1fd8c120707b0ba9a865e26117df1061dadcfd29fa9a:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRiNTIxZDhmNmQ5OGFlMmNlNTcxYzVmOGM1NWMxMDMwNzA0MTI5YWYyMjRhNjgzNWQ1MTA2NDhhYjdmMWVmZmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVmN2FiOGRmZjJlYjNhOTUzNDJkNDM1MTc1MjgyODAzMDIyOTI3MmRlYTgzZjI4NGZkMmYzNTcyYzNiOGE4YjAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNjYWZjMGM5MmViYzU0OWNmZDc1YTRkOTJjZjE4NjRiODEwMjFjZTFmMWQzOTY4MTM5MDgxNTYyMWNlNGE0NTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY1N2RkMDQ1OGJmYTBjODIwODFhZDY4ZWMyOTdmNjkyMmU4MjIwNTE5MmU2M2MxYzkyZDY5MWE2NDA0ZjZiZTAifQ"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/scripts/write_adrs.py#L57-L58",
+          "version": "repo-lines-v1:sha256:ae9e17a25a83ae561007f5e239e086dc12fa5ca3a93ebac0c30c59b875adcb9d:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYmZkMTE0OWY0MTkyMDZiNWZiZmUzYTA3NDFjZDVlNzY4MDkyNDAzYzFlYzIzOGQ0NzYxYTAxMDBkNTM2NmRkYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjdmYjUyNTQzNTM5ODY5ZThhYjlmNGUxOWNiNTE2ZDNjN2U5OWE4NTk1M2NkM2ZjYTg3NzQxNzYxZWFkZjA3OSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDkxZDNmOWM2ZjY3NzQzODVkODQ3OTFmNDk2YzJjNzdmMjAxYjhmZDMyODYwMzMyN2NjMjRmNGIyMTgxZGMxMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDc0YmNkNjgyZDEyNmEzNGRhZWQ4ZDI5NDE2YWE2NjcxNjA1N2NjMDQyODUzODg1MzRhM2Q4NTUwYzM5MGMwMiJ9"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/scripts/write_adrs.py#L9-L16",
+          "version": "repo-lines-v1:sha256:6c5aa3e3b5a9b3cbd7071b889977e7201318af50960ae39da58b4b05537a9e57:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzk2MTEzZjdkN2M3NWUxNDYxNmFmMDIzOTEzZGIyNDhjMzA3ZjFlNWQyZjY3YTQ5ZGFmMzFiZjcwOGE2NzgwYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzhkNDhjOTBlNjcyYmVhMTI4MWVmMmU3MjAxNGNkYzE3NDEyZmZlYzdlNTBkOTYxNjg4Mzg1YmE2NDZlMjBmNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTU3MTBhMDE0YWUzNTM1NjhjYWEwNDNhNmNiZmIzNmUxNWZjNTZjZjZiZDNlMGUyNzVkODNjNzQyMjNhOGQ0NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOGVjNDlhMDk5NGU4ZjFjMmJkNzEwNDVlMTkxOGMwZTRkYjIxZGY2YWY3NWUyZGU5MTlkODU0ZWRjNmQyMjdmMCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_bdf3d3ad4a0a4416b8ef37edf8a7a112",
+      "statement": "A late decision has needs_review forced true even when owner-confirmed, unless it restates an ADR the folder already holds, and needs_review and confidence never make a file.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/scripts/write_adrs.py#L358-L363",
+          "version": "repo-lines-v1:sha256:69ca3b11e4c3e3ba4f65a48349da0e1cd3270f1ed86f9a8b33e5ec6663405281:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDE2YzE0MGE5MWNmZDQ5ZWNjN2JhMzIwYmJmZDMwMTUzNWViNzNiNDliZGIwYmI4NjRhYWU5ZmIxMzg5MjI5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjcyMTU4MTY0ODdhMTA0YzI4YzQ1MzRkNjY3ODg5NTY0NjEwYzQxNDBlMWIyMWQxZTBkNTIyMWQ5N2YyMTEwMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjRhM2JhY2MxYTIzMjU4MWUwYjhhMTY3MmFmMjc0MDRkZjY2MTcyZWRiOWYzNGI2ZTU3MmIwZjJlMGNmZmRmMSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzE3OWM1NjBlNWNkMmMzZmI0Yzc5YWQ1NGZkYzRmNzJkN2NhOGViNmEyNDRjOTkyYjEyYzI1NGY2YjRhYWU2NiJ9"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/scripts/write_adrs.py#L529-L536",
+          "version": "repo-lines-v1:sha256:dc992ebd85247de0b357a4b44aafe05f22e19a004ca3eed9c45eac1794fdd289:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWU3NDllODU0OTFmODcxZWNhZTdmZjE5NzVlZjJiZWU0Yzg3OGRkYzBmZjMxNzEyNjdhZjNiNjNjYzJkOWRlMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzUzODMwZTkxODQwNDJhNzhmNTA0YzYzZWM1NzBjMGI5ZGZmNWUxMDYwMDI5NzM4NTIzYjdhOTNlMTk4YjE4OCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWZiOTg5MGFiZWYzMGY1ZjVmZDlmMGM2YTg1Yzc5MDhkMjE3NGZiMTI1ZGMwZTliNzUzMWNhZTlmZmQzYzdlMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOGVlMjQ5ZGI5ZTE0ZGFkNDUxMDE5YWQwYzg2YjljNWNkOThmM2UxZTkxYmMwMzA0YmE0ZDQ2MjA2ODAzMjhkNCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_4b30b83a45be46669d408624defadb66",
+      "statement": "write_adrs.py merges duplicate decisions of the same ticket (same title slug or same non-empty context), keeping the highest confidence, OR-ing needs_review and AND-ing owner_confirmed.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/scripts/write_adrs.py#L318-L355",
+          "version": "repo-lines-v1:sha256:83b7b38b282e8e76b0e0ccaa352f045b2e4b2e18415064905ced997d49e0aaff:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVkNjg3NWU1NjJmNzI1MDU5ZjA1MDQyNzgwN2IzNDEzYTFkZTkzMDlkMDFiMmNiYmQ1NTRiYWFjOWI4ZjE1NGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY3MjE1ODE2NDg3YTEwNGMyOGM0NTM0ZDY2Nzg4OTU2NDYxMGM0MTQwZTFiMjFkMWUwZDUyMjFkOTdmMjExMDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjkzYjA1Mjg0ZWRiODI1NGViM2E3YjY2NTE0ZDQzZDk1NWEzYmY1Y2JhMGU4ZDQyYWI5OWUzNzUzNTBiYzcwYmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM0NzUxOWI2NzM4ODRlNTliNjc3NTMyYWQwYzVmZjliNTQ4NTI0NDcyMTRjYWE0YmFjYzA0YzY2Y2FkMjI0NzYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_73338e90481e4561a78a8021a5df6579",
+      "statement": "A decision matching a live ADR of the same numeric ticket with the same decision text is skipped as already recorded; a changed decision gets a new ADR that supersedes the old ones, and run-level decisions with ticket run are never matched.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/scripts/write_adrs.py#L17-L20",
+          "version": "repo-lines-v1:sha256:5957a71dab350251d1a3a4c51676de692ef2e446418cab723af5651ba30f8a91:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzk4MmU0NDIyZmJkMzQ2NzliNDhlOTU0MWM3MDgyYjAzOWQ4MjBiY2Y1ZWFmNmFlOTZjZTYzOTNjNjlkOWY5NCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzdjNzc5ZjE1OWY3ZjY3NGY5MWUzNGU1YWM2NTVkNTYxMjg3ZjJmMWI4ODE2MjAyMjZhOGZhM2NlMDIzODc1ZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTZmYzUyZjU0OGQ3ZDgyYTMwNGFiMmQyZDcwMTgyM2FiOTg5NGE5NDA4YjlmMmI4YTBiNWVhNGQzOTgyYzg5ZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDNjMDc4NzAzOGE0MDA1NWIzZTE4ZWNmYTM5OTRiYjY1ZjRlYWZjZDJkODMyNzU3MTA4NTQ0YTQxMzhhOTRlZiJ9"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/scripts/write_adrs.py#L207-L232",
+          "version": "repo-lines-v1:sha256:38e31565c1e626fec6a04988278d824ec12f935fb8ec344de202fdf386ebea9a:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJhMWQ2ZDA5NTc2YTBjNzk4MGQzOTllYjFiY2VmMTFhYzk1N2QxZjA4MzA0YzM4MmM5MTBhOTNiNmE2NWUyOGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYxOTQ4ZDYyNTg5MDZkNWY5NDIwNGY1MTNlMDQ2MzUyODdlYmQzNTczZGVlZTk2MGQ2Y2FlYTYyMTdmZmZlMjgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhhMmI3ZDVjNDlkOTZhNGU4ZjliMDExMDVhNTU3NzE5YThmZGU0Y2QzM2Y5N2EyZTYzNzg5ZGNkNjNlMWUyMWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM5ZTEwNWVmNzg5ZDgwNDczYWVmMWNjMDVkNTEyNTVhMjM4MGJjNzc2Y2IzZjJjOWZhOTM5NjQzMDk4NDMxNjIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_4e08ddbb5f93478b86b877571ce19a73",
+      "statement": "write_adrs.py validates and plans every supersede before writing, opens new ADR files with exclusive create, writes the new ADR before marking the old one superseded, and exits 2 on bad input or overwrite, so a failure is loud rather than leaving a dangling superseded_by.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/scripts/write_adrs.py#L281-L316",
+          "version": "repo-lines-v1:sha256:9ca9eb854a7642b00d0bd2576d52e6ff2cb8edcde244598868387166bed243f8:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ5Y2U1N2Q3NWUxNzg5ZjM5N2IwNzMzYmNhNTU5YTI1NDMxOGU4Nzc5MTc3NWU4YmViZTRkYTZjMDM4MGI5ZmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIyZWEwNmY3MDhjNDY4MTczZGUzM2Y4ODg5YTIyMDkyMzllOWE2ZDMyZTA5OTBmM2M5YjYxOWIwNzU2ZDhhNDQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdkZWIzNDNjYWQzZGZkYWE1ZDVjNjY4NjMwYWFjMTkzZTkyOWRkNWQyODI5NjdmYjYzNmViMDY2M2Q1Nzc1NzgifQ"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/scripts/write_adrs.py#L552-L579",
+          "version": "repo-lines-v1:sha256:446de05493a3167458d17bdf27bbedfe3d43917b2176b9129bc120f79d584c79:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZjNzRiMWM0ZjdkMjZjMGEwZjYwNzgzMDliM2VlNzI4YjJhNTY5YmE0NmVkNzA4MTdlNWI4NzA0YmFkMWM5NzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVmOGY4ZmQ4Yjg2M2JkOGJhNDJlZTgwNGUxOTE5MDg3Njc4NzIxY2EyNzVkMGVjMTQ2NTkyNGNlMDA1MDIxZjkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhjOWZiNmYwNzZjYjc0YTE2NGU1YjAwYjdmNzc1YzQzYjUyZWZlZDk2ZWZjOGFjNTNjOTBjZGQ0YWQ4NGQxZjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNmNmQwOTI2Yjg5YmJlOTU3ZTkxNTU2ZmI3M2E4NThjN2E4NjU2YWNmM2M2YTI0MjRiNzJlMjRiMWZhNWZiYzEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_152bc3d9ea0e4fc187012b2a15e885db",
+      "statement": "write_adrs.py prefers the repo's own docs/adr/TEMPLATE.md over a built-in default, drops a legacy needs_review template line with a warning, and rejects any other unfilled placeholder.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/scripts/write_adrs.py#L420-L434",
+          "version": "repo-lines-v1:sha256:1f7822882e2318e65a26fe7b13a3487cca7b18c499246f075abfc99111722e38:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNmYjMxNTQzNjhlOGM2MDMxM2QzMjQxMmVhNmRiYTQyM2Y5ZmIwODA5ODNkYWY2ZjdiOGRjMTExODE2OTk2NjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY2ZjdlMzA4MzM5NGE1Yjk4NzgwMjUzZDE3ZDA3ODA3ZGVmOWFhNTU0NDhkNjFkYjczZWMwMTNmMzcyNjYxZDciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBiNDY4YWQwYWJkNWRmODYyMGJiOTRiZGZmZTg1ZjQyMTEwZWNkYThhZjc2NGE0ZDVjM2JhMDZiYWE1Zjc3M2YiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkwNWE0NTcwZWU5MmIzZDc3ZmFjNGJjNDBhNGI3NGFhMjYyOGIwZjY4MzkyZGI5ZWQ5ZmI2NTBiMWJhZDkzMjgifQ"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/scripts/write_adrs.py#L486-L494",
+          "version": "repo-lines-v1:sha256:7805cc6105f86fcdf8b53fe91ce08564c8584c97ebbb1882a1fcc98714335380:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTg0NjA3OWY0MjZlMTY3M2VkMzJlMjc2MDQ1MDBkYWY3YjkwYmM0Y2IxOWVhZWIwYjMyY2NlMzRhMmJhY2ExZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiODA3OWQ5M2UxYTc5ZGI3NTYyNTZmM2VkY2VmMjRjNDMzYzNiZGM3MDM2MTI4YTQwNWMwZTY0YzY3NzQzOTk4ZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTVlZmU5MjNjMjgyMDAzNWNjMzRlMzBjNWMwYTRkMGY5YWYxZDMyZjUwNDVmOGMwZjM4OTQ0MWY4ZTlkNzYyOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTQ4ZDc0ODNkMDYwZjE3MjJlMjQ1MzY4ODgzMzQyNTZiNTQ5MGU4YmJlODY5ODIwNjc2Y2E5ZWFmMzUwOWNjOSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_c74fa652f5294f3e98608d526e52b067",
+      "statement": "write_adrs.py can emit a markdown decisions table (--table-out), a Needs your decision list (--needs-out) and a rendered PR Decisions section (--render-section).",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/scripts/write_adrs.py#L366-L395",
+          "version": "repo-lines-v1:sha256:b48041fc70a2809d6a61c4246e1bac3c60660143ef0aa6dda76c615b5d22e466:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI3NTdmODIzMGU3YjBhNTE3YjVjMmZjYzQ0MjhkNDVhZTZiZmUxOTliNTc4NjkwMjRhNTk1NGVkOTBiZjQ1NjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY0Yjc0MWEzZTJjMzJlMGM0YjczOTQ3MWI3MzVhY2JmZDM3YmM5NjUzMmEwZTkwOTZkOWIyMWNjNTcxODFkYTUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY0YTNiYWNjMWEyMzI1ODFlMGI4YTE2NzJhZjI3NDA0ZGY2NjE3MmVkYjlmMzRiNmU1NzJiMGYyZTBjZmZkZjEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZjOTFhODdiMWNjOWZhNzZlMDljMDgzNjEzYzI0YzhmYWMwOTY1MDYwYTBiMWFlZDcwNTEzNGYzYzkwOTRmNDQifQ"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/scripts/write_adrs.py#L467-L478",
+          "version": "repo-lines-v1:sha256:1af014be817b51ad573b9b61d2b0ef673c34976cb1eafa1cc3636b0c65be0b56:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIwNjUxNzYzNzJkODc5NzU4NDI5YTNmNzA5NDc2ZDdlMzhlZmQzYmRjNTI5MGU2NzM4MjQ5Y2MwYjk4MjU0NTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhiNGNmMzBlYWQyNDZkY2NlNmU4ZDNhY2E2M2RhNzAxMjY5NzliZjMwNTVhOTMxOGVkOWQxMjJjYzIyZmYzNjYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJkNGEwMDhlYWYwZjRjMjJlM2IyMTUyYWVkMTYwYzYxY2UyNDc1NjM4NjA4NzE3MjBmODAzNjRkZTYwZWU1ZGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVjYzRlNjYwY2FjYTFkNTBhZTIxMmQ1NzRhM2E2ZDY1ZjhkOWM0NjYyODgxNzdmOGQyOGNlMjE5NzQzMDk0OTQifQ"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/scripts/write_adrs.py#L497-L509",
+          "version": "repo-lines-v1:sha256:09da6d028c144804a3ae4008c29c66a0ac56a13f3202f9da78ba95e6d90456bd:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFiMzk3OTMzYTI0YTgwMWVlOTIzMzI3YmQ2OWEwMTA0OWMwNzc5MTUwMjFjZjJlYzM5ZGRhNGY4MWFhODM3ZTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVhOGZkZDA3NDdmYjZiNDA1YTBiYjkzZTU5OTgwOWExNGFlYjcwNmI1ZmI1MmI1YzI5YzBjNTZmMzdkMWQ3ZDYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM3YjQyNzA2OGFiMmRlMzI0YTIzNzU1ODVhMDkzZTNiMTQ5NTA0YmY5OWIyOTM0ZWUzMGFlNzA2NmI0MjIzOWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjczMDczNjA2NTIxYWIxNDJlYmQxOWYyZWZmY2ZhNzhmNzhjN2UyMTJiYTA4YWUwMGRjNGNkYzllOTIwZmIwZDEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a9270aba13e14b3391c94cbf72800d04",
+      "statement": "pd-decision-record has agents return decisions[] and never write ADR files; the ADR stage runs write_adrs.py, and every decision becomes a row in the PR Decisions table.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/skills/pd-decision-record/SKILL.md#L22-L60",
+          "version": "repo-lines-v1:sha256:361d4e0984020ef7c650470abf2afe355f78a251c8ba07783d203072df7559f9:eyJzZWxlY3RlZExpbmVDb3VudCI6MzksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhkMGEyNDI2NWNiZGUxNGE1NmVjZTk1ZjdhOGFiZGRhOGMwZGQyZjg4ZTE5NjY1NWE4YzAxZDRmMDg1NDNkN2EiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdjMTQwZWM2NDA3MzdkNzJhMzhmZWYyOWNhY2IyYzdlMzU2NzFkMDJmMWQzNThlN2Q2NjhjNmY5M2M4YzcyOTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM4ODQ1NjNmNTM1ZDNmYTY2NWNjM2FlMGQ1N2RkNzAzZTlkYjlhZGQ3NTY5MjBjOGI1NGY2YTg4MGE1OTE0NTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlkNTlhNjkwNDMxOGZjN2ZkOGEwZjYxN2FiMzVhMWZiYmJkMmQzYTE0NjUzNjcwNTZjMzdiYmUxZTZiMGQ0ZTkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_6aa33b52e4a5495599b26c5d139bb97c",
+      "statement": "pd-compound emits only complete tracks (bug, knowledge, decision, failure), routes the decision track to docs/adr via write_adrs.py with stage compound, treats a high-overlap match as a second occurrence that updates and promotes the record, and runs rebuild_solution_index.py at the end of every run.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/skills/pd-compound/SKILL.md#L17-L47",
+          "version": "repo-lines-v1:sha256:0cff50152324fcc80d88c11486e8a378694b0f9b5fe76de3caaa40f5c7db9238:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc4YTBjNWFkYzJhMzJjN2VkOTUxMmQ0OGUyMzQ1NmZkOTNlNjRjYmUxM2VjMzlkZTBmOTgyYTQ0NWM1MmNmMzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYwZTUzYmFjMTJhNTc2NWRhODc4MDU0MTNlNjU3MDMwOTlkNGY3YzBmZDQ2NzVjZmZjZTFlZDJmNzQ3ODY2NDkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUxZDRjMDRjMzE3NzAyN2JiZTNlZGI1MTgyZjg1MzhhN2VhZWExYjgzOTRkNzlkOGFkZWQ5MDQxNDJmY2U3NjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE5YmIwMmJhNWU5YzQzNDg5MDBjZWJhMzU2NjI2ZGI4YTM0M2MyNTQzOTMzMTk1OWJhYmM5ZGM2ODk3MjNjOGMifQ"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/skills/pd-compound/SKILL.md#L49-L66",
+          "version": "repo-lines-v1:sha256:60f5981eac709a5b0af24061ba77a6925cc309f00875ca1bc868e21cd404949c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImViNjQ1NWQ5MTZlODhkYmU3MjFiNDYzYTk3NTlkNzEwZmY3NjY5N2FmYmJjNDM5ODdiMWUyNzc4MzJiZTFlMjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxOGI1ZGIwMjc3YWJjOTA2ZjhkNDhlY2ZmYWM0NTkzYjY5NTY3OTc3NjY0MWVkN2RiNDJiNmRiOTI2MDc3YTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBhMTM2OGY3YWVmZjU3N2FjNGMxMjYzMWYwMmQzY2RkZDM4NTkwMDExYWMyNDg1ZDlkZWQ4ZDc2MzA5NGI5MmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ0NzBjMDk5NGM2M2E2ODViZGUwNzQ2N2JhMDdkNDk1NjAxN2Y0YTY5YmYzZWZmMWZkNjFmMWNkM2M2YjBmMjYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_bf5309adef9b4e32a2a39bcc5c150de1",
+      "statement": "rebuild_solution_index.py rebuilds docs/solutions/INDEX.md in full from solution frontmatter, skipping INDEX.md and critical-patterns.md, grouping by category and sorting by confirmed_at descending; --check fails when applicable_when is missing or the index is stale.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/scripts/rebuild_solution_index.py#L26-L49",
+          "version": "repo-lines-v1:sha256:6fd440cd1e54d9e39f23183e2d7fa13509975982def86f440cb11593375a626f:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE0ZWM0NWE1ZjQ1OWU3OTYyZmI1MzQ0ZDE5ODg3OWNhNGI0ZTc5NGU4Zjg2YTRhNWRlYmE0YzNjNzAwODI3NTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEzOGMwMGJmNjIwZGEyY2UzOGMwNjE5YzI1OTJmOTA1MzU0NzRiMDBmYjQ3ODRkMTlmMTY4ZTlmZDhiODZkMzEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY0MTVmNGUwZWFiYzY1YTAxZjVmYjBjNTQ5NTkxNDA3OTNmNGQ4NmUyY2JkMTNiOGY1NGVhYzEyMTQxODI5OGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ5Y2ZmMzllNDUzMTE5ZjMyZDViMDRjYWY3NmIyNDI5ZjYzYTM2MWMxMDBmNmM4YzU2YmRjNzY1ZTM5MTRjODMifQ"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/scripts/rebuild_solution_index.py#L68-L83",
+          "version": "repo-lines-v1:sha256:f1878ec5c5afb78b08b9f7ed84ac8388179735d169c623dda2bacfd824bc729a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFiMzk3OTMzYTI0YTgwMWVlOTIzMzI3YmQ2OWEwMTA0OWMwNzc5MTUwMjFjZjJlYzM5ZGRhNGY4MWFhODM3ZTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYzMzk5N2IzNjZmOWEyMjA5YzM4NTk2NzlmZmI2Y2NjOGM2Y2NiOWZmZGI5NTVjNzAxZTYxMzAwMzUwOGQ4OTgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdmODNmMzg3ZDc5NWJlZDE0ZGQxMWQ2MGExYzU0MmYzYjJjOTUyZGE1Y2M2MGUxOGM3MzMyZjkzZTBjMDc2ODIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjljMDM5MWY3YzFhNDIwMDQ2OGI5NTk0YjAzYTVhYzIzNDNkNDYyNjcwZDg3ZmFmYmFlMWRmZjAzNjg4YTI3ZGYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c916dbe6715d4185879e810c5ff45855",
+      "statement": "init-structure.sh copies four structure templates (specs README and the docs/solutions README, INDEX and critical-patterns) create-if-missing only, reports created or exists per file, and always exits 0.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/scripts/init-structure.sh#L1-L38",
+          "version": "repo-lines-v1:sha256:ca94ff0b9fcfdf14621613b4e32bf738450e39de6ec46752eaa8f2828d234f5f:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI4NzVmOTI4NTQ2YWVlNzg1NWNiMWRiOWFmYzhhYjNmMWE4YTM0ZDQzZGU1YmJkNjJmNzA3NmQ3YmE5ZjM5MTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI4ZDNiOWU4ODBhNzc5NzU0OTNkYzdlMzU5MTQ0YzAyOTVhNGY2OTRjZmUwYWY0ZjkyOGMyMjMwN2JjNWMzMjAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_4d31987162404034937a664773a1f0ea",
+      "statement": "specs/ is gitignored local scratch where every ticket at every depth gets five flow files (intent, design, decision, plan, summary), and anything worth keeping must also go to docs/adr or docs/solutions.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/templates/structure/specs-README.md#L1-L39",
+          "version": "repo-lines-v1:sha256:925277f7083a460125d9a78ac50f8def2ef07d76d701b2c64533c1eebdce34f4:eyJzZWxlY3RlZExpbmVDb3VudCI6MzksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBhNzc1Mjk3YTNhNGQ5MzBhZjI3ODkyN2I3MTQzODYxOTI5ZmQ2NWY2OGVlOTgyYmM0NjA0NjE2ZGNmOGFhNjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk5NWQ5MmY4MTNkZTBjNjJkNTQ0YmVkMzZhOTI4YzhkMGFkNTk0NjIwMDBkNTkwZDczYjcyY2FjMjM4ZmU1ZTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoyLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFmNWI3MmVlMWZhZjM3Yjk2ODhmZmM2MWNmZmQ0OWQ4N2QzZTEwOGJiNzUwZmVkMjFhYTc3M2NlZWE1MzA2M2MifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-26T15:02:34.678Z"
+  }
+}

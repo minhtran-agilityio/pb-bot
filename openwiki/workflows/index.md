@@ -1,0 +1,6 @@
+# Files
+
+- [Subagents and Model/Effort Selection](agents-and-model-selection.md) - The nine pd-bot role agents with their frontmatter-enforced tools, models and efforts, plus the rules for choosing models for subagents and fleet sessions, the hard limits on worker models, and when the advisor is called.
+- [Fleet Orchestration (pd-orchestrate, pd-work, pd-review, pd-advise)](fleet-orchestration.md) - How an Opus orchestrator session runs tickets with free agent sessions in Pod Bay workspaces - roles, the message protocol, receipts and reports, the ledger, the outcome contract, delivery, milestone runs on a feat branch, and the stuck-escalation ladder to advisors.
+- [Knowledge Store: ADRs, Solutions and Specs](knowledge-store-adr-and-solutions.md) - How pd-bot keeps one store per record type - ADRs in docs/adr written by write_adrs.py, lessons in docs/solutions built by the compound skill and an index script, and gitignored specs/ scratch scaffolded by init-structure.sh.
+- [Ticket-to-PR Skill Pipeline](ticket-to-pr-skill-pipeline.md) - The skill chain that takes one ticket from an intake readiness verdict and depth (S/M/L) through shaping, planning, step-by-step implementation, review and acceptance checks to a pull request, including the bug-fix path and the specs flow files.

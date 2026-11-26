@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "pages": {
+    "/openwiki/architecture/overview.md": {
+      "pageVersion": "sha256:e92631bf5c17f55525adbd0dbfb36e3a50a0a6b7baf1e379c7637c3e508e96aa",
+      "completedBy": "claude-code",
+      "completedRunId": "831e5523-0e42-4ee2-8771-c6520c3050f6",
+      "gitHead": "1720e70624ba154e72403b93152e161ccb4df158",
+      "sourceFingerprint": "sha256:22b5eb70c3af8852abf6379aea739391254dc79b69017baf9373ac38cb01cad9"
+    },
+    "/openwiki/hooks/hook-system.md": {
+      "pageVersion": "sha256:01e02b351b7e524d0d38c9513da264854ef029804dfd086e6c6d3c040d6b3226",
+      "completedBy": "claude-code",
+      "completedRunId": "831e5523-0e42-4ee2-8771-c6520c3050f6",
+      "gitHead": "1720e70624ba154e72403b93152e161ccb4df158",
+      "sourceFingerprint": "sha256:22b5eb70c3af8852abf6379aea739391254dc79b69017baf9373ac38cb01cad9"
+    },
+    "/openwiki/hooks/safety-guards-merge-secrets-evidence.md": {
+      "pageVersion": "sha256:48d724d7a253a09f9c55b9823dee8dbd7f8c659d06303ecf65fe92cf478ff9aa",
+      "completedBy": "claude-code",
+      "completedRunId": "831e5523-0e42-4ee2-8771-c6520c3050f6",
+      "gitHead": "1720e70624ba154e72403b93152e161ccb4df158",
+      "sourceFingerprint": "sha256:22b5eb70c3af8852abf6379aea739391254dc79b69017baf9373ac38cb01cad9"
+    },
+    "/openwiki/operations/fleet-checks-gate-and-settings.md": {
+      "pageVersion": "sha256:deec68d0971477d93a851e30637c7a5c9894b5c015ba0af08041fec516a4e8c8",
+      "completedBy": "claude-code",
+      "completedRunId": "831e5523-0e42-4ee2-8771-c6520c3050f6",
+      "gitHead": "1720e70624ba154e72403b93152e161ccb4df158",
+      "sourceFingerprint": "sha256:22b5eb70c3af8852abf6379aea739391254dc79b69017baf9373ac38cb01cad9"
+    },
+    "/openwiki/operations/release-and-plugin-packaging.md": {
+      "pageVersion": "sha256:348f0c641f175aab12c798e4541c1d22484ad2e9a6499227df7e7bf83bbccc7a",
+      "completedBy": "claude-code",
+      "completedRunId": "831e5523-0e42-4ee2-8771-c6520c3050f6",
+      "gitHead": "1720e70624ba154e72403b93152e161ccb4df158",
+      "sourceFingerprint": "sha256:22b5eb70c3af8852abf6379aea739391254dc79b69017baf9373ac38cb01cad9"
+    },
+    "/openwiki/pod-board/alerts-and-build-signing.md": {
+      "pageVersion": "sha256:8f294301c88324ce64c52ab324ec6cc97513b8e42b5701134ebeeb60bdb9311d",
+      "completedBy": "claude-code",
+      "completedRunId": "831e5523-0e42-4ee2-8771-c6520c3050f6",
+      "gitHead": "1720e70624ba154e72403b93152e161ccb4df158",
+      "sourceFingerprint": "sha256:22b5eb70c3af8852abf6379aea739391254dc79b69017baf9373ac38cb01cad9"
+    },
+    "/openwiki/pod-board/overview.md": {
+      "pageVersion": "sha256:10dddfacc84d3a1040c1f3a88c8e72e4711141743dea672a2e6ad6a3bf804ab0",
+      "completedBy": "claude-code",
+      "completedRunId": "831e5523-0e42-4ee2-8771-c6520c3050f6",
+      "gitHead": "1720e70624ba154e72403b93152e161ccb4df158",
+      "sourceFingerprint": "sha256:22b5eb70c3af8852abf6379aea739391254dc79b69017baf9373ac38cb01cad9"
+    },
+    "/openwiki/pod-shape/design-system-rules.md": {
+      "pageVersion": "sha256:b1a81779e42cdc1d5caeff19a62e7d28a45ed5f41c3c9a6b35f0f44d9fb7f1c5",
+      "completedBy": "claude-code",
+      "completedRunId": "831e5523-0e42-4ee2-8771-c6520c3050f6",
+      "gitHead": "1720e70624ba154e72403b93152e161ccb4df158",
+      "sourceFingerprint": "sha256:22b5eb70c3af8852abf6379aea739391254dc79b69017baf9373ac38cb01cad9"
+    },
+    "/openwiki/pod-shape/overview.md": {
+      "pageVersion": "sha256:087cf2abaee310006fca0ea36d0fbe98983c0b8713da8ce881004b2a9440534b",
+      "completedBy": "claude-code",
+      "completedRunId": "831e5523-0e42-4ee2-8771-c6520c3050f6",
+      "gitHead": "1720e70624ba154e72403b93152e161ccb4df158",
+      "sourceFingerprint": "sha256:22b5eb70c3af8852abf6379aea739391254dc79b69017baf9373ac38cb01cad9"
+    },
+    "/openwiki/quickstart.md": {
+      "pageVersion": "sha256:9e1b91cbede3ada6edeeef2625f17a29567f1801921495712ea9a7675d5164df",
+      "completedBy": "claude-code",
+      "completedRunId": "831e5523-0e42-4ee2-8771-c6520c3050f6",
+      "gitHead": "1720e70624ba154e72403b93152e161ccb4df158",
+      "sourceFingerprint": "sha256:22b5eb70c3af8852abf6379aea739391254dc79b69017baf9373ac38cb01cad9"
+    },
+    "/openwiki/testing/test-suite-and-ci.md": {
+      "pageVersion": "sha256:1e1568bb55ebf5d138450dd4d7accd241d70135f653587509ca27914200aa6c4",
+      "completedBy": "claude-code",
+      "completedRunId": "831e5523-0e42-4ee2-8771-c6520c3050f6",
+      "gitHead": "1720e70624ba154e72403b93152e161ccb4df158",
+      "sourceFingerprint": "sha256:22b5eb70c3af8852abf6379aea739391254dc79b69017baf9373ac38cb01cad9"
+    },
+    "/openwiki/workflows/agents-and-model-selection.md": {
+      "pageVersion": "sha256:09ba64efd364afbd396808642b9f5b2757d2148061864f22c780af5486c6e965",
+      "completedBy": "claude-code",
+      "completedRunId": "831e5523-0e42-4ee2-8771-c6520c3050f6",
+      "gitHead": "1720e70624ba154e72403b93152e161ccb4df158",
+      "sourceFingerprint": "sha256:22b5eb70c3af8852abf6379aea739391254dc79b69017baf9373ac38cb01cad9"
+    },
+    "/openwiki/workflows/fleet-orchestration.md": {
+      "pageVersion": "sha256:604c360bbde15441ce908864b4e07798bfbfd685f5d2a6e997ab40593315fd14",
+      "completedBy": "claude-code",
+      "completedRunId": "831e5523-0e42-4ee2-8771-c6520c3050f6",
+      "gitHead": "1720e70624ba154e72403b93152e161ccb4df158",
+      "sourceFingerprint": "sha256:22b5eb70c3af8852abf6379aea739391254dc79b69017baf9373ac38cb01cad9"
+    },
+    "/openwiki/workflows/knowledge-store-adr-and-solutions.md": {
+      "pageVersion": "sha256:b90bf725b0427fd5ff11e78adf0cd50c3eff30f7debbc3553ab210d3af118af4",
+      "completedBy": "claude-code",
+      "completedRunId": "831e5523-0e42-4ee2-8771-c6520c3050f6",
+      "gitHead": "1720e70624ba154e72403b93152e161ccb4df158",
+      "sourceFingerprint": "sha256:22b5eb70c3af8852abf6379aea739391254dc79b69017baf9373ac38cb01cad9"
+    },
+    "/openwiki/workflows/ticket-to-pr-skill-pipeline.md": {
+      "pageVersion": "sha256:3528785d2b1c3fd68e6fe01a07aa2b437324d9e8642519e979f5416d1939e64e",
+      "completedBy": "claude-code",
+      "completedRunId": "831e5523-0e42-4ee2-8771-c6520c3050f6",
+      "gitHead": "1720e70624ba154e72403b93152e161ccb4df158",
+      "sourceFingerprint": "sha256:22b5eb70c3af8852abf6379aea739391254dc79b69017baf9373ac38cb01cad9"
+    }
+  }
+}

@@ -1,0 +1,208 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:deec68d0971477d93a851e30637c7a5c9894b5c015ba0af08041fec516a4e8c8",
+  "claims": [
+    {
+      "id": "claim_8945028f72dc47c2adb6676bdfbd39d0",
+      "statement": "fleet-check.sh checks end-state results, not the order of work, running fixed checks in order: receipt, intent, report, decisions, acceptance, security, repro, suite; in block mode it exits 1 on any mismatch, in warn mode it always exits 0.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/scripts/fleet-check.sh#L1-L5",
+          "version": "repo-lines-v1:sha256:d850acb07aa9c86bbd4ebe0dc7929bb27fa235f026cb5b6d34700bb81f1fdeeb:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMWQ5NWZjMDRhODBjOTUyZjQ5Y2U0MTg4NjI3YzUzYjBmYmU4YzQ0MDQxYjk1MmQ1OTJhY2QxZGU5OTg2MTQ2NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzJjNDg1OGUyMmNjMmM5NjdiNDIxNTBmYTU1MDU2MmEyYzgzOWMyY2ViY2FhYjkxY2FiZGY2ZjRkYTAyMDAyMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiY2FjYjJkYzYxNDg4NWRmMjEyNTI4NDFjZjU4Zjg3NmRiYzBjNmRlZGM3ZGZlMTI1MjAwMjYzZDY4NjM5NDI5YiJ9"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/scripts/fleet-check.sh#L482-L511",
+          "version": "repo-lines-v1:sha256:1872b8fa65d76dfd163e49275af34f743c961dc28fd1bba1b9a0fc92ab4caecc:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMxYzUzMTJhNzFmMDczZDJlMGRhMGU3OTA1ZGQ3NThjOTZiOTU5M2U4MjIwYmEwOTgzNjQyYWNiNjRiM2U0MGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI4ZDNiOWU4ODBhNzc5NzU0OTNkYzdlMzU5MTQ0YzAyOTVhNGY2OTRjZmUwYWY0ZjkyOGMyMjMwN2JjNWMzMjAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQzYWRhYmI0YmY5M2U2ZjBkYmJhYjQ2OTE2MGNkZGI4NDUxNGE4ZDI3ZmI0Njg3Mjk5MjhmYjJmNDUwZWI1MWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f151de0fb3f0406a95c938ecdf34bb52",
+      "statement": "fleet-check.sh assumes the worker controls its checkout, so it never writes to --repo and runs git only against a private bare mirror built by fetching base and head by object name, with a cleared environment, no hooks, no global/system config and replace objects off; it refuses shallow repos and a head that does not descend from base.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/scripts/fleet-check.sh#L145-L172",
+          "version": "repo-lines-v1:sha256:20983e0d6862af6d8a81751639a94b9cab3e35f48b027bf6f4ef951d931247ef:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ4NzBiZDQ0N2EwNTBmZDc2OWVhYzAwZTQwMWU5NDRmN2NlZDdiNTBkMzEzZmUyMjliZGY2ZmMyODU0MmU4MTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU0MDE1Yzc4ZGNmNWM5NGFlNDk2NWI0ZGMzYTY4ZTUwYWY5MGNlMmExNDUzOGMzNTBkOWJiOTM0MjIzZDZmMjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY0OTYzNmRiNDU3ZWIxZDM0YmU1ZDE2YTZkOGI2MTkzOWRjNmI0Zjg4Njc5ZjlhM2UzOGI1OTAwYzNlMDIwODkifQ"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/scripts/fleet-check.sh#L6-L15",
+          "version": "repo-lines-v1:sha256:c1985d0c3a5f835384db6c854eb4cbfef6af0b004964d4d1f70e763a9c6b4b2f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMxMzM5OThjODNjMWU4ZTFhYWQ1OWI5ZjJhYjViYmYyYzUwZDRlODEzMzlhYmUxNmEwNzMxZWJmODVkNzNkYzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFlZjE4Y2Y1NjQ1NjIyMGUwZDVkYmIwYjU3NmUzYzFjZmIyODEyZWU3NmU0Y2RlMjE5YWM2Yjc4ZjJhZjFkYWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJjOWM0ZTJhN2E1YjAwOWQ4M2EwNGZmMjQ2N2UwZDI4NmQzNjhkZjE5NGFmYjEzMTRiMmQ1YWFiMWZiNjY5OGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlhMjVhMWM4N2VjZmZhZWU3ZWRmOGMyZGIxNjYxZWIwMTA4Yzk0ZjE0MWMyYzA2NTcyYWFkMjA3YTg5YzUwZGUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_71b3cfe7740c490aacd8fc3c457ce085",
+      "statement": "fleet-check.sh runs the repro and suite commands (the worker's own code) in a reduced env -i environment inside throwaway worktrees, but they are not sandboxed and can still read the disk and use the network.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/scripts/fleet-check.sh#L17-L20",
+          "version": "repo-lines-v1:sha256:59394f31a59bd3ff921cb156ca7f7ba06cf8d8e7cfd50ea6a13f593dc4bc7dd9:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMWVlZTBkYjhhOWRlYTUzOTRlYTYwMWIxMWY0YTJkNTc2MjM1MjU3M2Q3OWRmZjk4MTBiZTI0NWJjZTkwNjM4MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYWMzZTAyMDcyZTZiOTI1NzQzMTViOTUzZWI5MzZmYzVkYmRiYTI3MzhmOTZlN2NkZGU2MTYwNzU5NjcwOTM3ZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDk4NWE3MDI4YWEwZjg4ZDAzOWI5MTQxYWY4YmVkNTBlYjJhZGI3MTk1NzdiMzBlMTE3MDYwZWQzMTcwNDc4ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYzFkMmE4MDM3NjMzMGI5MjE2MzRkMGJjOWNkYmY1MjlkMTgyNTE5OWFmMmM1ODMwZjRmZTkwYTBlNjdhZGExNyJ9"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/scripts/fleet-check.sh#L427-L435",
+          "version": "repo-lines-v1:sha256:ff9906668de454f8ec444524039b8e7b5c1d5972482660fd3443333ee16fd66c:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjg3NGJiMTg1OGFmYmE1ODA5MWFjNjliOTVhYjZmZWVlZWExMmY0N2UxYzNiMTAzYmJlZWVlYjFhOWRlNzRlZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDEyY2EzNDVjY2Y3NWJmOWMwODA2YmNlNjk1YmU4ZGU4MDhiNzk5ODQyNTFhN2E1NGQyMDJjZjYxMDFkZDQ1MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZGI3NDc4ZmFmNWIxZDAzNjNmNTI4MWFmY2NhZmM4YmJhNWJiNmJkMmRhMGJkOTNjZGRhZDA4YzFhYjBmZWRkMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOWU4YmU4ZTk5OWE1YTc3MjBmNjM2YjhhMjFjNTBhNGJiZTljMGUyMDY4YmFlN2NhYjUwNjk4MTJmNTE5YTIxNiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_f77ebe285d6a4c87ab7c28844e15d64a",
+      "statement": "The fleet-check receipt check passes only when receipt.json's head equals --head, its verdict is pass, no finding is open, all statuses and severities are known, and each accepted finding names accepted_by advisor or owner; the intent check needs verdict match with no gaps.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/scripts/fleet-check.sh#L248-L293",
+          "version": "repo-lines-v1:sha256:ede26351ccac8ea89c3c32f0493bb110d673540d725fe957c401c8811cdd0c58:eyJzZWxlY3RlZExpbmVDb3VudCI6NDYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM2YjMxNmUzNTZiMjk1NjI2YzdlOWM1N2JkMTg3N2MzZDZhZTM1Njg5NTc1OTFlZmM1OGNmNDk5NTQ3ODRhZGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ5OWRiNWZhZDY3Y2I1ODhlOGNlOTg2ZDhhZjAwNjc1MzFlNTY2MDQ3OGQ3OGEzNjZiZGM5YzI2YzczNDM5NzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAxMDA4Yzc0ODFiZjUyOTRjNWUwZTRiYzQ0MWRiYTcwOTk3YWY2OGExODYyNTQwZDYzZmQwMWU3YTBmODI2NTMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5912f18e1447447fab41b881401706b7",
+      "statement": "The fleet-check acceptance check requires each QA commit to touch only the QA directory, no other commit to touch it, no merge commits in the range, and every code commit to descend from the first QA commit (tests before code).",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/scripts/fleet-check.sh#L360-L387",
+          "version": "repo-lines-v1:sha256:efa903e86994ba03230ef6b08366a24c0652f4502e806e405af87349ad43dcee:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc0MTc1MWFjOTQxYjBmYWJhOTVjZGVmMjQwOGEyNjdmNjAyNTk3MTRlZjQwYWViOThjYzk5YWRlZDc1NDIyNDkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI2MTQzYjg5ZWViZjBjOTkxZWQ2NzM5MzVmNWVkMjRmZDI3YmYxNTY5ZDRmNmRhMWMwYWU3NDExNGY2ZDUxNWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIyOTFjYWQxYTkwOWY3MzVkNjUyYzBhNTA3OTQ1ODcyZDgzMTQ5MTU0MjY1YThlMmI3NGM1YjYwNTIzZmNmNTcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_008e1afb612346f6af8c7c8fd25bc4a4",
+      "statement": "The fleet-check security check matches changed paths against a risky pattern (hooks, migrations, auth, security, secrets, scripts, .github, settings files, .sql, .env, REVIEW.md) and requires a head-matching security-receipt.json with no open critical or high finding when a path is risky or --risky is given.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/scripts/fleet-check.sh#L389-L425",
+          "version": "repo-lines-v1:sha256:89ef35327c7347363703d5186d68a9efc071f04c87aaea394cf68fd998348874:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE4MDI1NDg3Mjg1MTFlNWRlY2QyM2I0ZDU4NmUyYmVhZjY0MGRlYmM0MjkxOTdmZDIzMmY4ODhiMzc1YTYzZjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJkNzhhMjYwYTBmZjY5Nzk2MjZiOTFlNzIyNjk3ODIyMGI4ODY5NDRjMzAyNjVkZWRkYzRhM2FiOTk0ZjczZDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImEwMTA1NTgwODNhOGExODMyYWMwMzdkYzI2YTJmYTVkNjIyYmJjOTFlNjJkZjZjNDkwMGFmNDY0MGJjN2NkNGEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_93197c2867f24d97ad9b2a57d3ca9909",
+      "statement": "The fleet-check repro check passes only when the repro command is red on base (with the worker's test files overlaid from head) and green on head, and the decisions check treats a needs_review decision as unseen unless its title is in the trusted --decisions-seen file.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/scripts/fleet-check.sh#L320-L345",
+          "version": "repo-lines-v1:sha256:5202fddf9c76ac75feb422402a8f1cb6ded4ef9badbcdf23bb380c4cbee6ae14:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMxYzNkZGJmZWE3NWZiNWEwYjU1MjYzZmI0OTE2YzBmZGExOGQyYzAzODM5MTRiNjNiNjFjZjY1ZmE4MjZjOGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYwZTVkZjRjOGY5OWE2ZjFjMzNjNjZmZGYyNjZlYmYxNjE2MWYzN2YwYmJjMDNlYjNmZjNmMDg5ZWRlYmU4MzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJkNDVhNDEyYjQwYmI4Zjc4Y2IyNzFkNDhjOGRjNzc4NWIzODNmOGU4NjlkMWNmY2FiMzA1YmFkYTg3MGFhYTIifQ"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/scripts/fleet-check.sh#L438-L470",
+          "version": "repo-lines-v1:sha256:2e11af876e7e8f3620b2b436540a5c98478608766f177bd3d5d87f207757ec32:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMzNDNhZDFlMjgwODdhMTRlNzNiZDJlYzE1M2IyYTdmMmJjYTlmNTEyYzFlMzM1NjYyZWExNTk3NGVlMmUxYjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE3NjEyY2M0OWM1NTliMjA4YzEyODE5ODQ3ZGU0ZTQ4YTQwZWU1YTgzNmUzYmQ0NGMyZjhhZDUxY2ZiYTg2NzIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE1ZDNlOGY3MGNlYjgyNWIyYmUxZmZjYzJlNzAzY2VmMDRhNjNiODY1NWRmOGIwYzk4ZjJhZGQ2NmVmMDUzMGIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_49de157667a9425cbaaadb6b2d4fd731",
+      "statement": "fleet-gate.sh only decides and never changes the PR: it passes only when the evidence is a block-mode fleet-check on --head with zero mismatches and a passing suite, every CI check passed, and the PR is open, non-draft, targets exactly the given feat/* base, has the matching head and no pd-bot:owner-merge label, and the checked base is in the feature branch history.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/scripts/fleet-gate.sh#L1-L15",
+          "version": "repo-lines-v1:sha256:59cdda7bd459744dbcefc881534c940a7d3fdaee83b6841edb96bf8e687ed5e4:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI4NzVmOTI4NTQ2YWVlNzg1NWNiMWRiOWFmYzhhYjNmMWE4YTM0ZDQzZGU1YmJkNjJmNzA3NmQ3YmE5ZjM5MTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU1N2RmMzEwZjA0NWY3YmVlODBlMjlmOWE0OTQ3N2EyMTVlZGNiYmIyZThmMzkyMzVlZGY0ZWU1NjkwZTNkZDEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNjZmY3OTNkMTg4OGQ0YmQzYjA5MGNmYWZmYTVlODhlYjAxMTU1ZDJlZjE2YzA5YmI0NjEzZTE3ZWE1YWEwNzgifQ"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/scripts/fleet-gate.sh#L116-L139",
+          "version": "repo-lines-v1:sha256:08d49c2e8f8145cbfb811f9deb94b758a7127228bd51ef5a3bb96a2533f99c57:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkZTg5OWU5MDliY2M3ZjYwYWRhYzEwZDk3ZDcwYzU5N2I3YjBlYTg5ZjQ2MWYyYjZkYmFmYmU0NGNmMTA2YWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZjM2M2ZGU2NTIzMzc5NmYwODYwMzA3NTI0MDViNzUxMmY4NDVkOTBkNzFmZTQ2OTQ1YWIwYmY1MzlkYzZkZmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxZGVkYjYwOGJiN2QzMWQxNGMyNTE0YjViMTdmZDllMWM3NmNkZTM4NjY1ZTQ1NDRlNDEzMmFhZDNkOTNhYjYifQ"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/scripts/fleet-gate.sh#L196-L231",
+          "version": "repo-lines-v1:sha256:2f77fcb41d0a6a593942c1ba56b8d15086db88147752d1f188929a1ab04c9f38:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVkNzA0OGMxNjBhYjY0ZWJmODVkZmY0ZTFmNjgwNGI4YjEzN2EzYjYwNzljNGFlMTljMWRiMTQ3MDE0NDU5MGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBmMTRkODFiY2EzZTVmZTExNmUwNWE0YTJhN2FhY2JjNGVlNWMwODljMzc2MTY0YjU3MGEwYWFhOWUwZmYwNWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk1ZTJkZTkzN2E5ODFhOTI3M2MyNjAyMjUyMDMyMTAzYTE4YTU3MDMwNWMyZGM3ZjZjZjkwZWQ4NGUyMzNhMzYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_44a2851e0e2e464abc957d052193325f",
+      "statement": "fleet-gate.sh rejects any --base that is not a feat/<name> branch, and on a pass prints (rather than runs) a gh pr merge command with --match-head-commit so the orchestrator runs it as its own Bash call and merge-guard still judges it.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/scripts/fleet-gate.sh#L1-L5",
+          "version": "repo-lines-v1:sha256:37056d311cf069a97a40e474e30758487b726f1c8cc6169df4e9531a44e43934:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjg3NWY5Mjg1NDZhZWU3ODU1Y2IxZGI5YWZjOGFiM2YxYThhMzRkNDNkZTViYmQ2MmY3MDc2ZDdiYTlmMzkxNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzJjNDg1OGUyMmNjMmM5NjdiNDIxNTBmYTU1MDU2MmEyYzgzOWMyY2ViY2FhYjkxY2FiZGY2ZjRkYTAyMDAyMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjQ0ODY4ZGI4MDM4ZGMyM2U5ZTE5NmNlMzI4NjI5NzVhMzg4MGE5ODAxYTVmNjhlZWNlNmM5YjUwOGVlYzM4NiJ9"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/scripts/fleet-gate.sh#L256-L262",
+          "version": "repo-lines-v1:sha256:4e4c738b93d3d927c551dadba45d66a1f0a269fd831699394b47b9eed55cdda3:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWYzNjRhMDZjOWZjYzY3MGRjMzk1NDkyZTBlNWQzNWY5ZWY4MjU2Yzk0NDljNjU2YzZlOGNlZjRkZWQ2MGY2NSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjhkM2I5ZTg4MGE3Nzk3NTQ5M2RjN2UzNTkxNDRjMDI5NWE0ZjY5NGNmZTBhZjRmOTI4YzIyMzA3YmM1YzMyMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmU5ZTIxNjQ5MDgxY2ZmZDMyZTI2NTQ1YzA4ODYyMDBjMjg5MTNkOWQzZmI3ZDk0ZTZhYjAyYjlhMjE1OGY1ZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/scripts/fleet-gate.sh#L71-L75",
+          "version": "repo-lines-v1:sha256:af14b7bf70cdc365df46b87f3f746233451f2ba5393ec560cc7ff320af373182:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDdjZTdhOWVkNTQxNjJiYzk0ZjBjNDRhYzU0ZjliM2U5ZmVlZGU1NzE3NmMxMzE1OTJmMTljZDFhOTEwMTE5OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzRhMmJlY2ZmOGFmYjM0ZGIyNjBkYWJjOTY5MTVmZmVjZmRlODQ4OTI5NTQxYzYxOTNkZTZkMTY0YzIxZThkYSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTczYWEwOGYwNDIxYWMwYzJhOTFkNDBhYTllOGQwZTBlYzFjMTc3MjAzYTUzOWUzZjk3YWI2MmMyNTczYzk0ZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMWE4NjZlY2YyZGQyMjhjYzBjNjQxYjI2NTk5YmI3NWViZWEzYzRiYzNhMzVkN2UxZWFiNjdjOGExMTJhY2RkNSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_34ffe06221384ba48fd638566e5084ac",
+      "statement": "fleet-gate.sh waits for pending, missing or erroring CI checks up to --wait seconds, polling every 30 s by default, while a failed check is final.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/scripts/fleet-gate.sh#L141-L192",
+          "version": "repo-lines-v1:sha256:ad7a667034185d2caad2c7cfe3e7e24ef0ebfc1ba31cfde6a60c4a69b6848262:eyJzZWxlY3RlZExpbmVDb3VudCI6NTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjllMTZkMDg0MjhiNjY1NTRkODIxMWRiNzQ3NTI0NTQxYWYzZjYxZDM1ZmFkOWE0NmY5NzM2YWM1YmU4Zjc5ZTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEwZDQ1MTYwMTMwOWYyZWU0YjRlYzI2OWNlYmFiZGQ3MzE2YTc4NmU2MDBlNDM0YjY0Y2FmYjkxNzgyMTdmYmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBmMTRkODFiY2EzZTVmZTExNmUwNWE0YTJhN2FhY2JjNGVlNWMwODljMzc2MTY0YjU3MGEwYWFhOWUwZmYwNWYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_8eb52ebbc30646faa3df030f946a25d1",
+      "statement": "fleet-settings.py writes role settings (model, effort, permission mode, PD_BOT_ROLE/TICKET/RUN and the fleet-trim.json token trim) into the workspace's .claude/settings.local.json, refusing when that file is not git-ignored, when paths are symlinks, or when bypassPermissions would be set.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/scripts/fleet-settings.py#L1-L39",
+          "version": "repo-lines-v1:sha256:822bd9f9d8a57d157f96f7d18a28ce94930a79edaa4f21016b10cade117fdd2b:eyJzZWxlY3RlZExpbmVDb3VudCI6MzksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ2ODJjYmRiNGM4YjA3NTE4YmY0ODZjNTg5OTBmYzM5MTc4M2FhMjBhOTE2YmZiMjdhZDIxMWViMWQ1YzM2NDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAwNjY5ODA3Zjc1OWNhMDM2YmRmZDc3YzI2NDI2ODQ1ZjUwYzY5ZDcwOTYxZjExNjdjNmZhNDI2MGIyMDc4M2QifQ"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/scripts/fleet-settings.py#L237-L246",
+          "version": "repo-lines-v1:sha256:4d73363a930d4a639ec38949e3a645d3bd4fff68c17fa5618db21ebacb3335b4:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRlODZjODdkNTE1NGEyNmJmMzNlMDkxZjNmNTRjYTA4YTk1MmI5YWE3YWE1YWFlY2RkOGQ4MDNhYTljZTk3MmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2ZDAxYzA5ZjE3M2UxNjM0NDg2ZTFmNWJjZWQ3ZDkyZTllYzQxMDEyMWMwZWQwZDhhNGY1MmJlMTNlZDhiODkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM2ODBkY2NhOGIyZTU3MDVkOGEzMmEwNmJiM2E0MmUzZDAwMGZiOGU0N2ZmNTgwNzA0OTQ2ZDk4ODVjNGEyNzkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlmN2YwMGE2MmJiNDEwN2U1MWI0MWJiMDY2YjAyZTdmMTBmYzA2YTkyZDllZGE1MDJiOGY0ZjllMjdmZmNhNTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_896596ec620746c09c67167ac2352672",
+      "statement": "fleet-settings.py refuses a worker model that is not Sonnet or Haiku unless --depth L or --escalated is given.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/scripts/fleet-settings.py#L22-L24",
+          "version": "repo-lines-v1:sha256:3c52551e7e7949447571720734b3d02edae9548632486085ebc6c59362b6f66c:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjg4NDYzNmU1ZDAyZDFkNjE4ZDVjNWFiMWNhYjhhMWI4YzlmZjE5YjQxZTUzZmYwNWNhYTBiNDFkZGQ2YTkxMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZmNmMGFiYTNhZjBiZmVmYmJiYzNhNjNlZDljODU0NGI1MDRiNTUwNjcyMTFmNDAwY2JiOWM1NWNiNmZiNzE4YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjg5Yjk4MjY1NWEyZmMzMGNlNWEzZTg4ODExYzM0NzgzOGRhMzg2NjBmNmM4ZGZlMGJhYzFjNmRmNjVjMDMyOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmUzNDE0YmRlMDU1ZTYwM2QxZmYzOWY4OTMxMmZkMzU3NDIyNzVjMzkwNWVmOWM5MDJkOTM1ZDcxZTM2OTZiYiJ9"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/scripts/fleet-settings.py#L338-L341",
+          "version": "repo-lines-v1:sha256:b241780e57ccb1c8382a254f7d856767c38002966590db85e7454e88135cab20:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOWVhNTVmZWNlNWI3NTQyZjhkOWUxZGMzZmQyNDdkZjRlY2JiMmQ2MzI4ZTRkNzhhOTZkNWI5OWUxNmVkZTAwYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOWZkNTI0YzVmOGY4NDhjODJhZjE2NDBmNDM3NTIwNzdmNDYzY2VjNGYxZjg3ZmI0YTZiNGRhMTliYjAyZDFiOCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZGU4ZGY0ZDYzYWU0MjdiNDJkYTIzNDRmNDQxMWJlOTk5MTU0MjVkOTU4ZGUzOTY2ZjVhNTUxNThjMmZlNzliMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTdjOWVlNDQyM2UyNmZkYTI3NzMyYTM4MjIxZGNkOWY1YjdiYzU5NDg3MGM4ZmY5OGE4Y2UxZjY5M2Y3MTA4ZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_004fe50a52054f9da9dbdea3f3be77cf",
+      "statement": "fleet-settings.py saves the prior values of every key it sets in the checkout's git directory (never the work tree) and --restore puts back only those keys, keeping other later changes and removing the file if it did not exist before.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/scripts/fleet-settings.py#L189-L214",
+          "version": "repo-lines-v1:sha256:ec794f30b61f98b647832d08e8f73f4af8ffd41aa64c88ebc5fcb07f297d15f8:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk5OWIwMTdmNzJiYzI0ZDhjM2NlYWNmZjcwODYxNGM4YjFiZDk4ZGI0ZDRkYTQzYjI5NGYxYWRmYTFkNjU0NDAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjczNWQzZGU2NmY0YTcyODk2ZDYyYTI0ZGM4YjA3NTU1YjQ3MTk0OTU3MTY2MDhkZmJhZDg1OTQwMmMzNjU2ZjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYxNzhhNmM4YzU3ODA1ZGQ0MDBlNDg3ZWQ5ZDVhNDlhZDA1MzNhNGYxMDE5YTdmODI3ZTQxYWVhOWVlOWQ2MDUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFmYjM0ODYzYzJmNDlkOTk4N2M4NTdkOGNjYzg1ZjIzODVkYjNkMDc5OGQ0ZTZjMGRlM2U2NmRmYWUwNWMzMzAifQ"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/scripts/fleet-settings.py#L26-L31",
+          "version": "repo-lines-v1:sha256:8b373da4855378ab4ccb94776c65c1c58691c44874b1331b5ab03b7be5f19848:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNGE5ZjkxZmVkMDJiM2MzMDc2ZjkzZDFiY2ZhNjJhMzAwNGJiZDYwODc5NTc2MTgwMGU2NGRjOTA5OGRlMGE4OSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTM1MDczZGExNWU3MzA2NTlhNDEyYzg4Y2E4ODQ1MjhmNjc5NmZiOWJkYWUwZDYwMWRlNmVhZjk3ZGZhOGE4ZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYmVlMDJkMWRkOTAyZTM4NWI3NzEwYmUzOGQzZTcxMTBmY2E2YjcyOWNkZWU4N2UwOTI2YTkyMTA1OTRhYTU3NyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYmU1OGE4MzY1NGM2ZGFhZTAwMGJiNTE1ODAzNmNjNjhlZGJkZWQwN2M2MjU5ZWU1ZGIyN2QyNmMwNmRjYmE4ZiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_7af1d226b4d046cab5f5d9d1d708a6dd",
+      "statement": "autoCompactWindow is written to a workspace only with --compact-window N (100000 to 999999999) and is never copied from fleet-trim.json; the trim file disables claude.ai connectors and several unused plugins.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/scripts/fleet-settings.py#L78-L95",
+          "version": "repo-lines-v1:sha256:b1068b8e6a9c6552e04f72ae3d1326c04c1c14a6a618ac7aebf3ad1ade8ec69d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBmYjlkNzY1OTI5ODcyNzNiNmJlNzUwZWE4MWRhMzAzZmQ5ZmFlOTg5ZmMxMTEzMzUzYTExZDMzOGE2OGI0MDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFlNmEyOWJkOTMyOTkwMzZhMWQ3MGVjZDQyNGUzMjY3ZTQzMTYyODhkOTVmNTk5MzM0YTljZDQyZmZmMDVkOGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM1MjJlYzk4OThlZGEzMzMxY2VlMGFjNmI4Mjk4MmJmMDkxMWRjMDliN2NhODc4NDUxMjE0NDI4Y2YwMmJmNDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhlYTRlMjg3YmIzMzNlNmE0MjkyYjZiYWZhMzA4MDE5ZTBlMDYyYmFkMGRlOTFkNzZjOGYzMTdiY2ExYmMyMDQifQ"
+        },
+        {
+          "resource": "repo://plugins/pd-bot/scripts/fleet-trim.json#L1-L9",
+          "version": "repo-lines-v1:sha256:e94454af6237843d9f5ec5e28c886726c752f1b5b6896cf61cc459583777b4d4:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTZmYjA4ZmRhMWFjYjk1N2I2MTE2YmQzNzgxMWExZmU0MWEwMTYxMWMwNjMxZWRiZjc4NmQ2ODg5YTI3YTU1YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDEyY2EzNDVjY2Y3NWJmOWMwODA2YmNlNjk1YmU4ZGU4MDhiNzk5ODQyNTFhN2E1NGQyMDJjZjYxMDFkZDQ1MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_dd8fffdbcafe4cc3ad6cee75483305ae",
+      "statement": "ledger-backup.py copies the gitignored orchestrator ledger to <git dir>/pd-bot/fleet/<run>/ledger.json after each write so it survives git clean, and --restore copies it back when the ledger is missing.",
+      "evidence": [
+        {
+          "resource": "repo://plugins/pd-bot/scripts/ledger-backup.py#L1-L13",
+          "version": "repo-lines-v1:sha256:68d30ce051f670491e19d8f2155a34015c7efd67c0b7f25edf25ec04f995763f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ2ODJjYmRiNGM4YjA3NTE4YmY0ODZjNTg5OTBmYzM5MTc4M2FhMjBhOTE2YmZiMjdhZDIxMWViMWQ1YzM2NDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJlMzI1ZjZmMTI5NTM2MmEyZWI3ZTgyZGY5YzQ1MmJjMWYwYzllMTc5MDlhNTMzNDE5YThmZWNhMjQyMGQ2Y2UiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVlOTVlY2FhMTNmYTg3N2IxMjE4YjEyNWNmMWU1Yjc4MTBmZjk2YWI0NTkxMDIwODE4ZmYyNmQ5ODRjMDZiNDkifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-26T15:02:34.678Z"
+  }
+}

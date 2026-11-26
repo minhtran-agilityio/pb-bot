@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:087cf2abaee310006fca0ea36d0fbe98983c0b8713da8ce881004b2a9440534b",
+  "claims": [
+    {
+      "id": "claim_8fd6fe2bd7ef46cb88c7c33bbf660808",
+      "statement": "Shape Board stores data in SQLite with embedded numbered migrations run in order, each in its own transaction, with PRAGMA user_version recording how many ran so an already-migrated database re-runs nothing; the connection uses WAL and foreign keys.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-shape/src-tauri/src/db.rs#L1-L42",
+          "version": "repo-lines-v1:sha256:40f008173ef7089ed0563c4ab5e88708053fc26820c4549e6e7c7343e979c0f7:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZhMmJhYmYzMTVjNWI1ODJkMTg2ZjI4ZjZjZWJjM2Y5MDdiYWM1YmJhODgwOGYzMWQzY2ZiNmZlNTNkMDQyMjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVjMmJiZWU1NTIzMzRkMzAxZDE1NzNlN2FhYjA4NmNiZTIyYzczOTk3NjM2MTZiN2EwN2MyMDgwNmJiNTg5MWUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_fe8b3b4979ec496388a4bdce0e6a79ab",
+      "statement": "The grill schema constrains session state to running, waiting_owner, brief_ready, confirmed, stopped or failed, and records every claude run with its process group and process start time for an orphan sweep.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-shape/src-tauri/migrations/0003_grill.sql#L64-L82",
+          "version": "repo-lines-v1:sha256:7c285e1c16c51c580a5f84b16eb5c2eafc05974996de4fc06076d8306531f1d7:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwMjgyN2U4ZDM4NGM2Yzc4YWQxODdjNWRiNTk4N2MwYWQxNGJmODI4ZThmMmNmNzRiMTE3YjkzY2U0NjlmYzAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYxY2U2ZmFjZTg1OGNjM2VmZjI4ZjdlNmRkOWVmMWJkYTgwNzdkMDIxYmZiN2NlOGViMWY5YmM5OWEyYTE0ZWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE3MGQ3MWQ3NGExMzY3Njk4N2U0NmI1ZDdhMmEwMDIwZGU0MWJiNmY4NGNlNjgyOGNiYTkzODRhZTIyY2M1MGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://apps/pod-shape/src-tauri/migrations/0003_grill.sql#L7-L27",
+          "version": "repo-lines-v1:sha256:f09f03e44f2058a19804aaaf5f2e169dade6db4afbb553c73344b6fdf0b29179:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU3NDVkZmUwM2RmODZlN2IzNTcyODZkMWZkYzNmMDQ3YzU3NWVhYmM4MDMxMmRmOTM0NmQyZDkzMDUxZjU0Y2IiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ5OTY3ZWMxZWQzODM2ZjhlYjE3YWZmMTcyYjViZmVmN2RlNjA0ODVhNDM5YzZjYTExYzU5MWUxNzU1NzM5YWUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNhYzQxNzkwNmEyZGJjOTNiMTc0Yzk2NDMyNWFhODU2ZDcyY2RiNGUxNzA4OWYzNWQwNDFmOWVlNzA2MGY2NWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRlZmVmOGZhMmQwNGI4YWRmNmI1NDYwZTUxMGM2ODgxMjJmMWU1MDViNTMwYWMyMWIxZWZmN2E1NDBjNDZjOGQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_34e263a890e04a7180e0803817573140",
+      "statement": "Artifacts are stored as versions with HTML up to 5 MiB and a SHA-256, a hook file is imported once by unique file identity, and an artifact with no project stays in the New artifacts inbox (state new) until added or ignored.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-shape/src-tauri/migrations/0002_artifacts.sql#L1-L32",
+          "version": "repo-lines-v1:sha256:2608394be2ac4e60b2f56f944469f9b89c53dd998e7ff624eae66d2a9305f62b:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA1YzljZjA4NTk0ZDkwYzE0NGQ1ODgxZDJmZDFmMTM0YjE0NDhiNzRkNzI0NWYzZmUyYWY4ZjAyZWJkNDU4ZjMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM0NjQ2MTY5NjVmYjk2MjQ5OTZiNWE1MzYxOTkyN2FjNjY1MWYzNjEzNmRhYzQyMzQ2YWVlODI4NDM2YzM5ZGYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImMxZTJiMDJhNTA1YmE1YzVkOTFjNzkyNzVjMWY4NzNlOTczNGU5ZjAwMjJmZmI5ZjJjYWQ3NDNhNzcyN2M2ZDMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_9dd4acd811284129a4904c62f71a7873",
+      "statement": "At startup the app takes a single-instance lock, opens the database, runs grill recovery, builds the main window with a navigation guard that denies new windows and downloads, and starts an artifact watcher that emits artifacts-changed events.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-shape/src-tauri/src/lib.rs#L244-L310",
+          "version": "repo-lines-v1:sha256:36d14967fe822db742cb5b484126960a9525fc46fdea617ce5fbcf3e106b0c9d:eyJzZWxlY3RlZExpbmVDb3VudCI6NjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMxN2MxYTA3MGVjNGVkYWE4MWExZTdkNDA2ZWZjMDYzZDcxMWFmMDgxYmUyNjFhZTI1ZThkNGQ4Yjc3ZjJhY2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY5YjE5ODJlOGRkNzQ4MTE4MTQ2YjM5YTJkMDA2MmY0MDgxZTM0Nzc5Yjg2NzVjMjM0YzRmYjEyNGRjMzkzOTAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU3YTQ3OThhYWZmMzNkOTRiODhjNDlmMDljZDNlZjdkODc0Yjk0NmExMWI0NzliYzQyNjZjZTY4NWI5YmExOTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhkYTZmNTRlOWZhNGVmMjFmZTg4MTgyNjEzN2JiM2RiMmRkZDFjNzBlZGQ2NmY2ZmI2M2FiYzc2OTYzMzNiNzYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2494a660c77f4d72a743b081057fd02a",
+      "statement": "The registered Tauri commands cover projects and checks, artifacts and previews, and grill start, answer, send, confirm, stop, resume and ADR decide; none generates issues or reads issue status.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-shape/src-tauri/src/lib.rs#L311-L339",
+          "version": "repo-lines-v1:sha256:52e70d95a4522f341089ca93ec941701813231fee3d95526147e45ffbb524279:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhM2I5NWFlMzgyMWJjZmZjNDQzYjQzOWUxZjY5Nzc1MmUxNjA1ZDdkNTVmZjA2OGY4ZDk4NzE2MzFhMjRkZDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAyNzZjMWQxZjk3ODVlNTU2MGQwYmI1Zjc5YzJlOTc5OTk3YjcwY2RlZDFmM2I2OGVlYjBjZDE5MTBhZTIyN2EiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImMxMGQ2ZGZiNTdmMGZlMjZiNDI1YTc2YjdiMTQ5ODY1NDM1ZDAxZTM5ZGQ2NmE3ZGU0MjM3YTY2MTU0ZTkzZGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVkYTE4OTcxM2RjZDQ1ZmRkNmMzYTA0MTVlYTkyYzUyZDYyNDM2ZGY5MzNhMGRlMzQ0OWZjMDAwMTMwMzM4YmQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_589be047f70341b29a16d8e0e0cb66eb",
+      "statement": "The grill never types the pd-shape slash command: it sends the skill's SKILL.md body (frontmatter removed) as the first message, because a skill's allowed-tools would widen the permission fence even under dontAsk.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-shape/src-tauri/src/grill/engine.rs#L184-L189",
+          "version": "repo-lines-v1:sha256:176c9d7b9a60948310f3366838c65e75bd99243f07fb15dc9220b39b9fb08545:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiN2RkM2M2NTZkMDFhYTc1NWZjNWUxZjdhN2RhMTRiMmQ2ODI5ZjUxNWYwYmRlMzU2Yjk0NDc2ZDhkZGQzZmY3NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiODdkYzYzMGY2ODVjNDhhNjQ2ZmNjOWE4N2IyOWU1ODI0NjVmNjM3NmRjYjgyODMzMTJkYzQ3NzQ2ODg3NGVjZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzJhNmQ5MGZiODlhYjFhNDNmNTcyYTg3MTgzZGU5MDlkOGE3NWU4YTJkNWZkMjUxMDMzNzBhMmVmN2Y0NmIxZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNmRlMDNlZjQ4MjZiMjQ1NDViNDQ1NzZiNmJhMGNlZWY0NWUzNjE1YzIzNGFkMjhhNGE5MTc3OTIxNmUyZGZkYSJ9"
+        },
+        {
+          "resource": "repo://apps/pod-shape/src-tauri/src/grill/flags.rs#L34-L48",
+          "version": "repo-lines-v1:sha256:6a92b28502841ea02393d7a849f80bdb18446e11aee8e25e23be5ee5784ba1e5:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM5MzI3NTAwOTAwYWRhYWRkZWU5NTVjN2QxNDNlNTNjYTE4ZGM2M2E1ODhiZDU3MTcwMGYwYWQ3YjU0NThhYzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZjZmMyOTg1ZDlkZjFkZjg4NmJmYjU1Yzk4YjU4YmVlZTkyODM3MDgzYzlmNjI4OGU2OGI1ZjJhYWU1MmYwNjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVhZTQ4YTVjMGE2YTg3YmE4NThjMTkwMmFjYmYzODg4N2M2ZDMyNzlmNzY3YWUwZGE3ZTE0YzA2OGYyNDZiY2UifQ"
+        },
+        {
+          "resource": "repo://apps/pod-shape/src-tauri/src/grill/flags.rs#L4-L11",
+          "version": "repo-lines-v1:sha256:1b8393a3d54e6da576de1c17ced2b992ac52ee88caca8987647b69390bd06a11:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDA5MTE1ZjkyMjQ0YmZkNjEyNWIwZmFlZGQ0NWM0OWE3NzMyNTc3OTRiZDJiM2JhY2I0YzRmY2YzM2I3NTBkZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYmZkOTlhNTY3NzUwY2Y0ZTI0N2Y1ZGVhYTk0NTczMTVlZWMzNDkwN2JmMDdlOGU4MDNiZjc0YjkyODY1YWRhYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjJhZDIyNGU1YzliMWI1MjRmNTZhZjFmNTJkOGE5NWFhNWQ3ZTVmZTM4NWY2ZTNhYjA0YjE5Nzc3NzQyZWJiMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmRmNjlkMzZhZTA5YzY2N2U3OTM2Y2RhMGE3Yzc0MmJhMTI5MDU4ZmIwYzRkY2UzYzE1YzJjYTRkYzJiYTMwZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_4dd529936bb64a508712fa3d047866b8",
+      "statement": "Each grill turn is a claude -p process pinned to --permission-mode dontAsk with no permission prompts, no settings sources and strict MCP config, using --session-id on the first turn and --resume afterward, with the user message passed after -- so it cannot be read as a flag.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-shape/src-tauri/src/grill/flags.rs#L168-L204",
+          "version": "repo-lines-v1:sha256:00f8b639b8471480e8de7b41615079f713d72f57229cc941d1ec88dfb62ba3e7:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhiNWU2ZGY5NGJlY2YwMzNmZjIwNjFkMjM5Mzg1NjI4ZTQ3NzkwYWM2NTc4ZTg1ZDA0Y2E2YWU3MTE1ZDU1OTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUyMmM4MTgxMzFhMWQzZjk3OTE1NjFkODY4MWE3YTIzOTU0N2M0MjVkMWJlN2YyZjIzYzk3OTQxNjM2Y2EzOWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZkNDNjMmU5MDE0MzYxMDA5NTI1MzZjNzhkMzg4MzEyZjFlM2NhYjc4MjZmNzlmMjFiNTkxNTA1NWRhZDA1ZDQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a5ff7e31a23d49eea300701010e0476a",
+      "statement": "Grill turns allow only scoped Read, Glob and Grep plus Edit on specs/<slug>/brief.md and design.md, deny Bash, Agent, web tools, AskUserQuestion and Skill, and deny secret globs such as .env, .git and key files; the ADR step adds only the scratch decisions folder.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-shape/src-tauri/src/grill/flags.rs#L323-L336",
+          "version": "repo-lines-v1:sha256:338525a5a923a63d8f45c640193f658da482a0db160633b9d9960eebd745749e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkyYjVlZGY1OTQ5Y2ZlYTY3ODIyY2Y2OTExMzIzNjNkNjhkNmYxZTE2OWY1ZTBkNGY3YzE0ZTVmYTFlNmQ0ZTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYwODFlMjA3MWUwZTA5ODk0OWEzYzNmMTgyZTUzMDk5ZWMwZmUzMDdiODk2MWRlZTM1MjZhNjRjYTAxNDMzNmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZiMWJkZjVjZGIzOGM3YjBjZmMwNzFjMGNmYWM3MGE0NTdjMDBjNTVjYWVlODU3ZGMzZDE2ODVhZmI0MWE4MzYifQ"
+        },
+        {
+          "resource": "repo://apps/pod-shape/src-tauri/src/grill/flags.rs#L98-L145",
+          "version": "repo-lines-v1:sha256:ddd265da8f42a4546b28fa82efd753e9d3704ca4a5f74b6ac2aabff3d377d22c:eyJzZWxlY3RlZExpbmVDb3VudCI6NDgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZhODQ2ZDVkOTY2ZDI0MjY3MmQ0YWI0MWE2MWMzZmNlMzU5ODI5N2JhM2FjNjk5ZTJhNjc5ZjRkYmY2NDAwM2UiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIwMmQyYzBkNmRjNWU3NGQ5MmZhMTRiOTFkYmVhMjY0MDkwYmViMzVmZGI5MTg4ZDliMzQxMTgxZGNlOWY0Y2UiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU0YTFjMTg2MDY3NGIyOWFlNjc1MjJjODY1MTljMjYzNGU3M2RlYzZmMzRlOGVhYzAzNjkxZmY5OTY3ZjVmNGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU4NGY4MWZkZWNlMjU5NTgzM2NmMTI0ZDk5ZTU5NTM4NGQ3ZjhkMWEyNzMxMmE4MTNlOTI0NzBlZjFlOGI5NWYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_0ff618675ba94558b5299b8cbdbb5c08",
+      "statement": "After each successful turn the session state is derived from the parsed p2g question block: a Brief question with an unconfirmed existing brief gives brief_ready, other blocks give waiting_owner, and no block with a confirmed brief gives confirmed.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-shape/src-tauri/src/grill/engine.rs#L94-L127",
+          "version": "repo-lines-v1:sha256:be73b20075c7a34abbb170e4e54b3dd017c64dfb4aa5d4c0fce8dbd40c3de018:eyJzZWxlY3RlZExpbmVDb3VudCI6MzQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUxZjAxM2NmOTZmMzg4NWMwMDZlNDNmZTRiMjlkMDk2M2E3NjAzMmM5MTI5Yjk3NTI3ZTBmMWJjMmRmMjc3NTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVmZWJlMGZjODRkYWNkNWY2MGE5NTYxODcxMmU3YzEyNWY3ZTJjNzc0OWZhYTcxMTUzNmUzMTdkY2FhZTRlMGUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_52a63032310c4e50b40a5fbd0a6be9f1",
+      "statement": "An interrupted grill turn is resumed with a wrapped message rather than replaying old answers verbatim, at app start recover() kills claude process groups left in the runs table and marks running sessions stopped, and shutdown kills the live group on exit.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-shape/src-tauri/src/grill/engine.rs#L129-L139",
+          "version": "repo-lines-v1:sha256:a9775eabbff2784c330f166864c37e7633d34289d431636130289057aa8aa580:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFjY2U0Y2IxNGNiYTJlZmMxMzlhODg1NTgxMjMwNmY5MmU5YjUzMjBiMWE1M2U4YjdmYTI1MDE5MTgxZWNmZTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE5ZTc2MzU1Y2YxMTk5NDgwYzNmOTk4MzZiMTQ4NmM4NDFkODkxZmFhZDkwNGM2MDhlMDkzMDIyZDM3NTdhZWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIwZTAxZmQyMTg3NGZlMWFiZGU0ZThmZDIxYTRhODAyNzIyZjBiMDk4Y2QyMjE1ZTM0MTQ2N2IxMjczZTZhYjkifQ"
+        },
+        {
+          "resource": "repo://apps/pod-shape/src-tauri/src/grill/engine.rs#L161-L179",
+          "version": "repo-lines-v1:sha256:22c2b6208a77f194a910c47e90ab2a0779d18032774def513ecad3ffd3432c45:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQwZWVmZTRhNzFjZWQ5ZjljMzk1MTZhYjJiMGFhNjgxMzVjY2M2MDI1NGEwOGMzNmZhOTQzYzMxYzE5ZGNhMmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhjMDlkYTg2NDIzNmQwODdmOTJjYzRlNDU0MzkzZjM3YjgxY2Q4NTg5YTE3MThlOGE3N2QxOGYwYTQ3NTk2OTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjMyN2Q2MDIwNjJjMjRjYzJlMzNjMjE0YTMwNjZjZWYyMmYxZDhmMDE0M2U4NmUyMmZkYWY0ODRhN2RlNTZkNjMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_15e18fe36c3843e8bfba37f62959ffdf",
+      "statement": "The ADR step has the app, not Claude, do the git work: it prepares the ADR for the owner to read, and only adr_decide(publish=true) pushes the adr/<slug> branch and opens a PR; declining discards the ADR file.",
+      "evidence": [
+        {
+          "resource": "repo://apps/pod-shape/docs/HANDOFF.md#L62-L62",
+          "version": "repo-lines-v1:sha256:2a10387bba4b1669dcddbdc569fd4a698202db09f685cf66a8097613fc4800fa:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMmExMDM4N2JiYTRiMTY2OWRjZGRiZGM1NjlmZDRhNjk4MjAyZGIwOWY2ODVjZjY2YTgwOTc2MTNmYzQ4MDBmYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMmExMDM4N2JiYTRiMTY2OWRjZGRiZGM1NjlmZDRhNjk4MjAyZGIwOWY2ODVjZjY2YTgwOTc2MTNmYzQ4MDBmYSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTUzMjcyYjQ1NTlkNjBhMzQ4YWMyMGI2ZmViZjU2NWUzYmJiMmU3OTAyNTA1YThkYTFkNzhkMjNlZjVlNWFlOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGI2NTMyNzgwMjI1MzlhZGQ4YjhmNzI1NmUxZGNjOGFmYjM2NjdjNjYwMzc1YmRmZGZhNTE5YThhMGMwZTUwMSJ9"
+        },
+        {
+          "resource": "repo://apps/pod-shape/src-tauri/src/grill/engine.rs#L629-L709",
+          "version": "repo-lines-v1:sha256:44b82e6f7192cd120b93c9ed11f92a7988c088af1d625e6de228ff1fb0ac7f7e:eyJzZWxlY3RlZExpbmVDb3VudCI6ODEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk4ODI0YjA2MjE0ZTViYWJjNzMxYWEzZjA0NmNkYTA1MDAxYWU4NDhjMTNmMmRhZTU1MGRmZGZiMTcyZTVhZDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRiMDY0ZWZkYjA3ZGI4MmM5MmFkOTc5YWI1Zjg3YzJiMmIwNWI4ZjczZmI2NGMwZGFmYzE3NzVhOTFmNGZiZGQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA5ZjkzMDgzYzE5NzEyMWI5ODI3MDBiYThhZmFiZDE3MjJjZjFkM2U3NDA0NTA5ZTgwZWZhMjcyNDdmNjJmMDcifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-26T15:02:34.678Z"
+  }
+}
