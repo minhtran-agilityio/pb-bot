@@ -207,8 +207,9 @@ mdfind "kMDItemFSName == '$APP'"                    # check: only ~/Applications
     folder name); `sessionId` (`local_<uuid>`) only for the link that opens the session in the desktop app, and
     `cliSessionId` only to find that session's process in `~/.claude/sessions` and to tell a session that Pod Bay or
     Terminal already shows. `remoteMcpServersConfig`, `originCwd`, `worktreePath`, `model` and the other fields are
-    never read into the model. At most 64 folders and 256 files, each at most 64 KB; a link, a broken file and an
-    odd file are skipped. Nothing is written to the folder.
+    never read into the model (the parser skips them). At most 4096 entries are listed in one poll and 256 sessions that
+    are not archived kept, each file at most 4 MB (a real file is about 300 KB); a link, a broken file and an odd file
+    are skipped. Nothing is written to the folder.
   - `~/.claude/sessions/<pid>.json`, one per running Claude session: `status`, `waitingFor`, `bridgeSessionId` (the
     Remote Control id), `tmux`, `entrypoint`, `kind`, `name`, `statusUpdatedAt`; `cwd`, `sessionId` and `pid` only
     to find the sub-agent folder and to check that the process still runs. When a file has no `statusUpdatedAt`, its

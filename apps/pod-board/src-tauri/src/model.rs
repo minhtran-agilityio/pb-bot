@@ -450,6 +450,9 @@ fn merge_local(sessions: &mut Vec<Session>, local: &[crate::local::Local], me: &
             continue;
         }
         if l.rc_id.is_empty() || (!l.tmux.is_empty() && !pod_bay_known) {
+            // A tmux session is Pod Bay's to list: while Pod Bay's list is unknown it is not a terminal row, and no
+            // desktop row either, or it would show as Desktop now and as Pod Bay later (issue #176 review F2).
+            if !l.tmux.is_empty() && !pod_bay_known { shown.insert(l.session_id.clone()); }
             continue;
         }
         let waits = !l.waiting_for.trim().is_empty();
@@ -1031,5 +1034,17 @@ mod tests {
         assert_eq!(one(live("idle", "")).state, "idle");
         assert_eq!(one(live("idle", "input needed")).state, "needs", "a wait text wins over idle");
         assert_eq!(key(&w), "desktop|local_d1000000-0000-4000-8000-000000000001");
+    }
+    #[test]
+    fn a_pod_bay_tmux_session_is_not_a_desktop_row_while_pod_bay_is_unknown() {
+        // Issue #176 review F2: the desktop twin of a tmux session must not show while Pod Bay's list is unknown.
+        let local = crate::local::read(&crate::local::fixture(), FIXTURE_ACTIVE, &|_, _| true);
+        let desk = crate::local::read_desktop(&desktop_fixture());
+        let rows = |ls: Value| {
+            let m = build(&Raw { ls, machines: json!([{"machine": "UA", "me": true, "online": true}]), local: local.clone(), desktop: desk.clone(), now: FIXTURE_ACTIVE + CLOSED_MS + 1, ..Raw::default() });
+            m.sessions.iter().filter(|s| s.title.contains("Pod Bay twin")).map(|s| s.source).collect::<Vec<_>>()
+        };
+        assert!(rows(json!([{"machine": "UA", "result": "unreachable"}])).is_empty(), "unknown: no row at all, not a Desktop one");
+        assert_eq!(rows(json!([{"machine": "UA", "result": [sess(json!({"title": "Pod Bay twin", "name": "claude-pb-bot-02"}))]}])), vec!["podbay"]);
     }
 }
