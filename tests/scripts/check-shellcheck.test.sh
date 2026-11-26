@@ -21,8 +21,8 @@ want=$(cd "$ROOT" && { ls plugins/pd-bot/hooks/*.sh plugins/pd-bot/scripts/*.sh;
   scripts/release.sh scripts/release-tag.sh scripts/release-guard.sh scripts/check-pod-shape-ds.sh; })
 if [ "$rc" -eq 0 ] && [ "$(cat "$ARGS" 2>/dev/null)" = "$want" ]; then pass; else fail "rc=$rc, args differ from the CI list"; fi
 
-t "the file list holds 17 files"
-if [ "$(wc -l < "$ARGS" | tr -d ' ')" = 17 ]; then pass; else fail "got $(wc -l < "$ARGS") files"; fi
+t "the file list holds 18 files"
+if [ "$(wc -l < "$ARGS" | tr -d ' ')" = 18 ]; then pass; else fail "got $(wc -l < "$ARGS") files"; fi
 
 t "check-shellcheck skips with one loud line (exit 0) without shellcheck by default"
 out=$(PATH="$NOSC" env -u REQUIRE_SHELLCHECK "$BASH_BIN" "$ROOT/scripts/check-shellcheck.sh" 2>&1); rc=$?
