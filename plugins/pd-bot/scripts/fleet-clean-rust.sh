@@ -5,23 +5,25 @@
 # `apps/*/src-tauri/target`, a CARGO_TARGET_DIR that a session used outside its workspace, and the
 # `target/` of a workspace that `ws-rm` refused and so stays.
 #
-# What it deletes: a folder that is all of
+# Rule: it never deletes more than `cargo clean` would delete, and it deletes nothing that looks like a
+# project. A folder is deleted only when it is all of
 #   - a real directory, not a symlink;
 #   - a cargo target dir: it holds a regular file CACHEDIR.TAG whose first line is the cache-directory
 #     signature (`Signature: 8a477f597d28d172789f06886806bc55`, shared by every tool that writes such a
 #     tag) and whose second line is cargo's own (`# This file is a cache directory tag created by cargo.`);
 #   - found by --root: also has a Cargo.toml beside it (the project's own build folder);
-#   - looks like build output: `.rustc_info.json`, `debug` or `release` is in it, and one scan of its whole
-#     tree (see `tree_stray` below) finds only what cargo and tauri write: a symlink, a special file, a
-#     `.git`, a `Cargo.toml`, or any entry outside cargo's layout (a `.rs`, `.py`, `.c`, `.toml`, README, a
-#     script) keeps the whole target, whatever its depth, except inside the opaque zones listed there;
 #   - not `/`, not a folder of fewer than two path parts, not the home folder or a folder above it,
 #     not a folder above a checkout in --root, holds no `.git` at any depth and no `Cargo.toml`,
 #     `src` or `package.json` of its own, and no file that git tracks (that is source, not build output);
+#   - clean in one scan of its whole tree (`tree_stray`): no symlink, special file, odd name, `.git`,
+#     `Cargo.toml`, `Cargo.lock`, unreadable folder or mounted device, at any depth;
 #   - not used by a running process: no process has a file or its working directory inside it, and,
 #     for a folder found by --root, no build process (cargo, rustc, a C compiler or linker, tauri, node, npm)
 #     works inside the project that owns it. Paths are compared as the system spells them (`/bin/pwd -P`,
 #     which also fixes the case of a path on a case-insensitive disk), the way lsof prints them.
+# Accepted limit (owner's decision, 2026-11-26): the script does not check cargo's layout, as `cargo clean`
+# does not. A loose file that someone put inside a target folder (a note, a `.rs` file, a script) is
+# deleted with it, unless it is one of the things above.
 # Anything else is kept, and the line says why. Source, an installed app (~/Applications) and a
 # `target` folder of another tool (no CACHEDIR.TAG) are never touched. Only the target folder is removed:
 # `rm -rf` of that one folder, never of its parent.
@@ -31,8 +33,9 @@
 # --root and --target must be absolute paths: a value that comes from a session's report is not
 # trusted. A path with a `.` or `..` component, a control character or a non-ASCII byte is kept. Just before
 # the `rm` it checks again that the folder is the same one (device and inode), is not a symlink, and still
-# holds cargo's tag, no source, no `.git` at any depth and no git-tracked file; a folder that changed is
-# kept and the exit status is 1. Paths in the output are printed with every byte that is not printable ASCII
+# holds cargo's tag, no source, no `.git` at any depth, no git-tracked file, and passes the scan again; a
+# folder that changed is kept and the exit status is 1. `rm` stays on one device (`-x` on macOS,
+# `--one-file-system` on Linux). Paths in the output are printed with every byte that is not printable ASCII
 # replaced by `?`.
 # On a very large target the scans take seconds, so the last check is ordered: scans, then a fresh list of
 # open files and the in-use check, then the quick checks (inode, symlink, tag) right before the `rm`.
@@ -233,161 +236,37 @@ bad_path() {
   return 1
 }
 
-# dep_info_ok <file.d>: cargo's dep-info form. The first line is `<absolute output path>: <inputs>`, and the
-# last part of that path is the file's own stem, alone or followed by an extension (`app.d` starts
-# `/x/target/debug/app:`, `librc.d` starts `/x/target/debug/librc.rlib:`, `deps/rc-1a2b.d` starts
-# `.../deps/librc-1a2b.rmeta:` or `.../deps/rc-1a2b.d:`).
-dep_info_ok() {
-  local f="$1" first tok base stem
-  first=$(head -n 1 "$f" 2>/dev/null)
-  case "$first" in *": "?*) ;; *) return 1 ;; esac
-  tok=${first%%: *}
-  case "$tok" in /*|[A-Za-z]:[/\\]*) ;; *) return 1 ;; esac
-  base=${tok##*[/\\]}; stem=${f##*/}; stem=${stem%.d}
-  [ "$base" = "$stem" ] && return 0
-  case "$base" in "$stem".*|"lib$stem"|"lib$stem".*) return 0 ;; esac
-  return 1
-}
-
-# is_binary <file>: an ELF (magic, a valid class and byte-order byte), a Mach-O (the four magics, fat
-# included) or a PE (MZ, and "PE\0\0" at the offset stored at 0x3c).
-is_binary() {
-  local f="$1" h off sig
-  h=$(LC_ALL=C od -An -tx1 -N 6 "$f" 2>/dev/null | tr -d ' \n')
-  case "$h" in
-    7f454c460[12]0[12]) return 0 ;;
-    feedface*|feedfacf*|cefaedfe*|cffaedfe*|cafebabe*) return 0 ;;
-    4d5a*)
-      h=$(LC_ALL=C od -An -tx1 -j 60 -N 4 "$f" 2>/dev/null | tr -d ' \n')
-      [ "${#h}" = 8 ] || return 1
-      off=$((16#${h:6:2}${h:4:2}${h:2:2}${h:0:2}))
-      sig=$(LC_ALL=C od -An -tx1 -j "$off" -N 4 "$f" 2>/dev/null | tr -d ' \n')
-      [ "$sig" = 50450000 ] && return 0 ;;
-  esac
-  return 1
-}
-
 # tree_stray <dir>: one scan of the whole folder tree, at every depth (find -P: a symlink is never
-# followed). It allows only what cargo and tauri write, at the positions where cargo writes it, and prints
-# the first thing that is anything else, as a path inside <dir>, returning 0; it returns 1 when everything
-# is plain build output. A find that fails (an unreadable folder) counts as a stray: the folder is kept.
-#   Anywhere, also in the opaque zones: a symlink, a special file (fifo, socket, device), a name with a
-#   control or non-ASCII byte, a `.git` (folder or file) and a `Cargo.toml`, whatever the case of the name
-#   (a disk can ignore case), are never build output.
-#   Top level: CACHEDIR.TAG, .rustc_info.json, .rustdoc_fingerprint.json, .future-incompat-report.json,
-#   .cargo-lock, .cargo-build-lock, .cargo-artifact-lock; the folders doc, tmp, package, cargo-timings,
-#   flycheck*; profile folders (debug, release, and any folder that holds deps or .fingerprint); and
-#   target-triple folders, which hold CACHEDIR.TAG, doc and profile folders, and at least one profile.
-#   Profile folder: build, deps, examples, incremental, .fingerprint, bundle and *.dSYM folders; the three
-#   .cargo-* lock files; artifact files (*.rlib *.rmeta *.o *.a *.so *.dylib *.dll *.lib *.pdb *.exe
-#   *.wasm *.dwo *.dwp *.exp); `*.d` dep-info files (first line `<path>:`); and executables, which are
-#   recognised by content only (an ELF header with a valid class and byte order, a Mach-O or fat header, or a
-#   PE header: `MZ` and `PE\0\0` at the offset stored at 0x3c), never by the executable bit.
-#   deps and examples hold only artifact files, `*.d` files (dep-info), executables and *.dSYM folders.
-#   A folder counts as a profile (or a triple folder as one that holds a profile) only when its deps or
-#   .fingerprint folder holds an entry, or, in the newer cargo layout, its build folder does and cargo's
-#   .cargo-lock file is there; debug and release at the top level are profiles by name.
-#   Opaque zones, whose content cargo or a build script writes freely and which are not judged beyond
-#   the first rule: doc, tmp, package, cargo-timings, flycheck* (at the top level or in a triple folder, doc
-#   only), build/<package>/, incremental/*/, .fingerprint/*/, bundle/ and *.dSYM/ (inside a profile folder).
-#   A folder with one of these names at any other position is judged like any other folder.
-# Known limit: a source tree that a build script writes into build/<package>/out/ is deleted when it holds
-# no `.git` and no `Cargo.toml`; so is a source file in tmp/ or doc/ (also in the doc/ of a target-triple
-# folder, when that folder is fully cargo-shaped: a profile with an entry in deps or .fingerprint).
-# Nothing outside an opaque zone passes.
+# followed). It prints the first thing that keeps the whole folder and returns 0; it returns 1 when there
+# is none. It looks for nothing about cargo's layout (that changes with each cargo). It keeps the folder on:
+#   - a symlink, or a special file (fifo, socket, device);
+#   - a name with a control or non-ASCII byte (lsof escapes such a name, so the in-use check could miss it);
+#   - a `.git` (folder or file), a `Cargo.toml` or a `Cargo.lock`, in any letter case (a disk can ignore
+#     case): that is a project, not build output;
+#   - a folder that cannot be read (a find error), because `rm` would then fail halfway;
+#   - another device mounted anywhere inside it: the entries are counted with and without `-xdev`, and on
+#     Linux /proc/self/mountinfo is read too, for a bind mount on the same device.
 tree_stray() {
-  local d="$1" hit line rel frc all_n xdev_n
+  local d="$1" hit frc all_n xdev_n
   hit=$(find -P "$d" -mindepth 1 \( -type l -o \( ! -type f ! -type d \) -o -name '*[![:print:]]*' \
-         -o -iname .git -o -iname Cargo.toml \) -print -quit 2>"$WORK/find.err"); frc=$?
+         -o -iname .git -o -iname Cargo.toml -o -iname Cargo.lock \) -print -quit 2>"$WORK/find.err"); frc=$?
   if [ "$frc" != 0 ] || [ -s "$WORK/find.err" ]; then printf '%s' "(unreadable: find failed)"; return 0; fi
   if [ -n "$hit" ]; then printf '%s' "${hit#"$d"/}"; return 0; fi
-  # Every name is printable now, so no name holds a newline or a tab: one path per line is safe.
-  find -P "$d" -mindepth 1 -type d -print 2>"$WORK/find.err" | sed 's/^/d /' > "$WORK/tree.txt"; frc=${PIPESTATUS[0]}
-  if [ "$frc" != 0 ] || [ -s "$WORK/find.err" ]; then printf '%s' "(unreadable: find failed)"; return 0; fi
-  find -P "$d" -mindepth 1 -type f -print 2>"$WORK/find.err" | sed 's/^/f /' >> "$WORK/tree.txt"; frc=${PIPESTATUS[0]}
-  if [ "$frc" != 0 ] || [ -s "$WORK/find.err" ]; then printf '%s' "(unreadable: find failed)"; return 0; fi
-  # A mount point inside the target: with -xdev find does not enter another device, so fewer entries show.
-  all_n=$(wc -l < "$WORK/tree.txt" | tr -d ' ')
+  all_n=$(find -P "$d" -mindepth 1 2>"$WORK/find.err" | wc -l | tr -d ' ')
+  if [ -s "$WORK/find.err" ]; then printf '%s' "(unreadable: find failed)"; return 0; fi
   xdev_n=$(find -P "$d" -xdev -mindepth 1 2>/dev/null | wc -l | tr -d ' ')
   if [ "$all_n" != "$xdev_n" ]; then printf '%s' "(another device is mounted inside)"; return 0; fi
-  hit=$(D="$d" awk '
-    function art(n) { return (n ~ /\.(rlib|rmeta|o|a|so|dylib|dll|lib|pdb|exe|wasm|dwo|dwp|exp)$/ || n ~ /\.so\.[0-9.]+$/) }
-    function lock(n) { return (n ~ /^\.cargo-(lock|build-lock|artifact-lock)$/) }
-    function stray(r) { print "STRAY " r; exit }
-    # A marker folder counts only when it holds an entry: an empty deps or .fingerprint makes no cargo position.
-    # Older cargo writes deps/ and .fingerprint/ in a profile folder; the newer layout keeps its intermediate
-    # files under build/<package>/<hash>/ instead, next to the .cargo-lock file cargo writes.
-    function hasmarker(x) { return ((type[x "/deps"] == "d" && nchild[x "/deps"] > 0) || (type[x "/.fingerprint"] == "d" && nchild[x "/.fingerprint"] > 0) \
-      || (type[x "/.cargo-lock"] == "f" && type[x "/build"] == "d" && nchild[x "/build"] > 0)) }
-    function isprofile(x, y) { return (y == "debug" || y == "release" || hasmarker(x "/" y)) }
-    BEGIN { d = ENVIRON["D"] }
-    { t = substr($0, 1, 1); rel = substr($0, 3); rel = substr(rel, length(d) + 2); type[rel] = t; paths[++n] = rel
-      if (index(rel, "/") > 0) { par = rel; sub(/\/[^\/]*$/, "", par); nchild[par]++ } }
-    END {
-      for (i = 1; i <= n; i++) {                       # real profile folders (with content) inside each top-level folder
-        k = split(paths[i], c, "/")
-        if (k == 2 && type[paths[i]] == "d" && hasmarker(paths[i])) tp[c[1]]++
-      }
-      for (i = 1; i <= n; i++) {
-        rel = paths[i]; t = type[rel]; k = split(rel, c, "/"); top = c[1]
-        if (k == 1) {
-          if (t == "f") { if (!(top ~ /^(CACHEDIR\.TAG|\.rustc_info\.json|\.rustdoc_fingerprint\.json|\.future-incompat-report\.json)$/ || lock(top))) stray(rel); continue }
-          if (top ~ /^(doc|tmp|package|cargo-timings)$/ || top ~ /^flycheck/ || top == "debug" || top == "release" || hasmarker(top)) continue
-          if (!tp[top]) stray(rel)                      # neither a profile nor a triple folder that holds a real one
-          continue
-        }
-        if (top ~ /^(doc|tmp|package|cargo-timings)$/ || top ~ /^flycheck/) continue
-        if (top == "debug" || top == "release" || hasmarker(top)) pd = 1
-        else {                                          # a target-triple folder
-          if (k == 2) {
-            if (t == "f") { if (c[2] != "CACHEDIR.TAG") stray(rel) }
-            else if (c[2] != "doc" && !isprofile(top, c[2])) stray(rel)
-            continue
-          }
-          if (c[2] == "doc") continue
-          pd = 2
-        }
-        e = c[pd + 1]
-        if (k == pd + 1) {
-          if (t == "d") { if (!(e ~ /^(build|deps|examples|incremental|\.fingerprint|bundle)$/ || e ~ /\.dSYM$/)) stray(rel) }
-          else if (lock(e) || art(e)) { }
-          else if (e ~ /\.d$/) print "DEPINFO " rel
-          else if (e !~ /\./) print "MAGIC " rel
-          else stray(rel)
-          continue
-        }
-        if (e ~ /\.dSYM$/ || e == "bundle") continue
-        if (e == "incremental" || e == ".fingerprint") { if (k == pd + 2 && t != "d") stray(rel); continue }
-        if (e == "build") { if (k == pd + 2 && t == "f" && !lock(c[pd + 2])) stray(rel); continue }
-        if (e == "deps" || e == "examples") {
-          if (k == pd + 2) {
-            n2 = c[pd + 2]
-            if (t == "d") { if (n2 !~ /\.dSYM$/) stray(rel) }
-            else if (art(n2)) { }
-            else if (n2 ~ /\.d$/) print "DEPINFO " rel
-            else if (n2 !~ /\./) print "MAGIC " rel
-            else stray(rel)
-          }
-          continue
-        }
-      }
-    }' "$WORK/tree.txt")
-  rel=""
-  while IFS= read -r line; do
-    case "$line" in
-      "STRAY "*) rel=${line#STRAY }; break ;;
-      "MAGIC "*)
-        # An extensionless file is an executable only by its content: an ELF, Mach-O or PE header.
-        if ! is_binary "$d/${line#MAGIC }"; then rel=${line#MAGIC }; break; fi ;;
-      "DEPINFO "*)
-        # A .d file is dep-info (see dep_info_ok).
-        if ! dep_info_ok "$d/${line#DEPINFO }"; then rel=${line#DEPINFO }; break; fi ;;
-    esac
-  done <<EOF
-$hit
-EOF
-  [ -n "$rel" ] || return 1
-  printf '%s' "$rel"
+  if [ -r /proc/self/mountinfo ]; then
+    # The mount point is field 5; a space, tab, newline or backslash in it is written as an octal escape.
+    if D="$d" awk '
+      BEGIN { d = ENVIRON["D"] }
+      { m = $5; gsub(/\\040/, " ", m); gsub(/\\011/, "\t", m); gsub(/\\012/, "\n", m); gsub(/\\134/, "\\", m)
+        if (m == d || index(m, d "/") == 1) { found = 1; exit } }
+      END { exit !found }' /proc/self/mountinfo; then
+      printf '%s' "(a mount point is inside, or is the folder itself)"; return 0
+    fi
+  fi
+  return 1
 }
 
 # consider <dir> <found by --root: the canonical root, else empty>
@@ -427,12 +306,9 @@ consider() {
   if ! has_cargo_tag "$p"; then
     kept "$p" "not a cargo target dir (no CACHEDIR.TAG written by cargo)"; return
   fi
-  if [ ! -f "$p/.rustc_info.json" ] && [ ! -d "$p/debug" ] && [ ! -d "$p/release" ]; then
-    kept "$p" "does not look like build output (no .rustc_info.json, debug or release)"; return
-  fi
-  # The whole tree, at every depth: anything but what cargo writes keeps the whole folder.
+  # The whole tree, at every depth: a project, a symlink, a mount or an unreadable folder keeps the folder.
   if stray=$(tree_stray "$p"); then
-    kept "$p" "not only build output: $stray is not something cargo writes (or is a symlink, a special file, a .git or a Cargo.toml)"; return
+    kept "$p" "not plain build output: $stray inside it keeps the folder (a symlink, a special file, a .git, a Cargo.toml or Cargo.lock, an odd name, an unreadable folder or a mount)"; return
   fi
   if git_tracks "$p"; then
     kept "$p" "git tracks files in it"; return

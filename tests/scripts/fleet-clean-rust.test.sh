@@ -177,12 +177,12 @@ run bash -c "cd '$S' && bash '$CL' --target ct"; a=$RC
 run bash -c "cd '$S' && bash '$CL' --root ."; b=$RC
 if [ "$a" = 2 ] && [ "$b" = 2 ] && [ -d "$S/ct/release" ]; then pass; else fail "rc=$a $b"; fi
 
-t "--target keeps a folder with cargo's tag that holds other checkouts (a .git at any of the first 4 levels), and one that is not build output"
+t "--target keeps a folder with cargo's tag that holds other checkouts (a .git deep inside); a tagged folder with only loose files is deleted, as cargo clean would"
 S=$(new_dir); mk_target "$S/c"; mkdir -p "$S/c/proj1/.git" "$S/c/proj2"; echo work > "$S/c/proj2/notes"
 mkdir -p "$S/d"; printf '%s\n%s\n' "$SIG" "$TAG2" > "$S/d/CACHEDIR.TAG"; mkdir -p "$S/d/other"; echo work > "$S/d/other/f"
 run bash "$CL" --target "$S/c" --target "$S/d"
-if [ "$RC" = 0 ] && [ -d "$S/c/proj1/.git" ] && [ -f "$S/c/proj2/notes" ] && [ -f "$S/d/other/f" ] \
-   && echo "$OUT" | grep -q 'holds a git checkout' && echo "$OUT" | grep -q 'does not look like build output'; then pass; else fail "rc=$RC out: $OUT"; fi
+if [ "$RC" = 0 ] && [ -d "$S/c/proj1/.git" ] && [ -f "$S/c/proj2/notes" ] && [ ! -e "$S/d" ] \
+   && echo "$OUT" | grep -q 'holds a git checkout' && echo "$OUT" | grep -q 'in 1 folder(s), kept 1'; then pass; else fail "rc=$RC out: $OUT"; fi
 
 t "--target keeps a folder that holds the home folder, even when it carries the cargo tag"
 S=$(new_dir); mk_target "$S"; mkdir -p "$S/home/user"
@@ -201,13 +201,13 @@ run bash "$CL" --target "$S/b\\tx"
 if [ "$RC" = 0 ] && [ -d "$S/b\\tx/release" ] && echo "$OUT" | grep -q 'in use'; then pass; else fail "rc=$RC out: $OUT"; fi
 kill "$P" 2>/dev/null; wait "$P" 2>/dev/null
 
-t "--target keeps a shared folder: the cargo tag and release are there, but so are other files or a source tree"
+t "--target: a loose file in a tagged folder is deleted with it (the owner accepted it); a Cargo.toml or a .git anywhere inside keeps it"
 S=$(new_dir); mk_target "$S/b"; mkdir -p "$S/b/Documents"; echo tax > "$S/b/Documents/tax.pdf"
 mk_target "$S/f"; mkdir -p "$S/f/proj/src"; echo '[package]' > "$S/f/proj/Cargo.toml"
 mk_target "$S/e"; mkdir -p "$S/e/a/b/c/d/proj/.git"
 run bash "$CL" --target "$S/b" --target "$S/f" --target "$S/e"
-if [ "$RC" = 0 ] && [ -f "$S/b/Documents/tax.pdf" ] && [ -f "$S/f/proj/Cargo.toml" ] && [ -d "$S/e/a/b/c/d/proj/.git" ] \
-   && [ "$(echo "$OUT" | grep -c 'not only build output')" -ge 2 ]; then pass; else fail "rc=$RC out: $OUT"; fi
+if [ "$RC" = 0 ] && [ ! -e "$S/b" ] && [ -f "$S/f/proj/Cargo.toml" ] && [ -d "$S/e/a/b/c/d/proj/.git" ] \
+   && echo "$OUT" | grep -q 'in 1 folder(s), kept 2'; then pass; else fail "rc=$RC out: $OUT"; fi
 
 t "--target deletes a real cargo layout: a profile folder, a target-triple folder, doc, .rustc_info.json"
 S=$(new_dir); mk_target "$S/ct"; mkdir -p "$S/ct/release-lto/deps" "$S/ct/aarch64-apple-darwin/release/deps" "$S/ct/doc"; echo x > "$S/ct/release-lto/deps/libx.rlib"; echo x > "$S/ct/aarch64-apple-darwin/release/deps/libx.rlib"; echo '{}' > "$S/ct/.rustc_info.json"
@@ -400,7 +400,7 @@ printf '\177ELF\002\001\001' > "$S/ct2/release/app"; chmod +x "$S/ct2/release/ap
 run bash "$CL" --target "$S/ct" --target "$S/ct2"
 if [ "$RC" = 0 ] && [ ! -e "$S/ct" ] && [ ! -e "$S/ct2" ] && echo "$OUT" | grep -q 'in 2 folder(s), kept 0'; then pass; else fail "rc=$RC out: $OUT"; fi
 
-t "debug and release: a non-cargo file (.rs, a README, a non-executable file with no extension) or a source folder inside keeps the whole target"
+t "debug and release: a loose .rs, README, LICENSE or src folder inside is deleted with the target (the owner accepted it); a .git inside keeps it"
 S=$(new_dir)
 mk_target "$S/a"; mkdir -p "$S/a/debug"; echo 'fn main() {}' > "$S/a/debug/evil.rs"
 mk_target "$S/b"; echo doc > "$S/b/release/README.md"
@@ -409,73 +409,75 @@ mk_target "$S/d"; mkdir -p "$S/d/release/src"
 mk_target "$S/e"; mkdir -p "$S/e/aarch64-apple-darwin/release/deps"; echo x > "$S/e/aarch64-apple-darwin/release/deps/libx.rlib"; echo 'fn main() {}' > "$S/e/aarch64-apple-darwin/release/main.rs"
 mk_target "$S/f"; mkdir -p "$S/f/release/.git"
 run bash "$CL" --target "$S/a" --target "$S/b" --target "$S/c" --target "$S/d" --target "$S/e" --target "$S/f"
-if [ "$RC" = 0 ] && [ -f "$S/a/debug/evil.rs" ] && [ -f "$S/b/release/README.md" ] && [ -f "$S/c/release/LICENSE" ] && [ -d "$S/d/release/src" ] \
-   && [ -f "$S/e/aarch64-apple-darwin/release/main.rs" ] && [ -d "$S/f/release/.git" ] \
-   && echo "$OUT" | grep -q 'debug/evil.rs is not something cargo writes' && echo "$OUT" | grep -q 'release/main.rs is not something cargo writes' \
-   && echo "$OUT" | grep -q 'in 0 folder(s), kept 6'; then pass; else fail "rc=$RC out: $OUT"; fi
+if [ "$RC" = 0 ] && [ ! -e "$S/a" ] && [ ! -e "$S/b" ] && [ ! -e "$S/c" ] && [ ! -e "$S/d" ] && [ ! -e "$S/e" ] && [ -d "$S/f/release/.git" ] \
+   && echo "$OUT" | grep -q 'in 5 folder(s), kept 1'; then pass; else fail "rc=$RC out: $OUT"; fi
 
 # The layouts of the reviewer's attack list: a target with one addition each. KEEP means the whole target
 # stays; DELETE means it goes. The opaque zones (build/<package>/, tmp/) are deleted on purpose unless a
 # .git, a Cargo.toml, a symlink, a special file or a bad name is in them.
-t "every layout: source, a script, a stray folder, a symlink, a fifo, a .git or a Cargo.toml anywhere outside cargo's layout keeps the whole target; cargo's own output is deleted"
+t "every layout: a .git, Cargo.toml or Cargo.lock (any case), a symlink, a fifo or an odd name at any depth keeps the whole target; everything else, loose files included, is deleted like cargo clean does"
 LT=$(new_dir); LNAMES=(); LWANT=()
 lay() { # lay <name> <KEEP|DELETE> <setup, run with $d = the target>
   local d="$LT/$1"; LNAMES+=("$1"); LWANT+=("$2"); mk_target "$d"; : > "$d/release/deps/libx.rlib"; ( cd "$d" && eval "$3" ); }
-lay r1_triple_bypass KEEP 'echo "fn main(){}" > release/main.rs; mkdir release/debug'
-lay r2_deps_rs KEEP 'echo "fn main(){}" > release/deps/main.rs'
+lay r1_triple_bypass DELETE 'echo "fn main(){}" > release/main.rs; mkdir release/debug'
+lay r2_deps_rs DELETE 'echo "fn main(){}" > release/deps/main.rs'
 lay r3_deep_rs DELETE 'mkdir -p release/build/x-1/a/b/c/d/e/f; echo "fn main(){}" > release/build/x-1/a/b/c/d/e/f/lib.rs'
 lay r4_out_rs_proj DELETE 'mkdir -p release/build/x-1/out/proj/src; echo "fn main(){}" > release/build/x-1/out/proj/src/main.rs'
 lay r5_out_rs_plain DELETE 'mkdir -p release/build/x-1/out; echo "fn main(){}" > release/build/x-1/out/main.rs'
-lay r6_python KEEP 'echo "print(1)" > release/tool.py'
-lay r7_c_src KEEP 'mkdir release/deps/cproj; echo "int main(){}" > release/deps/cproj/main.c'
-lay r8_toml KEEP 'echo "[x]" > release/config.toml'
-lay r9_shell_exec KEEP 'printf "#!/bin/sh\necho hi\n" > release/deploy; chmod +x release/deploy'
-lay r10_readme_lower KEEP 'echo doc > release/readme.txt'
-lay r11_RS_upper KEEP 'echo "fn main(){}" > release/MAIN.RS'
+lay r6_python DELETE 'echo "print(1)" > release/tool.py'
+lay r7_c_src DELETE 'mkdir release/deps/cproj; echo "int main(){}" > release/deps/cproj/main.c'
+lay r8_toml DELETE 'echo "[x]" > release/config.toml'
+lay r9_shell_exec DELETE 'printf "#!/bin/sh\necho hi\n" > release/deploy; chmod +x release/deploy'
+lay r10_readme_lower DELETE 'echo doc > release/readme.txt'
+lay r11_RS_upper DELETE 'echo "fn main(){}" > release/MAIN.RS'
 lay r12_symlink_deep KEEP 'ln -s /etc release/deps/link'
 lay r13_newline KEEP 'echo "fn main(){}" > "release/deps/a"$'"'"'\n'"'"'"b.rs"'
 lay r14_tmp_rs DELETE 'mkdir tmp; echo "fn main(){}" > tmp/main.rs'
 lay r15_gitfile KEEP 'echo "gitdir: /x" > release/deps/.git'
 lay r16_cargo_lock KEEP 'echo x > release/Cargo.lock'
-lay r17_ts KEEP 'echo "export {}" > release/index.ts'
-lay r18_markdown KEEP 'echo "# x" > release/notes.markdown'
+lay r17_ts DELETE 'echo "export {}" > release/index.ts'
+lay r18_markdown DELETE 'echo "# x" > release/notes.markdown'
 lay r19_out_cargo_toml KEEP 'mkdir -p release/build/x-1/out/proj; echo "[package]" > release/build/x-1/out/proj/Cargo.toml'
 lay r20_git_incremental KEEP 'mkdir -p release/incremental/x-1/.git'
 lay r21_fifo KEEP 'mkfifo release/deps/pipe'
-lay r22_makefile_dir KEEP 'mkdir release/deps/proj; echo "all:" > release/deps/proj/Makefile'
-lay r23_triple_stray KEEP 'mkdir -p x86_64-unknown-linux-gnu/release/deps; echo "fn main(){}" > x86_64-unknown-linux-gnu/main.rs'
-lay c1_notes_in_deps KEEP 'echo notes > release/deps/notes.txt'
-lay c2_main_c_profile KEEP 'echo "int main(){}" > release/main.c'
+lay r22_makefile_dir DELETE 'mkdir release/deps/proj; echo "all:" > release/deps/proj/Makefile'
+lay r23_triple_stray DELETE 'mkdir -p x86_64-unknown-linux-gnu/release/deps; echo "fn main(){}" > x86_64-unknown-linux-gnu/main.rs'
+lay c1_notes_in_deps DELETE 'echo notes > release/deps/notes.txt'
+lay c2_main_c_profile DELETE 'echo "int main(){}" > release/main.c'
 lay c3_rustdoc DELETE 'echo "{}" > .rustdoc_fingerprint.json; mkdir -p doc/demo; echo "<html>" > doc/demo/index.html'
 lay c4_cargo_out DELETE 'mkdir -p release/build/x-1/out release/.fingerprint/x-1 release/incremental/x-1/s-1 release/examples; echo "pub fn f(){}" > release/build/x-1/out/gen.rs; printf "\177ELF\002\001\001" > release/app; chmod +x release/app; : > release/.cargo-lock; : > release/.cargo-build-lock; : > release/.cargo-artifact-lock; echo "/t/release/app: src/main.rs" > release/app.d; echo "/t/release/examples/ex: src/ex.rs" > release/examples/ex.d'
 lay c5_triple_cargo DELETE 'mkdir -p x86_64-unknown-linux-gnu/release/deps x86_64-unknown-linux-gnu/release/build/y-2/out x86_64-unknown-linux-gnu/doc; echo x > x86_64-unknown-linux-gnu/release/deps/libz.rmeta; echo "pub fn f(){}" > x86_64-unknown-linux-gnu/release/build/y-2/out/gen.rs; printf x > x86_64-unknown-linux-gnu/CACHEDIR.TAG'
 lay c6_empty_profiles DELETE 'rm -rf release; mkdir debug release'
-lay g1_empty_debug_triple KEEP 'mkdir -p proj/debug proj/doc/src; echo "fn main(){}" > proj/doc/src/main.rs'
-lay g2_empty_fingerprint KEEP 'mkdir -p notes/.fingerprint notes/build/pkg; echo "fn main(){}" > notes/build/pkg/main.rs'
-lay g3_mz_text KEEP 'printf "MZ notes about things\n" > release/NOTES'
-lay g4_elf_then_script KEEP 'printf "\177ELF\n#!/bin/sh\n" > release/deps/deploy'
-lay g5_mz_no_pe KEEP 'printf "MZ\0\0\0\0notes" > release/NOTES2'
-lay g6_d_source KEEP 'echo "void main(){}" > release/deps/main.d'
-lay g7_d_note KEEP 'echo "Note: buy milk" > release/todo.d'
-lay g8_d_relative KEEP 'echo "src/main.rs: src/lib.rs" > release/app.d'
-lay g9_d_wrong_stem KEEP 'echo "/t/release/other: src/lib.rs" > release/app.d'
+lay g1_empty_debug_triple DELETE 'mkdir -p proj/debug proj/doc/src; echo "fn main(){}" > proj/doc/src/main.rs'
+lay g2_empty_fingerprint DELETE 'mkdir -p notes/.fingerprint notes/build/pkg; echo "fn main(){}" > notes/build/pkg/main.rs'
+lay g3_mz_text DELETE 'printf "MZ notes about things\n" > release/NOTES'
+lay g4_elf_then_script DELETE 'printf "\177ELF\n#!/bin/sh\n" > release/deps/deploy'
+lay g5_mz_no_pe DELETE 'printf "MZ\0\0\0\0notes" > release/NOTES2'
+lay g6_d_source DELETE 'echo "void main(){}" > release/deps/main.d'
+lay g7_d_note DELETE 'echo "Note: buy milk" > release/todo.d'
+lay g8_d_relative DELETE 'echo "src/main.rs: src/lib.rs" > release/app.d'
+lay g9_d_wrong_stem DELETE 'echo "/t/release/other: src/lib.rs" > release/app.d'
 lay k1_binaries_and_depinfo DELETE 'mkdir -p release/examples; { printf "MZ"; head -c 58 /dev/zero; printf "\100\000\000\000PE\000\000"; } > release/deps/win-1; printf "\317\372\355\376\007\000" > release/deps/mach-1; printf "\312\376\272\276\000\000\000\002" > release/deps/fat-1; printf "\177ELF\002\001\001" > release/app; echo "/t/release/app: src/main.rs" > release/app.d; echo "/t/release/librc.rlib: src/lib.rs" > release/librc.d; echo "/t/release/deps/rc-1a2b.d: src/lib.rs" > release/deps/rc-1a2b.d; echo "/t/release/deps/librc-3c4d.rmeta: src/lib.rs" > release/deps/rc-3c4d.d'
 lay c9_new_cargo_layout DELETE 'mkdir -p release/build/rc/3efe31/out release/examples release/incremental/rc-1/s-1; : > release/.cargo-lock; : > release/.cargo-build-lock; : > release/.cargo-artifact-lock; echo x > release/build/rc/3efe31/out/f; echo "/t/release/librc.rlib: src/lib.rs" > release/librc.d; echo x > release/librc.rlib'
 lay c10_new_layout_triple DELETE 'mkdir -p x86_64-unknown-linux-gnu/release/build/rc/3efe31; : > x86_64-unknown-linux-gnu/release/.cargo-lock; echo x > x86_64-unknown-linux-gnu/release/build/rc/3efe31/f; echo x > x86_64-unknown-linux-gnu/release/librc.rlib; printf "%s\n%s\n" "Signature: 8a477f597d28d172789f06886806bc55" "# This file is a cache directory tag created by cargo." > x86_64-unknown-linux-gnu/CACHEDIR.TAG'
-lay g10_build_without_lock KEEP 'mkdir -p notes/build/pkg; echo "fn main(){}" > notes/build/pkg/main.rs'
+lay g10_build_without_lock DELETE 'mkdir -p notes/build/pkg; echo "fn main(){}" > notes/build/pkg/main.rs'
+lay n1_cargo_lock_deep_lower KEEP 'mkdir -p release/deps/p; echo x > release/deps/p/cargo.lock'
+lay n2_cargo_lock_in_doc KEEP 'mkdir -p doc/p; echo x > doc/p/Cargo.lock'
+lay n3_release_is_symlink KEEP 'mv release rel_real; ln -s rel_real release'
+lay n4_tauri_bundle_loose DELETE 'mkdir -p release/bundle/macos/App.app/Contents/MacOS release/bundle/dmg; echo x > release/bundle/macos/App.app/Contents/MacOS/App; echo "notes" > release/bundle/README.txt'
 lay k2_fingerprint_and_out DELETE 'mkdir -p release/.fingerprint/app-1 release/build/app-1/out; echo "{}" > release/.fingerprint/app-1/lib-app.json; echo "pub fn f(){}" > release/build/app-1/out/gen.rs'
 lay c7_macho_exec DELETE 'printf "\317\372\355\376\007\000" > release/app; chmod +x release/app'
 lay c8_deps_d DELETE 'echo "/t/release/deps/dep.d: src/a.rs" > release/deps/dep.d; printf "\177ELF\002\001\001" > release/deps/test-1a2b3c; chmod +x release/deps/test-1a2b3c'
-lay f3a_text_exec_mainrs KEEP 'echo "fn main(){}" > release/deps/mainrs; chmod +x release/deps/mainrs'
-lay f3b_text_exec_readme KEEP 'echo notes > release/deps/README; chmod +x release/deps/README'
-lay f3c_text_exec_run KEEP 'mkdir -p debug; echo "cargo build" > debug/run; chmod +x debug/run'
-lay f7a_backup_old_build KEEP 'mkdir -p backup/old/build/x/src; echo "fn main(){}" > backup/old/build/x/src/main.rs'
-lay f7b_triple_notaprofile KEEP 'mkdir -p x86_64-unknown-linux-gnu/release/deps x86_64-unknown-linux-gnu/notaprofile/build/x; echo "fn main(){}" > x86_64-unknown-linux-gnu/notaprofile/build/x/main.rs'
-lay f7c_build_in_deps KEEP 'mkdir -p release/deps/build/x; echo "fn main(){}" > release/deps/build/x/main.rs'
+lay f3a_text_exec_mainrs DELETE 'echo "fn main(){}" > release/deps/mainrs; chmod +x release/deps/mainrs'
+lay f3b_text_exec_readme DELETE 'echo notes > release/deps/README; chmod +x release/deps/README'
+lay f3c_text_exec_run DELETE 'mkdir -p debug; echo "cargo build" > debug/run; chmod +x debug/run'
+lay f7a_backup_old_build DELETE 'mkdir -p backup/old/build/x/src; echo "fn main(){}" > backup/old/build/x/src/main.rs'
+lay f7b_triple_notaprofile DELETE 'mkdir -p x86_64-unknown-linux-gnu/release/deps x86_64-unknown-linux-gnu/notaprofile/build/x; echo "fn main(){}" > x86_64-unknown-linux-gnu/notaprofile/build/x/main.rs'
+lay f7c_build_in_deps DELETE 'mkdir -p release/deps/build/x; echo "fn main(){}" > release/deps/build/x/main.rs'
 lay f8a_git_upper_dir KEEP 'mkdir -p release/build/x-1/out/real/.GIT; echo "ref: refs/heads/main" > release/build/x-1/out/real/.GIT/HEAD'
 lay f8b_cargo_toml_lower KEEP 'mkdir -p release/build/x-1/out/crate/src; echo "[package]" > release/build/x-1/out/crate/cargo.toml'
-lay f9a_cargo_dotfile KEEP 'echo "fn main(){}" > release/.cargo-notes.rs'
-lay f9b_d_source KEEP 'echo "void main(){}" > release/app.d'
+lay f9a_cargo_dotfile DELETE 'echo "fn main(){}" > release/.cargo-notes.rs'
+lay f9b_d_source DELETE 'echo "void main(){}" > release/app.d'
 largs=(); for n in ${LNAMES[@]+"${LNAMES[@]}"}; do largs+=(--target "$LT/$n"); done
 run bash "$CL" ${largs[@]+"${largs[@]}"}
 bad=""
@@ -535,6 +537,17 @@ if [ "$mounted" != 1 ]; then skip "cannot mount a volume here (needs macOS hdiut
   survived=0; [ -f "$MNT/main.rs" ] && survived=1
   if [ "$(uname)" = Darwin ]; then hdiutil detach -quiet -force "$MNT" >/dev/null 2>&1; else umount "$MNT" >/dev/null 2>&1; fi
   if [ "$RC" = 0 ] && [ "$survived" = 1 ] && [ -d "$S/ct/release" ] && echo "$OUT" | grep -q 'another device is mounted inside'; then pass; else fail "rc=$RC survived=$survived out: $OUT"; fi
+fi
+
+t "F19: Linux, a bind mount of a folder from the same filesystem inside the target keeps the target (the -xdev count cannot see it)"
+if [ "$(uname)" != Linux ] || [ "$(id -u)" != 0 ] || [ ! -r /proc/self/mountinfo ]; then skip "needs Linux as root"; else
+S=$(new_dir); mk_target "$S/ct"; mkdir -p "$S/ct/release/mnt" "$S/outside"; echo precious > "$S/outside/main.rs"; bound=0
+mount --bind "$S/outside" "$S/ct/release/mnt" >/dev/null 2>&1 && bound=1
+if [ "$bound" != 1 ]; then skip "cannot bind mount here"; else
+  run bash "$CL" --target "$S/ct"
+  umount "$S/ct/release/mnt" >/dev/null 2>&1
+  if [ "$RC" = 0 ] && [ -f "$S/outside/main.rs" ] && [ -d "$S/ct/release" ] && echo "$OUT" | grep -q 'mount point'; then pass; else fail "rc=$RC out: $OUT"; fi
+fi
 fi
 
 finish
