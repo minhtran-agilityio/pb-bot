@@ -5,23 +5,25 @@
 # `apps/*/src-tauri/target`, a CARGO_TARGET_DIR that a session used outside its workspace, and the
 # `target/` of a workspace that `ws-rm` refused and so stays.
 #
-# What it deletes: a folder that is all of
+# Rule: it never deletes more than `cargo clean` would delete, and it deletes nothing that looks like a
+# project. A folder is deleted only when it is all of
 #   - a real directory, not a symlink;
 #   - a cargo target dir: it holds a regular file CACHEDIR.TAG whose first line is the cache-directory
 #     signature (`Signature: 8a477f597d28d172789f06886806bc55`, shared by every tool that writes such a
 #     tag) and whose second line is cargo's own (`# This file is a cache directory tag created by cargo.`);
 #   - found by --root: also has a Cargo.toml beside it (the project's own build folder);
-#   - looks like build output: `.rustc_info.json`, `debug` or `release` is in it, and every entry at its top
-#     level is something cargo writes (`CACHEDIR.TAG`, `.rustc_info.json`, `.cargo-lock`, `debug`, `release`, `doc`, `package`,
-#     `tmp`, `flycheck*`, or a folder that holds `deps`, `.fingerprint`, `debug` or `release`: a profile or a
-#     target-triple folder). A shared folder with the tag and other files in it is kept whole;
 #   - not `/`, not a folder of fewer than two path parts, not the home folder or a folder above it,
 #     not a folder above a checkout in --root, holds no `.git` at any depth and no `Cargo.toml`,
 #     `src` or `package.json` of its own, and no file that git tracks (that is source, not build output);
+#   - clean in one scan of its whole tree (`tree_stray`): no symlink, special file, odd name, `.git`,
+#     `Cargo.toml`, `Cargo.lock`, unreadable folder or mounted device, at any depth;
 #   - not used by a running process: no process has a file or its working directory inside it, and,
 #     for a folder found by --root, no build process (cargo, rustc, a C compiler or linker, tauri, node, npm)
 #     works inside the project that owns it. Paths are compared as the system spells them (`/bin/pwd -P`,
 #     which also fixes the case of a path on a case-insensitive disk), the way lsof prints them.
+# Accepted limit (owner's decision, 2026-11-26): the script does not check cargo's layout, as `cargo clean`
+# does not. A loose file that someone put inside a target folder (a note, a `.rs` file, a script) is
+# deleted with it, unless it is one of the things above.
 # Anything else is kept, and the line says why. Source, an installed app (~/Applications) and a
 # `target` folder of another tool (no CACHEDIR.TAG) are never touched. Only the target folder is removed:
 # `rm -rf` of that one folder, never of its parent.
@@ -31,11 +33,17 @@
 # --root and --target must be absolute paths: a value that comes from a session's report is not
 # trusted. A path with a `.` or `..` component, a control character or a non-ASCII byte is kept. Just before
 # the `rm` it checks again that the folder is the same one (device and inode), is not a symlink, and still
-# holds cargo's tag, no source, no `.git` at any depth and no git-tracked file; a folder that changed is
-# kept and the exit status is 1. Paths in the output are printed with every byte that is not printable ASCII
+# holds cargo's tag, no source, no `.git` at any depth, no git-tracked file, and passes the scan again; a
+# folder that changed is kept and the exit status is 1. `rm` stays on one device (`-x` on macOS,
+# `--one-file-system` on Linux). Paths in the output are printed with every byte that is not printable ASCII
 # replaced by `?`.
-# Known limit: the window between that last check and the `rm` itself (a few milliseconds), in which a
-# same-user process could still swap the folder, and a process that starts using the folder in that window.
+# On a very large target the scans take seconds, so the last check is ordered: a fresh list of open files
+# and the in-use check first (lsof is the slowest), then the rescan of the tree (source, git, strays,
+# mounts), then the quick checks (inode, symlink, tag), then the `rm` at once.
+# Known limit: the time of that rescan (seconds on a very large target) and of the quick checks before the
+# `rm`, in which a same-user process could still move a project into the folder, swap the folder or
+# start using it. A mount point is kept: the folder itself (another device than its parent) or any mount
+# inside it, empty or not.
 # If the script stops before its last line it exits 1.
 #
 # Usage:
@@ -116,6 +124,9 @@ cleanup() {
   if [ "$finished" != 1 ] && [ "$rc" = 0 ]; then echo "fleet-clean-rust: stopped before the end" >&2; exit 1; fi
 }
 trap cleanup EXIT
+# refresh_open: take the list of open files of every process (and check that it is usable). Run at the
+# start, and again right before a delete, so that "a process uses it" is not a minutes-old answer.
+refresh_open() {
 # The processes of the user that can be inspected, taken before lsof runs. A zombie, and on Linux a
 # process whose /proc/<pid>/cwd cannot be read (not dumpable, another credential), is not in the list:
 # lsof cannot list those either, and they would make a full lsof list look partial.
@@ -156,6 +167,8 @@ if ! OWN="$own_cwd" awk -F'\t' -v me="$$" '$1 == me && $3 == "cwd" && $4 == ENVI
   echo "fleet-clean-rust: lsof gave no usable list of open files (it lists $covered of the $alive processes of yours that I can inspect), so I cannot tell whether a process uses a build folder; deleted nothing" >&2
   exit 1
 fi
+}
+refresh_open
 
 canon() { (cd "$1" 2>/dev/null && "$PWDP" -P); }
 
@@ -193,7 +206,7 @@ in_use() {
 }
 
 # keeps_source <dir>: true when its top level holds something that is source, not build output.
-keeps_source() { [ -e "$1/.git" ] || [ -e "$1/Cargo.toml" ] || [ -e "$1/src" ] || [ -e "$1/package.json" ]; }
+keeps_source() { [ -n "$(find "$1" -mindepth 1 -maxdepth 1 \( -iname .git -o -iname Cargo.toml -o -iname src -o -iname package.json \) -print -quit 2>/dev/null)" ]; }
 
 # has_cargo_tag <dir>: a regular CACHEDIR.TAG written by cargo.
 has_cargo_tag() {
@@ -203,7 +216,7 @@ has_cargo_tag() {
 }
 
 # has_git_inside <dir>: a `.git` anywhere inside. git_tracks <dir>: git tracks a file in it.
-has_git_inside() { [ -n "$(find "$1" -name .git -prune -print -quit 2>/dev/null)" ]; }
+has_git_inside() { [ -n "$(find "$1" -iname .git -prune -print -quit 2>/dev/null)" ]; }
 git_tracks() { [ -n "$(git -C "$1" -c core.fsmonitor=false ls-files 2>/dev/null | head -n 1)" ]; }
 
 # devino <dir>: device and inode, to see that a folder is still the one that was checked.
@@ -226,9 +239,59 @@ bad_path() {
   return 1
 }
 
+# mounted_at_or_under <dir>: a mount point at <dir> or anywhere under it, empty or not, read from the
+# system's mount table (the entry count above cannot see an empty mount, nor a bind mount on the same
+# device). Linux: /proc/self/mountinfo (field 5; a space, tab, newline or backslash is an octal escape).
+# macOS and others: the output of /sbin/mount, `<device> on <mount point> (<type>, <options>)`, matched
+# as text, so a path with an odd name cannot confuse a parser. Sets mount_table=unreadable when the table
+# cannot be read on a system that has no mountinfo: the caller then keeps the folder.
+mount_table=ok
+mounted_at_or_under() {
+  local d="$1" mtab
+  if [ -r /proc/self/mountinfo ]; then
+    D="$d" awk '
+      BEGIN { d = ENVIRON["D"] }
+      { m = $5; gsub(/\\040/, " ", m); gsub(/\\011/, "\t", m); gsub(/\\012/, "\n", m); gsub(/\\134/, "\\", m)
+        if (m == d || index(m, d "/") == 1) { found = 1; exit } }
+      END { exit !found }' /proc/self/mountinfo
+    return
+  fi
+  MOUNT=/sbin/mount; [ -x "$MOUNT" ] || MOUNT=/bin/mount
+  if ! mtab=$("$MOUNT" 2>/dev/null) || [ -z "$mtab" ]; then mount_table=unreadable; return 1; fi
+  printf '%s\n' "$mtab" | D="$d" awk '
+    BEGIN { d = ENVIRON["D"] }
+    { if (index($0, " on " d " (") > 0 || index($0, " on " d "/") > 0) { found = 1; exit } }
+    END { exit !found }'
+}
+
+# tree_stray <dir>: one scan of the whole folder tree, at every depth (find -P: a symlink is never
+# followed). It prints the first thing that keeps the whole folder and returns 0; it returns 1 when there
+# is none. It looks for nothing about cargo's layout (that changes with each cargo). It keeps the folder on:
+#   - a symlink, or a special file (fifo, socket, device);
+#   - a name with a control or non-ASCII byte (lsof escapes such a name, so the in-use check could miss it);
+#   - a `.git` (folder or file), a `Cargo.toml` or a `Cargo.lock`, in any letter case (a disk can ignore
+#     case): that is a project, not build output;
+#   - a folder that cannot be read (a find error), because `rm` would then fail halfway;
+#   - another device mounted anywhere inside it: the entries are counted with and without `-xdev`, and on
+#     the mount table is read too (empty mounts and bind mounts on the same device).
+tree_stray() {
+  local d="$1" hit frc all_n xdev_n
+  hit=$(find -P "$d" -mindepth 1 \( -type l -o \( ! -type f ! -type d \) -o -name '*[![:print:]]*' \
+         -o -iname .git -o -iname Cargo.toml -o -iname Cargo.lock \) -print -quit 2>"$WORK/find.err"); frc=$?
+  if [ "$frc" != 0 ] || [ -s "$WORK/find.err" ]; then printf '%s' "(unreadable: find failed)"; return 0; fi
+  if [ -n "$hit" ]; then printf '%s' "${hit#"$d"/}"; return 0; fi
+  all_n=$(find -P "$d" -mindepth 1 2>"$WORK/find.err" | wc -l | tr -d ' ')
+  if [ -s "$WORK/find.err" ]; then printf '%s' "(unreadable: find failed)"; return 0; fi
+  xdev_n=$(find -P "$d" -xdev -mindepth 1 2>/dev/null | wc -l | tr -d ' ')
+  if [ "$all_n" != "$xdev_n" ]; then printf '%s' "(another device is mounted inside)"; return 0; fi
+  if mounted_at_or_under "$d"; then printf '%s' "(a mount point is inside, or is the folder itself)"; return 0; fi
+  if [ "$mount_table" = unreadable ]; then printf '%s' "(cannot read the mount table)"; return 0; fi
+  return 1
+}
+
 # consider <dir> <found by --root: the canonical root, else empty>
 consider() {
-  local dir="$1" scanned="$2" p parent why kib r id1 ids
+  local dir="$1" scanned="$2" p parent why kib r id1 ids stray pdev
   if why=$(bad_path "$dir"); then kept "$dir" "$why"; return; fi
   while [ "${#dir}" -gt 1 ] && [ "${dir%/}" != "$dir" ]; do dir=${dir%/}; done   # `link/` must still be seen as a symlink
   if [ -L "$dir" ]; then kept "$dir" "a symlink"; return; fi
@@ -251,6 +314,9 @@ consider() {
     kept "$p" "the root folder or a folder too close to it"; return
   fi
   case "$home_real/" in "$p"/*) kept "$p" "the home folder, or a folder that holds it"; return ;; esac
+  # A target that is a mount point (another device than its parent folder) is a volume, not build output.
+  if ! pdev=$(devino "$(dirname "$p")"); then kept "$p" "cannot read the device of its parent folder"; failed=1; return; fi
+  if [ "${pdev%%:*}" != "${id1%%:*}" ]; then kept "$p" "a mount point (it is on another device than its parent folder)"; return; fi
   for r in ${roots_real[@]+"${roots_real[@]}"}; do
     case "$r/" in "$p"/*) kept "$p" "holds a checkout"; return ;; esac
   done
@@ -263,18 +329,10 @@ consider() {
   if ! has_cargo_tag "$p"; then
     kept "$p" "not a cargo target dir (no CACHEDIR.TAG written by cargo)"; return
   fi
-  if [ ! -f "$p/.rustc_info.json" ] && [ ! -d "$p/debug" ] && [ ! -d "$p/release" ]; then
-    kept "$p" "does not look like build output (no .rustc_info.json, debug or release)"; return
+  # The whole tree, at every depth: a project, a symlink, a mount or an unreadable folder keeps the folder.
+  if stray=$(tree_stray "$p"); then
+    kept "$p" "not plain build output: $stray inside it keeps the folder (a symlink, a special file, a .git, a Cargo.toml or Cargo.lock, an odd name, an unreadable folder or a mount)"; return
   fi
-  # Every top-level entry must be one cargo writes: a folder shared with other files is kept whole.
-  while IFS= read -r e; do
-    case "$e" in
-      CACHEDIR.TAG|.rustc_info.json|.cargo-lock|.future-incompat-report.json|debug|release|doc|package|tmp|cargo-timings|flycheck*) ;;
-      *) if [ -d "$p/$e" ] && [ ! -L "$p/$e" ] \
-            && { [ -d "$p/$e/deps" ] || [ -d "$p/$e/.fingerprint" ] || [ -d "$p/$e/debug" ] || [ -d "$p/$e/release" ]; }; then :
-         else kept "$p" "not only build output: $e is not something cargo writes"; return; fi ;;
-    esac
-  done < <(ls -A "$p" 2>/dev/null)
   if git_tracks "$p"; then
     kept "$p" "git tracks files in it"; return
   fi
@@ -289,14 +347,22 @@ consider() {
   if [ "$dry" = 1 ]; then
     echo "would delete $(esc "$p") ($(human "$kib"))"
   else
-    # Look again just before the delete: still the same folder (device and inode), a directory, not a
-    # symlink, still carrying cargo's tag and no source. Something swapped in during the checks is kept.
-    ids=$(devino "$p")
-    if [ -L "$p" ] || [ ! -d "$p" ] || [ "$(canon "$p")" != "$p" ] || [ "$ids" != "$id1" ] \
-       || keeps_source "$p" || ! has_cargo_tag "$p" || has_git_inside "$p" || git_tracks "$p"; then
+    # Look again just before the delete, in this order: a fresh list of open files and the in-use check (the
+    # slowest, lsof), then the rescan of the tree for source, git and strays (the time of that scan is the
+    # window for a project moved in), then the quick ones right before the rm: the same folder (device and
+    # inode), a directory, not a symlink, carrying cargo's tag. Something swapped in or started in the
+    # meantime keeps the folder.
+    refresh_open
+    if why=$(in_use "$p" "$parent"); then kept "$p" "in use: $why"; return; fi
+    if keeps_source "$p" || has_git_inside "$p" || git_tracks "$p" || tree_stray "$p" >/dev/null; then
       kept "$p" "changed while I checked it; deleted nothing here"; failed=1; return
     fi
-    rm -rf -- "$p"
+    ids=$(devino "$p")
+    if [ -L "$p" ] || [ ! -d "$p" ] || [ "$(canon "$p")" != "$p" ] || [ "$ids" != "$id1" ] || ! has_cargo_tag "$p"; then
+      kept "$p" "changed while I checked it; deleted nothing here"; failed=1; return
+    fi
+    # A second guard for a mount point: rm stays on the device of the folder.
+    if [ "$("$UNAME" 2>/dev/null)" = Linux ]; then rm -rf --one-file-system -- "$p"; else rm -rfx -- "$p"; fi
     if [ -e "$p" ]; then
       echo "FAILED to delete $(esc "$p")" >&2; failed=1; n_kept=$((n_kept + 1)); return
     fi
