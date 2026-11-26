@@ -29,8 +29,12 @@
 # If it cannot tell what is in use (no `lsof`; a list that lacks this script's own working directory or
 # most of the user's processes), or HOME is unset, or git is missing, it deletes nothing and exits 1.
 # --root and --target must be absolute paths: a value that comes from a session's report is not
-# trusted. Known limit: a process can start, or a path can be swapped, between the checks and the
-# `rm` (same user, build output only).
+# trusted. A path with a `.` or `..` component, a control character or a non-ASCII byte is kept. Just before
+# the `rm` it checks again that the folder is the same one (device and inode), is not a symlink, and still
+# holds cargo's tag and no source; a folder that changed is kept and the exit status is 1.
+# Known limit: the window between that last check and the `rm` itself (a few milliseconds), in which a
+# same-user process could still swap the folder, and a process that starts using the folder in that window.
+# If the script stops before its last line it exits 1.
 #
 # Usage:
 #   fleet-clean-rust.sh -h|--help
@@ -44,10 +48,13 @@
 # Needs at least one --root or --target.
 # Output: `deleted|would delete <path> (<size>)`, `kept <path>: <reason>`, and the last line
 # `fleet-clean-rust: freed <size> in <n> folder(s), kept <m>` (with --dry-run: `would free`).
-# Exit: 0 when it finished (a path that does not exist is kept, not an error); 1 when a delete failed
-# or it cannot tell what is in use; 2 on a usage error.
+# Exit: 0 when it finished (a path that does not exist is kept, not an error); 1 when a delete failed,
+# a folder changed while it was checked, it stopped early, or it cannot tell what is in use; 2 on a usage error.
 set -u
 unset CDPATH
+# Byte-wise matching: [:print:] below must mean printable ASCII, so that a newline, a control
+# character or a non-ASCII byte in a path is seen as one.
+export LC_ALL=C
 
 SIGNATURE='Signature: 8a477f597d28d172789f06886806bc55'
 TAG_LINE2='# This file is a cache directory tag created by cargo.'
@@ -96,7 +103,14 @@ PWDP=/bin/pwd; [ -x "$PWDP" ] || PWDP=/usr/bin/pwd
 if [ ! -x "$PWDP" ]; then echo "fleet-clean-rust: no /bin/pwd; deleted nothing" >&2; exit 1; fi
 
 WORK=$(mktemp -d) || exit 1
-trap 'rm -rf "$WORK"' EXIT
+finished=0
+# shellcheck disable=SC2329  # runs through the EXIT trap
+cleanup() {
+  local rc=$?
+  rm -rf "$WORK"
+  if [ "$finished" != 1 ] && [ "$rc" = 0 ]; then echo "fleet-clean-rust: stopped before the end" >&2; exit 1; fi
+}
+trap cleanup EXIT
 ps -U "$(id -u)" -o pid= 2>/dev/null > "$WORK/ps.txt"
 # One row per open file of every process: pid, command, fd (cwd, txt, a number), path. A partial
 # dump (lsof exits 1 when it could not read some process) is still usable.
@@ -162,9 +176,32 @@ in_use() {
   echo "$why"
 }
 
+# keeps_source <dir>: true when its top level holds something that is source, not build output.
+keeps_source() { [ -e "$1/.git" ] || [ -e "$1/Cargo.toml" ] || [ -e "$1/src" ] || [ -e "$1/package.json" ]; }
+
+# has_cargo_tag <dir>: a regular CACHEDIR.TAG written by cargo.
+has_cargo_tag() {
+  [ -f "$1/CACHEDIR.TAG" ] && [ ! -L "$1/CACHEDIR.TAG" ] \
+    && [ "$(head -n 1 "$1/CACHEDIR.TAG" 2>/dev/null)" = "$SIGNATURE" ] \
+    && [ "$(sed -n 2p "$1/CACHEDIR.TAG" 2>/dev/null)" = "$TAG_LINE2" ]
+}
+
+# devino <dir>: device and inode, to see that a folder is still the one that was checked.
+devino() { if [ "$(uname)" = Linux ]; then stat -c '%d:%i' -- "$1" 2>/dev/null; else stat -f '%d:%i' "$1" 2>/dev/null; fi; }
+
+# bad_path <path>: prints why when a path is not one the checks can be trusted on, and returns 0.
+# The in-use check compares text with what lsof prints, and lsof escapes a control character and may
+# escape a non-ASCII byte; a `.` or `..` component can lead through a symlink that -L does not see.
+bad_path() {
+  case "$1" in *[![:print:]]*) echo "its path holds a character that lsof may escape (a control character or a non-ASCII byte)"; return 0 ;; esac
+  case "$1/" in */./*|*/../*) echo "its path has a . or .. component"; return 0 ;; esac
+  return 1
+}
+
 # consider <dir> <found by --root: the canonical root, else empty>
 consider() {
-  local dir="$1" scanned="$2" p parent why kib r
+  local dir="$1" scanned="$2" p parent why kib r id1 ids
+  if why=$(bad_path "$dir"); then kept "$dir" "$why"; return; fi
   while [ "${#dir}" -gt 1 ] && [ "${dir%/}" != "$dir" ]; do dir=${dir%/}; done   # `link/` must still be seen as a symlink
   if [ -L "$dir" ]; then kept "$dir" "a symlink"; return; fi
   if [ ! -e "$dir" ]; then
@@ -174,13 +211,15 @@ consider() {
   fi
   if [ ! -d "$dir" ]; then kept "$dir" "not a directory"; return; fi
   p=$(canon "$dir") || { kept "$dir" "cannot enter it"; return; }
+  if why=$(bad_path "$p"); then kept "$p" "$why"; return; fi
   case "$seen" in *$'\n'"$p"$'\n'*) return ;; esac
   seen="$seen$p"$'\n'
   # A folder that a scan found must lie inside the root it was found under.
   if [ -n "$scanned" ]; then
     case "$p/" in "$scanned"/*) ;; *) kept "$p" "outside the --root it was found under"; return ;; esac
   fi
-  if [ -n "$(printf '%s' "$p" | LC_ALL=C tr -d '[:print:]')" ]; then kept "$p" "its path holds a control character"; return; fi
+  id1=$(devino "$p")
+  if [ -z "$id1" ]; then kept "$p" "cannot read its device and inode"; failed=1; return; fi
   if [ "$p" = / ] || [ "$(printf '%s' "$p" | tr -cd / | wc -c | tr -d ' ')" -lt 2 ]; then
     kept "$p" "the root folder or a folder too close to it"; return
   fi
@@ -191,12 +230,10 @@ consider() {
   if [ -n "$(find "$p" -name .git -prune -print -quit 2>/dev/null)" ]; then
     kept "$p" "holds a git checkout"; return
   fi
-  if [ -e "$p/.git" ] || [ -e "$p/Cargo.toml" ] || [ -e "$p/src" ] || [ -e "$p/package.json" ]; then
+  if keeps_source "$p"; then
     kept "$p" "holds source (.git, Cargo.toml, src or package.json)"; return
   fi
-  if [ -L "$p/CACHEDIR.TAG" ] || [ ! -f "$p/CACHEDIR.TAG" ] \
-     || [ "$(head -n 1 "$p/CACHEDIR.TAG" 2>/dev/null)" != "$SIGNATURE" ] \
-     || [ "$(sed -n 2p "$p/CACHEDIR.TAG" 2>/dev/null)" != "$TAG_LINE2" ]; then
+  if ! has_cargo_tag "$p"; then
     kept "$p" "not a cargo target dir (no CACHEDIR.TAG written by cargo)"; return
   fi
   if [ ! -f "$p/.rustc_info.json" ] && [ ! -d "$p/debug" ] && [ ! -d "$p/release" ]; then
@@ -221,12 +258,17 @@ consider() {
   fi
   if why=$(in_use "$p" "$parent"); then kept "$p" "in use: $why"; return; fi
   kib=$(du -sk "$p" 2>/dev/null | cut -f1)
-  kib=${kib:-0}
+  case "$kib" in ''|*[!0-9]*) kib=0 ;; esac
   if [ "$dry" = 1 ]; then
     echo "would delete $p ($(human "$kib"))"
   else
-    # Look again just before the delete: still the same real folder, still a directory, not a symlink.
-    if [ -L "$p" ] || [ ! -d "$p" ] || [ "$(canon "$p")" != "$p" ]; then kept "$p" "changed while I checked it"; return; fi
+    # Look again just before the delete: still the same folder (device and inode), a directory, not a
+    # symlink, still carrying cargo's tag and no source. Something swapped in during the checks is kept.
+    ids=$(devino "$p")
+    if [ -L "$p" ] || [ ! -d "$p" ] || [ "$(canon "$p")" != "$p" ] || [ "$ids" != "$id1" ] \
+       || keeps_source "$p" || ! has_cargo_tag "$p"; then
+      kept "$p" "changed while I checked it; deleted nothing here"; failed=1; return
+    fi
     rm -rf -- "$p"
     if [ -e "$p" ]; then
       echo "FAILED to delete $p" >&2; failed=1; n_kept=$((n_kept + 1)); return
@@ -238,6 +280,7 @@ consider() {
 
 for r in ${roots[@]+"${roots[@]}"}; do
   while [ "${#r}" -gt 1 ] && [ "${r%/}" != "$r" ]; do r=${r%/}; done   # `link/` must still be seen as a symlink
+  if why=$(bad_path "$r"); then kept "$r" "root: $why"; continue; fi
   if [ ! -d "$r" ] || [ -L "$r" ]; then kept "$r" "root is not a directory"; continue; fi
   rr=$(canon "$r") || { kept "$r" "cannot enter it"; continue; }
   # NUL-separated, so a newline in a folder name cannot split a path in two.
@@ -249,6 +292,7 @@ for t in ${targets[@]+"${targets[@]}"}; do
   consider "$t" ""
 done
 
+finished=1
 verb="freed"; [ "$dry" = 1 ] && verb="would free"
 echo "fleet-clean-rust: $verb $(human "$freed_kib") in $n_done folder(s), kept $n_kept"
 exit "$failed"

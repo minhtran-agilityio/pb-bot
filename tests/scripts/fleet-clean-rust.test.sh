@@ -298,4 +298,43 @@ S=$(new_dir); mk_target "$S/ct"; printf '%s\n# Written by some other tool.\n' "$
 run bash "$CL" --target "$S/ct"
 if [ "$RC" = 0 ] && [ -d "$S/ct/release" ] && echo "$OUT" | grep -q 'not a cargo target dir'; then pass; else fail "rc=$RC out: $OUT"; fi
 
+t "F13: a target whose folder name holds a newline is kept even while a process works in it, and the folder after it is still processed"
+R=$(new_dir); NL=$'\n'
+mk_target "$R/q${NL}z/target" 1; printf '[package]\n' > "$R/q${NL}z/Cargo.toml"
+mk_project "$R" zz; mk_target "$R/apps/zz/src-tauri/target" 1
+mk_project "$R" yy; mk_target "$R/apps/yy/src-tauri/target" 1
+( cd "$R/q${NL}z/target/release" && exec sleep 60 ) & P=$!; PIDS+=("$P"); sleep 1
+run bash "$CL" --root "$R"
+if [ "$RC" = 0 ] && [ -d "$R/q${NL}z/target/release" ] && [ ! -e "$R/apps/zz/src-tauri/target" ] && [ ! -e "$R/apps/yy/src-tauri/target" ] \
+   && echo "$OUT" | grep -q 'may escape' && echo "$OUT" | grep -q '^fleet-clean-rust: freed .* in 2 folder(s), kept 1$'; then pass; else fail "rc=$RC out: $OUT"; fi
+kill "$P" 2>/dev/null; wait "$P" 2>/dev/null
+
+t "F15: a non-ASCII path is kept, with a reason that names what lsof may escape"
+S=$(new_dir); mk_target "$S/caf"$'\xc3\xa9'
+run bash "$CL" --target "$S/caf"$'\xc3\xa9'
+if [ "$RC" = 0 ] && [ -d "$S/caf"$'\xc3\xa9'/release ] && echo "$OUT" | grep -q 'may escape (a control character or a non-ASCII byte)'; then pass; else fail "rc=$RC out: $OUT"; fi
+
+t "F14: a --root or --target with a . or .. component (a way through a symlink) is kept"
+D=$(new_dir); mkdir -p "$D/ws"; mk_project "$D/elsewhere" p; mk_target "$D/elsewhere/apps/p/src-tauri/target"; ln -s "$D/elsewhere" "$D/ws/link"
+mk_target "$D/real"; mkdir -p "$D/other"
+run bash "$CL" --root "$D/ws/link/." --root "$D/ws/link/x/.." --target "$D/other/../real"
+if [ "$RC" = 0 ] && [ -d "$D/elsewhere/apps/p/src-tauri/target/release" ] && [ -d "$D/real/release" ] \
+   && [ "$(echo "$OUT" | grep -c 'a . or .. component')" = 3 ]; then pass; else fail "rc=$RC out: $OUT"; fi
+
+# F7: du runs between the checks and the delete. A fake du that swaps the folder at that moment stands in
+# for another process doing the same.
+mk_fake_du() { # mk_fake_du <bin dir> <swap script body: $p is the folder>
+  mkdir -p "$1"; { echo '#!/bin/sh'; echo 'p=$2'; echo "$2"; echo 'exec /usr/bin/du "$@"'; } > "$1/du"; chmod +x "$1/du"; }
+t "F7: a folder with source swapped in for the target after the checks is not deleted, and the exit is 1"
+S=$(new_dir); mk_target "$S/ct"; FB=$(new_dir)
+mk_fake_du "$FB" 'mv "$p" "$p.old" && mkdir -p "$p/src" && echo precious > "$p/src/main.rs"'
+run env PATH="$FB:$PATH" bash "$CL" --target "$S/ct"
+if [ "$RC" = 1 ] && [ "$(cat "$S/ct/src/main.rs" 2>/dev/null)" = precious ] && echo "$OUT" | grep -q 'changed while I checked it'; then pass; else fail "rc=$RC out: $OUT"; fi
+
+t "F7: a look-alike target (same content, new inode) swapped in after the checks is not deleted either"
+S=$(new_dir); mk_target "$S/ct"; FB=$(new_dir)
+mk_fake_du "$FB" 'cp -R "$p" "$p.copy" && mv "$p" "$p.old" && mv "$p.copy" "$p"'
+run env PATH="$FB:$PATH" bash "$CL" --target "$S/ct"
+if [ "$RC" = 1 ] && [ -d "$S/ct/release" ] && echo "$OUT" | grep -q 'changed while I checked it'; then pass; else fail "rc=$RC out: $OUT"; fi
+
 finish
