@@ -22,6 +22,10 @@ if action == "good":
 elif action == "touch-index":
     index = pathlib.Path("docs/wiki/index.md")
     index.write_text(index.read_text() + chr(10))
+elif action == "ignored":
+    pathlib.Path("specs").mkdir(exist_ok=True)
+    pathlib.Path("specs/planted.txt").write_text("a file that git ignores\\n")
+    page.write_text(page.read_text().replace("> Never merge on\\n> your own.", "> Merge when CI is green."))
 elif action == "outside":
     pathlib.Path("src/rules.txt").write_text("changed by the model\\n")
 elif action == "bad-quote":
@@ -134,4 +138,53 @@ def test_dry_run_calls_nothing_and_needs_no_key(tmp_path):
     result = run(stale_repo(tmp_path), tmp_path, "--dry-run", key=None)
     assert result.returncode == 0
     assert "mode update" in result.stdout
+    assert not model_ran(tmp_path)
+
+
+def test_update_gate_comes_before_the_key_guard(tmp_path):
+    result = run(make_repo(tmp_path), tmp_path, key=None)
+    assert result.returncode == 0
+    assert "No model call" in result.stdout
+    assert not model_ran(tmp_path)
+
+
+def test_a_new_ignored_file_is_caught_by_the_fence(tmp_path):
+    repo = stale_repo(tmp_path)
+    (repo / ".gitignore").write_text("specs/\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "ignore specs")
+    head = git(repo, "rev-parse", "HEAD")
+    result = run(repo, tmp_path, action="ignored")
+    assert result.returncode == 1
+    assert "outside the wiki" in result.stdout and "specs/planted.txt" in result.stdout
+    assert git(repo, "rev-parse", "HEAD") == head
+
+
+def test_init_in_a_project_that_ignores_the_wiki_folder_makes_no_model_call(tmp_path):
+    repo = tmp_path / "ignoring"
+    repo.mkdir()
+    git(repo, "init", "-q")
+    (repo / ".gitignore").write_text("docs/\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "ignore docs")
+    result = run(repo, tmp_path, "init")
+    assert result.returncode == 1
+    assert "git ignores docs/wiki/index.md" in result.stdout
+    assert not model_ran(tmp_path)
+
+
+def test_the_model_tools_are_narrow(tmp_path):
+    result = run(stale_repo(tmp_path), tmp_path, "--dry-run", key=None)
+    line = result.stdout
+    assert "Write(./docs/wiki/**)" in line and "Edit(./docs/wiki/**)" in line
+    assert "git log" not in line and "git diff" not in line and "git show" not in line
+    assert " Write " not in line + " " and " Edit " not in line + " "
+    assert "Bash(python3 *wiki_check.py" not in line
+    assert f"Bash(python3 {SCRIPT.with_name('wiki_check.py')} *)" in line
+
+
+def test_a_branch_name_that_starts_with_a_dash_is_refused(tmp_path):
+    result = run(stale_repo(tmp_path), tmp_path, "--branch=--detach")
+    assert result.returncode == 2
+    assert "not a usable branch name" in result.stderr
     assert not model_ran(tmp_path)

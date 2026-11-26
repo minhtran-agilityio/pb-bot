@@ -169,3 +169,36 @@ def test_new_adr_fails_until_a_page_names_it(tmp_path):
     result = run(repo)
     assert result.returncode == 0, result.stdout
     assert "1 ADRs covered" in result.stdout
+
+
+def test_golden_answer_contains_must_be_a_list_of_strings(tmp_path):
+    repo = make_repo(tmp_path)
+    golden = repo / "docs" / "wiki" / "golden.json"
+    # A string used to be read one character at a time, so any page passed.
+    golden.write_text(json.dumps([{"q": "May I merge?", "page": "rules.md",
+                                   "answer_contains": "zzz not on the page"}]))
+    result = run(repo)
+    assert result.returncode == 1
+    assert "`answer_contains` as a list of non-empty strings" in result.stdout
+    golden.write_text(json.dumps([{"q": "May I merge?", "page": "rules.md", "answer_contains": [""]}]))
+    assert run(repo).returncode == 1
+    golden.write_text(json.dumps([{"q": "May I merge?", "page": "rules.md", "answer_contains": []}]))
+    result = run(repo)
+    assert result.returncode == 1
+    assert "no `answer_contains`" in result.stdout
+
+
+def test_golden_page_must_stay_inside_the_wiki_folder(tmp_path):
+    repo = make_repo(tmp_path)
+    (repo / "src" / "rules.txt").write_text("Rule 1.\nNever   merge on your\nown. Ask first.\n")
+    golden = repo / "docs" / "wiki" / "golden.json"
+    golden.write_text(json.dumps([{"q": "x", "page": "../../src/rules.txt", "answer_contains": ["rule 1"]}]))
+    result = run(repo)
+    assert result.returncode == 1
+    assert "outside docs/wiki/" in result.stdout
+
+
+def test_ref_that_starts_with_a_dash_is_refused(tmp_path):
+    result = run(make_repo(tmp_path), "--ref=--output=/tmp/x")
+    assert result.returncode == 2
+    assert "must not start with '-'" in result.stderr

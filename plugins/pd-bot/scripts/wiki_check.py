@@ -280,8 +280,16 @@ class Check:
             if not isinstance(entry, dict) or not entry.get("q") or not entry.get("page"):
                 self.fail(f"golden: entry {n} needs `q`, `page` and `answer_contains`")
                 continue
-            page = wiki_dir / str(entry["page"])
+            page = (wiki_dir / str(entry["page"])).resolve()
             wanted = entry.get("answer_contains") or []
+            if not isinstance(wanted, list) or not all(isinstance(w, str) and w for w in wanted):
+                self.fail(f"golden: entry {n} needs `answer_contains` as a list of non-empty strings")
+                continue
+            try:
+                page.relative_to(wiki_dir.resolve())
+            except ValueError:
+                self.fail(f"golden: entry {n} names the page {entry['page']}, which is outside {self.wiki}/")
+                continue
             if not page.is_file():
                 self.fail(f"golden: entry {n} names the page {entry['page']}, which is missing")
                 continue
@@ -306,6 +314,9 @@ def main() -> int:
     parser.add_argument("--max-page", type=int, default=12288)
     args = parser.parse_args()
 
+    if args.ref and args.ref.startswith("-"):
+        print(f"wiki-check: --ref must not start with '-': {args.ref}", file=sys.stderr)
+        return 2
     root = Path(args.root)
     if not root.is_dir():
         print(f"wiki-check: no such directory: {root}", file=sys.stderr)

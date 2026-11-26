@@ -12,8 +12,10 @@ the branch, the commit and the pull request.
    often holds the reason for a change; quote it only when the text is also in a tracked file.
 3. For each stale or failed page: read the changed source
    (`git diff <the page's last commit>..HEAD -- <path>`), correct the page, and add or replace
-   quotes. Change only what the diff changed. Set `checked: <date>` in the frontmatter of every page
-   you examined, also one whose text is still true: the commit of that line makes the page current.
+   quotes. Change only what the diff changed. Set `checked: <date> <short id of HEAD>` (for example `2026-11-26 1720e70`) in
+   the frontmatter of every page you examined, also one whose text is still true. The value must
+   differ from the old one, also when the date is the same: the commit of that line makes the page
+   current, and the check does not read the value.
 4. A `FAIL  adr:` line names an ADR file that no page has in `sources:`. Add it to the decisions
    page: the path in `sources:`, one quote of the decision, a link to the file, and what it changes
    for the reader. When the new ADR supersedes an old one, say so at the old entry. Do not copy the

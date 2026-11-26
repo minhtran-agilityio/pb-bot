@@ -3,7 +3,7 @@ title: <page title>
 read_when: <the situation in which an agent must open this page>
 sources:
   - <tracked path this page was written from>
-checked: <date of the last check against the sources>
+checked: <date> <short id of HEAD, so the value changes at each check>
 ---
 
 # <page title>

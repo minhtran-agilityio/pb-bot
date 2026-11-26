@@ -3,11 +3,12 @@
 
 The model writes the pages; this script does everything else, with no model:
 
-  1. guards    ANTHROPIC_API_KEY is set, the working tree is clean
-  2. gate      `update` with nothing failed and nothing stale stops here (no model call, no cost)
+  1. gate      `update` with nothing failed and nothing stale stops here (no model call, no cost);
+               `init` stops when git ignores the wiki folder
+  2. guards    ANTHROPIC_API_KEY is set, the working tree is clean
   3. branch    git switch -c docs/wiki-<date>
   4. model     claude -p "/pd-bot:pd-wiki <mode> ..."   (the only step that uses the key)
-  5. fence     every changed path must be inside the wiki folder
+  5. fence     every changed path, ignored files included, must be inside the wiki folder
   6. check     wiki_check.py must print no FAIL line; if it does, no commit
   7. commit    on the branch, then wiki_check.py --strict (no stale page); with --pr also push
                and open a pull request
@@ -39,19 +40,24 @@ PROMPT = (
     "list it in your report."
 )
 
-TOOLS = [
-    "Read", "Write", "Edit", "Grep", "Glob",
-    "Bash(git log *)", "Bash(git diff *)", "Bash(git show *)", "Bash(git ls-files *)",
-    "Bash(git check-ignore *)", "Bash(python3 *wiki_check.py *)",
-]
+
+def tools(wiki: str) -> list[str]:
+    """The tools of the model run. Writes stay inside the wiki folder. No `git log|diff|show *`:
+    `--output=<file>` would write any file; the STALE lines of wiki_check.py name what changed.
+    The check is named by its absolute path, so `python3 -c` does not match."""
+    return [
+        "Read(./**)", "Grep(./**)", "Glob(./**)", f"Write(./{wiki}/**)", f"Edit(./{wiki}/**)",
+        "Bash(git ls-files *)", "Bash(git check-ignore *)", f"Bash(python3 {CHECK} *)",
+    ]
 
 
 def git(root: Path, *args: str) -> subprocess.CompletedProcess:
     return subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True)
 
 
-def changed_paths(root: Path) -> list[str]:
-    out = git(root, "status", "--porcelain", "--untracked-files=all").stdout
+def changed_paths(root: Path, ignored: bool = False) -> list[str]:
+    """Paths that git status lists. With `ignored`, also the ignored files (`.claude/`, `specs/`)."""
+    out = git(root, "status", "--porcelain", "--untracked-files=all", *(["--ignored"] if ignored else [])).stdout
     return [line[3:].split(" -> ")[-1].strip('"') for line in out.splitlines() if line.strip()]
 
 
@@ -86,9 +92,12 @@ def main() -> int:
         return 2
     mode = args.mode or ("update" if (root / wiki / "index.md").is_file() else "init")
     branch = args.branch or f"docs/wiki-{datetime.date.today().isoformat()}"
+    if branch.startswith("-") or git(root, "check-ref-format", "--branch", branch).returncode != 0:
+        print(f"wiki-gen: not a usable branch name: {branch}", file=sys.stderr)
+        return 2
     command = [args.claude, "-p", PROMPT.format(mode=mode, wiki=wiki),
                "--plugin-dir", str(PLUGIN), "--permission-mode", "acceptEdits",
-               "--allowedTools", *TOOLS]
+               "--allowedTools", *tools(wiki)]
     if args.model:
         command += ["--model", args.model]
 
@@ -97,7 +106,24 @@ def main() -> int:
         say("command: " + " ".join(command[:2]) + " '<prompt>' " + " ".join(command[3:]))
         return 0
 
-    # 1. guards
+    # 1. gate: free, so it comes before the guards. `update` with nothing failed and nothing stale
+    #    makes no model call and needs no key. An exit other than 0 or 1 is a broken check, not work.
+    if mode == "update":
+        before = run_check(root, wiki)
+        if before.returncode == 0:
+            say("nothing failed and nothing is stale. No model call.")
+            return 0
+        if before.returncode != 1:
+            print(before.stdout + before.stderr, end="")
+            say(f"wiki_check.py stopped with exit {before.returncode}. No model call.")
+            return 1
+        print(before.stdout, end="")
+    elif git(root, "check-ignore", "-q", "--", f"{wiki}/index.md").returncode == 0:
+        say(f"git ignores {wiki}/index.md, so the pages would not be committed. Add a `!/{wiki}/` line to "
+            ".gitignore first (the owner's yes). No model call.")
+        return 1
+
+    # 2. guards
     if not os.environ.get("ANTHROPIC_API_KEY"):
         say("ANTHROPIC_API_KEY is not set. Export it in this shell; never write it to a file in the repository.")
         return 1
@@ -105,14 +131,7 @@ def main() -> int:
     if dirty:
         say(f"the working tree is not clean ({len(dirty)} paths). Commit or stash first.")
         return 1
-
-    # 2. gate
-    if mode == "update":
-        before = run_check(root, wiki)
-        if before.returncode == 0:
-            say("nothing failed and nothing is stale. No model call.")
-            return 0
-        print(before.stdout, end="")
+    ignored_before = set(changed_paths(root, ignored=True))
 
     # 3. branch
     made = git(root, "switch", "-c", branch)
@@ -129,7 +148,9 @@ def main() -> int:
 
     # 5. fence
     changed = changed_paths(root)
+    new_ignored = set(changed_paths(root, ignored=True)) - ignored_before - set(changed)
     outside = [path for path in changed if not path.startswith(wiki + "/")]
+    outside += sorted(path for path in new_ignored if not path.startswith(wiki + "/"))
     if outside:
         say("the model changed files outside the wiki. No commit. Read them, then `git restore` them:")
         for path in outside:
@@ -147,7 +168,10 @@ def main() -> int:
         return 1
 
     # 7. commit
-    git(root, "add", "--", wiki)
+    added = git(root, "add", "--", wiki)
+    if added.returncode != 0:
+        say(f"git add failed: {added.stderr.strip()}")
+        return 1
     done = git(root, "commit", "-m", f"docs(wiki): {mode} the project wiki\n\nWritten by wiki_gen.py ({mode}).")
     if done.returncode != 0:
         say(f"the commit failed: {done.stderr.strip() or done.stdout.strip()}")
@@ -156,7 +180,7 @@ def main() -> int:
     after = run_check(root, wiki)
     print(after.stdout, end="")
     if after.returncode != 0:
-        say("a page is still stale after the commit: the model did not examine it. Not pushed. Run again.")
+        say("a page is still stale after the commit: the model did not examine it (it must change the `checked:` line, with a value that is new). Not pushed.")
         return 1
     if not args.pr:
         say(f"next: git push -u origin {branch}, then open a pull request. The owner merges it.")
