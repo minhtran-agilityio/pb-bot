@@ -2,7 +2,7 @@
 name: pd-orchestrate
 description: "Lead a fleet of free agent sessions from tickets to reviewed pull requests: triage, assign workers in Pod Bay workspaces, route review, check evidence, call an advisor when stuck. Use when the owner asks to run one or more tickets (bug or feature) with agents, or to coordinate sessions across workspaces."
 argument-hint: "<milestone | #n [#m ...] | free text> [base=<branch>] [local]"
-allowed-tools: Read, Write, Edit, Grep, Glob, Agent, Skill, Artifact, SendMessage, ListAgents, AskUserQuestion, Bash(podbay-dev *), Bash(podbay *), Bash(tmux send-keys *), Bash(git *), Bash(gh issue *), Bash(gh pr *), Bash(gh repo view *), Bash(python3 ${CLAUDE_PLUGIN_ROOT}/skills/pd-orchestrate/scripts/plan_groups.py *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-gate.sh *), Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-settings.py *), Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ledger-backup.py *)
+allowed-tools: Read, Write, Edit, Grep, Glob, Agent, Skill, Artifact, SendMessage, ListAgents, AskUserQuestion, Bash(podbay-dev *), Bash(podbay *), Bash(tmux send-keys *), Bash(git *), Bash(gh issue *), Bash(gh pr *), Bash(gh repo view *), Bash(python3 ${CLAUDE_PLUGIN_ROOT}/skills/pd-orchestrate/scripts/plan_groups.py *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-gate.sh *), Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-settings.py *), Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ledger-backup.py *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-clean-rust.sh *)
 ---
 
 # Orchestrate a fleet
@@ -38,7 +38,7 @@ check.
 A check that fails twice, a review past 3 rounds, an `escalate`, a silent session, or two failed
 approaches of your own: read `references/stuck.md` and climb its ladder one step at a time. Think
 again and fix the brief; then one question to the `pd-bot:advisor` agent (Opus 5.5); then a
-`pd-bot:pd-advise` session on Fable 5.2 in a new workspace, which researches the problem and
+`pd-bot:pd-advise` session on Fable 5.2 in a new workspace, which
 returns a solution for you to check and turn into a brief; then the owner. You stay the decider at
 every step.
 

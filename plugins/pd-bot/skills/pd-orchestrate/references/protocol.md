@@ -79,6 +79,7 @@ The worker writes `specs/<ticket>/report.md` (gitignored): the line
               "acceptance": {"qa_dir": "tests/acceptance", "commit": "<sha>"}},
  "review_receipt": {"head": "<sha>", "verdict": "pass", "round": 2},
  "not_verified": ["what nobody checked, and why"],
+ "cargo_target_dirs": ["optional: each CARGO_TARGET_DIR outside the workspace that you used"],
  "decisions": [{"title": "...", "decision": "...", "why": "...", "needs_review": false}],
  "budget_used_min": 42,
  "error": null,

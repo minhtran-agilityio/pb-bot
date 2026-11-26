@@ -90,6 +90,10 @@ One exception to "no steps": a new brief after an advisor's solution may state t
 the chosen approach. Say whether the worker continues the existing branch, and where it can fetch
 the advisor's prototype from.
 
+A brief for a session that builds Rust (a worker, a reviewer, a tester) adds one line: keep
+`CARGO_TARGET_DIR` unset or inside the workspace; when you set it elsewhere, report the folder
+(`cargo_target_dirs` in a report, a line in a result), so the clean-up can find it (`podbay.md`, Clean up).
+
 The reviewer's `assign` holds: the ticket text and the owner's answers from the ledger, the base,
 whether the ticket is risky, the suite command, the worker's session name and checkout path, and
 "Follow the `pd-bot:pd-review` skill".
