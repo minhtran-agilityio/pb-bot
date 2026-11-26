@@ -10,9 +10,18 @@ PIDS=()
 trap 'for p in ${PIDS[@]+"${PIDS[@]}"}; do kill "$p" 2>/dev/null; done' EXIT
 
 TAG2='# This file is a cache directory tag created by cargo.'
-# mk_bin <dir> <name>: a copy of sleep with that name (lsof names a process after its real executable;
-# a macOS copy of a system binary needs an ad hoc signature to run).
-mk_bin() { mkdir -p "$1"; cp "$(command -v sleep)" "$1/$2"; command -v codesign >/dev/null 2>&1 && codesign -f -s - "$1/$2" >/dev/null 2>&1; }
+# mk_bin <dir> <name>: a program called <name> that sleeps for a minute. lsof names a process after its
+# real executable, so a shell script or a renamed copy of sleep would not do (on some systems sleep is a
+# multi-call binary that needs its own name): compile a tiny one, else copy sleep (a macOS copy of a
+# system binary needs an ad hoc signature to run).
+mk_bin() {
+  mkdir -p "$1"
+  if command -v cc >/dev/null 2>&1; then
+    printf '#include <unistd.h>\nint main(void) { sleep(60); return 0; }\n' > "$1/$2.c"
+    cc -o "$1/$2" "$1/$2.c" >/dev/null 2>&1 && return 0
+  fi
+  cp "$(command -v sleep)" "$1/$2"; command -v codesign >/dev/null 2>&1 && codesign -f -s - "$1/$2" >/dev/null 2>&1
+}
 # mk_target <dir> [MiB]: a folder that looks like cargo's output, with a file of the given size.
 mk_target() {
   mkdir -p "$1/release/deps"
@@ -150,9 +159,7 @@ kill "$P" 2>/dev/null; wait "$P" 2>/dev/null
 t "keeps a project's target while a cargo process builds in that project, and deletes the other project's"
 W=$(new_dir); mk_project "$W" busy; mk_project "$W" idle
 mk_target "$W/apps/busy/src-tauri/target"; mk_target "$W/apps/idle/src-tauri/target"
-# lsof names a process after its real executable, so the stand-in is a copy of sleep called cargo
-# (a macOS copy of a system binary needs an ad hoc signature to run).
-BIN=$(new_dir); cp "$(command -v sleep)" "$BIN/cargo"; command -v codesign >/dev/null 2>&1 && codesign -f -s - "$BIN/cargo" >/dev/null 2>&1
+BIN=$(new_dir); mk_bin "$BIN" cargo   # a real program named cargo, as lsof names it
 ( cd "$W/apps/busy/src-tauri" && exec "$BIN/cargo" 60 ) & P=$!; PIDS+=("$P"); sleep 1
 run bash "$CL" --root "$W"
 if [ "$RC" = 0 ] && [ -d "$W/apps/busy/src-tauri/target" ] && [ ! -e "$W/apps/idle/src-tauri/target" ] \
@@ -363,5 +370,27 @@ t "F19: a folder name with a newline cannot forge an output line"
 S=$(new_dir); NL=$'\n'; mk_target "$S/ct${NL}deleted /etc (9.9 GiB)"
 run bash "$CL" --target "$S/ct${NL}deleted /etc (9.9 GiB)"
 if [ "$RC" = 0 ] && ! echo "$OUT" | grep -q '^deleted /etc' && echo "$OUT" | grep -q '^kept .*ct?deleted /etc'; then pass; else fail "rc=$RC out: $OUT"; fi
+
+t "Linux: processes of the user that lsof cannot inspect (not dumpable) and zombies do not make a full lsof list look partial"
+if [ "$(uname)" != Linux ] || ! command -v cc >/dev/null 2>&1; then skip "needs Linux and a C compiler (prctl)"; else
+NB=$(new_dir)
+cat > "$NB/nodump.c" <<'EOF'
+#include <sys/prctl.h>
+#include <unistd.h>
+int main(void) { prctl(PR_SET_DUMPABLE, 0); sleep(60); return 0; }
+EOF
+cat > "$NB/zomb.c" <<'EOF'
+#include <unistd.h>
+int main(void) { if (fork() == 0) _exit(0); sleep(60); return 0; }
+EOF
+if cc -o "$NB/nodump" "$NB/nodump.c" && cc -o "$NB/zomb" "$NB/zomb.c"; then
+  for _ in $(seq 40); do "$NB/nodump" & PIDS+=("$!"); done
+  for _ in $(seq 20); do "$NB/zomb" & PIDS+=("$!"); done
+  sleep 1
+  S=$(new_dir); mk_target "$S/ct"
+  run bash "$CL" --target "$S/ct"
+  if [ "$RC" = 0 ] && [ ! -e "$S/ct" ] && echo "$OUT" | grep -q '^deleted '; then pass; else fail "rc=$RC out: $OUT"; fi
+else fail "could not compile the helper programs"; fi
+fi
 
 finish

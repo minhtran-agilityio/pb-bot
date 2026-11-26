@@ -12,7 +12,7 @@
 #     tag) and whose second line is cargo's own (`# This file is a cache directory tag created by cargo.`);
 #   - found by --root: also has a Cargo.toml beside it (the project's own build folder);
 #   - looks like build output: `.rustc_info.json`, `debug` or `release` is in it, and every entry at its top
-#     level is something cargo writes (`CACHEDIR.TAG`, `.rustc_info.json`, `.cargo-lock`, `doc`, `package`,
+#     level is something cargo writes (`CACHEDIR.TAG`, `.rustc_info.json`, `.cargo-lock`, `debug`, `release`, `doc`, `package`,
 #     `tmp`, `flycheck*`, or a folder that holds `deps`, `.fingerprint`, `debug` or `release`: a profile or a
 #     target-triple folder). A shared folder with the tag and other files in it is kept whole;
 #   - not `/`, not a folder of fewer than two path parts, not the home folder or a folder above it,
@@ -116,7 +116,16 @@ cleanup() {
   if [ "$finished" != 1 ] && [ "$rc" = 0 ]; then echo "fleet-clean-rust: stopped before the end" >&2; exit 1; fi
 }
 trap cleanup EXIT
-ps -U "$(id -u)" -o pid= 2>/dev/null > "$WORK/ps.txt"
+# The processes of the user that can be inspected, taken before lsof runs. A zombie, and on Linux a
+# process whose /proc/<pid>/cwd cannot be read (not dumpable, another credential), is not in the list:
+# lsof cannot list those either, and they would make a full lsof list look partial.
+if [ -r /proc/self/cwd ]; then
+  for d in /proc/[0-9]*; do
+    [ -O "$d" ] && readlink "$d/cwd" >/dev/null 2>&1 && echo "${d#/proc/}"
+  done > "$WORK/ps.txt"
+else
+  ps -U "$(id -u)" -o pid= -o stat= 2>/dev/null | awk '$2 !~ /^Z/ { print $1 }' > "$WORK/ps.txt"
+fi
 # One row per open file of every process: pid, command, fd (cwd, txt, a number), path. A partial
 # dump (lsof exits 1 when it could not read some process) is still usable.
 lsof -w -n -F pcfn 2>/dev/null | awk '
@@ -130,8 +139,8 @@ lsof -w -n -F pcfn 2>/dev/null | awk '
     print pid "\t" cmd "\t" fd "\t" out name }' > "$WORK/open.tsv"
 # Sanity: an lsof that failed or sees little (a sandbox, a container, a limit, a permission error) gives an
 # empty or partial list, and "nothing uses it" would be wrong. The list must show this script's own
-# working directory under the same spelling, and at least 80 % of the user's processes that are
-# still alive (the `ps` list was taken before lsof ran).
+# working directory under the same spelling, and at least 80 % of the user's inspectable processes that
+# are still alive (that list was taken before lsof ran).
 own_cwd=$("$PWDP" -P)
 cut -f1 "$WORK/open.tsv" | LC_ALL=C sort -u > "$WORK/pids.txt"
 alive=0; covered=0
@@ -144,7 +153,7 @@ while IFS= read -r pid; do
 done < "$WORK/ps.txt"
 if ! OWN="$own_cwd" awk -F'\t' -v me="$$" '$1 == me && $3 == "cwd" && $4 == ENVIRON["OWN"] { found = 1 } END { exit !found }' "$WORK/open.tsv" \
    || [ "$alive" -lt 1 ] || [ $((covered * 5)) -lt $((alive * 4)) ]; then
-  echo "fleet-clean-rust: lsof gave no usable list of open files, so I cannot tell whether a process uses a build folder; deleted nothing" >&2
+  echo "fleet-clean-rust: lsof gave no usable list of open files (it lists $covered of the $alive processes of yours that I can inspect), so I cannot tell whether a process uses a build folder; deleted nothing" >&2
   exit 1
 fi
 
@@ -260,7 +269,7 @@ consider() {
   # Every top-level entry must be one cargo writes: a folder shared with other files is kept whole.
   while IFS= read -r e; do
     case "$e" in
-      CACHEDIR.TAG|.rustc_info.json|.cargo-lock|.future-incompat-report.json|doc|package|tmp|cargo-timings|flycheck*) ;;
+      CACHEDIR.TAG|.rustc_info.json|.cargo-lock|.future-incompat-report.json|debug|release|doc|package|tmp|cargo-timings|flycheck*) ;;
       *) if [ -d "$p/$e" ] && [ ! -L "$p/$e" ] \
             && { [ -d "$p/$e/deps" ] || [ -d "$p/$e/.fingerprint" ] || [ -d "$p/$e/debug" ] || [ -d "$p/$e/release" ]; }; then :
          else kept "$p" "not only build output: $e is not something cargo writes"; return; fi ;;
