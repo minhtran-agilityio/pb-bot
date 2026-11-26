@@ -4,7 +4,7 @@
 
 use serde::Serialize;
 use serde_json::Value;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 const WHAT_CHARS: usize = 160;
 const NAME_CHARS: usize = 80;
@@ -59,8 +59,8 @@ pub struct Agents {
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct Session {
-    /// Where it runs: "podbay" (listed by Pod Bay) or "terminal" (a terminal session on this machine with Remote
-    /// Control on, which Pod Bay does not list).
+    /// Where it runs: "podbay" (listed by Pod Bay), "terminal" (a terminal session on this machine with Remote
+    /// Control on, which Pod Bay does not list) or "desktop" (a session of the Claude desktop app, issue #176).
     pub source: &'static str,
     pub machine: String,
     pub project: String,
@@ -77,6 +77,10 @@ pub struct Session {
     pub waiting: String,
     /// The session's Remote Control id: the last part of `remote_url` (`https://claude.ai/code/<id>`), else empty.
     pub rc_id: String,
+    /// A desktop session's id for the desktop app (`local_<uuid>`, the `sessionId` of its file): the one id of a
+    /// desktop session that reaches the page, because the app needs it to open the session. Empty for any other source.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub desktop_id: String,
     /// Pod Bay's name for the session (`name`, for example `claude-pb-bot-00`), the argument of `podbay-dev detail`.
     /// Empty when it is not a safe name (see `safe_name`).
     pub name: String,
@@ -94,11 +98,24 @@ pub struct Session {
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct Stopped {
+    /// "" for a workspace with no session; "desktop" for a desktop-app session that closed lately (issue #176).
+    #[serde(skip_serializing_if = "str::is_empty")]
+    pub source: &'static str,
     pub machine: String,
     pub project: String,
     pub ws: String,
     pub dirty: bool,
+    /// A closed desktop session's title and when it closed (ms since the epoch); empty and 0 otherwise.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub title: String,
+    #[serde(skip_serializing_if = "is_zero")]
+    pub closed: u64,
 }
+
+fn is_zero(n: &u64) -> bool { *n == 0 }
+
+/// A desktop session with no process closed this long ago or less is in the Stopped strip; an older one is idle.
+pub const CLOSED_MS: u64 = 12 * 60 * 60 * 1000;
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct Machine {
@@ -149,6 +166,10 @@ pub struct Raw {
     pub queue: Value,
     /// The Claude sessions of this machine (`local::read_with`).
     pub local: Vec<crate::local::Local>,
+    /// The sessions of the Claude desktop app on this machine (`local::read_desktop`).
+    pub desktop: Vec<crate::local::Desktop>,
+    /// The time of the read (ms since the epoch). 0 when not set: then no desktop session counts as closed lately.
+    pub now: u64,
     /// Machines (by name) the app gets "No route to host" from (`unreachable_machines` in main.rs).
     pub unreachable: Vec<String>,
     /// The last `ls --all` failed: `ls` holds the read before it, so every machine in it counts as not read.
@@ -332,6 +353,7 @@ pub fn build(raw: &Raw) -> Model {
                 branch: cut(branch.get(&format!("{machine}|{project}|{}|{ws}", text(&s["repo"]))).map(String::as_str).unwrap_or(""), NAME_CHARS),
                 queued: queued.get(&format!("{machine}|{}", text(&s["dir"]))).copied().unwrap_or(0),
                 rc_id: session_id(&text(&s["remote_url"])),
+                desktop_id: String::new(),
                 name: safe_name(&text(&s["name"])),
                 waiting: cut(s["waiting_for"].as_str().unwrap_or("").trim(), 40),
                 reason: reason_of(s["waiting_for"].as_str().unwrap_or("")),
@@ -355,13 +377,17 @@ pub fn build(raw: &Raw) -> Model {
     }).unwrap_or_default();
     let me = me(&raw.machines);
     if raw.stale && !me.is_empty() && !unread.contains(&me) { unread.push(me.clone()); }
-    merge_local(&mut sessions, &raw.local, &me, &unread);
+    let shown = merge_local(&mut sessions, &raw.local, &me, &unread);
+    let mut closed = merge_desktop(&mut sessions, raw, &shown, &me);
     order(&mut sessions);
 
-    let stopped: Vec<Stopped> = seen
+    let mut stopped: Vec<Stopped> = seen
         .into_iter()
-        .map(|((project, ws, machine), dirty)| Stopped { machine, project, ws, dirty })
+        .map(|((project, ws, machine), dirty)| Stopped { source: "", machine, project, ws, dirty, title: String::new(), closed: 0 })
         .collect();
+    // The latest closed first.
+    closed.sort_by(|a, b| b.closed.cmp(&a.closed).then_with(|| a.title.cmp(&b.title)));
+    stopped.extend(closed);
     let ls_read = !raw.stale && raw.ls.is_array();
     let read_rows: Vec<String> = raw.ls.as_array().map(|list| {
         list.iter().filter(|m| m["result"].is_array() && truthy(&m["machine"])).map(|m| text(&m["machine"])).collect()
@@ -404,8 +430,11 @@ fn me(machines: &Value) -> String {
 /// interactive `cli` session with Remote Control on; any other one (a `claude -p` run, a session without Remote
 /// Control, an entry point not seen in step 0) is left out. A local session in tmux is Pod Bay's to list: while this
 /// machine's Pod Bay list is unknown or could not be read, it is left out rather than shown as a terminal session.
-fn merge_local(sessions: &mut Vec<Session>, local: &[crate::local::Local], me: &str, unread: &[String]) {
+/// Returns the Claude session ids that now show on the board (a Pod Bay session that got a local twin, and each
+/// terminal session added), so a desktop-app file for the same session does not make a second row.
+fn merge_local(sessions: &mut Vec<Session>, local: &[crate::local::Local], me: &str, unread: &[String]) -> HashSet<String> {
     let pod_bay_known = !me.is_empty() && !unread.iter().any(|m| m == me);
+    let mut shown = HashSet::new();
     for l in local {
         // Only an interactive `cli` session counts: a `claude -p` run inside a Pod Bay pane lends nothing.
         if l.entrypoint != "cli" || !l.interactive {
@@ -417,6 +446,7 @@ fn merge_local(sessions: &mut Vec<Session>, local: &[crate::local::Local], me: &
         });
         if let Some(s) = twin {
             if s.agents.is_none() { s.agents = l.agents.clone(); }
+            shown.insert(l.session_id.clone());
             continue;
         }
         if l.rc_id.is_empty() || (!l.tmux.is_empty() && !pod_bay_known) {
@@ -443,19 +473,84 @@ fn merge_local(sessions: &mut Vec<Session>, local: &[crate::local::Local], me: &
             queued: 0,
             waiting: l.waiting_for.clone(),
             rc_id: l.rc_id.clone(),
+            desktop_id: String::new(),
             name: String::new(),
             links: Vec::new(),
             finished: 0,
             reason: reason_of(&l.waiting_for),
             agents: l.agents.clone(),
         });
+        shown.insert(l.session_id.clone());
+    }
+    shown.remove("");
+    shown
+}
+
+/// Add the Claude desktop app's sessions (issue #176). The app's file has no status, so:
+/// - a session that Pod Bay or a terminal row already shows (same Claude session id) is left out: it shows once, there;
+/// - one with a live process (`~/.claude/sessions/<pid>.json` with the same session id, whatever its entry point) takes
+///   its state, wait reason and sub-agents from that file, like a terminal session;
+/// - one with no process is idle, since its last activity, unless that was within `CLOSED_MS`: then it is returned as a
+///   closed session for the Stopped strip instead (what cannot be known is left out: no state is made up).
+fn merge_desktop(sessions: &mut Vec<Session>, raw: &Raw, shown: &HashSet<String>, me: &str) -> Vec<Stopped> {
+    let mut closed = Vec::new();
+    for d in &raw.desktop {
+        if !d.cli_id.is_empty() && shown.contains(&d.cli_id) {
+            continue;
+        }
+        let title = if d.title.is_empty() { d.project.clone() } else { d.title.clone() };
+        let live = (!d.cli_id.is_empty()).then(|| raw.local.iter().find(|l| l.session_id == d.cli_id)).flatten();
+        let last = d.last_activity.max(0);
+        let Some(l) = live else {
+            if raw.now > 0 && last > 0 && (last as u64) <= raw.now && raw.now - (last as u64) < CLOSED_MS {
+                closed.push(Stopped { source: "desktop", machine: me.to_string(), project: d.project.clone(), ws: String::new(), dirty: false, title: cut(&title, NAME_CHARS), closed: last as u64 });
+                continue;
+            }
+            sessions.push(desktop_row(d, &title, me, "idle", last, "", None, None));
+            continue;
+        };
+        let waits = !l.waiting_for.trim().is_empty();
+        let state = match l.status.as_str() {
+            "busy" if !waits => "busy",
+            "idle" if !waits => "idle",
+            _ => "needs",
+        };
+        sessions.push(desktop_row(d, &title, me, state, l.since, &l.waiting_for, reason_of(&l.waiting_for), l.agents.clone()));
+    }
+    closed
+}
+
+#[allow(clippy::too_many_arguments)]
+fn desktop_row(d: &crate::local::Desktop, title: &str, me: &str, state: &'static str, since: i64, waiting: &str, reason: Option<Reason>, agents: Option<Agents>) -> Session {
+    Session {
+        source: "desktop",
+        machine: me.to_string(),
+        project: d.project.clone(),
+        ws: String::new(),
+        title: cut(title, NAME_CHARS),
+        state,
+        since,
+        what: String::new(),
+        branch: String::new(),
+        prs: 0,
+        queued: 0,
+        waiting: waiting.to_string(),
+        rc_id: String::new(),
+        desktop_id: d.open_id.clone(),
+        name: String::new(),
+        links: Vec::new(),
+        finished: 0,
+        reason,
+        agents,
     }
 }
 
 /// One session's identity across reads: its Remote Control id when it has one (stable when the title changes),
 /// else machine, workspace and title together.
 pub fn key(s: &Session) -> String {
-    if s.rc_id.is_empty() { format!("{}|{}/{}|{}", s.machine, s.project, s.ws, s.title) } else { s.rc_id.clone() }
+    if !s.desktop_id.is_empty() {
+        format!("desktop|{}", s.desktop_id)
+    } else if s.rc_id.is_empty() { format!("{}|{}/{}|{}", s.machine, s.project, s.ws, s.title) } else { s.rc_id.clone() }
 }
 
 #[cfg(test)]
@@ -560,6 +655,8 @@ mod tests {
                 {"dir": "/d/02", "state": "unknown", "finished": null}, {"dir": "/d/02", "state": "delivered", "finished": 5}
             ]}]),
             local: vec![],
+            desktop: vec![],
+            now: 0,
             unreachable: vec![],
             stale: false,
         }
@@ -665,8 +762,8 @@ mod tests {
     fn a_workspace_with_no_session_is_stopped_once() {
         let m = build(&raw());
         assert_eq!(m.stopped, vec![
-            Stopped { machine: "U0".into(), project: "harness".into(), ws: "src".into(), dirty: false },
-            Stopped { machine: "UA".into(), project: "mnemo".into(), ws: "src-07".into(), dirty: true },
+            Stopped { source: "", title: String::new(), closed: 0, machine: "U0".into(), project: "harness".into(), ws: "src".into(), dirty: false },
+            Stopped { source: "", title: String::new(), closed: 0, machine: "UA".into(), project: "mnemo".into(), ws: "src-07".into(), dirty: true },
         ]);
         assert_eq!(m.machines, vec![
             Machine { name: "UA".into(), online: true, key_stale: false, unreachable: false, no_address: false },
@@ -685,7 +782,7 @@ mod tests {
     #[test]
     fn missing_or_odd_input_gives_an_empty_model() {
         assert_eq!(build(&Raw::default()), Model::default());
-        let odd = Raw { ls: json!("x"), checkouts: json!([{"machine": "A", "result": "err"}]), machines: json!({}), queue: Value::Null, local: vec![], unreachable: vec![], stale: false };
+        let odd = Raw { ls: json!("x"), checkouts: json!([{"machine": "A", "result": "err"}]), machines: json!({}), queue: Value::Null, local: vec![], desktop: vec![], now: 0, unreachable: vec![], stale: false };
         assert_eq!(build(&odd), Model::default());
     }
 
@@ -804,5 +901,135 @@ mod tests {
         let pb = build(&Raw { ls: json!([{"machine": "U0", "result": [sess(json!({"status": "waiting", "waiting_for": "permission prompt"}))]}]), ..Raw::default() });
         assert_eq!(pb.sessions[0].reason.as_ref().map(|r| r.kind), Some("permission"), "Pod Bay's own sessions on any machine too");
         assert!(serde_json::to_string(&by("Quiet terminal")).unwrap().find("\"reason\"").is_none(), "no reason: no field");
+    }
+    // ---- Desktop source (issue #176). Fixtures: tests/fixtures/desktop (its README says what each file must give). ----
+
+    fn desktop_fixture() -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/desktop")
+    }
+    /// 1795000100000 is the `lastActivityAt` of every fixture file.
+    const FIXTURE_ACTIVE: u64 = 1_795_000_100_000;
+
+    /// Every fixture file at once, with the local fixture (a terminal twin and a Pod Bay twin) and a Pod Bay row for
+    /// the tmux session `claude-pb-bot-02`, read `after_ms` after the files' last activity.
+    fn with_desktop(after_ms: u64) -> Model {
+        let local = crate::local::read(&crate::local::fixture(), FIXTURE_ACTIVE, &|_, _| true);
+        build(&Raw {
+            ls: json!([{"machine": "UA", "result": [sess(json!({"title": "Pod Bay twin", "name": "claude-pb-bot-02", "context": "pb-bot/pb-bot@02", "project": "pb-bot"}))]}]),
+            machines: json!([{"machine": "UA", "me": true, "online": true}]),
+            local,
+            desktop: crate::local::read_desktop(&desktop_fixture()),
+            now: FIXTURE_ACTIVE + after_ms,
+            ..Raw::default()
+        })
+    }
+
+    #[test]
+    fn the_desktop_fixture_gives_two_desktop_sessions_and_a_twin_shows_once_under_its_own_source() {
+        let m = with_desktop(CLOSED_MS + 60_000);
+        let mut desk: Vec<(&str, &str, &str)> = m.sessions.iter().filter(|s| s.source == "desktop").map(|s| (s.title.as_str(), s.project.as_str(), s.state)).collect();
+        desk.sort();
+        assert_eq!(desk, vec![("Index repo on desktop", "alpha", "idle"), ("Privacy check", "delta-desk", "idle")]);
+        let by = |t: &str| m.sessions.iter().filter(|s| s.title == t).map(|s| s.source).collect::<Vec<_>>();
+        assert_eq!(by("Remote twin"), vec!["terminal"], "the terminal twin shows once, as Terminal");
+        assert_eq!(by("Pod Bay twin"), vec!["podbay"], "the Pod Bay twin shows once, as Pod Bay's");
+        for gone in ["Archived desktop chat", "Desktop twin of a terminal session", "Desktop twin of a Pod Bay session"] {
+            assert!(by(gone).is_empty(), "{gone} is not a session");
+            assert!(m.stopped.iter().all(|w| w.title != gone), "{gone} is not a Stopped entry");
+        }
+        assert!(m.stopped.iter().all(|w| w.source != "desktop"), "older than 12 hours: idle, not closed");
+    }
+
+    #[test]
+    fn a_twin_is_left_out_only_when_the_other_source_really_shows_it() {
+        // No Pod Bay row for `claude-pb-bot-02` and no Remote Control id on the terminal twin: nothing shows those two
+        // sessions, so the desktop files for them do.
+        let mut local = crate::local::read(&crate::local::fixture(), FIXTURE_ACTIVE, &|_, _| true);
+        local.retain(|l| l.title != "Remote twin");
+        let m = build(&Raw {
+            machines: json!([{"machine": "UA", "me": true, "online": true}]),
+            local, desktop: crate::local::read_desktop(&desktop_fixture()), now: FIXTURE_ACTIVE + CLOSED_MS + 1, ..Raw::default()
+        });
+        let mut desk: Vec<&str> = m.sessions.iter().filter(|s| s.source == "desktop").map(|s| s.title.as_str()).collect();
+        desk.sort();
+        assert_eq!(desk, vec!["Desktop twin of a Pod Bay session", "Desktop twin of a terminal session", "Index repo on desktop", "Privacy check"]);
+    }
+
+    #[test]
+    fn the_desktop_model_holds_no_secret_no_full_path_and_only_the_id_that_opens_a_session() {
+        let dir = desktop_fixture();
+        let snapshot = || -> Vec<(std::path::PathBuf, Vec<u8>)> {
+            let mut all = Vec::new();
+            let mut stack = vec![dir.clone()];
+            while let Some(d) = stack.pop() {
+                for e in std::fs::read_dir(&d).unwrap().flatten() {
+                    let p = e.path();
+                    if p.is_dir() { stack.push(p) } else { all.push((p.clone(), std::fs::read(&p).unwrap())) }
+                }
+            }
+            all.sort();
+            all
+        };
+        let before = snapshot();
+        let m = build(&Raw { desktop: crate::local::read_desktop(&dir), now: FIXTURE_ACTIVE + CLOSED_MS + 1, ..Raw::default() });
+        assert_eq!(before, snapshot(), "reading the folder writes nothing and changes no file");
+        assert_eq!(m.sessions.iter().filter(|s| s.source == "desktop").count(), 4, "no twin is read here, so d3 and d4 show too");
+        let body = serde_json::to_string(&m).unwrap();
+        for secret in ["FIXTURE-SECRET-TOKEN-176", "mcp.example.invalid", "fixture-mcp", "/home/someone", "someone", "secret", "worktrees", "Bearer"] {
+            assert!(!body.contains(secret), "model holds {secret}");
+        }
+        // No `cliSessionId`, and no `sessionId` except the one the app needs to open a session: the `sessionId`
+        // (`local_<uuid>`) is what the desktop app's own `claude://code/continue?session=` link takes. The CLI ids are
+        // never needed to open one, so they never leave.
+        for cli in ["d1d1d1d1", "d2d2d2d2", "d5d5d5d5", "33333333-3333", "44444444-4444"] {
+            assert!(!body.contains(cli), "model holds the CLI session id {cli}");
+        }
+        assert!(!body.contains("local_d2000000"), "the archived session's id is not there");
+        for field in ["\"cliSessionId\"", "\"sessionId\"", "\"cwd\"", "\"originCwd\"", "\"worktreePath\"", "\"remoteMcpServersConfig\""] {
+            assert!(!body.contains(field), "model has the field {field}");
+        }
+        let ids: Vec<&str> = m.sessions.iter().map(|s| s.desktop_id.as_str()).collect();
+        assert!(ids.contains(&"local_d1000000-0000-4000-8000-000000000001") && ids.contains(&"local_d5000000-0000-4000-8000-000000000005"), "{ids:?}");
+        assert!(m.sessions.iter().all(|s| s.rc_id.is_empty()), "a desktop session has no Remote Control id");
+    }
+
+    #[test]
+    fn a_desktop_session_with_no_process_that_was_active_in_the_last_12_hours_is_in_the_stopped_strip() {
+        let m = with_desktop(3_600_000);
+        assert!(m.sessions.iter().all(|s| s.source != "desktop"), "closed, so not a session");
+        let mut got: Vec<(&str, &str, u64)> = m.stopped.iter().filter(|w| w.source == "desktop").map(|w| (w.title.as_str(), w.project.as_str(), w.closed)).collect();
+        got.sort();
+        assert_eq!(got, vec![("Index repo on desktop", "alpha", FIXTURE_ACTIVE), ("Privacy check", "delta-desk", FIXTURE_ACTIVE)]);
+        assert_eq!(m.counts.stopped, m.stopped.len());
+        assert!(m.stopped.iter().filter(|w| w.source == "desktop").all(|w| w.ws.is_empty() && !w.dirty && w.machine == "UA"));
+        // Exactly 12 hours is no longer lately; no clock (0) says nothing about closing.
+        assert!(with_desktop(CLOSED_MS).stopped.iter().all(|w| w.source != "desktop"));
+        let none = build(&Raw { desktop: crate::local::read_desktop(&desktop_fixture()), ..Raw::default() });
+        assert_eq!((none.sessions.iter().filter(|s| s.source == "desktop").count(), none.stopped.len()), (4, 0));
+        // The field the page reads, and no field for a workspace entry.
+        let v = serde_json::to_value(&m.stopped).unwrap();
+        assert!(v.as_array().unwrap().iter().any(|w| w["source"] == "desktop" && w["title"].is_string() && w["closed"] == FIXTURE_ACTIVE));
+    }
+
+    #[test]
+    fn a_desktop_session_with_a_live_process_takes_its_state_reason_and_sub_agents() {
+        let desk = crate::local::read_desktop(&desktop_fixture());
+        let idx = desk.iter().find(|d| d.title == "Index repo on desktop").unwrap();
+        let live = |status: &str, waiting: &str| crate::local::Local {
+            session_id: idx.cli_id.clone(), entrypoint: "claude-desktop".into(), interactive: true, status: status.into(),
+            waiting_for: waiting.into(), since: 5, agents: Some(Agents { running: 1, done: 0, list: vec![] }), ..Default::default()
+        };
+        let one = |l: crate::local::Local| {
+            let m = build(&Raw { desktop: desk.clone(), local: vec![l], now: FIXTURE_ACTIVE + 1, ..Raw::default() });
+            m.sessions.into_iter().find(|s| s.title == "Index repo on desktop").expect("a live session is a session, not a closed one")
+        };
+        let w = one(live("waiting", "permission prompt"));
+        assert_eq!((w.source, w.state, w.since, w.waiting.as_str()), ("desktop", "needs", 5, "permission prompt"));
+        assert_eq!(w.reason.as_ref().map(|r| r.kind), Some("permission"));
+        assert_eq!(w.agents.as_ref().map(|a| a.running), Some(1));
+        assert_eq!(one(live("busy", "")).state, "busy");
+        assert_eq!(one(live("idle", "")).state, "idle");
+        assert_eq!(one(live("idle", "input needed")).state, "needs", "a wait text wins over idle");
+        assert_eq!(key(&w), "desktop|local_d1000000-0000-4000-8000-000000000001");
     }
 }

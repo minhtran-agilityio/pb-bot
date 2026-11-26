@@ -30,7 +30,7 @@ Local Network across rebuilds"). The first start on a new Mac asks for confirmat
 ## Use
 
 - **Window:** the title bar shows the Pod Cat logo and where you are; drag it to move the window. The sidebar
-  filters by state, by **Source** (Pod Bay, Terminal) and by **Projects**: click a row to filter, click it again or
+  filters by state, by **Source** (Pod Bay, Terminal, Desktop) and by **Projects**: click a row to filter, click it again or
   **Clear filter** to stop. A project's dot turns accent while a session there needs you; its foot has the theme switch (light, dark, follow the system). The button on the
   title bar (or ⌘B) folds the sidebar to its icons.
 - **Look:** the same design system as Shape Board: Outfit for text (JetBrains Mono only for code), Lucide icons,
@@ -38,13 +38,17 @@ Local Network across rebuilds"). The first start on a new Mac asks for confirmat
 - **Board:** one lane per state. Switch between **Board** and **List** at the top right of the main panel. The cat
   in the summary row waves when a session needs you, types while one works, and sleeps otherwise.
 - **Source:** each card says where its session runs: `Pod Bay · M0` (with the machine) or `Terminal · RC` (a
-  terminal session on this machine with Remote Control on). Claude desktop-app sessions are not shown yet.
+  terminal session on this machine with Remote Control on) or `Desktop` (a session of the Claude desktop app on this
+  Mac). A session that two of them list shows once. A Desktop session with no process running shows as idle; one
+  that was active in the last 12 hours and has no process shows in the Stopped strip as closed. Archived desktop
+  sessions are not shown.
 - **Why it waits:** a card that needs you says `Permission` when the session waits on a permission; else the
   `input needed` tag shows. The peek repeats it under "Why it waits".
 - **Sub-agents:** a working session on this machine shows up to 3 running sub-agents and "+n more running"; the
   peek lists every sub-agent with its model and time. Sessions on other machines show no sub-agents (Pod Bay does
   not report them).
-- **Open a session:** click a card. The Claude desktop app switches to that session.
+- **Open a session:** click a card. The Claude desktop app switches to that session. A Desktop session opens by its own
+  link; that link was not run when this was written, so if a click does nothing, tell the owner.
 - **Peek:** the speech-bubble button on a card shows the session's last reply and your last prompt, without opening it.
 - **Menu bar:** the icon shows the most urgent state and a count. Left-click for a small list of who needs you and
   what is working; right-click for settings (sound, do not disturb, start at login, always on top).

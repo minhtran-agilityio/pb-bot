@@ -9,6 +9,13 @@
 //!   sub-agent's transcript `agent-*.jsonl` next to it is never opened: only its file times are used (created = the
 //!   start, last change = the end).
 //!
+//! - `~/Library/Application Support/Claude/claude-code-sessions/<id>/<id>/local_<uuid>.json`, one per session of the
+//!   Claude desktop app (issue #176): `sessionId` (`local_<uuid>`, the id its `claude://` link takes), `cliSessionId`
+//!   (the id of the CLI session behind it, which ties it to `~/.claude/sessions/<pid>.json` and to the transcript),
+//!   `title`, `cwd`, `isArchived`, `lastActivityAt`. The file has no status: a desktop session that runs has a
+//!   `~/.claude/sessions/<pid>.json` whose `sessionId` is its `cliSessionId`. Nothing else in the file is read; in
+//!   particular `remoteMcpServersConfig` (it can hold addresses and tokens) is never looked at.
+//!
 //! Each field is copied by name into `Local`. `cwd`, `sessionId` and `pid` are used to find the files and to check
 //! that the session still runs, and are then dropped: only the last folder name of `cwd` is kept, as the project.
 
@@ -86,6 +93,9 @@ impl Cache {
 /// One local session, with only the fields the board shows.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Local {
+    /// The Claude session id (`sessionId`), to tie a desktop-app session file to the process behind it and to tell
+    /// a session two sources list. It is used inside `model::build` only and never reaches the page.
+    pub session_id: String,
     /// The tmux session it runs in (Pod Bay's `name` for the sessions Pod Bay runs), else empty.
     pub tmux: String,
     /// The Remote Control id (`bridgeSessionId`), when Remote Control is on and the id is well formed; else empty.
@@ -416,6 +426,7 @@ fn read_sessions(claude: &Path, now: u64, alive: &dyn Fn(i64, &str) -> bool, cac
         };
         let bridge = v["bridgeSessionId"].as_str().unwrap_or("");
         out.push(Local {
+            session_id: if safe_id(sid) { sid.to_string() } else { String::new() },
             tmux: safe_name(v["tmux"].as_str().unwrap_or("").split(':').next().unwrap_or("")),
             rc_id: session_id(&format!("https://claude.ai/code/{bridge}")),
             entrypoint: cut(v["entrypoint"].as_str().unwrap_or(""), 40),
@@ -426,6 +437,71 @@ fn read_sessions(claude: &Path, now: u64, alive: &dyn Fn(i64, &str) -> bool, cac
             project: project_of(cwd),
             since: v["statusUpdatedAt"].as_i64().or_else(|| v["startedAt"].as_i64()).unwrap_or(0),
             agents,
+        });
+    }
+    out
+}
+
+/// One session of the Claude desktop app, with only the fields the board needs.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Desktop {
+    /// `sessionId` (`local_<uuid>`) when it is well formed: the one id the app needs to open the session in the
+    /// desktop app (`claude://code/continue?session=<id>`). Empty when the id is not one the desktop app accepts.
+    pub open_id: String,
+    /// `cliSessionId` when well formed: only to find the process behind the session and to tell a twin. Never shown.
+    pub cli_id: String,
+    pub title: String,
+    /// The last folder name of `cwd`.
+    pub project: String,
+    /// `lastActivityAt` (ms since the epoch), 0 when missing.
+    pub last_activity: i64,
+}
+
+/// At most this many folders and files of the desktop app are looked at in one poll.
+const MAX_DESKTOP_DIRS: usize = 64;
+const MAX_DESKTOP_FILES: usize = 256;
+
+/// The desktop app's own id for a session: `local_` and then letters, digits and `-` (the shape its link accepts).
+pub fn desktop_id(id: &str) -> bool {
+    id.strip_prefix("local_").map_or(false, |r| !r.is_empty() && r.len() <= 64 && r.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'))
+}
+
+/// The Claude desktop app's sessions, from `<app>/claude-code-sessions/<id>/<id>/local_*.json` (`app` is the folder
+/// `~/Library/Application Support/Claude`). An archived session, a broken or odd file and a link are skipped; a
+/// missing folder gives none. Read only. The newest files come first.
+pub fn read_desktop(app: &Path) -> Vec<Desktop> {
+    let sub = |dir: &Path| -> Vec<PathBuf> {
+        let mut dirs: Vec<PathBuf> = std::fs::read_dir(dir).map(|rd| rd.flatten().filter(|e| e.file_type().map_or(false, |t| t.is_dir())).map(|e| e.path()).collect()).unwrap_or_default();
+        dirs.sort();
+        dirs.truncate(MAX_DESKTOP_DIRS);
+        dirs
+    };
+    let mut files: Vec<(SystemTime, PathBuf)> = Vec::new();
+    for a in sub(&app.join("claude-code-sessions")) {
+        for b in sub(&a) {
+            let Ok(rd) = std::fs::read_dir(&b) else { continue };
+            for e in rd.flatten() {
+                let ok = e.file_name().to_str().map_or(false, |n| n.starts_with("local_") && n.ends_with(".json"));
+                if ok && e.file_type().map_or(false, |t| t.is_file()) {
+                    files.push((e.metadata().and_then(|m| m.modified()).unwrap_or(UNIX_EPOCH), e.path()));
+                }
+            }
+        }
+    }
+    files.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+    let mut out = Vec::new();
+    for (_, path) in files.into_iter().take(MAX_DESKTOP_FILES) {
+        let Some(v) = read_json(&path, MAX_FILE) else { continue };
+        if !v.is_object() || v["isArchived"] == Value::Bool(true) {
+            continue;
+        }
+        let (id, cli) = (v["sessionId"].as_str().unwrap_or(""), v["cliSessionId"].as_str().unwrap_or(""));
+        out.push(Desktop {
+            open_id: if desktop_id(id) { id.to_string() } else { String::new() },
+            cli_id: if safe_id(cli) { cli.to_string() } else { String::new() },
+            title: cut(v["title"].as_str().unwrap_or(""), TEXT_CHARS),
+            project: project_of(v["cwd"].as_str().unwrap_or("")),
+            last_activity: v["lastActivityAt"].as_i64().unwrap_or(0),
         });
     }
     out
@@ -687,5 +763,28 @@ mod tests {
         // Only whole folder names change (review of #158, F4).
         assert_eq!(cut(&format!("edit src/{user}ice.rs and host:/home/{user}ice/x"), 200), format!("edit src/{user}ice.rs and host:/home/~/x"));
         assert_eq!(cut(&format!("copy host:/home/{user}/x,y"), 80), "copy host:/home/~/x,y");
+    }
+    #[test]
+    fn desktop_files_are_read_by_name_and_a_bad_one_is_skipped() {
+        let app = std::env::temp_dir().join(format!("pod-board-desktop-{}-{}", std::process::id(), now()));
+        let dir = app.join("claude-code-sessions/a/b");
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = |name: &str, body: &str| std::fs::write(dir.join(name), body).unwrap();
+        file("local_ok.json", r#"{"sessionId": "local_0f1e-22", "cliSessionId": "0f1e2d3c-aaaa-4bbb-8ccc-1234567890ab", "title": "  Plain  ", "cwd": "/home/someone/secret/alpha/", "isArchived": false, "lastActivityAt": 77}"#);
+        file("local_bad_id.json", r#"{"sessionId": "../x", "cliSessionId": "zz/..", "title": "Odd ids", "cwd": "/w/beta"}"#);
+        file("local_archived.json", r#"{"sessionId": "local_a", "title": "Archived", "isArchived": true}"#);
+        file("local_broken.json", "{not json");
+        file("local_list.json", "[1, 2]");
+        file("other.json", r#"{"sessionId": "local_other", "title": "Not a session file"}"#);
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(dir.join("local_ok.json"), dir.join("local_link.json")).unwrap();
+        let mut got = read_desktop(&app);
+        got.sort_by(|a, b| a.title.cmp(&b.title));
+        assert_eq!(got.iter().map(|d| d.title.as_str()).collect::<Vec<_>>(), vec!["Odd ids", "Plain"]);
+        assert_eq!(got[1], Desktop { open_id: "local_0f1e-22".into(), cli_id: "0f1e2d3c-aaaa-4bbb-8ccc-1234567890ab".into(), title: "Plain".into(), project: "alpha".into(), last_activity: 77 });
+        assert_eq!((got[0].open_id.as_str(), got[0].cli_id.as_str(), got[0].last_activity), ("", "", 0), "an id the desktop app would not accept is dropped");
+        assert!(read_desktop(Path::new("/nonexistent/pod-board")).is_empty());
+        for bad in ["", "local_", "local_a/b", "local_..", "session_01x", "local_a b"] { assert!(!desktop_id(bad), "{bad}"); }
+        assert!(desktop_id("local_d1000000-0000-4000-8000-000000000001"));
     }
 }

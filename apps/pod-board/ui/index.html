@@ -679,12 +679,17 @@ function stoppedStrip() {
   return box;
 }
 
-// A card with a Remote Control id opens that session in the Claude app when clicked or when Enter is pressed on it.
+// How a session opens in the Claude app: by its Remote Control id, or (a Desktop session) by its own id. None: it cannot open.
+const opener = s => (s.rc_id ? ['open_session', s.rc_id] : s.desktop_id ? ['open_desktop', s.desktop_id] : null);
+const openIt = s => { const o = opener(s), t = window.__TAURI__; if (o && t) t.core.invoke(o[0], { id: o[1] }).catch(() => {}); };
+// Why a session cannot open: a Desktop one has no id the desktop app accepts, any other has no Remote Control link.
+const noOpen = s => (srcOf(s) === 'desktop' ? 'this desktop session has no id the Claude desktop app accepts' : 'this session has no Remote Control link');
+// A card that can open opens that session in the Claude app when clicked or when Enter is pressed on it.
 function linkable(node, s) {
-  if (!s.rc_id) return node;
+  if (!opener(s)) return node;
   node.classList.add('link'); node.tabIndex = 0; node.setAttribute('role', 'link');
   node.title = `Open ${s.title} in Claude`;
-  const go = () => { const t = window.__TAURI__; if (t) t.core.invoke('open_session', { id: s.rc_id }).catch(() => {}); };
+  const go = () => openIt(s);
   node.addEventListener('click', go);
   node.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
   return node;
@@ -696,14 +701,14 @@ const PEEK_KEEP_MS = 20000;
 const peeks = new Map(); // pkey -> { at, data } | { at, error }
 let peekOf = null, peekToken = 0, peekFrom = null, peekSig = '';
 // The same session across reads. A session with no Pod Bay name (a Terminal one) is told apart by its title.
-const pkey = s => (s.rc_id ? `rc|${s.rc_id}` : `${srcOf(s)}|${s.machine}|${s.name || s.title}`);
+const pkey = s => (s.rc_id ? `rc|${s.rc_id}` : s.desktop_id ? `desktop|${s.desktop_id}` : `${srcOf(s)}|${s.machine}|${s.name || s.title}`);
 // Prompt and reply come from `podbay-dev detail`: only a Pod Bay session with a name has them.
 const canRead = s => srcOf(s) === 'podbay' && !!s.name;
 const sigOf = s => JSON.stringify([s.reason, s.agents, s.step]);
 
 function peekButton(s) {
   // A card with nothing to peek at (no prompt/reply to read, no reason, no sub-agents) and an open link has no peek button.
-  if (!(canRead(s) || (s.reason && REASON[s.reason.kind]) || (s.agents && (subRun(s) || subDone(s))) || !s.rc_id)) return null;
+  if (!(canRead(s) || (s.reason && REASON[s.reason.kind]) || (s.agents && (subRun(s) || subDone(s))) || !opener(s))) return null;
   const b = el('button', 'peekbtn'); b.type = 'button';
   b.setAttribute('aria-label', `Peek at ${s.title}`); b.title = canRead(s) ? 'Peek: last reply and prompt' : 'Peek: why it waits and the sub-agents';
   b.setAttribute('aria-expanded', String(!!peekOf && pkey(peekOf) === pkey(s)));
@@ -734,7 +739,7 @@ function drawPeekHead() {
   meta.append(srcChip(s), el('span', 'where', place(s)));
   if (s.waiting) meta.append(el('span', 'tag wait', s.waiting));
   if (s.state !== 'idle' && s.since) meta.append(el('span', 'where', `· ${dur(s.since)}`));
-  const open = $('peekOpen'); open.disabled = !s.rc_id; open.title = s.rc_id ? `Open ${s.title} in the Claude app` : 'Cannot open: this session has no Remote Control link';
+  const open = $('peekOpen'); open.disabled = !opener(s); open.title = opener(s) ? `Open ${s.title} in the Claude app` : `Cannot open: ${noOpen(s)}`;
 }
 
 function drawPeekBody() {
@@ -746,7 +751,7 @@ function drawPeekBody() {
   const tree = subTree(s); if (tree) body.append(tree);
   const got = canRead(s) ? peeks.get(pkey(s)) : null;
   $('peekAgain').disabled = !got;
-  if (!s.rc_id) body.append(el('p', 'pnote', 'Cannot open: this session has no Remote Control link.'));
+  if (!opener(s)) body.append(el('p', 'pnote', `Cannot open: ${noOpen(s)}.`));
   if (!canRead(s)) {
     body.append(el('p', 'pnote', srcOf(s) === 'podbay' ? 'Pod Bay gave this session no name, so its prompt and reply cannot be read.' : 'Prompt and reply are read only for sessions Pod Bay runs, with its name.'));
     return;
@@ -811,7 +816,7 @@ $('peekClose').append(ic('x'));
 $('peekClose').addEventListener('click', closePeek);
 $('peekAgain').addEventListener('click', () => { if (peekOf) readPeek(peekOf, true); });
 $('peekOpen').addEventListener('click', () => {
-  const t = window.__TAURI__; if (t && peekOf && peekOf.rc_id) t.core.invoke('open_session', { id: peekOf.rc_id }).catch(() => {});
+  if (peekOf) openIt(peekOf);
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && peekOf) closePeek(); });
 

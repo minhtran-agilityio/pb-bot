@@ -265,7 +265,7 @@ mod tests {
     fn s(title: &str, state: &'static str) -> Session {
         Session {
             machine: "UA".into(), project: "pb-bot".into(), ws: "src-05".into(), title: title.into(), state,
-            since: 0, what: String::new(), branch: String::new(), prs: 0, queued: 0, rc_id: String::new(), name: String::new(),
+            since: 0, what: String::new(), branch: String::new(), prs: 0, queued: 0, rc_id: String::new(), desktop_id: String::new(), name: String::new(),
             links: vec![], finished: 0, source: "podbay", reason: None, agents: None,
             waiting: if state == "needs" { "input needed".into() } else { String::new() },
         }
@@ -477,5 +477,25 @@ mod tests {
         let mut m = read("idle", "");
         a.mark(&mut m);
         assert!(m.sessions[0].finished > 0 && m.counts.finished == 1);
+    }
+    #[test]
+    fn a_desktop_session_that_starts_to_wait_raises_one_alert_with_sound() {
+        use crate::local::{Desktop, Local};
+        use crate::model::{build, Raw};
+        let desk = vec![Desktop { open_id: "local_d1".into(), cli_id: "d1d1".into(), title: "Desk job".into(), project: "alpha".into(), last_activity: 1 }];
+        let read = |status: &str, waiting: &str| build(&Raw {
+            desktop: desk.clone(),
+            local: vec![Local { session_id: "d1d1".into(), entrypoint: "claude-desktop".into(), interactive: true, status: status.into(), waiting_for: waiting.into(), since: 1, ..Local::default() }],
+            now: 1_000_000_000_000,
+            ..Raw::default()
+        });
+        let mut a = Alerts::new(true);
+        assert_eq!(a.on_read(&read("busy", ""), 0), Outcome::default());
+        let m = read("waiting", "permission prompt");
+        assert_eq!((m.counts.needs, m.sessions[0].source), (1, "desktop"), "it counts as one that needs you (the Dock badge)");
+        let o = a.on_read(&m, 5_000);
+        assert_eq!(o.alerts.len(), 1);
+        assert_eq!((o.alerts[0].kind.clone(), o.alerts[0].title.as_str(), o.sound, o.flash), (Kind::New, "Desk job needs you", true, true));
+        assert!(a.on_read(&read("waiting", "permission prompt"), 10_000).alerts.is_empty(), "told once");
     }
 }
