@@ -9,6 +9,10 @@ SIG='Signature: 8a477f597d28d172789f06886806bc55'
 PIDS=()
 trap 'for p in ${PIDS[@]+"${PIDS[@]}"}; do kill "$p" 2>/dev/null; done' EXIT
 
+TAG2='# This file is a cache directory tag created by cargo.'
+# mk_bin <dir> <name>: a copy of sleep with that name (lsof names a process after its real executable;
+# a macOS copy of a system binary needs an ad hoc signature to run).
+mk_bin() { mkdir -p "$1"; cp "$(command -v sleep)" "$1/$2"; command -v codesign >/dev/null 2>&1 && codesign -f -s - "$1/$2" >/dev/null 2>&1; }
 # mk_target <dir> [MiB]: a folder that looks like cargo's output, with a file of the given size.
 mk_target() {
   mkdir -p "$1/release/deps"
@@ -23,6 +27,26 @@ mk_project() {
 }
 new_dir() { local d; d=$(mktemp -d); _CLEANUP_DIRS+=("$d"); echo "$d"; }
 run() { OUT=$("$@" 2>&1); RC=$?; }
+
+# The docs that tell the orchestrator and the sessions what to do.
+POD="$ROOT/plugins/pd-bot/skills/pd-orchestrate/references/podbay.md"
+RUN="$ROOT/plugins/pd-bot/skills/pd-orchestrate/references/run.md"
+SK="$ROOT/plugins/pd-bot/skills/pd-orchestrate/SKILL.md"
+TB="$ROOT/plugins/pd-bot/skills/pd-work/references/toolbox.md"
+CLEAN=$(awk '$0=="## Clean up"{on=1;next} on&&/^## /{exit} on' "$POD")
+
+t "podbay.md, Clean up: runs fleet-clean-rust.sh on the main checkout, on each kept workspace and on each reported CARGO_TARGET_DIR"
+if echo "$CLEAN" | grep -q 'fleet-clean-rust.sh' && echo "$CLEAN" | grep -q -- '--root' && echo "$CLEAN" | grep -q -- '--target' \
+   && echo "$CLEAN" | grep -qi 'kept workspace\|workspace that .ws-rm. refused\|ws-rm. refuses' && echo "$CLEAN" | grep -q 'CARGO_TARGET_DIR'; then pass; else fail "$CLEAN"; fi
+
+t "orchestrate SKILL.md allows exactly that script, and stays under 600 words"
+if grep -qF 'Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-clean-rust.sh *)' "$SK" && [ "$(wc -w < "$SK")" -lt 600 ]; then pass; else fail "allowed-tools or words=$(wc -w < "$SK")"; fi
+
+t "run.md, the brief: a session that builds Rust keeps CARGO_TARGET_DIR inside its workspace or reports where it is"
+if awk '$0=="## The brief you send"{on=1;next} on&&/^## /{exit} on' "$RUN" | grep -q 'CARGO_TARGET_DIR'; then pass; else fail "no CARGO_TARGET_DIR in the brief section"; fi
+
+t "worker toolbox: the same rule, and where to report it"
+if grep -q 'CARGO_TARGET_DIR' "$TB" && grep -q 'cargo_target_dirs' "$TB"; then pass; else fail "toolbox"; fi
 
 if ! command -v lsof >/dev/null 2>&1; then
   t "fleet-clean-rust needs lsof"; skip "lsof not installed"; finish
@@ -60,7 +84,7 @@ if [ "$RC" = 0 ] && [ -f "$W/apps/a/src-tauri/target/classes/Foo.class" ] && ech
 t "--root keeps a CACHEDIR.TAG with another signature, and a CACHEDIR.TAG that is a symlink"
 W=$(new_dir); mk_project "$W" a; mk_project "$W" b
 mk_target "$W/apps/a/src-tauri/target"; printf 'Signature: 0000\n' > "$W/apps/a/src-tauri/target/CACHEDIR.TAG"
-mk_target "$W/apps/b/src-tauri/target"; printf '%s\n' "$SIG" > "$W/real-tag"; rm "$W/apps/b/src-tauri/target/CACHEDIR.TAG"; ln -s "$W/real-tag" "$W/apps/b/src-tauri/target/CACHEDIR.TAG"
+mk_target "$W/apps/b/src-tauri/target"; printf '%s\n%s\n' "$SIG" "$TAG2" > "$W/real-tag"; rm "$W/apps/b/src-tauri/target/CACHEDIR.TAG"; ln -s "$W/real-tag" "$W/apps/b/src-tauri/target/CACHEDIR.TAG"
 run bash "$CL" --root "$W"
 if [ "$RC" = 0 ] && [ -d "$W/apps/a/src-tauri/target" ] && [ -d "$W/apps/b/src-tauri/target" ]; then pass; else fail "rc=$RC out: $OUT"; fi
 
@@ -148,7 +172,7 @@ if [ "$a" = 2 ] && [ "$b" = 2 ] && [ -d "$S/ct/release" ]; then pass; else fail 
 
 t "--target keeps a folder with cargo's tag that holds other checkouts (a .git at any of the first 4 levels), and one that is not build output"
 S=$(new_dir); mk_target "$S/c"; mkdir -p "$S/c/proj1/.git" "$S/c/proj2"; echo work > "$S/c/proj2/notes"
-mkdir -p "$S/d"; printf '%s\n' "$SIG" > "$S/d/CACHEDIR.TAG"; mkdir -p "$S/d/other"; echo work > "$S/d/other/f"
+mkdir -p "$S/d"; printf '%s\n%s\n' "$SIG" "$TAG2" > "$S/d/CACHEDIR.TAG"; mkdir -p "$S/d/other"; echo work > "$S/d/other/f"
 run bash "$CL" --target "$S/c" --target "$S/d"
 if [ "$RC" = 0 ] && [ -d "$S/c/proj1/.git" ] && [ -f "$S/c/proj2/notes" ] && [ -f "$S/d/other/f" ] \
    && echo "$OUT" | grep -q 'holds a git checkout' && echo "$OUT" | grep -q 'does not look like build output'; then pass; else fail "rc=$RC out: $OUT"; fi
@@ -212,24 +236,66 @@ if [ "$RC" = 0 ] && [ ! -e "$G/apps/real/src-tauri/target" ] && [ -f "$G/apps/fa
    && echo "$OUT" | grep -q 'git tracks files in it'; then pass; else fail "rc=$RC out: $OUT"; fi
 fi
 
-# The docs that tell the orchestrator and the sessions what to do.
-POD="$ROOT/plugins/pd-bot/skills/pd-orchestrate/references/podbay.md"
-RUN="$ROOT/plugins/pd-bot/skills/pd-orchestrate/references/run.md"
-SK="$ROOT/plugins/pd-bot/skills/pd-orchestrate/SKILL.md"
-TB="$ROOT/plugins/pd-bot/skills/pd-work/references/toolbox.md"
-CLEAN=$(awk '$0=="## Clean up"{on=1;next} on&&/^## /{exit} on' "$POD")
+t "F1: a newline in a folder name under --root cannot make the script delete a target outside --root"
+# The name "sub<NL>victim" under root2 holds a target; cut at the newline, its second half reads as the
+# relative path victim/target, which lies outside root2 when the script runs in $D.
+D=$(new_dir); mkdir -p "$D/root2"
+mk_target "$D/victim/target" 1; printf '[package]\n' > "$D/victim/Cargo.toml"
+mk_target "$D/root2/sub"$'\n'"victim/target" 1; printf '[package]\n' > "$D/root2/sub"$'\n'"victim/Cargo.toml"
+run bash -c "cd '$D' && bash '$CL' --dry-run --root '$D/root2'"
+a=$OUT; arc=$RC
+run bash -c "cd '$D' && bash '$CL' --root '$D/root2'"
+if [ "$arc" = 0 ] && [ "$RC" = 0 ] && [ -d "$D/victim/target/release" ] && ! echo "$a" | grep -q "would delete .*/victim/target"; then pass; else fail "dry rc=$arc: $a / real rc=$RC: $OUT"; fi
 
-t "podbay.md, Clean up: runs fleet-clean-rust.sh on the main checkout, on each kept workspace and on each reported CARGO_TARGET_DIR"
-if echo "$CLEAN" | grep -q 'fleet-clean-rust.sh' && echo "$CLEAN" | grep -q -- '--root' && echo "$CLEAN" | grep -q -- '--target' \
-   && echo "$CLEAN" | grep -qi 'kept workspace\|workspace that .ws-rm. refused\|ws-rm. refuses' && echo "$CLEAN" | grep -q 'CARGO_TARGET_DIR'; then pass; else fail "$CLEAN"; fi
+t "F2: a different spelling of the path (case) still meets the in-use check"
+S=$(new_dir); mk_target "$S/Proj/Target"
+( cd "$S/Proj/Target/release" && exec sleep 60 ) & P=$!; PIDS+=("$P"); sleep 1
+run bash "$CL" --dry-run --target "$S/proj/target"
+# On a case-sensitive disk proj/target does not exist; on a case-insensitive one it is the same folder and is in use.
+if [ "$RC" = 0 ] && ! echo "$OUT" | grep -q 'would delete'; then pass; else fail "rc=$RC out: $OUT"; fi
+kill "$P" 2>/dev/null; wait "$P" 2>/dev/null
 
-t "orchestrate SKILL.md allows exactly that script, and stays under 600 words"
-if grep -qF 'Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-clean-rust.sh *)' "$SK" && [ "$(wc -w < "$SK")" -lt 600 ]; then pass; else fail "allowed-tools or words=$(wc -w < "$SK")"; fi
+t "F3: an lsof list with only this script and one other process is not enough: deletes nothing, exits 1"
+W=$(new_dir); mk_project "$W" a; mk_target "$W/apps/a/src-tauri/target"
+( cd "$W/apps/a/src-tauri/target/release" && exec sleep 60 ) & P=$!; PIDS+=("$P"); sleep 1
+FAKEBIN=$(new_dir)
+cat > "$FAKEBIN/lsof" <<'EOF'
+#!/bin/sh
+# Sees the caller's cwd (spelled right) and itself, and nothing else.
+printf 'p%s\ncfake\nfcwd\nn%s\n' "$PPID" "$(/bin/pwd -P)"
+printf 'p%s\ncfake\nfcwd\nn/\n' "$$"
+EOF
+chmod +x "$FAKEBIN/lsof"
+run env PATH="$FAKEBIN:$PATH" bash "$CL" --root "$W"
+if [ "$RC" = 1 ] && [ -d "$W/apps/a/src-tauri/target/release" ] && echo "$OUT" | grep -q 'no usable list'; then pass; else fail "rc=$RC out: $OUT"; fi
+kill "$P" 2>/dev/null; wait "$P" 2>/dev/null
 
-t "run.md, the brief: a session that builds Rust keeps CARGO_TARGET_DIR inside its workspace or reports where it is"
-if awk '$0=="## The brief you send"{on=1;next} on&&/^## /{exit} on' "$RUN" | grep -q 'CARGO_TARGET_DIR'; then pass; else fail "no CARGO_TARGET_DIR in the brief section"; fi
+t "F4: a --root symlink written with a trailing slash is not followed"
+D=$(new_dir); mk_project "$D/elsewhere" p; mk_target "$D/elsewhere/apps/p/src-tauri/target"; ln -s "$D/elsewhere" "$D/rootlink"
+run bash "$CL" --root "$D/rootlink/"
+if [ "$RC" = 0 ] && [ -d "$D/elsewhere/apps/p/src-tauri/target/release" ] && echo "$OUT" | grep -q 'root is not a directory'; then pass; else fail "rc=$RC out: $OUT"; fi
 
-t "worker toolbox: the same rule, and where to report it"
-if grep -q 'CARGO_TARGET_DIR' "$TB" && grep -q 'cargo_target_dirs' "$TB"; then pass; else fail "toolbox"; fi
+t "F5: HOME unset: deletes nothing, exits 1"
+S=$(new_dir); mk_target "$S/ct"
+run env -u HOME bash "$CL" --target "$S/ct"
+if [ "$RC" = 1 ] && [ -d "$S/ct/release" ] && echo "$OUT" | grep -q 'HOME'; then pass; else fail "rc=$RC out: $OUT"; fi
+
+t "F6: a .git deep inside doc/ (past 4 levels) keeps the folder"
+S=$(new_dir); mk_target "$S/ct"; mkdir -p "$S/ct/doc/a/b/c/d/e/proj/.git"
+run bash "$CL" --target "$S/ct"
+if [ "$RC" = 0 ] && [ -d "$S/ct/doc/a/b/c/d/e/proj/.git" ] && echo "$OUT" | grep -q 'holds a git checkout'; then pass; else fail "rc=$RC out: $OUT"; fi
+
+t "F8: a compiler or linker working in the project keeps its target"
+W=$(new_dir); mk_project "$W" busy; mk_target "$W/apps/busy/src-tauri/target"
+BIN=$(new_dir); mk_bin "$BIN" clang
+( cd "$W/apps/busy/src-tauri" && exec "$BIN/clang" 60 ) & P=$!; PIDS+=("$P"); sleep 1
+run bash "$CL" --root "$W"
+if [ "$RC" = 0 ] && [ -d "$W/apps/busy/src-tauri/target" ] && echo "$OUT" | grep -q 'is building in'; then pass; else fail "rc=$RC out: $OUT"; fi
+kill "$P" 2>/dev/null; wait "$P" 2>/dev/null
+
+t "F10: a CACHEDIR.TAG with the shared signature but not written by cargo is kept"
+S=$(new_dir); mk_target "$S/ct"; printf '%s\n# Written by some other tool.\n' "$SIG" > "$S/ct/CACHEDIR.TAG"
+run bash "$CL" --target "$S/ct"
+if [ "$RC" = 0 ] && [ -d "$S/ct/release" ] && echo "$OUT" | grep -q 'not a cargo target dir'; then pass; else fail "rc=$RC out: $OUT"; fi
 
 finish

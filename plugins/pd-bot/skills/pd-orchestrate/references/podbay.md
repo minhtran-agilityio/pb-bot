@@ -203,13 +203,15 @@ with its reason, in your final report.
 `ws-rm` removes a workspace with its `target/`, but a Rust build can stay on the disk elsewhere. After
 the workspace removals, and once more before your final report, run
 `bash ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-clean-rust.sh --root <your checkout> [--root <workspace>]... [--target <dir>]...`
-(`--dry-run` first shows what it would delete):
+(`--dry-run` first shows what it would delete; always run it first for a `--target` folder, because
+a session reported that path):
 - `--root <your checkout>`: its own `apps/*/src-tauri/target`;
 - `--root <workspace>` for each workspace that stays because `ws-rm` refused it and no ticket that is
-  not finished uses it (an open ticket keeps its `target/`);
+  not finished uses it (an open ticket keeps its `target/`). Never pass a folder above a checkout or
+  a live workspace as `--root`;
 - `--target <dir>` for each `CARGO_TARGET_DIR` outside a workspace that a session reported
   (`cargo_target_dirs` in a worker's report, a line in a reviewer's or tester's result).
 
-It deletes only a folder that holds cargo's own `CACHEDIR.TAG` (for `--root`, also with a
+It deletes only a folder that holds the `CACHEDIR.TAG` that cargo writes (for `--root`, also with a
 `Cargo.toml` beside it), skips a folder a running process uses, and never touches source or an
 installed app. Add its last line (`freed ...`) to your final report. Never delete a build folder by hand.

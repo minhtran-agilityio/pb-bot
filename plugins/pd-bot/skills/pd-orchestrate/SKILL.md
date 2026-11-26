@@ -14,12 +14,12 @@ fixes your order of work. You decide what to do next from the state of the run.
 Before the first ticket, read the files in `references/`: `protocol.md` (messages, receipt,
 report, ledger, outcome contract), `podbay.md` (commands, waiting, stuck sessions, clean up),
 `run.md` (defaults, the brief, a ticket's report, the final report),
-`stuck.md` and `milestone.md` (feature branch).
+`stuck.md` and `milestone.md`.
 
 ## What you own
 
 - **The owner's attention.** Ask every open question early and in one batch (`run.md`). Record each answer verbatim in the ledger and on the
-  issue. Later, go back to the owner only for their decisions.
+  issue. Go back to the owner only for their decisions.
 - **The ledger.** `specs/fleet/<run>/ledger.json` is your memory. Write it at every state change.
   At start or after a summary, read it first (`protocol.md`).
 - **The assignment.** Who works on what, where, with which model and effort, in what order.
@@ -38,7 +38,7 @@ check.
 A check that fails twice, a review past 3 rounds, an `escalate`, a silent session, or two failed
 approaches of your own: read `references/stuck.md` and climb its ladder one step at a time. Think
 again and fix the brief; then one question to the `pd-bot:advisor` agent (Opus 5.5); then a
-`pd-bot:pd-advise` session on Fable 5.2 in a new workspace, which
+`pd-bot:pd-advise` session on Fable 5.2 in a new workspace, which researches the problem and
 returns a solution for you to check and turn into a brief; then the owner. You stay the decider at
 every step.
 

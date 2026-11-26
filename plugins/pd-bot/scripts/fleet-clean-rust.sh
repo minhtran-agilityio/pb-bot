@@ -7,32 +7,39 @@
 #
 # What it deletes: a folder that is all of
 #   - a real directory, not a symlink;
-#   - a cargo target dir: it holds a regular file CACHEDIR.TAG whose first line is cargo's signature
-#     (`Signature: 8a477f597d28d172789f06886806bc55`). Cargo writes that file itself;
+#   - a cargo target dir: it holds a regular file CACHEDIR.TAG whose first line is the cache-directory
+#     signature (`Signature: 8a477f597d28d172789f06886806bc55`, shared by every tool that writes such a
+#     tag) and whose second line is cargo's own (`# This file is a cache directory tag created by cargo.`);
 #   - found by --root: also has a Cargo.toml beside it (the project's own build folder);
 #   - looks like build output: `.rustc_info.json`, `debug` or `release` is in it, and every entry at its top
 #     level is something cargo writes (`CACHEDIR.TAG`, `.rustc_info.json`, `.cargo-lock`, `doc`, `package`,
 #     `tmp`, `flycheck*`, or a folder that holds `deps`, `.fingerprint`, `debug` or `release`: a profile or a
 #     target-triple folder). A shared folder with the tag and other files in it is kept whole;
 #   - not `/`, not a folder of fewer than two path parts, not the home folder or a folder above it,
-#     not a folder above a checkout in --root, holds no `.git` (to 4 levels down) and no `Cargo.toml`,
+#     not a folder above a checkout in --root, holds no `.git` at any depth and no `Cargo.toml`,
 #     `src` or `package.json` of its own, and no file that git tracks (that is source, not build output);
 #   - not used by a running process: no process has a file or its working directory inside it, and,
-#     for a folder found by --root, no `cargo` or `rustc` process works inside the project that owns it.
+#     for a folder found by --root, no build process (cargo, rustc, a C compiler or linker, tauri, node, npm)
+#     works inside the project that owns it. Paths are compared as the system spells them (`/bin/pwd -P`,
+#     which also fixes the case of a path on a case-insensitive disk), the way lsof prints them.
 # Anything else is kept, and the line says why. Source, an installed app (~/Applications) and a
 # `target` folder of another tool (no CACHEDIR.TAG) are never touched. Only the target folder is removed:
 # `rm -rf` of that one folder, never of its parent.
 #
-# If it cannot tell what is in use (no `lsof`, or `lsof` gives no usable list), it deletes nothing and
-# exits 1. --root and --target must be absolute paths: a value that comes from a session's report is
-# not trusted.
+# If it cannot tell what is in use (no `lsof`; a list that lacks this script's own working directory or
+# most of the user's processes), or HOME is unset, or git is missing, it deletes nothing and exits 1.
+# --root and --target must be absolute paths: a value that comes from a session's report is not
+# trusted. Known limit: a process can start, or a path can be swapped, between the checks and the
+# `rm` (same user, build output only).
 #
 # Usage:
 #   fleet-clean-rust.sh -h|--help
 #   fleet-clean-rust.sh [--dry-run] [--root <checkout>]... [--target <dir>]...
 # --root <dir>    a checkout or workspace to scan for target folders (to 5 levels down;
 #                 `node_modules` and `.git` are skipped); repeatable
-# --target <dir>  one target folder named exactly (a CARGO_TARGET_DIR a session reported); repeatable
+# --target <dir>  one target folder named exactly (a CARGO_TARGET_DIR a session reported); repeatable.
+#                 Run --dry-run first for a folder that came from a report, and never pass a folder
+#                 above a checkout or a live workspace as --root.
 # --dry-run       change nothing; print what would be deleted
 # Needs at least one --root or --target.
 # Output: `deleted|would delete <path> (<size>)`, `kept <path>: <reason>`, and the last line
@@ -43,6 +50,7 @@ set -u
 unset CDPATH
 
 SIGNATURE='Signature: 8a477f597d28d172789f06886806bc55'
+TAG_LINE2='# This file is a cache directory tag created by cargo.'
 
 usage_text() { echo "usage: fleet-clean-rust.sh [-h|--help] [--dry-run] [--root <checkout>]... [--target <dir>]..."; }
 usage() { echo "fleet-clean-rust: $*" >&2; usage_text >&2; exit 2; }
@@ -71,8 +79,25 @@ if ! command -v lsof >/dev/null 2>&1; then
   exit 1
 fi
 
+# Fail closed: two checks need git and HOME, and a check that is off by accident deletes too much.
+if ! command -v git >/dev/null 2>&1; then
+  echo "fleet-clean-rust: git is not installed, so I cannot tell whether git tracks files in a build folder; deleted nothing" >&2
+  exit 1
+fi
+if [ -z "${HOME:-}" ]; then
+  echo "fleet-clean-rust: HOME is not set, so I cannot protect the home folder; deleted nothing" >&2
+  exit 1
+fi
+
+# The real path of the working directory, spelled as the system and lsof spell it: the shell's own
+# `pwd -P` keeps the case that was typed on a case-insensitive disk. A pwd that is not the system
+# one is not trusted.
+PWDP=/bin/pwd; [ -x "$PWDP" ] || PWDP=/usr/bin/pwd
+if [ ! -x "$PWDP" ]; then echo "fleet-clean-rust: no /bin/pwd; deleted nothing" >&2; exit 1; fi
+
 WORK=$(mktemp -d) || exit 1
 trap 'rm -rf "$WORK"' EXIT
+ps -U "$(id -u)" -o pid= 2>/dev/null > "$WORK/ps.txt"
 # One row per open file of every process: pid, command, fd (cwd, txt, a number), path. A partial
 # dump (lsof exits 1 when it could not read some process) is still usable.
 lsof -w -n -F pcfn 2>/dev/null | awk '
@@ -84,16 +109,29 @@ lsof -w -n -F pcfn 2>/dev/null | awk '
     name = substr($0, 2); out = ""
     while ((i = index(name, "\\\\")) > 0) { out = out substr(name, 1, i) ; name = substr(name, i + 2) }
     print pid "\t" cmd "\t" fd "\t" out name }' > "$WORK/open.tsv"
-# Sanity: the list must show this script's own working directory and more than one process. An lsof that failed (a sandbox, a
-# limit, a permission error) gives an empty or partial list, and "nothing uses it" would be wrong.
-if ! awk -F'\t' -v me="$$" '$1 == me && $3 == "cwd" { found = 1 } { pids[$1] = 1 } END { n = 0; for (k in pids) n++; exit !(found && n > 1) }' "$WORK/open.tsv"; then
+# Sanity: an lsof that failed or sees little (a sandbox, a container, a limit, a permission error) gives an
+# empty or partial list, and "nothing uses it" would be wrong. The list must show this script's own
+# working directory under the same spelling, and at least 80 % of the user's processes that are
+# still alive (the `ps` list was taken before lsof ran).
+own_cwd=$("$PWDP" -P)
+cut -f1 "$WORK/open.tsv" | LC_ALL=C sort -u > "$WORK/pids.txt"
+alive=0; covered=0
+while IFS= read -r pid; do
+  pid=${pid//[[:space:]]/}
+  [ -n "$pid" ] || continue
+  kill -0 "$pid" 2>/dev/null || continue
+  alive=$((alive + 1))
+  grep -qx -- "$pid" "$WORK/pids.txt" && covered=$((covered + 1))
+done < "$WORK/ps.txt"
+if ! OWN="$own_cwd" awk -F'\t' -v me="$$" '$1 == me && $3 == "cwd" && $4 == ENVIRON["OWN"] { found = 1 } END { exit !found }' "$WORK/open.tsv" \
+   || [ "$alive" -lt 1 ] || [ $((covered * 5)) -lt $((alive * 4)) ]; then
   echo "fleet-clean-rust: lsof gave no usable list of open files, so I cannot tell whether a process uses a build folder; deleted nothing" >&2
   exit 1
 fi
 
-canon() { (cd "$1" 2>/dev/null && pwd -P); }
+canon() { (cd "$1" 2>/dev/null && "$PWDP" -P); }
 
-home_real=$(canon "${HOME:-/nonexistent}")
+home_real=$(canon "$HOME") || { echo "fleet-clean-rust: cannot resolve HOME; deleted nothing" >&2; exit 1; }
 roots_real=()
 for r in ${roots[@]+"${roots[@]}"}; do
   rr=$(canon "$r") && roots_real+=("$rr")
@@ -118,13 +156,13 @@ in_use() {
     BEGIN { d = ENVIRON["D"]; proj = ENVIRON["PROJ"] }
     { n = $4 }
     n == d || index(n, d "/") == 1 { print $2 " (pid " $1 ") has " (($3 == "cwd") ? "its working directory" : "a file") " inside it"; found = 1; exit }
-    proj != "" && $3 == "cwd" && ($2 ~ /^cargo/ || $2 ~ /^rustc/) && (n == proj || index(n, proj "/") == 1) {
+    proj != "" && $3 == "cwd" && ($2 ~ /^(cargo|rustc|rustdoc|clippy|cc|c\+\+|clang|gcc|g\+\+|ld|lld|link|tauri|node|npm|pnpm|yarn|bun)/) && (n == proj || index(n, proj "/") == 1) {
       print $2 " (pid " $1 ") is building in " proj; found = 1; exit }
     END { exit !found }' "$WORK/open.tsv") || return 1
   echo "$why"
 }
 
-# consider <dir> <found by --root: 1|0>
+# consider <dir> <found by --root: the canonical root, else empty>
 consider() {
   local dir="$1" scanned="$2" p parent why kib r
   while [ "${#dir}" -gt 1 ] && [ "${dir%/}" != "$dir" ]; do dir=${dir%/}; done   # `link/` must still be seen as a symlink
@@ -138,6 +176,10 @@ consider() {
   p=$(canon "$dir") || { kept "$dir" "cannot enter it"; return; }
   case "$seen" in *$'\n'"$p"$'\n'*) return ;; esac
   seen="$seen$p"$'\n'
+  # A folder that a scan found must lie inside the root it was found under.
+  if [ -n "$scanned" ]; then
+    case "$p/" in "$scanned"/*) ;; *) kept "$p" "outside the --root it was found under"; return ;; esac
+  fi
   if [ -n "$(printf '%s' "$p" | LC_ALL=C tr -d '[:print:]')" ]; then kept "$p" "its path holds a control character"; return; fi
   if [ "$p" = / ] || [ "$(printf '%s' "$p" | tr -cd / | wc -c | tr -d ' ')" -lt 2 ]; then
     kept "$p" "the root folder or a folder too close to it"; return
@@ -146,15 +188,16 @@ consider() {
   for r in ${roots_real[@]+"${roots_real[@]}"}; do
     case "$r/" in "$p"/*) kept "$p" "holds a checkout"; return ;; esac
   done
-  if [ -n "$(find "$p" -maxdepth 4 -name .git -print -quit 2>/dev/null)" ]; then
+  if [ -n "$(find "$p" -name .git -prune -print -quit 2>/dev/null)" ]; then
     kept "$p" "holds a git checkout"; return
   fi
   if [ -e "$p/.git" ] || [ -e "$p/Cargo.toml" ] || [ -e "$p/src" ] || [ -e "$p/package.json" ]; then
     kept "$p" "holds source (.git, Cargo.toml, src or package.json)"; return
   fi
   if [ -L "$p/CACHEDIR.TAG" ] || [ ! -f "$p/CACHEDIR.TAG" ] \
-     || [ "$(head -n 1 "$p/CACHEDIR.TAG" 2>/dev/null)" != "$SIGNATURE" ]; then
-    kept "$p" "not a cargo target dir (no CACHEDIR.TAG with cargo's signature)"; return
+     || [ "$(head -n 1 "$p/CACHEDIR.TAG" 2>/dev/null)" != "$SIGNATURE" ] \
+     || [ "$(sed -n 2p "$p/CACHEDIR.TAG" 2>/dev/null)" != "$TAG_LINE2" ]; then
+    kept "$p" "not a cargo target dir (no CACHEDIR.TAG written by cargo)"; return
   fi
   if [ ! -f "$p/.rustc_info.json" ] && [ ! -d "$p/debug" ] && [ ! -d "$p/release" ]; then
     kept "$p" "does not look like build output (no .rustc_info.json, debug or release)"; return
@@ -168,11 +211,11 @@ consider() {
          else kept "$p" "not only build output: $e is not something cargo writes"; return; fi ;;
     esac
   done < <(ls -A "$p" 2>/dev/null)
-  if command -v git >/dev/null 2>&1 && [ -n "$(git -C "$p" -c core.fsmonitor=false ls-files 2>/dev/null | head -n 1)" ]; then
+  if [ -n "$(git -C "$p" -c core.fsmonitor=false ls-files 2>/dev/null | head -n 1)" ]; then
     kept "$p" "git tracks files in it"; return
   fi
   parent=""
-  if [ "$scanned" = 1 ]; then
+  if [ -n "$scanned" ]; then
     parent=$(dirname "$p")
     if [ ! -f "$parent/Cargo.toml" ]; then kept "$p" "no Cargo.toml beside it"; return; fi
   fi
@@ -182,6 +225,8 @@ consider() {
   if [ "$dry" = 1 ]; then
     echo "would delete $p ($(human "$kib"))"
   else
+    # Look again just before the delete: still the same real folder, still a directory, not a symlink.
+    if [ -L "$p" ] || [ ! -d "$p" ] || [ "$(canon "$p")" != "$p" ]; then kept "$p" "changed while I checked it"; return; fi
     rm -rf -- "$p"
     if [ -e "$p" ]; then
       echo "FAILED to delete $p" >&2; failed=1; n_kept=$((n_kept + 1)); return
@@ -192,13 +237,16 @@ consider() {
 }
 
 for r in ${roots[@]+"${roots[@]}"}; do
+  while [ "${#r}" -gt 1 ] && [ "${r%/}" != "$r" ]; do r=${r%/}; done   # `link/` must still be seen as a symlink
   if [ ! -d "$r" ] || [ -L "$r" ]; then kept "$r" "root is not a directory"; continue; fi
-  while IFS= read -r found; do
-    [ -n "$found" ] && consider "$found" 1
-  done < <(find "$r" -maxdepth 5 \( -name node_modules -o -name .git \) -prune -o -type d -name target -print -prune 2>/dev/null | LC_ALL=C sort)
+  rr=$(canon "$r") || { kept "$r" "cannot enter it"; continue; }
+  # NUL-separated, so a newline in a folder name cannot split a path in two.
+  while IFS= read -r -d '' found; do
+    consider "$found" "$rr"
+  done < <(find "$r" -maxdepth 5 \( -name node_modules -o -name .git \) -prune -o -type d -name target -print0 -prune 2>/dev/null | LC_ALL=C sort -z)
 done
 for t in ${targets[@]+"${targets[@]}"}; do
-  consider "$t" 0
+  consider "$t" ""
 done
 
 verb="freed"; [ "$dry" = 1 ] && verb="would free"
