@@ -53,6 +53,9 @@ bash scripts/check-plugin-version.sh || fail "scripts/check-plugin-version.sh"
 echo "== L1: markdown links =="
 bash scripts/check-md-links.sh || fail "scripts/check-md-links.sh"
 
+echo "== L1: project wiki (report only, see #146) =="
+bash scripts/check-wiki.sh || fail "scripts/check-wiki.sh"
+
 echo "== L1: skill allowed-tools =="
 bash scripts/check-allowed-tools.sh || fail "scripts/check-allowed-tools.sh"
 if command -v python3 >/dev/null 2>&1; then

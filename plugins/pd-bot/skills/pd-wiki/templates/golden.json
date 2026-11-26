@@ -1,0 +1,4 @@
+[
+  {"q": "<a question a new agent would ask>", "page": "<page>.md",
+   "answer_contains": ["<exact words that the page must hold>"]}
+]

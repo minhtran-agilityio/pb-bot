@@ -9,6 +9,7 @@ report when a reader would expect it.
 |---|---|
 | The ticket is vague, or two readings differ in what you would build | send `question` to the orchestrator with your recommendation; go on with the parts that do not depend on the answer |
 | Wrong behavior, cause not yet known | Read `${CLAUDE_PLUGIN_ROOT}/skills/pd-diagnosing-bugs/SKILL.md` and follow it (the Skill tool cannot load that skill): a failing repro test comes first |
+| You do not know how this project is built, or which rule or decision applies | read `docs/wiki/index.md`, then only the page that fits (when the project has a wiki). It is background, not your brief |
 | You do not know how this part of the code or a library works | `pd-bot:pd-xia2`, or a `pd-bot:researcher` agent for a narrow lookup |
 | More than one sound approach, or depth L | `pd-bot:pd-shape` in auto mode; write the design note; ask the `pd-bot:advisor` agent to review it before code |
 | Work with more than two or three moving parts | `pd-bot:pd-writing-plans`, then `pd-bot:pd-implement` (one implementer per step, independent steps in parallel) |
