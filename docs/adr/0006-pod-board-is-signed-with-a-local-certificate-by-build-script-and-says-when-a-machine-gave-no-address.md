@@ -18,7 +18,7 @@ Pod Board built ad hoc has its cdhash as designated requirement, so macOS sees e
 - Sign with a self-signed local certificate named `Pod Board Local`, picked up by a build script from the keychain (chosen; the owner's answer)
 - Put `signingIdentity` in `tauri.conf.json`: needs a name that is in the repo, and breaks the CI build where the certificate does not exist
 - Sign with an Apple Development certificate: its name holds the owner's name and e-mail
-- Chip for no address: show "unreachable" for every machine that is offline (rejected: says too much, an off machine would read as a fault of the app)
+- Chip for no address, as the owner asked ("show the unreachable chip when Pod Bay gives no address for the machine"): chosen. A wider rule, "unreachable" for every offline machine, was not taken: a machine that Pod Bay lists with an address is probed first, and a machine that returned rows is never marked
 
 ## Decision
 
@@ -31,7 +31,7 @@ The certificate name is generic, so nothing personal enters the repo. The script
 
 ## Consequences
 
-The first signed build asks for Local Network once; later builds with the same certificate do not. A machine that is off and has no address now also shows the chip: the tooltip says that an off machine looks the same. The script, the signed requirement and the permission on the Mac were not checked in the fleet run (no certificate exists yet).
+The first signed build asks for Local Network once; later builds with the same certificate do not. In the data seen on M0 on 2026-11-26, an offline machine has `addr: null` and an online one has an address, so the chip shows next to each offline remote machine that returned no rows. That includes a machine that is simply off; the tooltip says that the cause is not known, and the chip's words say only that the app could not reach it. The script, the signed requirement and the permission on the Mac were not checked in the fleet run (no certificate exists yet).
 
 ## How to reverse
 

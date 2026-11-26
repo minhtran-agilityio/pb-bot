@@ -104,6 +104,8 @@ Create the certificate once, by hand:
 3. Check that the keychain lists it: `security find-identity -p codesigning` shows `"Pod Board Local"`. If `codesign`
    later says it cannot find the identity, open the certificate in Keychain Access, **Trust**, and set **Code Signing**
    to **Always Trust**.
+   `build-mac.sh` looks for the exact name. An expired certificate, or two with the same name, makes the build fail
+   instead of falling back to ad hoc: delete the old one in Keychain Access.
 
 Check the signature of an installed or built app:
 
@@ -126,11 +128,19 @@ rebuilt it ad hoc in between, the list can hold an entry for an older build; swi
 Every new build replaces the old one: after a build there is exactly one `Pod Board.app` on the machine, in
 `~/Applications`. Old copies are not kept (a second copy shows up in Spotlight, and the Dock, Launchpad and
 "Open with" can start the stale one). Install by moving the new bundle in, not by copying it, so no copy stays in
-`target/`:
+`target/`.
+
+Build first. If `build-mac.sh` exits with an error (for example a signed build whose requirement is still a cdhash),
+stop: do not run the install lines with the bundle it rejected.
 
 ```
 cd apps/pod-board
 bash build-mac.sh                                   # cargo tauri build, signed when the certificate exists (below)
+```
+
+Then install, in the same folder, only when the build succeeded:
+
+```
 pkill -x pod-board || true                          # quit the running app (pkill exits 1 when it is not running)
 APP="Pod Board.app"
 mkdir -p ~/Applications
