@@ -285,7 +285,8 @@ is_binary() {
 #   PE header: `MZ` and `PE\0\0` at the offset stored at 0x3c), never by the executable bit.
 #   deps and examples hold only artifact files, `*.d` files (dep-info), executables and *.dSYM folders.
 #   A folder counts as a profile (or a triple folder as one that holds a profile) only when its deps or
-#   .fingerprint folder holds an entry; debug and release at the top level are profiles by name.
+#   .fingerprint folder holds an entry, or, in the newer cargo layout, its build folder does and cargo's
+#   .cargo-lock file is there; debug and release at the top level are profiles by name.
 #   Opaque zones, whose content cargo or a build script writes freely and which are not judged beyond
 #   the first rule: doc, tmp, package, cargo-timings, flycheck* (at the top level or in a triple folder, doc
 #   only), build/<package>/, incremental/*/, .fingerprint/*/, bundle/ and *.dSYM/ (inside a profile folder).
@@ -314,7 +315,10 @@ tree_stray() {
     function lock(n) { return (n ~ /^\.cargo-(lock|build-lock|artifact-lock)$/) }
     function stray(r) { print "STRAY " r; exit }
     # A marker folder counts only when it holds an entry: an empty deps or .fingerprint makes no cargo position.
-    function hasmarker(x) { return ((type[x "/deps"] == "d" && nchild[x "/deps"] > 0) || (type[x "/.fingerprint"] == "d" && nchild[x "/.fingerprint"] > 0)) }
+    # Older cargo writes deps/ and .fingerprint/ in a profile folder; the newer layout keeps its intermediate
+    # files under build/<package>/<hash>/ instead, next to the .cargo-lock file cargo writes.
+    function hasmarker(x) { return ((type[x "/deps"] == "d" && nchild[x "/deps"] > 0) || (type[x "/.fingerprint"] == "d" && nchild[x "/.fingerprint"] > 0) \
+      || (type[x "/.cargo-lock"] == "f" && type[x "/build"] == "d" && nchild[x "/build"] > 0)) }
     function isprofile(x, y) { return (y == "debug" || y == "release" || hasmarker(x "/" y)) }
     BEGIN { d = ENVIRON["D"] }
     { t = substr($0, 1, 1); rel = substr($0, 3); rel = substr(rel, length(d) + 2); type[rel] = t; paths[++n] = rel
