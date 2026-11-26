@@ -14,12 +14,12 @@ It is a Tauri 2 app (Rust and one HTML page). It needs no server, no port and no
   session that two sources list (the same tmux session, the same Remote Control id, or the same Claude session id)
   shows once, under Pod Bay first, then Terminal, then Desktop. The chip is on every card, the peek head and every
   popover row; a list row shows its icon with the words as a tooltip. The machine shows only on a Pod Bay chip.
-- **Desktop sessions:** every session of the Claude desktop app that is not archived shows once. One whose process
-  runs (its `~/.claude/sessions/<pid>.json` has the same session id) takes its state, wait reason and sub-agents
-  from that file, so it counts for the Dock badge, the sound and the notification like a terminal session. One with
-  no process is `idle`, with the time of its last activity. One with no process whose last activity was less than 12
-  hours ago is in the Stopped strip (`<title> · <project> · closed <time>`, with the Desktop icon), not in a lane;
-  after 12 hours it is idle again. A click on a card opens the session in the Claude desktop app
+- **Desktop sessions:** a session of the Claude desktop app that is not archived and whose process runs (its
+  `~/.claude/sessions/<pid>.json` has the same session id) shows as a card and takes its state, wait reason and
+  sub-agents from that file, so it counts for the Dock badge, the sound and the notification like a terminal
+  session. One whose process is gone shows in the Stopped strip (`<title> · <project> · closed <time>`, with the
+  Desktop icon) while its last activity is less than 12 hours old, and is not shown after that (owner, 2026-11-26:
+  hide it after 12 hours). A click on a card opens the session in the Claude desktop app
   (`claude://code/continue?session=local_<uuid>`); a session whose file holds no id that link accepts is not a
   link, and its peek says why. The Desktop filter under Source toggles like the others. The app writes no status
   of its own: a state that no file holds is not shown.
@@ -280,7 +280,8 @@ mdfind "kMDItemFSName == '$APP'"                    # check: only ~/Applications
     only while a `~/.claude/sessions/<pid>.json` with its session id exists (on 2026-11-26 the desktop app ran on M0
     with no session of its own running, so no such file was seen: its `entrypoint` is assumed to be `claude-desktop`
     from the prototype, and the rule matches on the session id, not on the entry point). Without a process a session
-    is idle, or closed for 12 hours; the board cannot tell a closed chat from one that was never opened.
+    is closed, and shows only for 12 hours; the board cannot tell a closed chat from one that was never opened, and
+    the closed time is the last activity, not the end of the process.
   - **Reason:** `waitingFor` is `permission prompt` for a permission and for a plan approval (they cannot be told
     apart) and `input needed` for a question and for other input (they cannot be told apart either). No file holds
     the command, so the reason line has no command text. A question or a plan approval shows only `input needed` or
@@ -300,8 +301,7 @@ mdfind "kMDItemFSName == '$APP'"                    # check: only ~/Applications
   ignore it when its entry points setting is off); that a running desktop session writes a `~/.claude/sessions` file
   with its `cliSessionId` as `sessionId` (none was running on M0), so the live state, the Dock badge, the sound and
   the notification for a desktop session that starts to wait are checked in `cargo test` only; the Desktop chips and
-  the Stopped strip on the real app (M0-176-1 to M0-176-3 of `tests/acceptance/README.md`). The closed time is the
-  session's last activity, not the moment its process ended. A notification for a desktop session opens the board,
+  the Stopped strip on the real app (M0-176-1 to M0-176-3 of `tests/acceptance/README.md`). A notification for a desktop session opens the board,
   not the session.
 - Does not verify: that `asks` means a human is awaited (on 2026-11-21 four sessions had `asks: true` with no dialog
   on screen); the window, the Dock badge, the menu bar item and notifications in an automated test; that Pod Bay

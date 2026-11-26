@@ -39,8 +39,7 @@ Local Network across rebuilds"). The first start on a new Mac asks for confirmat
   in the summary row waves when a session needs you, types while one works, and sleeps otherwise.
 - **Source:** each card says where its session runs: `Pod Bay · M0` (with the machine) or `Terminal · RC` (a
   terminal session on this machine with Remote Control on) or `Desktop` (a session of the Claude desktop app on this
-  Mac). A session that two of them list shows once. A Desktop session with no process running shows as idle; one
-  that was active in the last 12 hours and has no process shows in the Stopped strip as closed. Archived desktop
+  Mac). A session that two of them list shows once. A Desktop session shows as a card only while its process runs; one that closed in the last 12 hours shows in the Stopped strip, and an older one is not shown. Archived desktop
   sessions are not shown.
 - **Why it waits:** a card that needs you says `Permission` when the session waits on a permission; else the
   `input needed` tag shows. The peek repeats it under "Why it waits".

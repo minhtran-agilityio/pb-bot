@@ -560,6 +560,7 @@ fn poll_loop(app: AppHandle, wake: Receiver<()>) {
     let cmd = find_podbay();
     let mut raw = Raw::default();
     let mut cache = local::Cache::default();
+    let mut desktop_cache = local::DesktopCache::default();
     let mut n: u32 = 0;
     loop {
         let mut error = None;
@@ -579,7 +580,7 @@ fn poll_loop(app: AppHandle, wake: Receiver<()>) {
         }
         // This machine's own Claude sessions: a few small files, read on every poll.
         raw.local = claude_dir().map(|d| local::read_with(&d, now_ms(), &local::alive, &mut cache)).unwrap_or_default();
-        raw.desktop = desktop_dir().map(|d| local::read_desktop(&d)).unwrap_or_default();
+        raw.desktop = desktop_dir().map(|d| local::read_desktop_with(&d, &mut desktop_cache)).unwrap_or_default();
         raw.now = now_ms();
 
         let outcome;

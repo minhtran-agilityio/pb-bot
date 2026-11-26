@@ -114,7 +114,8 @@ pub struct Stopped {
 
 fn is_zero(n: &u64) -> bool { *n == 0 }
 
-/// A desktop session with no process closed this long ago or less is in the Stopped strip; an older one is idle.
+/// A desktop session with no process whose last activity was less than this long ago is in the Stopped strip; an older
+/// one is not shown.
 pub const CLOSED_MS: u64 = 12 * 60 * 60 * 1000;
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -493,8 +494,9 @@ fn merge_local(sessions: &mut Vec<Session>, local: &[crate::local::Local], me: &
 /// - a session that Pod Bay or a terminal row already shows (same Claude session id) is left out: it shows once, there;
 /// - one with a live process (`~/.claude/sessions/<pid>.json` with the same session id, whatever its entry point) takes
 ///   its state, wait reason and sub-agents from that file, like a terminal session;
-/// - one with no process is idle, since its last activity, unless that was within `CLOSED_MS`: then it is returned as a
-///   closed session for the Stopped strip instead (what cannot be known is left out: no state is made up).
+/// - one with no process is closed: when its last activity was within `CLOSED_MS` it is returned for the Stopped
+///   strip; any older one, and any one when the read has no clock, is left out (owner, 2026-11-26: "hide it after
+///   12 h"; what cannot be known is left out, no state is made up).
 fn merge_desktop(sessions: &mut Vec<Session>, raw: &Raw, shown: &HashSet<String>, me: &str) -> Vec<Stopped> {
     let mut closed = Vec::new();
     for d in &raw.desktop {
@@ -509,7 +511,6 @@ fn merge_desktop(sessions: &mut Vec<Session>, raw: &Raw, shown: &HashSet<String>
                 closed.push(Stopped { source: "desktop", machine: me.to_string(), project: d.project.clone(), ws: String::new(), dirty: false, title: cut(&title, NAME_CHARS), closed: last as u64 });
                 continue;
             }
-            sessions.push(desktop_row(d, &title, me, "idle", last, "", None, None));
             continue;
         };
         let waits = !l.waiting_for.trim().is_empty();
@@ -913,10 +914,18 @@ mod tests {
     /// 1795000100000 is the `lastActivityAt` of every fixture file.
     const FIXTURE_ACTIVE: u64 = 1_795_000_100_000;
 
-    /// Every fixture file at once, with the local fixture (a terminal twin and a Pod Bay twin) and a Pod Bay row for
-    /// the tmux session `claude-pb-bot-02`, read `after_ms` after the files' last activity.
+    /// A live process (a `~/.claude/sessions` file) for the desktop session called `title`.
+    fn live_of(title: &str) -> crate::local::Local {
+        let d = crate::local::read_desktop(&desktop_fixture()).into_iter().find(|d| d.title == title).expect(title);
+        crate::local::Local { session_id: d.cli_id, entrypoint: "claude-desktop".into(), interactive: true, status: "idle".into(), since: 7, ..Default::default() }
+    }
+
+    /// Every fixture file at once, with the local fixture (a terminal twin and a Pod Bay twin), a Pod Bay row for the
+    /// tmux session `claude-pb-bot-02`, and a live process for `Index repo on desktop` and `Privacy check`, read
+    /// `after_ms` after the files' last activity.
     fn with_desktop(after_ms: u64) -> Model {
-        let local = crate::local::read(&crate::local::fixture(), FIXTURE_ACTIVE, &|_, _| true);
+        let mut local = crate::local::read(&crate::local::fixture(), FIXTURE_ACTIVE, &|_, _| true);
+        local.extend([live_of("Index repo on desktop"), live_of("Privacy check")]);
         build(&Raw {
             ls: json!([{"machine": "UA", "result": [sess(json!({"title": "Pod Bay twin", "name": "claude-pb-bot-02", "context": "pb-bot/pb-bot@02", "project": "pb-bot"}))]}]),
             machines: json!([{"machine": "UA", "me": true, "online": true}]),
@@ -940,15 +949,16 @@ mod tests {
             assert!(by(gone).is_empty(), "{gone} is not a session");
             assert!(m.stopped.iter().all(|w| w.title != gone), "{gone} is not a Stopped entry");
         }
-        assert!(m.stopped.iter().all(|w| w.source != "desktop"), "older than 12 hours: idle, not closed");
+        assert!(m.stopped.iter().all(|w| w.source != "desktop"), "the two live ones are not closed");
     }
 
     #[test]
     fn a_twin_is_left_out_only_when_the_other_source_really_shows_it() {
-        // No Pod Bay row for `claude-pb-bot-02` and no Remote Control id on the terminal twin: nothing shows those two
-        // sessions, so the desktop files for them do.
+        // The terminal twin has no Remote Control id and the tmux twin has no Pod Bay row: nothing shows those two
+        // sessions, so their processes are desktop ones and the desktop files for them show.
         let mut local = crate::local::read(&crate::local::fixture(), FIXTURE_ACTIVE, &|_, _| true);
-        local.retain(|l| l.title != "Remote twin");
+        for l in local.iter_mut().filter(|l| l.title == "Remote twin") { l.rc_id.clear(); }
+        local.extend([live_of("Index repo on desktop"), live_of("Privacy check")]);
         let m = build(&Raw {
             machines: json!([{"machine": "UA", "me": true, "online": true}]),
             local, desktop: crate::local::read_desktop(&desktop_fixture()), now: FIXTURE_ACTIVE + CLOSED_MS + 1, ..Raw::default()
@@ -974,7 +984,10 @@ mod tests {
             all
         };
         let before = snapshot();
-        let m = build(&Raw { desktop: crate::local::read_desktop(&dir), now: FIXTURE_ACTIVE + CLOSED_MS + 1, ..Raw::default() });
+        // A live process for every file, so every one that is not archived shows as a session.
+        let desk = crate::local::read_desktop(&dir);
+        let local: Vec<_> = desk.iter().map(|d| crate::local::Local { session_id: d.cli_id.clone(), entrypoint: "claude-desktop".into(), interactive: true, status: "busy".into(), ..Default::default() }).collect();
+        let m = build(&Raw { desktop: desk, local, now: FIXTURE_ACTIVE + CLOSED_MS + 1, ..Raw::default() });
         assert_eq!(before, snapshot(), "reading the folder writes nothing and changes no file");
         assert_eq!(m.sessions.iter().filter(|s| s.source == "desktop").count(), 4, "no twin is read here, so d3 and d4 show too");
         let body = serde_json::to_string(&m).unwrap();
@@ -998,17 +1011,26 @@ mod tests {
 
     #[test]
     fn a_desktop_session_with_no_process_that_was_active_in_the_last_12_hours_is_in_the_stopped_strip() {
-        let m = with_desktop(3_600_000);
+        // The twins are shown by their own source, so d3 and d4 give nothing here; d1 and d5 have a process in
+        // `with_desktop`, so take the model without those two processes.
+        let closed = |after_ms: u64| build(&Raw { desktop: crate::local::read_desktop(&desktop_fixture()), machines: json!([{"machine": "UA", "me": true, "online": true}]), now: FIXTURE_ACTIVE + after_ms, ..Raw::default() });
+        let m = closed(3_600_000);
         assert!(m.sessions.iter().all(|s| s.source != "desktop"), "closed, so not a session");
         let mut got: Vec<(&str, &str, u64)> = m.stopped.iter().filter(|w| w.source == "desktop").map(|w| (w.title.as_str(), w.project.as_str(), w.closed)).collect();
         got.sort();
-        assert_eq!(got, vec![("Index repo on desktop", "alpha", FIXTURE_ACTIVE), ("Privacy check", "delta-desk", FIXTURE_ACTIVE)]);
+        assert_eq!(got.iter().map(|g| (g.0, g.1)).collect::<Vec<_>>(), vec![
+            ("Desktop twin of a Pod Bay session", "pb-bot"), ("Desktop twin of a terminal session", "pb-bot"), ("Index repo on desktop", "alpha"), ("Privacy check", "delta-desk")]);
+        assert!(got.iter().all(|g| g.2 == FIXTURE_ACTIVE));
+        assert!(!m.stopped.iter().any(|w| w.title == "Archived desktop chat"));
         assert_eq!(m.counts.stopped, m.stopped.len());
         assert!(m.stopped.iter().filter(|w| w.source == "desktop").all(|w| w.ws.is_empty() && !w.dirty && w.machine == "UA"));
-        // Exactly 12 hours is no longer lately; no clock (0) says nothing about closing.
-        assert!(with_desktop(CLOSED_MS).stopped.iter().all(|w| w.source != "desktop"));
+        // Exactly 12 hours is no longer lately: not shown at all (owner, 2026-11-26: hide it after 12 hours). The same
+        // when the read has no clock.
+        for later in [closed(CLOSED_MS), closed(CLOSED_MS * 20)] {
+            assert!((later.sessions.len(), later.stopped.len()) == (0, 0), "{:?}", later.stopped);
+        }
         let none = build(&Raw { desktop: crate::local::read_desktop(&desktop_fixture()), ..Raw::default() });
-        assert_eq!((none.sessions.iter().filter(|s| s.source == "desktop").count(), none.stopped.len()), (4, 0));
+        assert_eq!((none.sessions.len(), none.stopped.len()), (0, 0));
         // The field the page reads, and no field for a workspace entry.
         let v = serde_json::to_value(&m.stopped).unwrap();
         assert!(v.as_array().unwrap().iter().any(|w| w["source"] == "desktop" && w["title"].is_string() && w["closed"] == FIXTURE_ACTIVE));
