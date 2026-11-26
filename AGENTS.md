@@ -18,7 +18,8 @@ and handoff map. Read both before you change a skill, an agent, a hook or a scri
 - `tests/` - `hooks/` and `scripts/` hold contract and integration tests, `fixtures/` their inputs, `evals/tickets/` the ticket evals.
 - `apps/pod-board/` - the Pod Bay session board (a Tauri menu bar app).
 - `assets/` - images that the READMEs show.
-- `docs/` and `specs/` are local only and gitignored. Do not link to them from tracked files.
+- `docs/wiki/` - the project wiki (design, rules, workflow, decisions); start at `docs/wiki/index.md`.
+- `docs/` and `specs/` are local only and gitignored, except `docs/adr/` and `docs/wiki/`, which git tracks. Do not link to the local-only folders from tracked files.
 
 ## Commands
 
