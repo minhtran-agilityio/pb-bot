@@ -10,12 +10,14 @@ session start:
   permissions.defaultMode    the run's permission mode (a session in another mode holds messages)
   env.PD_BOT_ROLE            the role; the plugin's session-role hook reads it
   env.PD_BOT_TICKET, env.PD_BOT_RUN   the ticket and the run, for the session and its commands
-  disableClaudeAiConnectors, autoCompactWindow, enabledPlugins.<plugin>
+  disableClaudeAiConnectors, enabledPlugins.<plugin>
                              the token trim in fleet-trim.json (next to this script): no claude.ai
                              connectors and no unused plugins, so each request carries about 20k
-                             fewer tokens of tool and skill lists, and an auto-compact window of
-                             500k instead of 1M. --keep-connectors skips the connector and
-                             plugin keys; the compact window is always written.
+                             fewer tokens of tool and skill lists. --keep-connectors skips both.
+  autoCompactWindow          written only with --compact-window N. By default no pd-bot file caps
+                             the context of a session, so the owner's `autoCompactWindow` in
+                             ~/.claude/settings.json (or Claude Code's own window) applies;
+                             --restore puts the value this workspace had (or its absence) back.
 
 Model guard: a worker runs Sonnet. For --role worker, a model that is not a Sonnet or Haiku id or
 alias (Opus, Fable, or an alias such as `best` that can resolve to Opus) is refused unless --depth L
@@ -39,9 +41,10 @@ Usage:
   fleet-settings.py --checkout DIR --role worker|reviewer|tester|advisor|keeper --model ID
                     --mode auto|acceptEdits [--ticket ID] [--run ID]
                     [--depth S|M|L] [--escalated] [--keep-connectors]
-                    [--effort low|medium|high|xhigh]
+                    [--effort low|medium|high|xhigh] [--compact-window N]
   fleet-settings.py --checkout DIR --restore
   fleet-settings.py --checkout DIR --show
+--compact-window N is a whole number from 100000 to 999999999.
 --show is read-only: it prints one line per fleet key (`<key>: <JSON value>` or `<key>: absent`) and
 a last line `restore state: present|present (invalid)|none` (whether the git directory holds saved values to restore).
 It writes nothing and cannot be combined with --restore or the apply options.
@@ -68,6 +71,8 @@ ABSENT = {"absent": True}
 TRIM_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fleet-trim.json")
 WORKER_MODEL_RE = re.compile(r"sonnet|haiku", re.I)
 CONNECTOR_KEYS = ("disableClaudeAiConnectors", "enabledPlugins")
+WINDOW_KEY = ("autoCompactWindow",)
+MIN_WINDOW, MAX_WINDOW = 100000, 999999999
 
 
 def trim_values():
@@ -80,8 +85,9 @@ def trim_values():
     if not isinstance(data, dict):
         refuse(f"{TRIM_FILE} does not hold a JSON object")
     pairs = [(("disableClaudeAiConnectors",), data.get("disableClaudeAiConnectors", True))]
+    # autoCompactWindow is never copied from the trim file (as merge-trim.sh): only --compact-window sets it.
     pairs += [((k,), v) for k, v in sorted(data.items())
-              if k not in ("disableClaudeAiConnectors", "enabledPlugins")]
+              if k not in ("disableClaudeAiConnectors", "enabledPlugins") + WINDOW_KEY]
     plugins = data.get("enabledPlugins", {})
     if not isinstance(plugins, dict):
         refuse(f"{TRIM_FILE}: enabledPlugins is not an object")
@@ -211,7 +217,7 @@ def restore(checkout):
 def show(checkout):
     _, path, state = paths(checkout)
     data = read_settings(path) or {}
-    for key in KEYS + trim_keys():
+    for key in KEYS + trim_keys() + (WINDOW_KEY,):
         got = get(data, key)
         print(f"{'.'.join(key)}: " + (json.dumps(got["value"]) if "value" in got else "absent"))
     label = "none"
@@ -240,6 +246,8 @@ def apply(a):
     existed = data is not None
     data = data or {}
     trim = [(k, v) for k, v in trim_values() if not (a.keep_connectors and k[0] in CONNECTOR_KEYS)]
+    if a.compact_window is not None:
+        trim = [(k, v) for k, v in trim if k != WINDOW_KEY] + [(WINDOW_KEY, a.compact_window)]
     # Every check is done; now write. The first apply's saved values win over a later apply's;
     # a trim key the first apply did not set is added with its value as it stands now.
     if os.path.exists(state):
@@ -267,6 +275,11 @@ def apply(a):
         for item in extra:
             if item["path"][0] in CONNECTOR_KEYS:
                 put(data, tuple(item["path"]), item.get("saved", ABSENT))
+    if a.compact_window is None and WINDOW_KEY not in [k for k, _ in trim]:
+        # An earlier apply may have written a cap that this one does not ask for.
+        for item in extra:
+            if tuple(item["path"]) == WINDOW_KEY:
+                put(data, WINDOW_KEY, item.get("saved", ABSENT))
     write_atomic(state, dump(saved))
     os.makedirs(cdir, exist_ok=True)
     new = {("model",): a.model, ("permissions", "defaultMode"): a.mode,
@@ -280,6 +293,7 @@ def apply(a):
     print(f"fleet-settings: {path}: model {a.model}, mode {a.mode}, role {a.role}"
           + (f", effort {a.effort}" if a.effort else "")
           + (f", ticket {a.ticket}" if a.ticket else "")
+          + (f", compact window {a.compact_window}" if a.compact_window is not None else "")
           + (", connectors kept" if a.keep_connectors else ", token trim on"))
 
 
@@ -297,9 +311,10 @@ def main(argv):
     p.add_argument("--escalated", action="store_true")
     p.add_argument("--keep-connectors", action="store_true")
     p.add_argument("--effort", choices=("low", "medium", "high", "xhigh"))
+    p.add_argument("--compact-window", type=int, metavar="N")
     a = p.parse_args(argv)
     apply_opts = (a.role, a.model, a.mode, a.ticket, a.run, a.depth, a.effort,
-                  a.escalated or None, a.keep_connectors or None)
+                  a.escalated or None, a.keep_connectors or None, a.compact_window)
     if a.show:
         if a.restore or any(v is not None for v in apply_opts):
             p.error("--show takes only --checkout")
@@ -312,6 +327,8 @@ def main(argv):
         return
     if not (a.role and a.model and a.mode):
         p.error("--role, --model and --mode are required (or --restore or --show)")
+    if a.compact_window is not None and not MIN_WINDOW <= a.compact_window <= MAX_WINDOW:
+        p.error(f"--compact-window must be from {MIN_WINDOW} to {MAX_WINDOW}")
     if not MODEL_RE.match(a.model):
         p.error("--model is not a model id")
     for name in ("ticket", "run"):
