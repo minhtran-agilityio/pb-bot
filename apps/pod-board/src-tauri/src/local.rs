@@ -457,7 +457,8 @@ pub struct Desktop {
     pub last_activity: i64,
 }
 
-/// At most this many folders and files of the desktop app are looked at in one poll.
+/// At most this many folders and files of the desktop app are looked at in one poll (a listing stops after `MAX_LISTED`
+/// entries of one folder).
 const MAX_DESKTOP_DIRS: usize = 64;
 const MAX_DESKTOP_FILES: usize = 256;
 
@@ -471,7 +472,7 @@ pub fn desktop_id(id: &str) -> bool {
 /// missing folder gives none. Read only. The newest files come first.
 pub fn read_desktop(app: &Path) -> Vec<Desktop> {
     let sub = |dir: &Path| -> Vec<PathBuf> {
-        let mut dirs: Vec<PathBuf> = std::fs::read_dir(dir).map(|rd| rd.flatten().filter(|e| e.file_type().map_or(false, |t| t.is_dir())).map(|e| e.path()).collect()).unwrap_or_default();
+        let mut dirs: Vec<PathBuf> = std::fs::read_dir(dir).map(|rd| rd.flatten().take(MAX_LISTED).filter(|e| e.file_type().map_or(false, |t| t.is_dir())).map(|e| e.path()).collect()).unwrap_or_default();
         dirs.sort();
         dirs.truncate(MAX_DESKTOP_DIRS);
         dirs
@@ -480,7 +481,7 @@ pub fn read_desktop(app: &Path) -> Vec<Desktop> {
     for a in sub(&app.join("claude-code-sessions")) {
         for b in sub(&a) {
             let Ok(rd) = std::fs::read_dir(&b) else { continue };
-            for e in rd.flatten() {
+            for e in rd.flatten().take(MAX_LISTED) {
                 let ok = e.file_name().to_str().map_or(false, |n| n.starts_with("local_") && n.ends_with(".json"));
                 if ok && e.file_type().map_or(false, |t| t.is_file()) {
                     files.push((e.metadata().and_then(|m| m.modified()).unwrap_or(UNIX_EPOCH), e.path()));
