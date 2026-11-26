@@ -343,6 +343,24 @@ def test_keep_connectors_writes_no_connector_trim_and_no_compact_window(checkout
     assert "autoCompactWindow" not in data
 
 
+def test_apply_and_restore_leave_an_existing_compact_window_alone(checkout):
+    settings(checkout).parent.mkdir()
+    before = {"autoCompactWindow": 650000}
+    settings(checkout).write_text(json.dumps(before))
+    assert apply(checkout).returncode == 0
+    assert json.loads(settings(checkout).read_text())["autoCompactWindow"] == 650000
+    assert "autoCompactWindow" not in state(checkout).read_text()
+    assert run("--checkout", str(checkout), "--restore").returncode == 0
+    assert json.loads(settings(checkout).read_text()) == before
+
+
+def test_a_run_without_the_flag_leaves_no_compact_window_in_the_workspace_settings(checkout):
+    assert apply(checkout, "--ticket", "1", "--run", "r").returncode == 0
+    assert "autoCompactWindow" not in json.loads(settings(checkout).read_text())
+    assert run("--checkout", str(checkout), "--restore").returncode == 0
+    assert not settings(checkout).exists()
+
+
 def test_compact_window_flag_writes_the_value_and_restore_puts_the_owner_value_back(checkout):
     settings(checkout).parent.mkdir()
     before = {"autoCompactWindow": 777000, "model": "x"}

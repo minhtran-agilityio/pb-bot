@@ -39,7 +39,7 @@ Run once per project, after `claude plugin install pd-bot@pd-bot`. Work in the p
    `{"orchestrator": "off"}` to `${CLAUDE_PROJECT_DIR}/.claude/pd-bot.json` (merge the key when the
    file exists). To keep it, write nothing. `PD_BOT_ROLE=none` switches it off for one session.
 7. **Token trim.** Run `bash ${CLAUDE_SKILL_DIR}/scripts/merge-trim.sh --dry-run ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-trim.json ${CLAUDE_PROJECT_DIR}/.claude/settings.json`
-   and show the diff; merge after the owner agrees. No context cap (`--compact-window N` adds one).
+   and show the diff; merge after the owner agrees. Set a cap in `~/.claude/settings.json`, not here.
 
 Never touch: `specs/`, `docs/`, and any skill, agent or hook the
 project wrote itself. Setup never writes `.claude/settings.local.json`.

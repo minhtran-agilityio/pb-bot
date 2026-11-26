@@ -15,8 +15,9 @@ session start:
                              connectors and no unused plugins, so each request carries about 20k
                              fewer tokens of tool and skill lists. --keep-connectors skips both.
   autoCompactWindow          written only with --compact-window N. By default no pd-bot file caps
-                             the context of a session, so Claude Code's own window applies;
-                             --restore puts the owner's value (or its absence) back.
+                             the context of a session, so the owner's `autoCompactWindow` in
+                             ~/.claude/settings.json (or Claude Code's own window) applies;
+                             --restore puts the value this workspace had (or its absence) back.
 
 Model guard: a worker runs Sonnet. For --role worker, a model that is not a Sonnet or Haiku id or
 alias (Opus, Fable, or an alias such as `best` that can resolve to Opus) is refused unless --depth L

@@ -36,10 +36,11 @@ The plugin lives in `plugins/pd-bot/`; the marketplace file is `.claude-plugin/m
   `fleet-settings.py` refuses Opus or Fable for a worker otherwise.
 - Context size: no pd-bot file caps it by default (owner decision, #180): `autoCompactWindow` is in
   neither the repo's `.claude/settings.json` nor `fleet-trim.json`, so a session uses Claude Code's own
-  window and long runs are not cut short. To cap one again, pass it: `fleet-settings.py --compact-window N`
-  for a fleet session (`--restore` puts the owner's value back), `merge-trim.sh --compact-window N` for a
-  project, or `"autoCompactWindow": N` in the `settings.local.json` of an owner or orchestrator
-  checkout (N from 100000). The orchestrator stays in its session after a compaction and reads its
+  window and long runs are not cut short. To cap every session on a machine (owner, orchestrator,
+  workers, reviewers), set it once in Claude Code's user settings, `~/.claude/settings.json`:
+  `{"autoCompactWindow": 400000}` (N from 100000); nothing else to remember, because no pd-bot file
+  writes the key at project or local level. `fleet-settings.py --compact-window N` (one workspace;
+  `--restore` undoes it) and `merge-trim.sh --compact-window N` (one project) override that. The orchestrator stays in its session after a compaction and reads its
   ledger first; the ledger has a backup in the git directory (`plugins/pd-bot/scripts/ledger-backup.py`).
 - Token trim: the repo's `.claude/settings.json` turns off unused plugins and denies every claude.ai
   connector except Claude Docs and Context7 (the Artifact tool is built in and stays). Fleet sessions go further:
