@@ -31,7 +31,9 @@
 # --root and --target must be absolute paths: a value that comes from a session's report is not
 # trusted. A path with a `.` or `..` component, a control character or a non-ASCII byte is kept. Just before
 # the `rm` it checks again that the folder is the same one (device and inode), is not a symlink, and still
-# holds cargo's tag and no source; a folder that changed is kept and the exit status is 1.
+# holds cargo's tag, no source, no `.git` at any depth and no git-tracked file; a folder that changed is
+# kept and the exit status is 1. Paths in the output are printed with every byte that is not printable ASCII
+# replaced by `?`.
 # Known limit: the window between that last check and the `rm` itself (a few milliseconds), in which a
 # same-user process could still swap the folder, and a process that starts using the folder in that window.
 # If the script stops before its last line it exits 1.
@@ -79,6 +81,9 @@ while [ $# -gt 0 ]; do
   shift
 done
 [ ${#roots[@]} -gt 0 ] || [ ${#targets[@]} -gt 0 ] || usage "give at least one --root or --target"
+# Every path is absolute. Work from `/`, so a working folder with a non-ASCII name cannot make the
+# self-check of the lsof list below fail (lsof escapes such a name).
+cd / || exit 1
 
 # Fail closed: without lsof nothing says whether a process uses a folder.
 if ! command -v lsof >/dev/null 2>&1; then
@@ -161,7 +166,9 @@ human() {
 
 freed_kib=0; n_done=0; n_kept=0; failed=0; seen=$'\n'
 
-kept() { n_kept=$((n_kept + 1)); echo "kept $1: $2"; }
+# esc <text>: every byte that is not printable ASCII becomes `?`, so a folder name cannot forge an output line.
+esc() { printf '%s' "$1" | tr -c '[:print:]' '?'; }
+kept() { n_kept=$((n_kept + 1)); echo "kept $(esc "$1"): $(esc "$2")"; }
 
 # in_use <dir> <project dir or empty>: prints why and returns 0 when a running process uses it.
 in_use() {
@@ -186,8 +193,20 @@ has_cargo_tag() {
     && [ "$(sed -n 2p "$1/CACHEDIR.TAG" 2>/dev/null)" = "$TAG_LINE2" ]
 }
 
+# has_git_inside <dir>: a `.git` anywhere inside. git_tracks <dir>: git tracks a file in it.
+has_git_inside() { [ -n "$(find "$1" -name .git -prune -print -quit 2>/dev/null)" ]; }
+git_tracks() { [ -n "$(git -C "$1" -c core.fsmonitor=false ls-files 2>/dev/null | head -n 1)" ]; }
+
 # devino <dir>: device and inode, to see that a folder is still the one that was checked.
-devino() { if [ "$(uname)" = Linux ]; then stat -c '%d:%i' -- "$1" 2>/dev/null; else stat -f '%d:%i' "$1" 2>/dev/null; fi; }
+# The system stat by its absolute path: another stat first on PATH (GNU coreutils on macOS) takes other options.
+STAT=/usr/bin/stat; [ -x "$STAT" ] || STAT=/bin/stat
+UNAME=/usr/bin/uname; [ -x "$UNAME" ] || UNAME=/bin/uname
+devino() {
+  local out
+  if [ "$("$UNAME" 2>/dev/null)" = Linux ]; then out=$("$STAT" -c '%d:%i' -- "$1" 2>/dev/null); else out=$("$STAT" -f '%d:%i' "$1" 2>/dev/null); fi
+  case "$out" in ''|*[!0-9:]*|:*|*:|*:*:*) return 1 ;; esac   # only digits:digits counts
+  printf '%s' "$out"
+}
 
 # bad_path <path>: prints why when a path is not one the checks can be trusted on, and returns 0.
 # The in-use check compares text with what lsof prints, and lsof escapes a control character and may
@@ -218,8 +237,7 @@ consider() {
   if [ -n "$scanned" ]; then
     case "$p/" in "$scanned"/*) ;; *) kept "$p" "outside the --root it was found under"; return ;; esac
   fi
-  id1=$(devino "$p")
-  if [ -z "$id1" ]; then kept "$p" "cannot read its device and inode"; failed=1; return; fi
+  if ! id1=$(devino "$p"); then kept "$p" "cannot read its device and inode"; failed=1; return; fi
   if [ "$p" = / ] || [ "$(printf '%s' "$p" | tr -cd / | wc -c | tr -d ' ')" -lt 2 ]; then
     kept "$p" "the root folder or a folder too close to it"; return
   fi
@@ -227,7 +245,7 @@ consider() {
   for r in ${roots_real[@]+"${roots_real[@]}"}; do
     case "$r/" in "$p"/*) kept "$p" "holds a checkout"; return ;; esac
   done
-  if [ -n "$(find "$p" -name .git -prune -print -quit 2>/dev/null)" ]; then
+  if has_git_inside "$p"; then
     kept "$p" "holds a git checkout"; return
   fi
   if keeps_source "$p"; then
@@ -248,7 +266,7 @@ consider() {
          else kept "$p" "not only build output: $e is not something cargo writes"; return; fi ;;
     esac
   done < <(ls -A "$p" 2>/dev/null)
-  if [ -n "$(git -C "$p" -c core.fsmonitor=false ls-files 2>/dev/null | head -n 1)" ]; then
+  if git_tracks "$p"; then
     kept "$p" "git tracks files in it"; return
   fi
   parent=""
@@ -260,20 +278,20 @@ consider() {
   kib=$(du -sk "$p" 2>/dev/null | cut -f1)
   case "$kib" in ''|*[!0-9]*) kib=0 ;; esac
   if [ "$dry" = 1 ]; then
-    echo "would delete $p ($(human "$kib"))"
+    echo "would delete $(esc "$p") ($(human "$kib"))"
   else
     # Look again just before the delete: still the same folder (device and inode), a directory, not a
     # symlink, still carrying cargo's tag and no source. Something swapped in during the checks is kept.
     ids=$(devino "$p")
     if [ -L "$p" ] || [ ! -d "$p" ] || [ "$(canon "$p")" != "$p" ] || [ "$ids" != "$id1" ] \
-       || keeps_source "$p" || ! has_cargo_tag "$p"; then
+       || keeps_source "$p" || ! has_cargo_tag "$p" || has_git_inside "$p" || git_tracks "$p"; then
       kept "$p" "changed while I checked it; deleted nothing here"; failed=1; return
     fi
     rm -rf -- "$p"
     if [ -e "$p" ]; then
-      echo "FAILED to delete $p" >&2; failed=1; n_kept=$((n_kept + 1)); return
+      echo "FAILED to delete $(esc "$p")" >&2; failed=1; n_kept=$((n_kept + 1)); return
     fi
-    echo "deleted $p ($(human "$kib"))"
+    echo "deleted $(esc "$p") ($(human "$kib"))"
   fi
   freed_kib=$((freed_kib + kib)); n_done=$((n_done + 1))
 }

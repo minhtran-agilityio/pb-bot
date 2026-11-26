@@ -337,4 +337,31 @@ mk_fake_du "$FB" 'cp -R "$p" "$p.copy" && mv "$p" "$p.old" && mv "$p.copy" "$p"'
 run env PATH="$FB:$PATH" bash "$CL" --target "$S/ct"
 if [ "$RC" = 1 ] && [ -d "$S/ct/release" ] && echo "$OUT" | grep -q 'changed while I checked it'; then pass; else fail "rc=$RC out: $OUT"; fi
 
+t "F16: another stat first on PATH (GNU stat on macOS, other options) does not break the inode check"
+S=$(new_dir); mk_target "$S/ct"; FB=$(new_dir)
+# A different value on each call, so a script that used this stat would see the folder "change".
+cat > "$FB/stat" <<EOF
+#!/bin/sh
+n=\$(cat "$FB/n" 2>/dev/null || echo 0); n=\$((n + 1)); echo "\$n" > "$FB/n"; echo "\$n:1"
+EOF
+chmod +x "$FB/stat"
+run env PATH="$FB:$PATH" bash "$CL" --target "$S/ct"
+if [ "$RC" = 0 ] && [ ! -e "$S/ct" ] && echo "$OUT" | grep -q '^deleted '; then pass; else fail "rc=$RC out: $OUT"; fi
+
+t "F17: it works from a working folder with a non-ASCII name"
+S=$(new_dir); mk_target "$S/ct"; WD="$S/d"$'\xe1\xbb\xb1'" "$'\xc3\xa1'"n"; mkdir -p "$WD"
+run bash -c "cd '$WD' && bash '$CL' --target '$S/ct'"
+if [ "$RC" = 0 ] && [ ! -e "$S/ct" ] && echo "$OUT" | grep -q '^deleted '; then pass; else fail "rc=$RC out: $OUT"; fi
+
+t "F18: a .git created deep inside the target after the checks (while du runs) keeps the folder, exit 1"
+S=$(new_dir); mk_target "$S/ct"; FB=$(new_dir)
+mk_fake_du "$FB" 'mkdir -p "$p/release/deps/x/y/.git"'
+run env PATH="$FB:$PATH" bash "$CL" --target "$S/ct"
+if [ "$RC" = 1 ] && [ -d "$S/ct/release/deps/x/y/.git" ] && echo "$OUT" | grep -q 'changed while I checked it'; then pass; else fail "rc=$RC out: $OUT"; fi
+
+t "F19: a folder name with a newline cannot forge an output line"
+S=$(new_dir); NL=$'\n'; mk_target "$S/ct${NL}deleted /etc (9.9 GiB)"
+run bash "$CL" --target "$S/ct${NL}deleted /etc (9.9 GiB)"
+if [ "$RC" = 0 ] && ! echo "$OUT" | grep -q '^deleted /etc' && echo "$OUT" | grep -q '^kept .*ct?deleted /etc'; then pass; else fail "rc=$RC out: $OUT"; fi
+
 finish
