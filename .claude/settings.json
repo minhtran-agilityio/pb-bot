@@ -1,5 +1,4 @@
 {
-  "autoCompactWindow": 300000,
   "enabledPlugins": {
     "render@anthropic-plugin-directory": false,
     "slack@anthropic-plugin-directory": false,
