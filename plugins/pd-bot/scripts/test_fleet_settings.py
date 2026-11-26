@@ -10,11 +10,12 @@ SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fleet-setting
 with open(os.path.join(os.path.dirname(SCRIPT), "fleet-trim.json")) as _f:
     TRIM = json.load(_f)
 _SCALARS = sorted(k for k in TRIM if k not in ("disableClaudeAiConnectors", "enabledPlugins"))
+# `--show` always ends the fleet keys with autoCompactWindow; the trim file does not set it (#180).
 TRIM_LINES = ["disableClaudeAiConnectors: " + json.dumps(TRIM["disableClaudeAiConnectors"])] + [
     f"{k}: {json.dumps(TRIM[k])}" for k in _SCALARS] + [
-    f"enabledPlugins.{n}: false" for n in sorted(TRIM["enabledPlugins"])]
+    f"enabledPlugins.{n}: false" for n in sorted(TRIM["enabledPlugins"])] + ["autoCompactWindow: absent"]
 TRIM_ABSENT = ["disableClaudeAiConnectors: absent"] + [f"{k}: absent" for k in _SCALARS] + [
-    f"enabledPlugins.{n}: absent" for n in sorted(TRIM["enabledPlugins"])]
+    f"enabledPlugins.{n}: absent" for n in sorted(TRIM["enabledPlugins"])] + ["autoCompactWindow: absent"]
 
 
 # A global excludes file (common: **/.claude/settings.local.json) would hide the "not ignored" case,
@@ -57,7 +58,8 @@ def test_writes_model_mode_and_role(checkout):
     assert data["permissions"]["defaultMode"] == "auto"
     assert data["env"] == {"PD_BOT_ROLE": "worker", "PD_BOT_TICKET": "12", "PD_BOT_RUN": "r1"}
     assert data["disableClaudeAiConnectors"] is True
-    assert data["autoCompactWindow"] == TRIM["autoCompactWindow"] >= 100000
+    # Replaced the old assertion that the default was TRIM["autoCompactWindow"] (500000), per #180.
+    assert "autoCompactWindow" not in data and "autoCompactWindow" not in TRIM
     assert data["enabledPlugins"] == {n: False for n in TRIM["enabledPlugins"]}
 
 
@@ -334,11 +336,49 @@ def test_other_roles_and_sonnet_workers_are_not_guarded(checkout):
         assert r.returncode == 0, r.stderr
 
 
-def test_keep_connectors_writes_no_connector_trim_but_keeps_the_compact_window(checkout):
+def test_keep_connectors_writes_no_connector_trim_and_no_compact_window(checkout):
     assert apply(checkout, "--keep-connectors").returncode == 0
     data = json.loads(settings(checkout).read_text())
     assert "disableClaudeAiConnectors" not in data and "enabledPlugins" not in data
-    assert data["autoCompactWindow"] == TRIM["autoCompactWindow"]
+    assert "autoCompactWindow" not in data
+
+
+def test_compact_window_flag_writes_the_value_and_restore_puts_the_owner_value_back(checkout):
+    settings(checkout).parent.mkdir()
+    before = {"autoCompactWindow": 777000, "model": "x"}
+    settings(checkout).write_text(json.dumps(before))
+    r = apply(checkout, "--compact-window", "400000")
+    assert r.returncode == 0, r.stderr
+    assert json.loads(settings(checkout).read_text())["autoCompactWindow"] == 400000
+    assert "autoCompactWindow: 400000" in show(checkout).stdout
+    assert run("--checkout", str(checkout), "--restore").returncode == 0
+    assert json.loads(settings(checkout).read_text()) == before
+
+
+def test_compact_window_flag_with_no_owner_value_is_removed_by_restore(checkout):
+    assert apply(checkout, "--compact-window", "250000", "--keep-connectors").returncode == 0
+    assert json.loads(settings(checkout).read_text())["autoCompactWindow"] == 250000
+    assert run("--checkout", str(checkout), "--restore").returncode == 0
+    assert not settings(checkout).exists()
+
+
+def test_a_later_apply_without_the_flag_puts_the_owner_window_back(checkout):
+    settings(checkout).parent.mkdir()
+    settings(checkout).write_text('{"autoCompactWindow": 777000}')
+    assert apply(checkout, "--compact-window", "300000").returncode == 0
+    assert apply(checkout).returncode == 0
+    assert json.loads(settings(checkout).read_text())["autoCompactWindow"] == 777000
+
+
+@pytest.mark.parametrize("n", ["99999", "1000000000", "abc", "-5", ""])
+def test_compact_window_refuses_a_bad_number_and_writes_nothing(checkout, n):
+    r = apply(checkout, "--compact-window", n)
+    assert r.returncode == 2 and "Traceback" not in r.stderr, r.stderr
+    assert not settings(checkout).exists() and not state(checkout).exists()
+
+
+def test_show_rejects_compact_window(checkout):
+    assert run("--checkout", str(checkout), "--show", "--compact-window", "300000").returncode == 2
 
 
 def test_restore_puts_back_the_owner_plugin_choices(checkout):
@@ -373,8 +413,8 @@ def test_repo_project_settings_carry_the_plugin_trim_and_keep_only_claude_docs()
     # The owner's sessions keep the Claude Docs connector; every other claude.ai connector is denied.
     deny = proj["permissions"]["deny"]
     assert "disableClaudeAiConnectors" not in proj
-    # The orchestrator and owner sessions compact sooner (300k) than fleet sessions (fleet-trim.json).
-    assert proj["autoCompactWindow"] == 300000 < TRIM["autoCompactWindow"]
+    # No default cap on the context window (#180): neither the project settings nor the trim set one.
+    assert "autoCompactWindow" not in proj
     assert all(r.startswith("mcp__claude_ai_") for r in deny)
     assert "mcp__claude_ai_Claude_Docs" not in deny and "mcp__claude_ai_Context7" not in deny
 
@@ -387,7 +427,7 @@ def test_keep_connectors_after_a_trimmed_apply_puts_the_owner_values_back(checko
     assert apply(checkout, "--keep-connectors").returncode == 0
     data = json.loads(settings(checkout).read_text())
     assert "disableClaudeAiConnectors" not in data and data["enabledPlugins"] == {"mine@m": True}
-    assert data["autoCompactWindow"] == TRIM["autoCompactWindow"]
+    assert "autoCompactWindow" not in data
     assert run("--checkout", str(checkout), "--restore").returncode == 0
     assert json.loads(settings(checkout).read_text()) == {"enabledPlugins": {"mine@m": True}}
 

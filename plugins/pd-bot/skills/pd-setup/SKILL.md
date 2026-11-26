@@ -38,8 +38,8 @@ Run once per project, after `claude plugin install pd-bot@pd-bot`. Work in the p
    (AskUserQuestion): keep it, or switch it off for this project. To switch it off, write
    `{"orchestrator": "off"}` to `${CLAUDE_PROJECT_DIR}/.claude/pd-bot.json` (merge the key when the
    file exists). To keep it, write nothing. `PD_BOT_ROLE=none` switches it off for one session.
-7. **Token trim.** Run `bash ${CLAUDE_SKILL_DIR}/scripts/merge-trim.sh --dry-run --compact-window 300000 ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-trim.json ${CLAUDE_PROJECT_DIR}/.claude/settings.json`
-   and show the diff (connectors, plugins, 300k compact). Merge only after the owner agrees.
+7. **Token trim.** Run `bash ${CLAUDE_SKILL_DIR}/scripts/merge-trim.sh --dry-run ${CLAUDE_PLUGIN_ROOT}/scripts/fleet-trim.json ${CLAUDE_PROJECT_DIR}/.claude/settings.json`
+   and show the diff; merge after the owner agrees. No context cap (`--compact-window N` adds one).
 
 Never touch: `specs/`, `docs/`, and any skill, agent or hook the
 project wrote itself. Setup never writes `.claude/settings.local.json`.

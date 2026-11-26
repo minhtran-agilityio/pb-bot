@@ -105,8 +105,10 @@ writes it. It is the orchestrator's memory:
   with `--restore`; a backup of a finished run is history, not work. Read
   the ledger before anything else, then go on from each open ticket's `next`. Do the same after a
   context summary.
-- **Context size.** The project settings set `autoCompactWindow` to 300000, so your session
-  compacts itself at about 267k (fleet sessions get 500000 from `fleet-trim.json`). Stay in the same session: a compacted session keeps its title and
+- **Context size.** No pd-bot file sets `autoCompactWindow` by default, so your session compacts at
+  Claude Code's own window. When the owner wants a cap, they set `autoCompactWindow` in the
+  checkout's `.claude/settings.local.json`; for a fleet session you pass `fleet-settings.py
+  --compact-window N`. Stay in the same session when it compacts: a compacted session keeps its title and
   uuid, so messages and idle notices still reach it. Do not start a new orchestrator session to
   shed context.
 

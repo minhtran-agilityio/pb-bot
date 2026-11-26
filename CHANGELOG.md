@@ -7,6 +7,8 @@ file. Versions change only in the release PR (see the release section of `AGENTS
 
 ## [Unreleased]
 
+- Changed: no default context cap (#180; owner decision, 2026-11-26: a cap limits long runs, and repeated compaction loses context). `autoCompactWindow` is gone from this repo's `.claude/settings.json` and from `fleet-trim.json`, so `fleet-settings.py` no longer writes it and `pd-setup` step 7 no longer passes `--compact-window 300000`; a session uses Claude Code's own window, as before 0.6.1. A cap stays available when wanted: `fleet-settings.py --compact-window N` (100000 to 999999999; `--restore` and a later apply without the flag put the owner's value back; `--show` lists the key), `merge-trim.sh --compact-window N`, or `autoCompactWindow` in `.claude/settings.local.json` for an owner or orchestrator session. The connector and plugin trim stays. Tests: the default-absent case replaces the old assertions of 300000 and 500000, and new cases cover the flag.
+
 ## [0.6.2] — 2026-11-25
 
 - Changed: the Shape Board keeper (`Pb Bot Storehouse`) and its UI reviewer run on demand, a fresh session per batch, stopped when they send `KEEPER-DONE` or `REVIEWER-DONE`, instead of living for days. Both run Sonnet 5.5 at effort high, and the keeper runs `ui-designer` by its agent type, not `general-purpose`. tokscope, 2026-11-22 to 25: the long-lived keeper cost about $99 (Opus context 500k to 850k) and the reviewer about $38. `podbay.md` gains "Project roles started on demand": the orchestrator starts such a role when a request finds no session of it. `fleet-settings.py` accepts `--role keeper`. New brief: `apps/pod-shape/docs/ui-reviewer.md`. A new keeper sends any `UI-READY` it finds missing (merged request issues without a `UI-READY sent` comment).

@@ -1,10 +1,10 @@
 #!/bin/bash
-# Merge the token trim (fleet-trim.json: no claude.ai connectors, unused plugins off, a smaller
-# auto-compact window) into a
+# Merge the token trim (fleet-trim.json: no claude.ai connectors, unused plugins off) into a
 # project settings.json, so each request of every session there carries fewer tool and skill lists.
 # Usage: merge-trim.sh [--dry-run] [--compact-window N] <trim.json> <settings.json>
-#   --compact-window N writes autoCompactWindow N (at least 100000). The trim file's own value is for
-#   fleet sessions and is never copied: project settings serve the orchestrator, which compacts sooner.
+#   --compact-window N writes autoCompactWindow N (at least 100000). Without it the script writes no
+#   autoCompactWindow and keeps the one the project already has, so Claude Code's own window applies.
+#   A trim file's own autoCompactWindow is never copied: only this option sets a cap.
 #   Sets every top-level key and each enabledPlugins entry of the trim file; keeps every
 #   other key. Writes nothing when nothing changes (idempotent). A missing file is created as {}.
 #   --dry-run prints the diff and changes nothing.

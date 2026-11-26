@@ -24,7 +24,7 @@ CLAUDE.local.md
 **/.claude/*
 !/.claude/launch.json
 # Project settings are shared: the token trim (no claude.ai connectors, no unused plugins) for every
-# session in this repo. It mirrors plugins/pd-bot/scripts/fleet-trim.json (a test checks it).
+# session in this repo; no context cap (#180). It mirrors plugins/pd-bot/scripts/fleet-trim.json (a test checks it).
 !/.claude/settings.json
 # Project agents are shared: Claude Code loads them from <repo>/.claude/agents/ (Shape Board's ui-designer).
 # Only the agent .md files are tracked; anything else in that folder (.env, credentials) stays ignored.

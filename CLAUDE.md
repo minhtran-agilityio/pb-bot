@@ -34,11 +34,13 @@ The plugin lives in `plugins/pd-bot/`; the marketplace file is `.claude-plugin/m
   conditions, the depth L rule below and the worker rule are hard limits: a worker at depth S or M runs
   Sonnet 5.5 (raise its effort, not its model) unless a Sonnet worker already failed once on the ticket;
   `fleet-settings.py` refuses Opus or Fable for a worker otherwise.
-- Context ceiling: `autoCompactWindow` is 300000 in the repo's `.claude/settings.json` (the
-  orchestrator and owner sessions compact at about 267k) and 500000 in `fleet-trim.json` (workers
-  and reviewers, which lose more when compacted mid-task), instead of running toward 1M. The
-  orchestrator stays in its session after a compaction and reads its ledger first; the ledger has a
-  backup in the git directory (`plugins/pd-bot/scripts/ledger-backup.py`).
+- Context size: no pd-bot file caps it by default (owner decision, #180): `autoCompactWindow` is in
+  neither the repo's `.claude/settings.json` nor `fleet-trim.json`, so a session uses Claude Code's own
+  window and long runs are not cut short. To cap one again, pass it: `fleet-settings.py --compact-window N`
+  for a fleet session (`--restore` puts the owner's value back), `merge-trim.sh --compact-window N` for a
+  project, or `"autoCompactWindow": N` in the `settings.local.json` of an owner or orchestrator
+  checkout (N from 100000). The orchestrator stays in its session after a compaction and reads its
+  ledger first; the ledger has a backup in the git directory (`plugins/pd-bot/scripts/ledger-backup.py`).
 - Token trim: the repo's `.claude/settings.json` turns off unused plugins and denies every claude.ai
   connector except Claude Docs and Context7 (the Artifact tool is built in and stays). Fleet sessions go further:
   `fleet-settings.py` writes `plugins/pd-bot/scripts/fleet-trim.json` (`disableClaudeAiConnectors`, no
