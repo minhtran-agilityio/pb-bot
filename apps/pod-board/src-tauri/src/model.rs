@@ -920,12 +920,14 @@ mod tests {
         crate::local::Local { session_id: d.cli_id, entrypoint: "claude-desktop".into(), interactive: true, status: "idle".into(), since: 7, ..Default::default() }
     }
 
-    /// Every fixture file at once, with the local fixture (a terminal twin and a Pod Bay twin), a Pod Bay row for the
-    /// tmux session `claude-pb-bot-02`, and a live process for `Index repo on desktop` and `Privacy check`, read
-    /// `after_ms` after the files' last activity.
-    fn with_desktop(after_ms: u64) -> Model {
+    const H: u64 = 60 * 60 * 1000;
+
+    /// Every fixture file at once, with the local fixture (a terminal twin and a Pod Bay twin) and a Pod Bay row for
+    /// the tmux session `claude-pb-bot-02`; with `live`, also a live process for `Index repo on desktop` and
+    /// `Privacy check`. Read `after_ms` after the files' last activity.
+    fn with_desktop(after_ms: u64, live: bool) -> Model {
         let mut local = crate::local::read(&crate::local::fixture(), FIXTURE_ACTIVE, &|_, _| true);
-        local.extend([live_of("Index repo on desktop"), live_of("Privacy check")]);
+        if live { local.extend([live_of("Index repo on desktop"), live_of("Privacy check")]); }
         build(&Raw {
             ls: json!([{"machine": "UA", "result": [sess(json!({"title": "Pod Bay twin", "name": "claude-pb-bot-02", "context": "pb-bot/pb-bot@02", "project": "pb-bot"}))]}]),
             machines: json!([{"machine": "UA", "me": true, "online": true}]),
@@ -936,9 +938,19 @@ mod tests {
         })
     }
 
+    /// (desktop session titles, desktop Stopped entry titles), sorted.
+    fn desk_rows(m: &Model) -> (Vec<String>, Vec<String>) {
+        let mut a: Vec<String> = m.sessions.iter().filter(|s| s.source == "desktop").map(|s| s.title.clone()).collect();
+        let mut b: Vec<String> = m.stopped.iter().filter(|w| w.source == "desktop").map(|w| w.title.clone()).collect();
+        a.sort();
+        b.sort();
+        (a, b)
+    }
+
     #[test]
     fn the_desktop_fixture_gives_two_desktop_sessions_and_a_twin_shows_once_under_its_own_source() {
-        let m = with_desktop(CLOSED_MS + 60_000);
+        // Case (a) of the fixtures README: live processes for d1 and d5.
+        let m = with_desktop(13 * H, true);
         let mut desk: Vec<(&str, &str, &str)> = m.sessions.iter().filter(|s| s.source == "desktop").map(|s| (s.title.as_str(), s.project.as_str(), s.state)).collect();
         desk.sort();
         assert_eq!(desk, vec![("Index repo on desktop", "alpha", "idle"), ("Privacy check", "delta-desk", "idle")]);
@@ -950,6 +962,48 @@ mod tests {
             assert!(m.stopped.iter().all(|w| w.title != gone), "{gone} is not a Stopped entry");
         }
         assert!(m.stopped.iter().all(|w| w.source != "desktop"), "the two live ones are not closed");
+    }
+
+    #[test]
+    fn a_desktop_file_with_no_live_process_is_a_stopped_entry_for_12_hours_and_then_nothing() {
+        // Cases (b) and (c) of the fixtures README, on the whole fixture and on d1 and d5 each alone.
+        let two = vec!["Index repo on desktop".to_string(), "Privacy check".to_string()];
+        let m = with_desktop(H, false);
+        assert_eq!(desk_rows(&m), (vec![], two.clone()), "(b) no session, two Stopped entries, the twins and the archived one give none");
+        assert_eq!(m.counts.stopped, m.stopped.len());
+        let mut got: Vec<(&str, &str, u64)> = m.stopped.iter().filter(|w| w.source == "desktop").map(|w| (w.title.as_str(), w.project.as_str(), w.closed)).collect();
+        got.sort();
+        assert_eq!(got, vec![("Index repo on desktop", "alpha", FIXTURE_ACTIVE), ("Privacy check", "delta-desk", FIXTURE_ACTIVE)]);
+        assert!(m.stopped.iter().filter(|w| w.source == "desktop").all(|w| w.ws.is_empty() && !w.dirty && w.machine == "UA"));
+        assert_eq!(by_title(&m, "Pod Bay twin"), vec!["podbay"]);
+        assert_eq!(by_title(&m, "Remote twin"), vec!["terminal"]);
+        // The field the page reads, and no field for a workspace entry.
+        let v = serde_json::to_value(&m.stopped).unwrap();
+        assert!(v.as_array().unwrap().iter().any(|w| w["source"] == "desktop" && w["title"].is_string() && w["closed"] == FIXTURE_ACTIVE));
+        for later in [CLOSED_MS, 13 * H, CLOSED_MS * 20] {
+            assert_eq!(desk_rows(&with_desktop(later, false)), (vec![], vec![]), "(c) after {later} ms: nothing, 12 hours is not 'lately'");
+        }
+        // Each of d1 and d5 alone: (a) live, (b) one hour, (c) 13 hours.
+        for (title, project) in [("Index repo on desktop", "alpha"), ("Privacy check", "delta-desk")] {
+            let alone = |after: u64, live: bool| {
+                let desk: Vec<_> = crate::local::read_desktop(&desktop_fixture()).into_iter().filter(|d| d.title == title).collect();
+                let local = if live { vec![live_of(title)] } else { vec![] };
+                build(&Raw { desktop: desk, local, now: FIXTURE_ACTIVE + after, ..Raw::default() })
+            };
+            let a = alone(13 * H, true);
+            assert_eq!((a.sessions.len(), a.sessions[0].source, a.sessions[0].title.as_str(), a.sessions[0].project.as_str(), a.stopped.len()), (1, "desktop", title, project, 0));
+            let b = alone(H, false);
+            assert_eq!((b.sessions.len(), b.stopped.len(), b.stopped[0].source, b.stopped[0].title.as_str(), b.stopped[0].project.as_str()), (0, 1, "desktop", title, project));
+            let c = alone(13 * H, false);
+            assert_eq!((c.sessions.len(), c.stopped.len()), (0, 0));
+        }
+        // No clock in the read: nothing can be said about closing, so nothing shows.
+        let none = build(&Raw { desktop: crate::local::read_desktop(&desktop_fixture()), ..Raw::default() });
+        assert_eq!((none.sessions.len(), none.stopped.len()), (0, 0));
+    }
+
+    fn by_title(m: &Model, t: &str) -> Vec<&'static str> {
+        m.sessions.iter().filter(|s| s.title == t).map(|s| s.source).collect()
     }
 
     #[test]
@@ -966,6 +1020,26 @@ mod tests {
         let mut desk: Vec<&str> = m.sessions.iter().filter(|s| s.source == "desktop").map(|s| s.title.as_str()).collect();
         desk.sort();
         assert_eq!(desk, vec!["Desktop twin of a Pod Bay session", "Desktop twin of a terminal session", "Index repo on desktop", "Privacy check"]);
+    }
+
+    #[test]
+    fn the_model_of_every_case_of_the_desktop_fixture_holds_no_secret_and_no_cli_id() {
+        // Cases (a), (b) and (c) of the fixtures README: sessions and Stopped entries alike. The word `secret` is left
+        // out of the whole-fixture model because the local fixture's own sub-agent task holds `~/secret/alpha/tests`
+        // (#137); the model of the desktop files alone is checked for it too.
+        for (after, live) in [(13 * H, true), (H, false), (13 * H, false)] {
+            let full = serde_json::to_string(&with_desktop(after, live)).unwrap();
+            let local = if live { vec![live_of("Index repo on desktop"), live_of("Privacy check")] } else { vec![] };
+            let alone = serde_json::to_string(&build(&Raw { desktop: crate::local::read_desktop(&desktop_fixture()), local, now: FIXTURE_ACTIVE + after, ..Raw::default() })).unwrap();
+            for (name, body) in [("whole fixture", &full), ("desktop files alone", &alone)] {
+                let words: &[&str] = if name == "whole fixture" { &["someone"] } else { &["someone", "secret", "worktrees", "Bearer"] };
+                for secret in words.iter().chain(&["FIXTURE-SECRET-TOKEN-176", "mcp.example.invalid", "fixture-mcp", "/home/someone", "d1d1d1d1", "d2d2d2d2", "d5d5d5d5",
+                    "\"cliSessionId\"", "\"sessionId\"", "local_d2000000", "local_d3000000", "local_d4000000"]) {
+                    assert!(!body.contains(secret), "{name}, after {after} live {live}: model holds {secret}");
+                }
+                assert_eq!(body.contains("local_d1000000-0000-4000-8000-000000000001"), live, "{name}: only a card carries the id that opens it");
+            }
+        }
     }
 
     #[test]
@@ -1007,33 +1081,6 @@ mod tests {
         let ids: Vec<&str> = m.sessions.iter().map(|s| s.desktop_id.as_str()).collect();
         assert!(ids.contains(&"local_d1000000-0000-4000-8000-000000000001") && ids.contains(&"local_d5000000-0000-4000-8000-000000000005"), "{ids:?}");
         assert!(m.sessions.iter().all(|s| s.rc_id.is_empty()), "a desktop session has no Remote Control id");
-    }
-
-    #[test]
-    fn a_desktop_session_with_no_process_that_was_active_in_the_last_12_hours_is_in_the_stopped_strip() {
-        // The twins are shown by their own source, so d3 and d4 give nothing here; d1 and d5 have a process in
-        // `with_desktop`, so take the model without those two processes.
-        let closed = |after_ms: u64| build(&Raw { desktop: crate::local::read_desktop(&desktop_fixture()), machines: json!([{"machine": "UA", "me": true, "online": true}]), now: FIXTURE_ACTIVE + after_ms, ..Raw::default() });
-        let m = closed(3_600_000);
-        assert!(m.sessions.iter().all(|s| s.source != "desktop"), "closed, so not a session");
-        let mut got: Vec<(&str, &str, u64)> = m.stopped.iter().filter(|w| w.source == "desktop").map(|w| (w.title.as_str(), w.project.as_str(), w.closed)).collect();
-        got.sort();
-        assert_eq!(got.iter().map(|g| (g.0, g.1)).collect::<Vec<_>>(), vec![
-            ("Desktop twin of a Pod Bay session", "pb-bot"), ("Desktop twin of a terminal session", "pb-bot"), ("Index repo on desktop", "alpha"), ("Privacy check", "delta-desk")]);
-        assert!(got.iter().all(|g| g.2 == FIXTURE_ACTIVE));
-        assert!(!m.stopped.iter().any(|w| w.title == "Archived desktop chat"));
-        assert_eq!(m.counts.stopped, m.stopped.len());
-        assert!(m.stopped.iter().filter(|w| w.source == "desktop").all(|w| w.ws.is_empty() && !w.dirty && w.machine == "UA"));
-        // Exactly 12 hours is no longer lately: not shown at all (owner, 2026-11-26: hide it after 12 hours). The same
-        // when the read has no clock.
-        for later in [closed(CLOSED_MS), closed(CLOSED_MS * 20)] {
-            assert!((later.sessions.len(), later.stopped.len()) == (0, 0), "{:?}", later.stopped);
-        }
-        let none = build(&Raw { desktop: crate::local::read_desktop(&desktop_fixture()), ..Raw::default() });
-        assert_eq!((none.sessions.len(), none.stopped.len()), (0, 0));
-        // The field the page reads, and no field for a workspace entry.
-        let v = serde_json::to_value(&m.stopped).unwrap();
-        assert!(v.as_array().unwrap().iter().any(|w| w["source"] == "desktop" && w["title"].is_string() && w["closed"] == FIXTURE_ACTIVE));
     }
 
     #[test]
