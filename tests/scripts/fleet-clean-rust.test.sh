@@ -550,4 +550,47 @@ if [ "$bound" != 1 ]; then skip "cannot bind mount here"; else
 fi
 fi
 
+# mount_vol <mount point> <folder for the disk image, outside the mount point>: mounts a small empty volume there (macOS hdiutil, Linux tmpfs as root); returns 1 when it cannot.
+mount_vol() {
+  if [ "$(uname)" = Darwin ] && command -v hdiutil >/dev/null 2>&1; then
+    hdiutil create -quiet -size 2m -fs HFS+ -volname t181 "$2/v.dmg" >/dev/null 2>&1 \
+      && hdiutil attach -quiet -nobrowse -mountpoint "$1" "$2/v.dmg" >/dev/null 2>&1
+  elif [ "$(uname)" = Linux ] && [ "$(id -u)" = 0 ] && command -v mount >/dev/null 2>&1; then
+    mount -t tmpfs tmpfs "$1" >/dev/null 2>&1
+  else return 1; fi
+}
+umount_vol() { if [ "$(uname)" = Darwin ]; then hdiutil detach -quiet -force "$1" >/dev/null 2>&1; else umount "$1" >/dev/null 2>&1; fi; }
+
+t "N1: a target that is itself a mount point (another device than its parent) is kept, and the volume is not emptied"
+S=$(new_dir); mkdir -p "$S/proj"; echo '[package]' > "$S/proj/Cargo.toml"; mkdir -p "$S/proj/target"
+if ! mount_vol "$S/proj/target" "$S"; then skip "cannot mount a volume here (needs macOS hdiutil, or Linux as root)"; else
+  mk_target "$S/proj/target"; echo precious > "$S/proj/target/precious.txt"
+  run bash "$CL" --root "$S"
+  dry=$(bash "$CL" --dry-run --root "$S" 2>&1)
+  survived=0; [ -f "$S/proj/target/precious.txt" ] && survived=1
+  umount_vol "$S/proj/target"
+  if [ "$RC" = 0 ] && [ "$survived" = 1 ] && echo "$OUT" | grep -q 'a mount point' && ! echo "$dry" | grep -q 'would delete'; then pass; else fail "rc=$RC survived=$survived out: $OUT dry: $dry"; fi
+fi
+
+t "N2: an EMPTY volume mounted inside the target keeps the whole target (the entry count cannot see it), and the exit is 0"
+S=$(new_dir); mk_target "$S/ct"; MNT="$S/ct/release/emptymnt"; mkdir -p "$MNT"; IMG=$(new_dir)
+if ! mount_vol "$MNT" "$IMG"; then skip "cannot mount a volume here (needs macOS hdiutil, or Linux as root)"; else
+  run bash "$CL" --target "$S/ct"
+  umount_vol "$MNT"
+  if [ "$RC" = 0 ] && [ -d "$S/ct/release" ] && [ -f "$S/ct/CACHEDIR.TAG" ] && echo "$OUT" | grep -q 'mount point' && echo "$OUT" | grep -q 'in 0 folder(s), kept 1'; then pass; else fail "rc=$RC out: $OUT"; fi
+fi
+
+t "N3: a project moved into the target while the final lsof runs is caught by the rescan that follows it (exit 1, nothing deleted)"
+S=$(new_dir); mk_target "$S/ct"; FB=$(new_dir); REAL_LSOF=$(command -v lsof); CT_REAL=$(cd "$S/ct" && /bin/pwd -P)
+cat > "$FB/lsof" <<EOF
+#!/bin/sh
+# Every call after the first runs the real lsof, then moves a checkout into the target.
+"$REAL_LSOF" "\$@"
+n=\$(cat "$FB/n" 2>/dev/null || echo 0); n=\$((n + 1)); echo "\$n" > "$FB/n"
+if [ "\$n" -gt 1 ]; then mkdir -p "$CT_REAL/release/moved/.git"; echo work > "$CT_REAL/release/moved/main.rs"; fi
+EOF
+chmod +x "$FB/lsof"
+run env PATH="$FB:$PATH" bash "$CL" --target "$S/ct"
+if [ "$RC" = 1 ] && [ -f "$S/ct/release/moved/main.rs" ] && echo "$OUT" | grep -q 'changed while I checked it'; then pass; else fail "rc=$RC out: $OUT"; fi
+
 finish

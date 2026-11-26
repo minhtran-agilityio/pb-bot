@@ -37,10 +37,13 @@
 # folder that changed is kept and the exit status is 1. `rm` stays on one device (`-x` on macOS,
 # `--one-file-system` on Linux). Paths in the output are printed with every byte that is not printable ASCII
 # replaced by `?`.
-# On a very large target the scans take seconds, so the last check is ordered: scans, then a fresh list of
-# open files and the in-use check, then the quick checks (inode, symlink, tag) right before the `rm`.
-# Known limit: the few milliseconds between those quick checks and the `rm` itself, in which a same-user
-# process could still swap the folder or start using it.
+# On a very large target the scans take seconds, so the last check is ordered: a fresh list of open files
+# and the in-use check first (lsof is the slowest), then the rescan of the tree (source, git, strays,
+# mounts), then the quick checks (inode, symlink, tag), then the `rm` at once.
+# Known limit: the time of that rescan (seconds on a very large target) and of the quick checks before the
+# `rm`, in which a same-user process could still move a project into the folder, swap the folder or
+# start using it. A mount point is kept: the folder itself (another device than its parent) or any mount
+# inside it, empty or not.
 # If the script stops before its last line it exits 1.
 #
 # Usage:
@@ -236,6 +239,31 @@ bad_path() {
   return 1
 }
 
+# mounted_at_or_under <dir>: a mount point at <dir> or anywhere under it, empty or not, read from the
+# system's mount table (the entry count above cannot see an empty mount, nor a bind mount on the same
+# device). Linux: /proc/self/mountinfo (field 5; a space, tab, newline or backslash is an octal escape).
+# macOS and others: the output of /sbin/mount, `<device> on <mount point> (<type>, <options>)`, matched
+# as text, so a path with an odd name cannot confuse a parser. Sets mount_table=unreadable when the table
+# cannot be read on a system that has no mountinfo: the caller then keeps the folder.
+mount_table=ok
+mounted_at_or_under() {
+  local d="$1" mtab
+  if [ -r /proc/self/mountinfo ]; then
+    D="$d" awk '
+      BEGIN { d = ENVIRON["D"] }
+      { m = $5; gsub(/\\040/, " ", m); gsub(/\\011/, "\t", m); gsub(/\\012/, "\n", m); gsub(/\\134/, "\\", m)
+        if (m == d || index(m, d "/") == 1) { found = 1; exit } }
+      END { exit !found }' /proc/self/mountinfo
+    return
+  fi
+  MOUNT=/sbin/mount; [ -x "$MOUNT" ] || MOUNT=/bin/mount
+  if ! mtab=$("$MOUNT" 2>/dev/null) || [ -z "$mtab" ]; then mount_table=unreadable; return 1; fi
+  printf '%s\n' "$mtab" | D="$d" awk '
+    BEGIN { d = ENVIRON["D"] }
+    { if (index($0, " on " d " (") > 0 || index($0, " on " d "/") > 0) { found = 1; exit } }
+    END { exit !found }'
+}
+
 # tree_stray <dir>: one scan of the whole folder tree, at every depth (find -P: a symlink is never
 # followed). It prints the first thing that keeps the whole folder and returns 0; it returns 1 when there
 # is none. It looks for nothing about cargo's layout (that changes with each cargo). It keeps the folder on:
@@ -245,7 +273,7 @@ bad_path() {
 #     case): that is a project, not build output;
 #   - a folder that cannot be read (a find error), because `rm` would then fail halfway;
 #   - another device mounted anywhere inside it: the entries are counted with and without `-xdev`, and on
-#     Linux /proc/self/mountinfo is read too, for a bind mount on the same device.
+#     the mount table is read too (empty mounts and bind mounts on the same device).
 tree_stray() {
   local d="$1" hit frc all_n xdev_n
   hit=$(find -P "$d" -mindepth 1 \( -type l -o \( ! -type f ! -type d \) -o -name '*[![:print:]]*' \
@@ -256,22 +284,14 @@ tree_stray() {
   if [ -s "$WORK/find.err" ]; then printf '%s' "(unreadable: find failed)"; return 0; fi
   xdev_n=$(find -P "$d" -xdev -mindepth 1 2>/dev/null | wc -l | tr -d ' ')
   if [ "$all_n" != "$xdev_n" ]; then printf '%s' "(another device is mounted inside)"; return 0; fi
-  if [ -r /proc/self/mountinfo ]; then
-    # The mount point is field 5; a space, tab, newline or backslash in it is written as an octal escape.
-    if D="$d" awk '
-      BEGIN { d = ENVIRON["D"] }
-      { m = $5; gsub(/\\040/, " ", m); gsub(/\\011/, "\t", m); gsub(/\\012/, "\n", m); gsub(/\\134/, "\\", m)
-        if (m == d || index(m, d "/") == 1) { found = 1; exit } }
-      END { exit !found }' /proc/self/mountinfo; then
-      printf '%s' "(a mount point is inside, or is the folder itself)"; return 0
-    fi
-  fi
+  if mounted_at_or_under "$d"; then printf '%s' "(a mount point is inside, or is the folder itself)"; return 0; fi
+  if [ "$mount_table" = unreadable ]; then printf '%s' "(cannot read the mount table)"; return 0; fi
   return 1
 }
 
 # consider <dir> <found by --root: the canonical root, else empty>
 consider() {
-  local dir="$1" scanned="$2" p parent why kib r id1 ids stray
+  local dir="$1" scanned="$2" p parent why kib r id1 ids stray pdev
   if why=$(bad_path "$dir"); then kept "$dir" "$why"; return; fi
   while [ "${#dir}" -gt 1 ] && [ "${dir%/}" != "$dir" ]; do dir=${dir%/}; done   # `link/` must still be seen as a symlink
   if [ -L "$dir" ]; then kept "$dir" "a symlink"; return; fi
@@ -294,6 +314,9 @@ consider() {
     kept "$p" "the root folder or a folder too close to it"; return
   fi
   case "$home_real/" in "$p"/*) kept "$p" "the home folder, or a folder that holds it"; return ;; esac
+  # A target that is a mount point (another device than its parent folder) is a volume, not build output.
+  if ! pdev=$(devino "$(dirname "$p")"); then kept "$p" "cannot read the device of its parent folder"; failed=1; return; fi
+  if [ "${pdev%%:*}" != "${id1%%:*}" ]; then kept "$p" "a mount point (it is on another device than its parent folder)"; return; fi
   for r in ${roots_real[@]+"${roots_real[@]}"}; do
     case "$r/" in "$p"/*) kept "$p" "holds a checkout"; return ;; esac
   done
@@ -324,15 +347,16 @@ consider() {
   if [ "$dry" = 1 ]; then
     echo "would delete $(esc "$p") ($(human "$kib"))"
   else
-    # Look again just before the delete. On a big target the scans take seconds, so: the slow checks come
-    # first (source, git, the whole tree, then a fresh list of open files and the in-use check), and the
-    # quick ones right before the rm: the same folder (device and inode), a directory, not a symlink,
-    # carrying cargo's tag. Something swapped in or started in the meantime keeps the folder.
+    # Look again just before the delete, in this order: a fresh list of open files and the in-use check (the
+    # slowest, lsof), then the rescan of the tree for source, git and strays (the time of that scan is the
+    # window for a project moved in), then the quick ones right before the rm: the same folder (device and
+    # inode), a directory, not a symlink, carrying cargo's tag. Something swapped in or started in the
+    # meantime keeps the folder.
+    refresh_open
+    if why=$(in_use "$p" "$parent"); then kept "$p" "in use: $why"; return; fi
     if keeps_source "$p" || has_git_inside "$p" || git_tracks "$p" || tree_stray "$p" >/dev/null; then
       kept "$p" "changed while I checked it; deleted nothing here"; failed=1; return
     fi
-    refresh_open
-    if why=$(in_use "$p" "$parent"); then kept "$p" "in use: $why"; return; fi
     ids=$(devino "$p")
     if [ -L "$p" ] || [ ! -d "$p" ] || [ "$(canon "$p")" != "$p" ] || [ "$ids" != "$id1" ] || ! has_cargo_tag "$p"; then
       kept "$p" "changed while I checked it; deleted nothing here"; failed=1; return
