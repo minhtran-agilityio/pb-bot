@@ -1,20 +1,26 @@
 #!/bin/bash
 # Contract tests for apps/pod-board/build-mac.sh (issue #177): the app is signed with the fixed local identity when
 # the keychain has it, so its designated requirement does not depend on the cdhash; without it the build is ad hoc.
-# `security`, `cargo` and `codesign` are stubs on PATH: nothing here touches a keychain or builds the app.
+# Which identity matches (one, none, several) is tested with made-up names. `security`, `cargo` and `codesign` are stubs on PATH: nothing here touches a keychain or builds the app.
 source "$(dirname "$0")/../lib.sh"
 
 SCRIPT="$ROOT/apps/pod-board/build-mac.sh"
+
+# idents <dir> yes|no|"hash|name;hash|name": the stub `security`, which lists those identities and logs its arguments
+idents() {
+  local d=$1 spec=$2 item
+  case "$spec" in yes) spec='AAAA|Pod Board Local' ;; no) spec='' ;; esac
+  { echo '#!/bin/sh'; echo "echo \"security \$*\" >> \"$d/seclog\""
+    local n=0 IFS=';'
+    for item in $spec; do n=$((n + 1)); echo "echo '  $n) ${item%%|*} \"${item#*|}\"'"; done
+    echo "echo '     $n valid identities found'"; } > "$d/bin/security"
+}
 
 # fake <identity-listed: yes|no> <designated requirement text> → sets D to a folder of stubs; its log records what ran.
 # Not called in a $(...) substitution: the folder must be registered for cleanup in this shell.
 fake() {
   local d; d=$(mktemp -d); _CLEANUP_DIRS+=("$d"); D=$d; mkdir -p "$d/bin"
-  if [ "$1" = yes ]; then
-    printf '#!/bin/sh\necho "  1) AAAA \\"Pod Board Local\\""\n' > "$d/bin/security"
-  else
-    printf '#!/bin/sh\necho "     0 identities found"\n' > "$d/bin/security"
-  fi
+  idents "$d" "$1"
   # the stub cargo records the signing variable and "builds" a bundle folder where the real build leaves it
   cat > "$d/bin/cargo" <<STUB
 #!/bin/sh
@@ -84,6 +90,55 @@ t "an identity already in APPLE_SIGNING_IDENTITY is not used when the local one 
 fake no 'cdhash H"abcd"'; d=$D
 run "$d" APPLE_SIGNING_IDENTITY="Someone Else"
 if [ "$rc" -eq 0 ] && grep -q 'identity=none' "$d/log"; then pass; else fail "rc=$rc log=$(cat "$d/log" 2>/dev/null)"; fi
+
+AD1='A1|Apple Development: Test User (TEAM1234)'
+AD2='B2|Apple Development: Other User (TEAM5678)'
+
+t "POD_BOARD_SIGN_IDENTITY=\"Apple Development\" signs with the one Apple Development identity, by its full name; only valid identities are listed"
+fake "$AD1;C3|Mac Developer: Test User (TEAM1234)" 'identifier "io.pdbot.podboard" and anchor apple generic and certificate leaf[subject.CN] = "x"'; d=$D
+run "$d" POD_BOARD_SIGN_IDENTITY="Apple Development"
+if [ "$rc" -eq 0 ] && grep -q 'identity=Apple Development: Test User (TEAM1234) ' "$d/log" && grep -q 'find-identity -v -p codesigning' "$d/seclog"; then pass; else fail "rc=$rc out=$out log=$(cat "$d/log" 2>/dev/null)"; fi
+
+t "the same identity listed twice counts once"
+fake "$AD1;$AD1" 'identifier "io.pdbot.podboard" and certificate leaf = H"0011"'; d=$D
+run "$d" POD_BOARD_SIGN_IDENTITY="Apple Development"
+if [ "$rc" -eq 0 ] && grep -q 'identity=Apple Development: Test User' "$d/log"; then pass; else fail "rc=$rc out=$out"; fi
+
+t "two identities match: it fails before the build, lists both, and builds nothing"
+fake "$AD1;$AD2" 'identifier "io.pdbot.podboard" and certificate leaf = H"0011"'; d=$D
+run "$d" POD_BOARD_SIGN_IDENTITY="Apple Development"
+if [ "$rc" -ne 0 ] && [ ! -e "$d/log" ] && printf '%s' "$out" | grep -q 'matches 2' && printf '%s' "$out" | grep -q 'Test User' && printf '%s' "$out" | grep -q 'Other User'; then pass
+else fail "rc=$rc out=$out"; fi
+
+t "a full name picks one of several"
+fake "$AD1;$AD2" 'identifier "io.pdbot.podboard" and certificate leaf = H"0011"'; d=$D
+run "$d" POD_BOARD_SIGN_IDENTITY="Apple Development: Other User (TEAM5678)"
+if [ "$rc" -eq 0 ] && grep -q 'identity=Apple Development: Other User (TEAM5678) ' "$d/log"; then pass; else fail "rc=$rc out=$out"; fi
+
+t "a name equal to the text wins over names that only contain it"
+fake 'D4|Pod Board Local;E5|Pod Board Local 2' 'identifier "io.pdbot.podboard" and certificate leaf = H"0011"'; d=$D
+run "$d" POD_BOARD_SIGN_IDENTITY="Pod Board Local"
+if [ "$rc" -eq 0 ] && grep -q 'identity=Pod Board Local ' "$d/log"; then pass; else fail "rc=$rc out=$out"; fi
+
+t "two certificates with the same name: it fails"
+fake 'D4|Pod Board Local;F6|Pod Board Local' 'identifier "io.pdbot.podboard" and certificate leaf = H"0011"'; d=$D
+run "$d"
+if [ "$rc" -ne 0 ] && [ ! -e "$d/log" ] && printf '%s' "$out" | grep -q 'matches 2'; then pass; else fail "rc=$rc out=$out"; fi
+
+t "no identity matches the variable: it fails and never builds ad hoc"
+fake "$AD1" 'cdhash H"abcd"'; d=$D
+run "$d" POD_BOARD_SIGN_IDENTITY="Developer ID"
+if [ "$rc" -ne 0 ] && [ ! -e "$d/log" ] && printf '%s' "$out" | grep -q 'matches no valid'; then pass; else fail "rc=$rc out=$out log=$(cat "$d/log" 2>/dev/null)"; fi
+
+t "no identity matches and the variable is set but empty: ad hoc, as when unset"
+fake no 'cdhash H"abcd"'; d=$D
+run "$d" POD_BOARD_SIGN_IDENTITY=
+if [ "$rc" -eq 0 ] && grep -q 'identity=none' "$d/log"; then pass; else fail "rc=$rc out=$out"; fi
+
+t "with the variable set and a security command that fails it fails, not ad hoc"
+fake no 'cdhash H"abcd"'; d=$D; printf '#!/bin/sh\nexit 1\n' > "$d/bin/security"
+run "$d" POD_BOARD_SIGN_IDENTITY="Apple Development"
+if [ "$rc" -ne 0 ] && [ ! -e "$d/log" ] && printf '%s' "$out" | grep -q 'matches no valid'; then pass; else fail "rc=$rc out=$out"; fi
 
 t "the identity name can be changed with POD_BOARD_SIGN_IDENTITY"
 fake yes 'identifier "io.pdbot.podboard" and certificate leaf = H"0011"'; d=$D

@@ -92,20 +92,37 @@ Linux needs the WebKitGTK 4.1 development packages. The app looks for `podbay-de
 
 macOS ties the Local Network permission to the app's code signature. A build signed ad hoc (`-`) has its cdhash as
 designated requirement, so every rebuild is a new app to macOS and the permission granted to the last build does not
-apply. Sign every build with one fixed local identity and the requirement stays the same. `build-mac.sh` does this
-when the keychain holds a code-signing certificate named `Pod Board Local` (a different name: set
-`POD_BOARD_SIGN_IDENTITY`). Without it the build still works, ad hoc, and says so. The repo holds no certificate, key
-or personal name; the script never creates or imports one.
+apply. Sign every build with one fixed identity and the requirement stays the same. `build-mac.sh` signs with the
+identity that `POD_BOARD_SIGN_IDENTITY` names. The repo holds no certificate, key or personal name; the script never
+creates, imports or exports one. Two ways to get an identity:
 
-Create the certificate once, by hand:
+**With an Apple Development certificate (no setup).** A Mac that was set up for Apple development (Xcode signed in
+to an Apple account) may already have one in the keychain. Check:
+
+```
+security find-identity -v -p codesigning     # lists the valid identities; one says "Apple Development: …"
+cd apps/pod-board
+POD_BOARD_SIGN_IDENTITY="Apple Development" bash build-mac.sh
+```
+
+The text must match exactly one valid identity (a name equal to the text wins over a name that contains it; the
+same certificate listed twice counts once). With none or several the script stops before the build and says so, and it
+never falls back to ad hoc when the variable is set. With several, name one in full:
+`POD_BOARD_SIGN_IDENTITY="Apple Development: <name> (<id>)"`, the text the listing shows. The name in that text is in
+the signature of your own build only; it is not written into the repo.
+
+**With a self-signed certificate (`Pod Board Local`).** For a Mac with no Apple Development identity. Create it once,
+by hand:
 
 1. Open **Keychain Access**, then the menu **Keychain Access > Certificate Assistant > Create a Certificate…**
 2. Name: `Pod Board Local`. Identity Type: **Self Signed Root**. Certificate Type: **Code Signing**. Create.
-3. Check that the keychain lists it: `security find-identity -p codesigning` shows `"Pod Board Local"`. If `codesign`
-   later says it cannot find the identity, open the certificate in Keychain Access, **Trust**, and set **Code Signing**
-   to **Always Trust**.
-   `build-mac.sh` looks for the exact name. An expired certificate, or two with the same name, makes the build fail
-   instead of falling back to ad hoc: delete the old one in Keychain Access.
+3. Check that the keychain lists it: `security find-identity -v -p codesigning` shows `"Pod Board Local"`. If it is
+   not listed, or `codesign` later says it cannot find the identity, open the certificate in Keychain Access,
+   **Trust**, and set **Code Signing** to **Always Trust**.
+
+Then `bash build-mac.sh` finds it by itself (no variable needed). An expired certificate is not listed as valid, so
+it is not used; two certificates with the same name make the build fail: delete the old one in Keychain Access.
+With neither identity the build still works, ad hoc, and says so.
 
 Check the signature of an installed or built app:
 
@@ -113,8 +130,9 @@ Check the signature of an installed or built app:
 codesign -dr - ~/Applications/"Pod Board.app"
 ```
 
-- Signed with the certificate: `designated => identifier "io.pdbot.podboard" and certificate leaf = H"…"`. The same
-  line after the next build.
+- Signed with a certificate: a requirement with the identifier and a `certificate` clause, for example
+  `designated => identifier "io.pdbot.podboard" and certificate leaf = H"…"` (self-signed) or `… and anchor apple generic
+  and certificate leaf[subject.CN] = "Apple Development: …" and …` (Apple Development). The same line after the next build.
 - Ad hoc: `designated => cdhash H"…"`, a different value after each build.
 
 The first signed build asks for Local Network once; allow it. Later builds signed with the same certificate do not
@@ -135,7 +153,7 @@ stop: do not run the install lines with the bundle it rejected.
 
 ```
 cd apps/pod-board
-bash build-mac.sh                                   # cargo tauri build, signed when the certificate exists (below)
+bash build-mac.sh                                   # cargo tauri build, signed with the identity above (see the variable there)
 ```
 
 Then install, in the same folder, only when the build succeeded:
@@ -220,8 +238,8 @@ mdfind "kMDItemFSName == '$APP'"                    # check: only ~/Applications
 - Other machines (U0 and so on): the board shows what `podbay-dev` returns. Pod Bay itself reaches a machine only
   some of the time: on 2026-11-25, in a shell, `podbay-dev machines` said U0 `online: true, password_current: true`
   and a few minutes later `online: false, password_current: false`, and `ls --all` then returned no U0 rows; the board
-  said `U0 offline · password out of date`, which was true. The bundle is signed with the local certificate when
-  `build-mac.sh` finds it (above); an ad hoc build has the cdhash as requirement and loses the Local Network permission at
+  said `U0 offline · password out of date`, which was true. The bundle is signed with a fixed identity when
+  `build-mac.sh` finds one (above); an ad hoc build has the cdhash as requirement and loses the Local Network permission at
   every rebuild (issue #177). Before that, a code signature with the identifier `io.pdbot.podboard` against the linker's
   `pod_board-<hash>` was tried in place on the installed app and showed no clear difference, because U0 went on and off
   in the same minutes. The bundle also says why it asks for the local network (`NSLocalNetworkUsageDescription` in
@@ -266,5 +284,5 @@ mdfind "kMDItemFSName == '$APP'"                    # check: only ~/Applications
   start of the app brings the board forward; each link button on a card opens its page in the browser and not the
   session; the `finished` tag (board and List, light and dark), the summary line, the popover group and `✓n` in
   the menu bar; opening the session from its card clears the mark.
-- The app is not notarized, and the certificate above is local to one Mac. On another Mac, Gatekeeper asks before the first start.
+- The app is not notarized, and the identity above works on one Mac. On another Mac, Gatekeeper asks before the first start.
 - It shows what Pod Bay on this machine sees. A machine that this Pod Bay lists as offline has no sessions here.

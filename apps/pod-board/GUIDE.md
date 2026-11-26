@@ -19,12 +19,12 @@ It only watches. It reads `podbay-dev` and this machine's Claude session files, 
 cd apps/pod-board/src-tauri   # from the repo root
 cargo test                      # optional
 cd ..
-bash build-mac.sh               # signs with the "Pod Board Local" certificate when you made one; see the README
+POD_BOARD_SIGN_IDENTITY="Apple Development" bash build-mac.sh   # or no variable; see the README
 cp -R "src-tauri/target/release/bundle/macos/Pod Board.app" ~/Applications/
 open ~/Applications/"Pod Board.app"
 ```
 
-Without the certificate the build is ad hoc, so macOS asks for Local Network again after each rebuild (README, "Keep
+Without an identity the build is ad hoc, so macOS asks for Local Network again after each rebuild (README, "Keep
 Local Network across rebuilds"). The first start on a new Mac asks for confirmation (right-click the app, then **Open**).
 
 ## Use
