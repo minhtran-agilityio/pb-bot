@@ -7,12 +7,12 @@ sources:
   - apps/pod-shape/docs/storehouse-keeper.md
   - apps/pod-shape/docs/HANDOFF.md
   - .claude/agents/ui-designer.md
-checked: 2026-11-24
+checked: 2026-11-26
 ---
 
 # Shape Board UI rules
 
-This page is the short form. `apps/pod-shape/docs/DESIGN_SYSTEM.md` (54 KB) is the contract: open its
+This page is the short form. `apps/pod-shape/docs/DESIGN_SYSTEM.md` (56 KB) is the contract: open its
 section for the tokens, the component list (§6) or the layouts (§7) that you need.
 
 ## The rules in one screen
@@ -59,7 +59,7 @@ values and banned classes.
 ## How to get a UI part
 
 > source: apps/pod-shape/CLAUDE.md
-> **Before UI work, ask `Pb Bot Storehouse`**
+> **Before UI work, ask the keeper**, the session whose name starts with `Pb Bot Storehouse`
 
 1. Read §6 and the files in `src/components/ui/` and `src/components/app/` for the part you need.
 2. Send the keeper a `UI-ASK` message (`ListAgents`, then `SendMessage`): session, ticket, screen,
@@ -74,7 +74,8 @@ values and banned classes.
 > source: apps/pod-shape/docs/storehouse-keeper.md
 > Stop the UI part that needs it. Do not add a temporary style or element.
 
-If the keeper session is not running, file the request issue yourself and still do not build the part.
+The keeper runs on demand. When `ListAgents` shows no row that starts with `Pb Bot Storehouse`, send
+the `UI-ASK` to the orchestrator, which starts a keeper. Do not build the part yourself.
 
 Known problem: a message from a Mac session to the keeper on Linux can be lost.
 

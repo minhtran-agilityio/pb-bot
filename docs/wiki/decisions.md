@@ -7,11 +7,12 @@ sources:
   - docs/adr/0003-decisions-are-tracked-again-in-docs-adr-numbered-from-0001.md
   - docs/adr/0004-the-merge-guard-asks-the-owner-on-doubt-and-stops-only-habit.md
   - docs/adr/0005-pd-bot-runs-only-with-pod-bay-and-the-fleet-is-the-only-run-path.md
+  - docs/adr/0006-pod-board-is-signed-by-a-build-script-with-a-keychain-identity.md
   - plugins/pd-bot/skills/pd-shape/references/adr.md
   - apps/pod-shape/docs/HANDOFF.md
   - apps/pod-shape/docs/DESIGN_SYSTEM.md
   - apps/pod-shape/docs/storehouse-keeper.md
-checked: 2026-11-24
+checked: 2026-11-26
 ---
 
 # Decisions
@@ -93,6 +94,16 @@ Full record: [0005](../adr/0005-pd-bot-runs-only-with-pod-bay-and-the-fleet-is-t
 
 - Kept: the temporary detached worktrees of `pd-review` and `fleet-check.sh`, and `clean-worktrees.sh`.
 - Consequence: `pd-implement` steps no longer run in parallel. `fleet-check.sh` blocks only on a `feat/*` base.
+
+### 0006. Pod Board is signed by a build script with a keychain identity, and says when a machine gave no address (2026-11-26)
+
+Full record: [0006](../adr/0006-pod-board-is-signed-by-a-build-script-with-a-keychain-identity.md)
+
+> source: docs/adr/0006-pod-board-is-signed-by-a-build-script-with-a-keychain-identity.md
+> No match, or several, stops the script before the build; a variable that is set never falls back to ad hoc.
+
+- Consequence: `POD_BOARD_SIGN_IDENTITY` names the identity. A build with it set and no single match fails; it is never silently ad hoc.
+- Consequence: a remote machine with no `addr` and no rows gets the chip "unreachable from Pod Board (Pod Bay gave no address)".
 
 ## Owner decisions that are not ADRs
 

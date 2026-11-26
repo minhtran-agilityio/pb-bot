@@ -80,7 +80,7 @@ Defaults (the orchestrator may leave one and must write the reason in the ledger
 | Budget | 60 minutes per ticket |
 | Review rounds | 3, then `escalate` |
 | Base | `main` for one ticket; `feat/<slug>` for a milestone |
-| Reviewer | a different session, Opus 5.5 |
+| Reviewer | a different session: Sonnet 5.5 at depth S and M, Opus 5.5 at depth L or on a risky ticket |
 
 > source: plugins/pd-bot/skills/pd-orchestrate/references/run.md
 > | Workers at once | 3 tickets (`--max-parallel 3`); reviewer and advisor sessions do not count |
@@ -98,7 +98,7 @@ Ticket states in the ledger:
 | bug | a test that fails on the base and passes on the head |
 | feature, depth M or L | each acceptance criterion maps to a test; the tests come from `qa-writer`, before code |
 | app ticket (FE or BE) | UAT on the running app by an agent that saw only the ticket and the owner's answers |
-| UI change | a screenshot on the pull request |
+| UI change | before and after screenshots of each changed screen on the pull request (after only, when the screen is new). The worker makes them; a pull request with a UI change and none does not open |
 | no app, depth M or L | `qa-verifier` rows |
 | risky | a security review with no open critical or high finding |
 | depth L | a design note and an advisor review before the first code commit |
@@ -142,6 +142,8 @@ gate never passes it.
 
 Only on the orchestrator's machine, in gitignored files: `specs/fleet/<run>/ledger.json` and
 `specs/fleet/<run>/<ticket>/` (receipt, report, check results). Another machine does not see a run.
+The orchestrator also copies the ledger into the git directory of its checkout (`ledger-backup.py`),
+so `git clean` does not lose it; that copy is never committed.
 
 > source: plugins/pd-bot/skills/pd-orchestrate/SKILL.md
 > `specs/fleet/<run>/ledger.json` is your memory. Write it at every state change.

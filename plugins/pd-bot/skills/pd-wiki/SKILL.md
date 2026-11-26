@@ -2,7 +2,7 @@
 name: pd-wiki
 description: "Create, update or check the project wiki in docs/wiki: small pages on architecture, hard rules, workflow, business logic and decisions, each fact with a quote from a tracked file. Use when the owner asks for a project wiki, after pull requests merged into the default branch, or when wiki_check.py reports a failed or stale page."
 argument-hint: "init | update [<from>..<to>] | check"
-allowed-tools: Read, Write, Edit, Grep, Glob, AskUserQuestion, Bash(git *), Bash(gh pr view *), Bash(gh pr list *), Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/wiki_check.py *)
+allowed-tools: Read(./**), Grep(./**), Glob(./**), Write(./docs/wiki/**), Edit(./docs/wiki/**), AskUserQuestion, Bash(gh pr view *), Bash(gh pr list *), Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/wiki_check.py *)
 ---
 
 # Project wiki

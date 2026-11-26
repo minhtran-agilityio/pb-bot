@@ -24,7 +24,7 @@
   {"q": "When does a Shape Board feature get a milestone?", "page": "shape-board.md",
    "answer_contains": ["A new feature with 2 or more issues gets a milestone."]},
   {"q": "I need a new button variant for a Shape Board screen. What do I do first?", "page": "shape-board-ui.md",
-   "answer_contains": ["**Before UI work, ask `Pb Bot Storehouse`**", "`UI-ASK`"]},
+   "answer_contains": ["**Before UI work, ask the keeper**", "`UI-ASK`"]},
   {"q": "When may a design-system pull request be merged?", "page": "shape-board-ui.md",
    "answer_contains": ["an independent reviewer session passed that exact head SHA", "every CI check is green"]},
   {"q": "Is ship.js or pd-autopilot still a way to run tickets?", "page": "decisions.md",

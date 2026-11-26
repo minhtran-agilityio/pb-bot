@@ -10,7 +10,7 @@ sources:
   - plugins/pd-bot/skills/pd-orchestrate/references/protocol.md
   - apps/pod-board/README.md
   - apps/pod-shape/CLAUDE.md
-checked: 2026-11-24
+checked: 2026-11-26
 ---
 
 # Architecture
@@ -64,10 +64,10 @@ Pod Bay runs Claude Code sessions in tmux. Each session works in a checkout of a
 |---|---|---|---|
 | Orchestrator | the session of `src` | the `session-role.sh` hook | Opus 5.5 |
 | Worker | one `src-NN` per ticket | the `assign` brief, skill `pd-work` | Sonnet 5.5 (S, M), Opus 5.5 (L) |
-| Reviewer | its own `src-NN` | the `assign` brief, skill `pd-review` | Opus 5.5 |
+| Reviewer | its own `src-NN` | the `assign` brief, skill `pd-review` | Sonnet 5.5 (S, M), Opus 5.5 (L, risky ticket) |
 | Tester | its own `src-NN` (milestone) | `feature-test-request` | set by the orchestrator |
 | Advisor session | its own `src-NN` | `advise-request`, skill `pd-advise` | Fable 5.2 |
-| Storehouse keeper | a long-running session on Linux | `apps/pod-shape/docs/storehouse-keeper.md` | not stated in git |
+| Storehouse keeper | a session on Linux, started on demand | `apps/pod-shape/docs/storehouse-keeper.md` | Sonnet 5.5 |
 
 Sessions talk with `SendMessage`. A fleet run stays on one machine:
 

@@ -73,6 +73,9 @@ The app holds no API key and no token. It runs two CLIs that are logged in on th
 - Grill logic is the `pd-shape` skill. The app does not rewrite its rules in Rust.
 - `AskUserQuestion` is off. Claude prints each question as a fenced `p2g-questions` JSON block; the app
   shows cards and sends the answers back with `--resume`.
+- The app knows the brief is ready by a new or changed `specs/<slug>/brief.md` after a turn, or by a
+  question whose `header` is `Brief`. The `p2g-brief` block of the first design is dropped
+  (`DESIGN_DOC.md`, the change of build step 3).
 - Issues come from `/pd-bot:pd-tickets specs/<slug>/brief.md`. The app finds the new issues by their
   `source:` line, not by the text Claude prints.
 - GitHub access is the `gh` CLI.
@@ -113,8 +116,11 @@ The app blocks every GitHub write until the owner approves in the review screen.
 > Add a new file for a change; never edit one that shipped.
 
 Tables of the design: `projects`, `artifacts`, `artifact_versions`, `grill_sessions`,
-`grill_messages`, `features`, `briefs`, `milestones`, `issues`, `runs`. On `main` at `6424c20` the
-migrations are `0001_projects.sql` and `0002_artifacts.sql`; the other tables are not built yet.
+`grill_messages`, `features`, `briefs`, `milestones`, `issues`, `runs`. On `main` at `1720e70` the
+migrations are `0001_projects.sql`, `0002_artifacts.sql` and `0003_grill.sql` (`grill_sessions`,
+`grill_messages`, `briefs`, `features`, `runs`); `milestones` and `issues` are not built yet. A brief
+belongs to its grill session, not to a feature: the owner's confirmation makes the feature
+(`DESIGN_DOC.md`, the change of build step 3).
 
 Artifact rules from migration 0002:
 
@@ -148,4 +154,4 @@ The main way is a hook on the owner's Mac. It saves each published artifact to
 
 One step is one small pull request: 0 spike (done), 1 app skeleton, 2 artifact, 3 grill, 4 generate
 issues, 5 tree and status. `HANDOFF.md` section 6 has the done point of each step. On `main` at
-`6424c20` the screens are `ProjectsScreen`, `ProjectScreen` and `ArtifactPreviewDialog` (steps 1 and 2).
+`1720e70` the screens are `ProjectsScreen`, `ProjectScreen`, `ArtifactPreviewDialog` and `GrillScreen` (steps 1 to 3).

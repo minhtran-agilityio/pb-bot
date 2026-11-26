@@ -25,18 +25,18 @@ checked: 2026-11-24
 
 # Agents and context
 
-Sizes are bytes of the files on `main` at `6424c20`, measured with `wc -c`. One token is about 4
+Sizes are bytes of the files on `main` at `1720e70` plus the wiki commit, measured with `wc -c`. One token is about 4
 bytes of English text; that ratio is an estimate, not a measurement.
 
 ## What every session in this repository loads
 
 | What | Size | How |
 |---|---|---|
-| `CLAUDE.md` | 10,962 | Claude Code loads it in full at the start. A subagent gets it too, by default |
+| `CLAUDE.md` | 13,655 | Claude Code loads it in full at the start. A subagent gets it too, by default |
 | `plugins/pd-bot/rules/behavior.md` | 3,893 | the `session-rules.sh` hook prints it (main session) |
-| skill and agent frontmatter | at most 14,579 | Claude Code lists the name and description of each one (the number is the whole frontmatter) |
+| skill and agent frontmatter | at most 15,026 | Claude Code lists the name and description of each one (the number is the whole frontmatter) |
 
-`AGENTS.md` (5,479 bytes) is not loaded by Claude Code; it reads `CLAUDE.md`. `AGENTS.md` asks the
+`AGENTS.md` (3,847 bytes) is not loaded by Claude Code; it reads `CLAUDE.md`. `AGENTS.md` asks the
 reader to open both:
 
 > source: AGENTS.md
@@ -46,12 +46,12 @@ reader to open both:
 
 | Role | Reads | Size | When |
 |---|---|---|---|
-| Orchestrator | role text; `pd-orchestrate/SKILL.md`; `protocol.md`, `podbay.md`, `run.md`, `stuck.md`, `milestone.md` | 1,445 + 3,743 + 41,932 | at the start of a run, all five references |
-| Worker | the brief; `pd-work/SKILL.md`; `protocol.md`; `toolbox.md` | 15,671 + the brief | on `assign` |
-| Reviewer | the ticket text; `pd-review/SKILL.md`; `protocol.md`; `REVIEW.md` from the base; `checks.md` | 18,566 + the ticket | on `assign` and `check-request` |
-| Advisor session | `pd-advise/SKILL.md`; `protocol.md`; the problem brief | 12,917 + the brief | on `advise-request` |
-| Shape Board feature agent | `apps/pod-shape/CLAUDE.md`; `HANDOFF.md`; `DESIGN_SYSTEM.md` | 4,011 + 19,306 + 54,057 | before any UI work |
-| `ui-designer` agent | `DESIGN_SYSTEM.md` in full; `tokens.css`; `icons.ts`; the prototype when the part is on it | 67,958 + 288,226 for the prototype | per request |
+| Orchestrator | role text; `pd-orchestrate/SKILL.md`; `protocol.md`, `podbay.md`, `run.md`, `stuck.md`, `milestone.md` | 1,445 + 3,791 + 47,028 | at the start of a run, all five references |
+| Worker | the brief; `pd-work/SKILL.md`; `protocol.md`; `toolbox.md` | 18,325 + the brief | on `assign` |
+| Reviewer | the ticket text; `pd-review/SKILL.md`; `protocol.md`; `REVIEW.md` from the base; `checks.md`; `order.md` | 21,389 + the ticket | on `assign` and `check-request` |
+| Advisor session | `pd-advise/SKILL.md`; `protocol.md`; the problem brief | 14,767 + the brief | on `advise-request` |
+| Shape Board feature agent | `apps/pod-shape/CLAUDE.md`; `HANDOFF.md`; `DESIGN_SYSTEM.md` | 4,425 + 20,308 + 56,386 | before any UI work |
+| `ui-designer` agent | `DESIGN_SYSTEM.md` in full; `tokens.css`; `icons.ts`; the prototype when the part is on it | 70,387 + 288,226 for the prototype | per request |
 
 > source: plugins/pd-bot/skills/pd-orchestrate/SKILL.md
 > Before the first ticket, read the files in `references/`

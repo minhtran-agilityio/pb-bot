@@ -12,18 +12,18 @@ sources:
   - docs/adr/0003-decisions-are-tracked-again-in-docs-adr-numbered-from-0001.md
   - docs/adr/0005-pd-bot-runs-only-with-pod-bay-and-the-fleet-is-the-only-run-path.md
   - apps/pod-shape/docs/storehouse-keeper.md
-checked: 2026-11-24
+checked: 2026-11-26
 ---
 
 # Known gaps
 
-Facts found on `main` at `6424c20`. Each one has the command that shows it. Correct this page when a
+Facts found on `main` at `1720e70`. Each one has the command that shows it. Correct this page when a
 gap is closed.
 
 ## G1. Tracked files point at lessons that only one machine has
 
 `docs/solutions/` is gitignored. A fresh clone has no such folder (`git ls-files docs/` lists only
-`docs/adr/` and `docs/wiki/`). But 30 tracked files name it (`git grep -l 'docs/solutions' | wc -l`).
+`docs/adr/` and `docs/wiki/`). But 35 tracked files name it (`git grep -l 'docs/solutions' | wc -l`).
 
 > source: CLAUDE.md
 > Start at `docs/solutions/INDEX.md`; read `docs/solutions/critical-patterns.md` when you plan.
@@ -43,7 +43,7 @@ without its source.
 > source: plugins/pd-bot/skills/pd-intake/SKILL.md
 > Do not spawn agents (`docs/adr/0001-workflow-capabilities.md`).
 
-`docs/adr/` holds 0001 to 0005 only, and no file `0001-workflow-capabilities.md`
+`docs/adr/` holds 0001 to 0006 only, and no file `0001-workflow-capabilities.md`
 (`git ls-files docs/adr`). ADR 0003 says that old numbers do not resolve here.
 
 ## G3. `.claude/rules/` is named but this repository has none
