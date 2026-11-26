@@ -414,4 +414,65 @@ if [ "$RC" = 0 ] && [ -f "$S/a/debug/evil.rs" ] && [ -f "$S/b/release/README.md"
    && echo "$OUT" | grep -q 'debug/evil.rs is not something cargo writes' && echo "$OUT" | grep -q 'release/main.rs is not something cargo writes' \
    && echo "$OUT" | grep -q 'in 0 folder(s), kept 6'; then pass; else fail "rc=$RC out: $OUT"; fi
 
+# The layouts of the reviewer's attack list: a target with one addition each. KEEP means the whole target
+# stays; DELETE means it goes. The opaque zones (build/<package>/, tmp/) are deleted on purpose unless a
+# .git, a Cargo.toml, a symlink, a special file or a bad name is in them.
+t "every layout: source, a script, a stray folder, a symlink, a fifo, a .git or a Cargo.toml anywhere outside cargo's layout keeps the whole target; cargo's own output is deleted"
+LT=$(new_dir); LNAMES=(); LWANT=()
+lay() { # lay <name> <KEEP|DELETE> <setup, run with $d = the target>
+  local d="$LT/$1"; LNAMES+=("$1"); LWANT+=("$2"); mk_target "$d"; : > "$d/release/deps/libx.rlib"; ( cd "$d" && eval "$3" ); }
+lay r1_triple_bypass KEEP 'echo "fn main(){}" > release/main.rs; mkdir release/debug'
+lay r2_deps_rs KEEP 'echo "fn main(){}" > release/deps/main.rs'
+lay r3_deep_rs DELETE 'mkdir -p release/build/x-1/a/b/c/d/e/f; echo "fn main(){}" > release/build/x-1/a/b/c/d/e/f/lib.rs'
+lay r4_out_rs_proj DELETE 'mkdir -p release/build/x-1/out/proj/src; echo "fn main(){}" > release/build/x-1/out/proj/src/main.rs'
+lay r5_out_rs_plain DELETE 'mkdir -p release/build/x-1/out; echo "fn main(){}" > release/build/x-1/out/main.rs'
+lay r6_python KEEP 'echo "print(1)" > release/tool.py'
+lay r7_c_src KEEP 'mkdir release/deps/cproj; echo "int main(){}" > release/deps/cproj/main.c'
+lay r8_toml KEEP 'echo "[x]" > release/config.toml'
+lay r9_shell_exec KEEP 'printf "#!/bin/sh\necho hi\n" > release/deploy; chmod +x release/deploy'
+lay r10_readme_lower KEEP 'echo doc > release/readme.txt'
+lay r11_RS_upper KEEP 'echo "fn main(){}" > release/MAIN.RS'
+lay r12_symlink_deep KEEP 'ln -s /etc release/deps/link'
+lay r13_newline KEEP 'echo "fn main(){}" > "release/deps/a"$'"'"'\n'"'"'"b.rs"'
+lay r14_tmp_rs DELETE 'mkdir tmp; echo "fn main(){}" > tmp/main.rs'
+lay r15_gitfile KEEP 'echo "gitdir: /x" > release/deps/.git'
+lay r16_cargo_lock KEEP 'echo x > release/Cargo.lock'
+lay r17_ts KEEP 'echo "export {}" > release/index.ts'
+lay r18_markdown KEEP 'echo "# x" > release/notes.markdown'
+lay r19_out_cargo_toml KEEP 'mkdir -p release/build/x-1/out/proj; echo "[package]" > release/build/x-1/out/proj/Cargo.toml'
+lay r20_git_incremental KEEP 'mkdir -p release/incremental/x-1/.git'
+lay r21_fifo KEEP 'mkfifo release/deps/pipe'
+lay r22_makefile_dir KEEP 'mkdir release/deps/proj; echo "all:" > release/deps/proj/Makefile'
+lay r23_triple_stray KEEP 'mkdir -p x86_64-unknown-linux-gnu/release/deps; echo "fn main(){}" > x86_64-unknown-linux-gnu/main.rs'
+lay c1_notes_in_deps KEEP 'echo notes > release/deps/notes.txt'
+lay c2_main_c_profile KEEP 'echo "int main(){}" > release/main.c'
+lay c3_rustdoc DELETE 'echo "{}" > .rustdoc_fingerprint.json; mkdir -p doc/demo; echo "<html>" > doc/demo/index.html'
+lay c4_cargo_out DELETE 'mkdir -p release/build/x-1/out release/.fingerprint/x-1 release/incremental/x-1/s-1 release/examples; echo "pub fn f(){}" > release/build/x-1/out/gen.rs; printf bin > release/app; chmod +x release/app; : > release/.cargo-lock; : > release/.cargo-build-lock; echo x > release/app.d; echo x > release/examples/ex.d'
+lay c5_triple_cargo DELETE 'mkdir -p x86_64-unknown-linux-gnu/release/deps x86_64-unknown-linux-gnu/release/build/y-2/out x86_64-unknown-linux-gnu/doc; echo x > x86_64-unknown-linux-gnu/release/deps/libz.rmeta; echo "pub fn f(){}" > x86_64-unknown-linux-gnu/release/build/y-2/out/gen.rs; printf x > x86_64-unknown-linux-gnu/CACHEDIR.TAG'
+lay c6_empty_profiles DELETE 'rm -rf release; mkdir debug release'
+largs=(); for n in ${LNAMES[@]+"${LNAMES[@]}"}; do largs+=(--target "$LT/$n"); done
+run bash "$CL" ${largs[@]+"${largs[@]}"}
+bad=""
+for i in "${!LNAMES[@]}"; do
+  if [ -e "$LT/${LNAMES[$i]}" ]; then got=KEEP; else got=DELETE; fi
+  [ "$got" = "${LWANT[$i]}" ] || bad="$bad ${LNAMES[$i]}(want ${LWANT[$i]})"
+done
+if [ "$RC" = 0 ] && [ -z "$bad" ]; then pass; else fail "rc=$RC wrong:$bad"; fi
+
+t "a real cargo build (debug, release, a build script writing OUT_DIR/gen.rs, an example, a test, cargo doc, --target) is deleted and the crate's source stays"
+if ! command -v cargo >/dev/null 2>&1; then skip "cargo not installed"; else
+RC_DIR=$(new_dir); ( cd "$RC_DIR" && cargo new -q --lib rc >/dev/null 2>&1 && cd rc \
+  && printf 'fn main() { let o = std::env::var("OUT_DIR").unwrap(); std::fs::write(std::path::Path::new(&o).join("gen.rs"), "pub fn g() -> u32 { 1 }").unwrap(); }\n' > build.rs \
+  && mkdir -p examples && echo 'fn main() {}' > examples/ex.rs \
+  && printf 'include!(concat!(env!("OUT_DIR"), "/gen.rs"));\n#[test] fn t() { assert_eq!(g(), 1); }\n' > src/lib.rs \
+  && cargo build -q >/dev/null 2>&1 && cargo build -q --release >/dev/null 2>&1 && cargo test -q >/dev/null 2>&1 \
+  && cargo build -q --examples >/dev/null 2>&1 && cargo doc -q >/dev/null 2>&1 \
+  && cargo build -q --release --target "$(rustc -vV | sed -n 's/host: //p')" >/dev/null 2>&1 )
+if [ ! -d "$RC_DIR/rc/target" ]; then fail "the cargo build did not run"; else
+  run bash "$CL" --root "$RC_DIR/rc"
+  if [ "$RC" = 0 ] && [ ! -e "$RC_DIR/rc/target" ] && [ -f "$RC_DIR/rc/src/lib.rs" ] && [ -f "$RC_DIR/rc/build.rs" ] && [ -f "$RC_DIR/rc/Cargo.toml" ] \
+     && echo "$OUT" | grep -q '^deleted '; then pass; else fail "rc=$RC out: $OUT"; fi
+fi
+fi
+
 finish

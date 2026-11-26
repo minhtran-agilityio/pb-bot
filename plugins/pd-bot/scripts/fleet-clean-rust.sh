@@ -11,13 +11,10 @@
 #     signature (`Signature: 8a477f597d28d172789f06886806bc55`, shared by every tool that writes such a
 #     tag) and whose second line is cargo's own (`# This file is a cache directory tag created by cargo.`);
 #   - found by --root: also has a Cargo.toml beside it (the project's own build folder);
-#   - looks like build output: `.rustc_info.json`, `debug` or `release` is in it, and every entry at its top
-#     level is something cargo writes (`CACHEDIR.TAG`, `.rustc_info.json`, `.cargo-lock`, `doc`, `package`,
-#     `tmp`, `flycheck*`, `debug`, `release`, or a folder that holds `deps`, `.fingerprint`, `debug` or
-#     `release`: a profile or a target-triple folder). A profile or target-triple folder holds only what
-#     cargo writes (build, deps, examples, incremental, .fingerprint and bundle folders, `.d` files,
-#     libraries, debug symbols, executables; an empty one is fine), so a `.rs` file or a `.git` in a folder
-#     named `release` keeps the whole target. A shared folder with the tag and other files in it is kept whole;
+#   - looks like build output: `.rustc_info.json`, `debug` or `release` is in it, and one scan of its whole
+#     tree (see `tree_stray` below) finds only what cargo and tauri write: a symlink, a special file, a
+#     `.git`, a `Cargo.toml`, or any entry outside cargo's layout (a `.rs`, `.py`, `.c`, `.toml`, README, a
+#     script) keeps the whole target, whatever its depth, except inside the opaque zones listed there;
 #   - not `/`, not a folder of fewer than two path parts, not the home folder or a folder above it,
 #     not a folder above a checkout in --root, holds no `.git` at any depth and no `Cargo.toml`,
 #     `src` or `package.json` of its own, and no file that git tracks (that is source, not build output);
@@ -229,37 +226,97 @@ bad_path() {
   return 1
 }
 
-# profile_stray <dir>: <dir> is a profile folder (debug, release, a custom profile) or a target-triple
-# folder that holds some. Prints the first entry that cargo does not write there and returns 0, or
-# returns 1 when it finds none. Cargo writes: build, deps, examples, incremental, .fingerprint and bundle
-# folders, `.cargo-*` lock files, `.d` files, libraries and debug symbols, and executables. An empty folder is fine.
-profile_stray() {
-  local d="$1" sub e r
-  if [ -d "$d/debug" ] || [ -d "$d/release" ]; then   # a target-triple folder
-    for sub in debug release; do
-      [ -d "$d/$sub" ] && [ ! -L "$d/$sub" ] || continue
-      if r=$(profile_stray "$d/$sub"); then printf '%s/%s' "$sub" "$r"; return 0; fi
-    done
-    return 1
-  fi
-  while IFS= read -r e; do
-    case "$e" in build|deps|examples|incremental|.fingerprint|bundle|*.dSYM) [ -L "$d/$e" ] || continue ;; esac
-    case "$e" in .cargo-*) [ -f "$d/$e" ] && [ ! -L "$d/$e" ] && continue ;; esac   # .cargo-lock, .cargo-build-lock, ...
-    if [ -f "$d/$e" ] && [ ! -L "$d/$e" ]; then
-      case "$e" in
-        *.d|*.rlib|*.a|*.so|*.so.*|*.dylib|*.dll|*.lib|*.pdb|*.exe|*.wasm|*.map) continue ;;
-        *.*) ;;
-        *) [ -x "$d/$e" ] && continue ;;
-      esac
-    fi
-    printf '%s' "$e"; return 0
-  done < <(ls -A "$d" 2>/dev/null)
-  return 1
+# tree_stray <dir>: one scan of the whole folder tree, at every depth (find -P: a symlink is never
+# followed). It allows only what cargo and tauri write, by path shape, and prints the first thing that
+# is anything else, as a path inside <dir>, returning 0; it returns 1 when everything is plain build
+# output.
+#   Anywhere, also in the opaque zones: a symlink, a special file (fifo, socket, device), a name with a
+#   control or non-ASCII byte, a `.git` (folder or file) and a `Cargo.toml` are never build output.
+#   Top level: CACHEDIR.TAG, .rustc_info.json, .rustdoc_fingerprint.json, .future-incompat-report.json,
+#   .cargo-* files; the folders doc, tmp, package, cargo-timings, flycheck*; profile folders (debug,
+#   release, and any folder that holds deps or .fingerprint); and target-triple folders, which hold
+#   profile folders, a doc folder and CACHEDIR.TAG.
+#   Profile folder: build, deps, examples, incremental, .fingerprint, bundle and *.dSYM folders; .cargo-*
+#   files; artifact files (*.d *.rlib *.rmeta *.o *.a *.so *.dylib *.dll *.lib *.pdb *.exe *.wasm *.dwo
+#   *.dwp *.exp); and executables (no extension, executable bit, not starting with `#!`).
+#   deps and examples hold only artifact files, executables and *.dSYM folders.
+#   Opaque zones, whose content cargo or a build script writes freely and which are not judged beyond
+#   the first rule: doc, tmp, package, cargo-timings, flycheck*, build/<package>/, incremental/*/,
+#   .fingerprint/*/, bundle/ and *.dSYM/.
+# Known limit: a source tree that a build script writes into build/<package>/out/ is deleted when it holds
+# no `.git` and no `Cargo.toml`; so is a source file in tmp/. Nothing outside an opaque zone passes.
+tree_stray() {
+  local d="$1" hit line rel
+  hit=$(find -P "$d" -mindepth 1 \( -type l -o \( ! -type f ! -type d \) -o -name '*[![:print:]]*' \
+         -o -name .git -o -name Cargo.toml \) -print -quit 2>/dev/null)
+  if [ -n "$hit" ]; then printf '%s' "${hit#"$d"/}"; return 0; fi
+  # Every name is printable now, so no name holds a newline or a tab: one path per line is safe.
+  hit=$({ find -P "$d" -mindepth 1 -type d -print 2>/dev/null | sed 's/^/d /'
+          find -P "$d" -mindepth 1 -type f -print 2>/dev/null | sed 's/^/f /'; } | D="$d" awk '
+    function art(n) { return (n ~ /\.(d|rlib|rmeta|o|a|so|dylib|dll|lib|pdb|exe|wasm|dwo|dwp|exp)$/ || n ~ /\.so\.[0-9.]+$/) }
+    function stray(r) { print "STRAY " r; found = 1; exit }
+    function profile_top(t) { return (type[t "/deps"] == "d" || type[t "/.fingerprint"] == "d") }
+    BEGIN { d = ENVIRON["D"] }
+    { t = substr($0, 1, 1); rel = substr($0, 3); rel = substr(rel, length(d) + 2); type[rel] = t; paths[++n] = rel
+      k = split(rel, c, "/"); if (k == 2 && t == "d") childdir[c[1]] = 1 }
+    END {
+      if (found) exit
+      for (i = 1; i <= n; i++) {
+        rel = paths[i]; t = type[rel]; k = split(rel, c, "/"); top = c[1]
+        if (k == 1) {
+          if (t == "f") { if (!(top ~ /^(CACHEDIR\.TAG|\.rustc_info\.json|\.rustdoc_fingerprint\.json|\.future-incompat-report\.json)$/ || top ~ /^\.cargo-/)) stray(rel); continue }
+          if (top ~ /^(doc|tmp|package|cargo-timings)$/ || top ~ /^flycheck/ || top == "debug" || top == "release" || profile_top(top)) continue
+          if (!childdir[top]) stray(rel)          # a folder that is neither a profile nor holds one
+          continue
+        }
+        if (top ~ /^(doc|tmp|package|cargo-timings)$/ || top ~ /^flycheck/) continue
+        if (top == "debug" || top == "release" || profile_top(top)) pd = 1
+        else {                                      # a target-triple folder
+          if (k == 2) { if (t == "f" && c[2] != "CACHEDIR.TAG") stray(rel); continue }
+          if (c[2] == "doc" || type[top "/" c[2]] != "d") continue
+          pd = 2
+        }
+        e = c[pd + 1]
+        if (k == pd + 1) {
+          if (t == "d") { if (!(e ~ /^(build|deps|examples|incremental|\.fingerprint|bundle)$/ || e ~ /\.dSYM$/)) stray(rel) }
+          else if (e ~ /^\.cargo-/ || art(e)) { }
+          else if (e !~ /\./) print "MAGIC " rel
+          else stray(rel)
+          continue
+        }
+        if (e ~ /\.dSYM$/ || e == "bundle") continue
+        if (e == "incremental" || e == ".fingerprint") { if (k == pd + 2 && t != "d") stray(rel); continue }
+        if (e == "build") { if (k == pd + 2 && t == "f" && c[pd + 2] !~ /^\.cargo-/) stray(rel); continue }
+        if (e == "deps" || e == "examples") {
+          if (k == pd + 2) {
+            n2 = c[pd + 2]
+            if (t == "d") { if (n2 !~ /\.dSYM$/) stray(rel) }
+            else if (art(n2)) { }
+            else if (n2 !~ /\./) print "MAGIC " rel
+            else stray(rel)
+          }
+          continue
+        }
+      }
+    }')
+  rel=""
+  while IFS= read -r line; do
+    case "$line" in
+      "STRAY "*) rel=${line#STRAY }; break ;;
+      "MAGIC "*)
+        # An extensionless file is an executable only with the executable bit and no `#!` script start.
+        if [ ! -x "$d/${line#MAGIC }" ] || [ "$(head -c 2 "$d/${line#MAGIC }" 2>/dev/null)" = '#!' ]; then rel=${line#MAGIC }; break; fi ;;
+    esac
+  done <<EOF
+$hit
+EOF
+  [ -n "$rel" ] || return 1
+  printf '%s' "$rel"
 }
 
 # consider <dir> <found by --root: the canonical root, else empty>
 consider() {
-  local dir="$1" scanned="$2" p parent why kib r id1 ids prof stray
+  local dir="$1" scanned="$2" p parent why kib r id1 ids stray
   if why=$(bad_path "$dir"); then kept "$dir" "$why"; return; fi
   while [ "${#dir}" -gt 1 ] && [ "${dir%/}" != "$dir" ]; do dir=${dir%/}; done   # `link/` must still be seen as a symlink
   if [ -L "$dir" ]; then kept "$dir" "a symlink"; return; fi
@@ -297,22 +354,10 @@ consider() {
   if [ ! -f "$p/.rustc_info.json" ] && [ ! -d "$p/debug" ] && [ ! -d "$p/release" ]; then
     kept "$p" "does not look like build output (no .rustc_info.json, debug or release)"; return
   fi
-  # Every top-level entry must be one cargo writes: a folder shared with other files is kept whole.
-  while IFS= read -r e; do
-    prof=0
-    case "$e" in
-      CACHEDIR.TAG|.rustc_info.json|.cargo-lock|.future-incompat-report.json|doc|package|tmp|cargo-timings|flycheck*) ;;
-      debug|release) prof=1 ;;
-      *) if [ -d "$p/$e" ] && [ ! -L "$p/$e" ] \
-            && { [ -d "$p/$e/deps" ] || [ -d "$p/$e/.fingerprint" ] || [ -d "$p/$e/debug" ] || [ -d "$p/$e/release" ]; }; then prof=1
-         else kept "$p" "not only build output: $e is not something cargo writes"; return; fi ;;
-    esac
-    # A profile or target-triple folder must hold only what cargo writes, so a folder named release
-    # cannot carry source (a .rs file, a .git) into a delete. A symlink is removed, not followed.
-    if [ "$prof" = 1 ] && [ -d "$p/$e" ] && [ ! -L "$p/$e" ] && stray=$(profile_stray "$p/$e"); then
-      kept "$p" "not only build output: $e/$stray is not something cargo writes"; return
-    fi
-  done < <(ls -A "$p" 2>/dev/null)
+  # The whole tree, at every depth: anything but what cargo writes keeps the whole folder.
+  if stray=$(tree_stray "$p"); then
+    kept "$p" "not only build output: $stray is not something cargo writes (or is a symlink, a special file, a .git or a Cargo.toml)"; return
+  fi
   if git_tracks "$p"; then
     kept "$p" "git tracks files in it"; return
   fi
@@ -331,7 +376,7 @@ consider() {
     # symlink, still carrying cargo's tag and no source. Something swapped in during the checks is kept.
     ids=$(devino "$p")
     if [ -L "$p" ] || [ ! -d "$p" ] || [ "$(canon "$p")" != "$p" ] || [ "$ids" != "$id1" ] \
-       || keeps_source "$p" || ! has_cargo_tag "$p" || has_git_inside "$p" || git_tracks "$p"; then
+       || keeps_source "$p" || ! has_cargo_tag "$p" || has_git_inside "$p" || git_tracks "$p" || tree_stray "$p" >/dev/null; then
       kept "$p" "changed while I checked it; deleted nothing here"; failed=1; return
     fi
     rm -rf -- "$p"
