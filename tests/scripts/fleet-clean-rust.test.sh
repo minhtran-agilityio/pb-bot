@@ -393,4 +393,25 @@ if cc -o "$NB/nodump" "$NB/nodump.c" && cc -o "$NB/zomb" "$NB/zomb.c"; then
 else fail "could not compile the helper programs"; fi
 fi
 
+t "debug and release: an empty profile folder is deleted with the target; real cargo files (executable, .d, rlib, dSYM, bundle) are fine"
+S=$(new_dir); mk_target "$S/ct"; rm -rf "$S/ct/release"; mkdir -p "$S/ct/debug" "$S/ct/release"
+mk_target "$S/ct2"; mkdir -p "$S/ct2/release/bundle/macos" "$S/ct2/release/build" "$S/ct2/release/app.dSYM" "$S/ct2/x86_64-unknown-linux-gnu/release/deps"
+printf 'bin' > "$S/ct2/release/app"; chmod +x "$S/ct2/release/app"; echo 'x' > "$S/ct2/release/app.d"; echo 'x' > "$S/ct2/release/libapp.rlib"; echo 'x' > "$S/ct2/release/libapp.dylib"; : > "$S/ct2/release/.cargo-lock"; : > "$S/ct2/release/.cargo-build-lock"; : > "$S/ct2/release/.cargo-artifact-lock"
+run bash "$CL" --target "$S/ct" --target "$S/ct2"
+if [ "$RC" = 0 ] && [ ! -e "$S/ct" ] && [ ! -e "$S/ct2" ] && echo "$OUT" | grep -q 'in 2 folder(s), kept 0'; then pass; else fail "rc=$RC out: $OUT"; fi
+
+t "debug and release: a non-cargo file (.rs, a README, a non-executable file with no extension) or a source folder inside keeps the whole target"
+S=$(new_dir)
+mk_target "$S/a"; mkdir -p "$S/a/debug"; echo 'fn main() {}' > "$S/a/debug/evil.rs"
+mk_target "$S/b"; echo doc > "$S/b/release/README.md"
+mk_target "$S/c"; echo x > "$S/c/release/LICENSE"
+mk_target "$S/d"; mkdir -p "$S/d/release/src"
+mk_target "$S/e"; mkdir -p "$S/e/aarch64-apple-darwin/release/deps"; echo 'fn main() {}' > "$S/e/aarch64-apple-darwin/release/main.rs"
+mk_target "$S/f"; mkdir -p "$S/f/release/.git"
+run bash "$CL" --target "$S/a" --target "$S/b" --target "$S/c" --target "$S/d" --target "$S/e" --target "$S/f"
+if [ "$RC" = 0 ] && [ -f "$S/a/debug/evil.rs" ] && [ -f "$S/b/release/README.md" ] && [ -f "$S/c/release/LICENSE" ] && [ -d "$S/d/release/src" ] \
+   && [ -f "$S/e/aarch64-apple-darwin/release/main.rs" ] && [ -d "$S/f/release/.git" ] \
+   && echo "$OUT" | grep -q 'debug/evil.rs is not something cargo writes' && echo "$OUT" | grep -q 'release/main.rs is not something cargo writes' \
+   && echo "$OUT" | grep -q 'in 0 folder(s), kept 6'; then pass; else fail "rc=$RC out: $OUT"; fi
+
 finish

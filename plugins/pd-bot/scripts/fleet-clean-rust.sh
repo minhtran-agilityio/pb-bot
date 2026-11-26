@@ -12,9 +12,12 @@
 #     tag) and whose second line is cargo's own (`# This file is a cache directory tag created by cargo.`);
 #   - found by --root: also has a Cargo.toml beside it (the project's own build folder);
 #   - looks like build output: `.rustc_info.json`, `debug` or `release` is in it, and every entry at its top
-#     level is something cargo writes (`CACHEDIR.TAG`, `.rustc_info.json`, `.cargo-lock`, `debug`, `release`, `doc`, `package`,
-#     `tmp`, `flycheck*`, or a folder that holds `deps`, `.fingerprint`, `debug` or `release`: a profile or a
-#     target-triple folder). A shared folder with the tag and other files in it is kept whole;
+#     level is something cargo writes (`CACHEDIR.TAG`, `.rustc_info.json`, `.cargo-lock`, `doc`, `package`,
+#     `tmp`, `flycheck*`, `debug`, `release`, or a folder that holds `deps`, `.fingerprint`, `debug` or
+#     `release`: a profile or a target-triple folder). A profile or target-triple folder holds only what
+#     cargo writes (build, deps, examples, incremental, .fingerprint and bundle folders, `.d` files,
+#     libraries, debug symbols, executables; an empty one is fine), so a `.rs` file or a `.git` in a folder
+#     named `release` keeps the whole target. A shared folder with the tag and other files in it is kept whole;
 #   - not `/`, not a folder of fewer than two path parts, not the home folder or a folder above it,
 #     not a folder above a checkout in --root, holds no `.git` at any depth and no `Cargo.toml`,
 #     `src` or `package.json` of its own, and no file that git tracks (that is source, not build output);
@@ -226,9 +229,37 @@ bad_path() {
   return 1
 }
 
+# profile_stray <dir>: <dir> is a profile folder (debug, release, a custom profile) or a target-triple
+# folder that holds some. Prints the first entry that cargo does not write there and returns 0, or
+# returns 1 when it finds none. Cargo writes: build, deps, examples, incremental, .fingerprint and bundle
+# folders, `.cargo-*` lock files, `.d` files, libraries and debug symbols, and executables. An empty folder is fine.
+profile_stray() {
+  local d="$1" sub e r
+  if [ -d "$d/debug" ] || [ -d "$d/release" ]; then   # a target-triple folder
+    for sub in debug release; do
+      [ -d "$d/$sub" ] && [ ! -L "$d/$sub" ] || continue
+      if r=$(profile_stray "$d/$sub"); then printf '%s/%s' "$sub" "$r"; return 0; fi
+    done
+    return 1
+  fi
+  while IFS= read -r e; do
+    case "$e" in build|deps|examples|incremental|.fingerprint|bundle|*.dSYM) [ -L "$d/$e" ] || continue ;; esac
+    case "$e" in .cargo-*) [ -f "$d/$e" ] && [ ! -L "$d/$e" ] && continue ;; esac   # .cargo-lock, .cargo-build-lock, ...
+    if [ -f "$d/$e" ] && [ ! -L "$d/$e" ]; then
+      case "$e" in
+        *.d|*.rlib|*.a|*.so|*.so.*|*.dylib|*.dll|*.lib|*.pdb|*.exe|*.wasm|*.map) continue ;;
+        *.*) ;;
+        *) [ -x "$d/$e" ] && continue ;;
+      esac
+    fi
+    printf '%s' "$e"; return 0
+  done < <(ls -A "$d" 2>/dev/null)
+  return 1
+}
+
 # consider <dir> <found by --root: the canonical root, else empty>
 consider() {
-  local dir="$1" scanned="$2" p parent why kib r id1 ids
+  local dir="$1" scanned="$2" p parent why kib r id1 ids prof stray
   if why=$(bad_path "$dir"); then kept "$dir" "$why"; return; fi
   while [ "${#dir}" -gt 1 ] && [ "${dir%/}" != "$dir" ]; do dir=${dir%/}; done   # `link/` must still be seen as a symlink
   if [ -L "$dir" ]; then kept "$dir" "a symlink"; return; fi
@@ -268,12 +299,19 @@ consider() {
   fi
   # Every top-level entry must be one cargo writes: a folder shared with other files is kept whole.
   while IFS= read -r e; do
+    prof=0
     case "$e" in
-      CACHEDIR.TAG|.rustc_info.json|.cargo-lock|.future-incompat-report.json|debug|release|doc|package|tmp|cargo-timings|flycheck*) ;;
+      CACHEDIR.TAG|.rustc_info.json|.cargo-lock|.future-incompat-report.json|doc|package|tmp|cargo-timings|flycheck*) ;;
+      debug|release) prof=1 ;;
       *) if [ -d "$p/$e" ] && [ ! -L "$p/$e" ] \
-            && { [ -d "$p/$e/deps" ] || [ -d "$p/$e/.fingerprint" ] || [ -d "$p/$e/debug" ] || [ -d "$p/$e/release" ]; }; then :
+            && { [ -d "$p/$e/deps" ] || [ -d "$p/$e/.fingerprint" ] || [ -d "$p/$e/debug" ] || [ -d "$p/$e/release" ]; }; then prof=1
          else kept "$p" "not only build output: $e is not something cargo writes"; return; fi ;;
     esac
+    # A profile or target-triple folder must hold only what cargo writes, so a folder named release
+    # cannot carry source (a .rs file, a .git) into a delete. A symlink is removed, not followed.
+    if [ "$prof" = 1 ] && [ -d "$p/$e" ] && [ ! -L "$p/$e" ] && stray=$(profile_stray "$p/$e"); then
+      kept "$p" "not only build output: $e/$stray is not something cargo writes"; return
+    fi
   done < <(ls -A "$p" 2>/dev/null)
   if git_tracks "$p"; then
     kept "$p" "git tracks files in it"; return
