@@ -170,6 +170,25 @@ run bash "$CL" --target "$S/b\\tx"
 if [ "$RC" = 0 ] && [ -d "$S/b\\tx/release" ] && echo "$OUT" | grep -q 'in use'; then pass; else fail "rc=$RC out: $OUT"; fi
 kill "$P" 2>/dev/null; wait "$P" 2>/dev/null
 
+t "--target keeps a shared folder: the cargo tag and release are there, but so are other files or a source tree"
+S=$(new_dir); mk_target "$S/b"; mkdir -p "$S/b/Documents"; echo tax > "$S/b/Documents/tax.pdf"
+mk_target "$S/f"; mkdir -p "$S/f/proj/src"; echo '[package]' > "$S/f/proj/Cargo.toml"
+mk_target "$S/e"; mkdir -p "$S/e/a/b/c/d/proj/.git"
+run bash "$CL" --target "$S/b" --target "$S/f" --target "$S/e"
+if [ "$RC" = 0 ] && [ -f "$S/b/Documents/tax.pdf" ] && [ -f "$S/f/proj/Cargo.toml" ] && [ -d "$S/e/a/b/c/d/proj/.git" ] \
+   && [ "$(echo "$OUT" | grep -c 'not only build output')" -ge 2 ]; then pass; else fail "rc=$RC out: $OUT"; fi
+
+t "--target deletes a real cargo layout: a profile folder, a target-triple folder, doc, .rustc_info.json"
+S=$(new_dir); mk_target "$S/ct"; mkdir -p "$S/ct/release-lto/deps" "$S/ct/aarch64-apple-darwin/release/deps" "$S/ct/doc"; echo '{}' > "$S/ct/.rustc_info.json"
+run bash "$CL" --target "$S/ct"
+if [ "$RC" = 0 ] && [ ! -e "$S/ct" ] && echo "$OUT" | grep -q '^deleted '; then pass; else fail "rc=$RC out: $OUT"; fi
+
+t "an lsof that lists only this script's own process is not a usable list: deletes nothing, exits 1"
+W=$(new_dir); mk_project "$W" a; mk_target "$W/apps/a/src-tauri/target"
+FAKEBIN=$(new_dir); printf '#!/bin/sh\nprintf "p%s\\ncfake\\nfcwd\\nn/\\n" "$PPID"\n' > "$FAKEBIN/lsof"; chmod +x "$FAKEBIN/lsof"
+run env PATH="$FAKEBIN:$PATH" bash "$CL" --root "$W"
+if [ "$RC" = 1 ] && [ -d "$W/apps/a/src-tauri/target" ] && echo "$OUT" | grep -q 'no usable list'; then pass; else fail "rc=$RC out: $OUT"; fi
+
 t "--target keeps a folder whose path holds a control character (lsof escapes it, so the in-use check could not match)"
 S=$(new_dir); mk_target "$S/tab"$'\t'"x"
 run bash "$CL" --target "$S/tab"$'\t'"x"

@@ -10,7 +10,10 @@
 #   - a cargo target dir: it holds a regular file CACHEDIR.TAG whose first line is cargo's signature
 #     (`Signature: 8a477f597d28d172789f06886806bc55`). Cargo writes that file itself;
 #   - found by --root: also has a Cargo.toml beside it (the project's own build folder);
-#   - looks like build output: `.rustc_info.json`, `debug` or `release` is in it;
+#   - looks like build output: `.rustc_info.json`, `debug` or `release` is in it, and every entry at its top
+#     level is something cargo writes (`CACHEDIR.TAG`, `.rustc_info.json`, `.cargo-lock`, `doc`, `package`,
+#     `tmp`, `flycheck*`, or a folder that holds `deps`, `.fingerprint`, `debug` or `release`: a profile or a
+#     target-triple folder). A shared folder with the tag and other files in it is kept whole;
 #   - not `/`, not a folder of fewer than two path parts, not the home folder or a folder above it,
 #     not a folder above a checkout in --root, holds no `.git` (to 4 levels down) and no `Cargo.toml`,
 #     `src` or `package.json` of its own, and no file that git tracks (that is source, not build output);
@@ -81,9 +84,9 @@ lsof -w -n -F pcfn 2>/dev/null | awk '
     name = substr($0, 2); out = ""
     while ((i = index(name, "\\\\")) > 0) { out = out substr(name, 1, i) ; name = substr(name, i + 2) }
     print pid "\t" cmd "\t" fd "\t" out name }' > "$WORK/open.tsv"
-# Sanity: the list must show this script's own working directory. An lsof that failed (a sandbox, a
+# Sanity: the list must show this script's own working directory and more than one process. An lsof that failed (a sandbox, a
 # limit, a permission error) gives an empty or partial list, and "nothing uses it" would be wrong.
-if ! awk -F'\t' -v me="$$" '$1 == me && $3 == "cwd" { found = 1 } END { exit !found }' "$WORK/open.tsv"; then
+if ! awk -F'\t' -v me="$$" '$1 == me && $3 == "cwd" { found = 1 } { pids[$1] = 1 } END { n = 0; for (k in pids) n++; exit !(found && n > 1) }' "$WORK/open.tsv"; then
   echo "fleet-clean-rust: lsof gave no usable list of open files, so I cannot tell whether a process uses a build folder; deleted nothing" >&2
   exit 1
 fi
@@ -156,7 +159,16 @@ consider() {
   if [ ! -f "$p/.rustc_info.json" ] && [ ! -d "$p/debug" ] && [ ! -d "$p/release" ]; then
     kept "$p" "does not look like build output (no .rustc_info.json, debug or release)"; return
   fi
-  if command -v git >/dev/null 2>&1 && [ -n "$(git -C "$p" ls-files 2>/dev/null | head -n 1)" ]; then
+  # Every top-level entry must be one cargo writes: a folder shared with other files is kept whole.
+  while IFS= read -r e; do
+    case "$e" in
+      CACHEDIR.TAG|.rustc_info.json|.cargo-lock|.future-incompat-report.json|doc|package|tmp|cargo-timings|flycheck*) ;;
+      *) if [ -d "$p/$e" ] && [ ! -L "$p/$e" ] \
+            && { [ -d "$p/$e/deps" ] || [ -d "$p/$e/.fingerprint" ] || [ -d "$p/$e/debug" ] || [ -d "$p/$e/release" ]; }; then :
+         else kept "$p" "not only build output: $e is not something cargo writes"; return; fi ;;
+    esac
+  done < <(ls -A "$p" 2>/dev/null)
+  if command -v git >/dev/null 2>&1 && [ -n "$(git -C "$p" -c core.fsmonitor=false ls-files 2>/dev/null | head -n 1)" ]; then
     kept "$p" "git tracks files in it"; return
   fi
   parent=""
