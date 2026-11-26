@@ -42,7 +42,9 @@ PROMPT = (
 
 
 def tools(wiki: str) -> list[str]:
-    """The tools of the model run. Writes stay inside the wiki folder. No `git log|diff|show *`:
+    """The tools of the model run. With `--permission-mode dontAsk` only these rules approve a call,
+    so writes stay inside the wiki folder (`acceptEdits` would let the model edit any file of the
+    working directory, whatever `Write(...)` says). No `git log|diff|show *`:
     `--output=<file>` would write any file; the STALE lines of wiki_check.py name what changed.
     The check is named by its absolute path, so `python3 -c` does not match."""
     return [
@@ -96,7 +98,7 @@ def main() -> int:
         print(f"wiki-gen: not a usable branch name: {branch}", file=sys.stderr)
         return 2
     command = [args.claude, "-p", PROMPT.format(mode=mode, wiki=wiki),
-               "--plugin-dir", str(PLUGIN), "--permission-mode", "acceptEdits",
+               "--plugin-dir", str(PLUGIN), "--permission-mode", "dontAsk",
                "--allowedTools", *tools(wiki)]
     if args.model:
         command += ["--model", args.model]

@@ -188,3 +188,16 @@ def test_a_branch_name_that_starts_with_a_dash_is_refused(tmp_path):
     assert result.returncode == 2
     assert "not a usable branch name" in result.stderr
     assert not model_ran(tmp_path)
+
+
+def test_the_model_runs_in_dont_ask_mode_not_accept_edits(tmp_path):
+    # acceptEdits lets the model edit any file of the working directory, so the scoped Write and
+    # Edit rules would not limit it; dontAsk lets only the allow rules approve a call.
+    repo = stale_repo(tmp_path)
+    result = run(repo, tmp_path, "--dry-run", key=None)
+    assert "--permission-mode dontAsk" in result.stdout
+    assert "acceptEdits" not in result.stdout
+    run(repo, tmp_path)
+    logged = (tmp_path / "fake.log").read_text().split("\n")
+    assert logged[logged.index("--permission-mode") + 1] == "dontAsk"
+    assert "acceptEdits" not in logged
