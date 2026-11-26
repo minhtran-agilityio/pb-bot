@@ -233,6 +233,40 @@ bad_path() {
   return 1
 }
 
+# dep_info_ok <file.d>: cargo's dep-info form. The first line is `<absolute output path>: <inputs>`, and the
+# last part of that path is the file's own stem, alone or followed by an extension (`app.d` starts
+# `/x/target/debug/app:`, `librc.d` starts `/x/target/debug/librc.rlib:`, `deps/rc-1a2b.d` starts
+# `.../deps/librc-1a2b.rmeta:` or `.../deps/rc-1a2b.d:`).
+dep_info_ok() {
+  local f="$1" first tok base stem
+  first=$(head -n 1 "$f" 2>/dev/null)
+  case "$first" in *": "?*) ;; *) return 1 ;; esac
+  tok=${first%%: *}
+  case "$tok" in /*|[A-Za-z]:[/\\]*) ;; *) return 1 ;; esac
+  base=${tok##*[/\\]}; stem=${f##*/}; stem=${stem%.d}
+  [ "$base" = "$stem" ] && return 0
+  case "$base" in "$stem".*|"lib$stem"|"lib$stem".*) return 0 ;; esac
+  return 1
+}
+
+# is_binary <file>: an ELF (magic, a valid class and byte-order byte), a Mach-O (the four magics, fat
+# included) or a PE (MZ, and "PE\0\0" at the offset stored at 0x3c).
+is_binary() {
+  local f="$1" h off sig
+  h=$(LC_ALL=C od -An -tx1 -N 6 "$f" 2>/dev/null | tr -d ' \n')
+  case "$h" in
+    7f454c460[12]0[12]) return 0 ;;
+    feedface*|feedfacf*|cefaedfe*|cffaedfe*|cafebabe*) return 0 ;;
+    4d5a*)
+      h=$(LC_ALL=C od -An -tx1 -j 60 -N 4 "$f" 2>/dev/null | tr -d ' \n')
+      [ "${#h}" = 8 ] || return 1
+      off=$((16#${h:6:2}${h:4:2}${h:2:2}${h:0:2}))
+      sig=$(LC_ALL=C od -An -tx1 -j "$off" -N 4 "$f" 2>/dev/null | tr -d ' \n')
+      [ "$sig" = 50450000 ] && return 0 ;;
+  esac
+  return 1
+}
+
 # tree_stray <dir>: one scan of the whole folder tree, at every depth (find -P: a symlink is never
 # followed). It allows only what cargo and tauri write, at the positions where cargo writes it, and prints
 # the first thing that is anything else, as a path inside <dir>, returning 0; it returns 1 when everything
@@ -247,16 +281,21 @@ bad_path() {
 #   Profile folder: build, deps, examples, incremental, .fingerprint, bundle and *.dSYM folders; the three
 #   .cargo-* lock files; artifact files (*.rlib *.rmeta *.o *.a *.so *.dylib *.dll *.lib *.pdb *.exe
 #   *.wasm *.dwo *.dwp *.exp); `*.d` dep-info files (first line `<path>:`); and executables, which are
-#   recognised by content only (an ELF, Mach-O or PE header), never by the executable bit.
-#   deps and examples hold only artifact files, `*.d` files, executables and *.dSYM folders.
+#   recognised by content only (an ELF header with a valid class and byte order, a Mach-O or fat header, or a
+#   PE header: `MZ` and `PE\0\0` at the offset stored at 0x3c), never by the executable bit.
+#   deps and examples hold only artifact files, `*.d` files (dep-info), executables and *.dSYM folders.
+#   A folder counts as a profile (or a triple folder as one that holds a profile) only when its deps or
+#   .fingerprint folder holds an entry; debug and release at the top level are profiles by name.
 #   Opaque zones, whose content cargo or a build script writes freely and which are not judged beyond
 #   the first rule: doc, tmp, package, cargo-timings, flycheck* (at the top level or in a triple folder, doc
 #   only), build/<package>/, incremental/*/, .fingerprint/*/, bundle/ and *.dSYM/ (inside a profile folder).
 #   A folder with one of these names at any other position is judged like any other folder.
 # Known limit: a source tree that a build script writes into build/<package>/out/ is deleted when it holds
-# no `.git` and no `Cargo.toml`; so is a source file in tmp/. Nothing outside an opaque zone passes.
+# no `.git` and no `Cargo.toml`; so is a source file in tmp/ or doc/ (also in the doc/ of a target-triple
+# folder, when that folder is fully cargo-shaped: a profile with an entry in deps or .fingerprint).
+# Nothing outside an opaque zone passes.
 tree_stray() {
-  local d="$1" hit line rel frc m
+  local d="$1" hit line rel frc all_n xdev_n
   hit=$(find -P "$d" -mindepth 1 \( -type l -o \( ! -type f ! -type d \) -o -name '*[![:print:]]*' \
          -o -iname .git -o -iname Cargo.toml \) -print -quit 2>"$WORK/find.err"); frc=$?
   if [ "$frc" != 0 ] || [ -s "$WORK/find.err" ]; then printf '%s' "(unreadable: find failed)"; return 0; fi
@@ -266,29 +305,35 @@ tree_stray() {
   if [ "$frc" != 0 ] || [ -s "$WORK/find.err" ]; then printf '%s' "(unreadable: find failed)"; return 0; fi
   find -P "$d" -mindepth 1 -type f -print 2>"$WORK/find.err" | sed 's/^/f /' >> "$WORK/tree.txt"; frc=${PIPESTATUS[0]}
   if [ "$frc" != 0 ] || [ -s "$WORK/find.err" ]; then printf '%s' "(unreadable: find failed)"; return 0; fi
+  # A mount point inside the target: with -xdev find does not enter another device, so fewer entries show.
+  all_n=$(wc -l < "$WORK/tree.txt" | tr -d ' ')
+  xdev_n=$(find -P "$d" -xdev -mindepth 1 2>/dev/null | wc -l | tr -d ' ')
+  if [ "$all_n" != "$xdev_n" ]; then printf '%s' "(another device is mounted inside)"; return 0; fi
   hit=$(D="$d" awk '
     function art(n) { return (n ~ /\.(rlib|rmeta|o|a|so|dylib|dll|lib|pdb|exe|wasm|dwo|dwp|exp)$/ || n ~ /\.so\.[0-9.]+$/) }
     function lock(n) { return (n ~ /^\.cargo-(lock|build-lock|artifact-lock)$/) }
     function stray(r) { print "STRAY " r; exit }
-    function isprofile(x, y) { return (y == "debug" || y == "release" || type[x "/" y "/deps"] == "d" || type[x "/" y "/.fingerprint"] == "d") }
-    function profile_top(t) { return isprofile("", t) }
+    # A marker folder counts only when it holds an entry: an empty deps or .fingerprint makes no cargo position.
+    function hasmarker(x) { return ((type[x "/deps"] == "d" && nchild[x "/deps"] > 0) || (type[x "/.fingerprint"] == "d" && nchild[x "/.fingerprint"] > 0)) }
+    function isprofile(x, y) { return (y == "debug" || y == "release" || hasmarker(x "/" y)) }
     BEGIN { d = ENVIRON["D"] }
-    { t = substr($0, 1, 1); rel = substr($0, 3); rel = substr(rel, length(d) + 2); type[rel] = t; paths[++n] = rel }
+    { t = substr($0, 1, 1); rel = substr($0, 3); rel = substr(rel, length(d) + 2); type[rel] = t; paths[++n] = rel
+      if (index(rel, "/") > 0) { par = rel; sub(/\/[^\/]*$/, "", par); nchild[par]++ } }
     END {
-      for (i = 1; i <= n; i++) {                       # profile folders inside each top-level folder
+      for (i = 1; i <= n; i++) {                       # real profile folders (with content) inside each top-level folder
         k = split(paths[i], c, "/")
-        if (k == 2 && type[paths[i]] == "d" && (c[2] == "debug" || c[2] == "release" || type[paths[i] "/deps"] == "d" || type[paths[i] "/.fingerprint"] == "d")) tp[c[1]]++
+        if (k == 2 && type[paths[i]] == "d" && hasmarker(paths[i])) tp[c[1]]++
       }
       for (i = 1; i <= n; i++) {
         rel = paths[i]; t = type[rel]; k = split(rel, c, "/"); top = c[1]
         if (k == 1) {
           if (t == "f") { if (!(top ~ /^(CACHEDIR\.TAG|\.rustc_info\.json|\.rustdoc_fingerprint\.json|\.future-incompat-report\.json)$/ || lock(top))) stray(rel); continue }
-          if (top ~ /^(doc|tmp|package|cargo-timings)$/ || top ~ /^flycheck/ || top == "debug" || top == "release" || type[top "/deps"] == "d" || type[top "/.fingerprint"] == "d") continue
-          if (!tp[top]) stray(rel)                      # neither a profile nor a triple folder that holds one
+          if (top ~ /^(doc|tmp|package|cargo-timings)$/ || top ~ /^flycheck/ || top == "debug" || top == "release" || hasmarker(top)) continue
+          if (!tp[top]) stray(rel)                      # neither a profile nor a triple folder that holds a real one
           continue
         }
         if (top ~ /^(doc|tmp|package|cargo-timings)$/ || top ~ /^flycheck/) continue
-        if (top == "debug" || top == "release" || type[top "/deps"] == "d" || type[top "/.fingerprint"] == "d") pd = 1
+        if (top == "debug" || top == "release" || hasmarker(top)) pd = 1
         else {                                          # a target-triple folder
           if (k == 2) {
             if (t == "f") { if (c[2] != "CACHEDIR.TAG") stray(rel) }
@@ -314,7 +359,8 @@ tree_stray() {
           if (k == pd + 2) {
             n2 = c[pd + 2]
             if (t == "d") { if (n2 !~ /\.dSYM$/) stray(rel) }
-            else if (art(n2) || n2 ~ /\.d$/) { }
+            else if (art(n2)) { }
+            else if (n2 ~ /\.d$/) print "DEPINFO " rel
             else if (n2 !~ /\./) print "MAGIC " rel
             else stray(rel)
           }
@@ -328,11 +374,10 @@ tree_stray() {
       "STRAY "*) rel=${line#STRAY }; break ;;
       "MAGIC "*)
         # An extensionless file is an executable only by its content: an ELF, Mach-O or PE header.
-        m=$(LC_ALL=C head -c 4 "$d/${line#MAGIC }" 2>/dev/null | od -An -tx1 | tr -d ' \n')
-        case "$m" in 7f454c46|feedface|feedfacf|cefaedfe|cffaedfe|cafebabe|4d5a*) ;; *) rel=${line#MAGIC }; break ;; esac ;;
+        if ! is_binary "$d/${line#MAGIC }"; then rel=${line#MAGIC }; break; fi ;;
       "DEPINFO "*)
-        # A .d file in a profile folder is dep-info: its first line is `<path>: <sources>`.
-        if ! head -n 1 "$d/${line#DEPINFO }" 2>/dev/null | grep -Eq '^[^ ]+:( |$)'; then rel=${line#DEPINFO }; break; fi ;;
+        # A .d file is dep-info (see dep_info_ok).
+        if ! dep_info_ok "$d/${line#DEPINFO }"; then rel=${line#DEPINFO }; break; fi ;;
     esac
   done <<EOF
 $hit
@@ -412,7 +457,8 @@ consider() {
     if [ -L "$p" ] || [ ! -d "$p" ] || [ "$(canon "$p")" != "$p" ] || [ "$ids" != "$id1" ] || ! has_cargo_tag "$p"; then
       kept "$p" "changed while I checked it; deleted nothing here"; failed=1; return
     fi
-    rm -rf -- "$p"
+    # A second guard for a mount point: rm stays on the device of the folder.
+    if [ "$("$UNAME" 2>/dev/null)" = Linux ]; then rm -rf --one-file-system -- "$p"; else rm -rfx -- "$p"; fi
     if [ -e "$p" ]; then
       echo "FAILED to delete $(esc "$p")" >&2; failed=1; n_kept=$((n_kept + 1)); return
     fi

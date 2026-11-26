@@ -210,7 +210,7 @@ if [ "$RC" = 0 ] && [ -f "$S/b/Documents/tax.pdf" ] && [ -f "$S/f/proj/Cargo.tom
    && [ "$(echo "$OUT" | grep -c 'not only build output')" -ge 2 ]; then pass; else fail "rc=$RC out: $OUT"; fi
 
 t "--target deletes a real cargo layout: a profile folder, a target-triple folder, doc, .rustc_info.json"
-S=$(new_dir); mk_target "$S/ct"; mkdir -p "$S/ct/release-lto/deps" "$S/ct/aarch64-apple-darwin/release/deps" "$S/ct/doc"; echo '{}' > "$S/ct/.rustc_info.json"
+S=$(new_dir); mk_target "$S/ct"; mkdir -p "$S/ct/release-lto/deps" "$S/ct/aarch64-apple-darwin/release/deps" "$S/ct/doc"; echo x > "$S/ct/release-lto/deps/libx.rlib"; echo x > "$S/ct/aarch64-apple-darwin/release/deps/libx.rlib"; echo '{}' > "$S/ct/.rustc_info.json"
 run bash "$CL" --target "$S/ct"
 if [ "$RC" = 0 ] && [ ! -e "$S/ct" ] && echo "$OUT" | grep -q '^deleted '; then pass; else fail "rc=$RC out: $OUT"; fi
 
@@ -395,7 +395,7 @@ fi
 
 t "debug and release: an empty profile folder is deleted with the target; real cargo files (executable, .d, rlib, dSYM, bundle) are fine"
 S=$(new_dir); mk_target "$S/ct"; rm -rf "$S/ct/release"; mkdir -p "$S/ct/debug" "$S/ct/release"
-mk_target "$S/ct2"; mkdir -p "$S/ct2/release/bundle/macos" "$S/ct2/release/build" "$S/ct2/release/app.dSYM" "$S/ct2/x86_64-unknown-linux-gnu/release/deps"
+mk_target "$S/ct2"; mkdir -p "$S/ct2/release/bundle/macos" "$S/ct2/release/build" "$S/ct2/release/app.dSYM" "$S/ct2/x86_64-unknown-linux-gnu/release/deps"; echo x > "$S/ct2/x86_64-unknown-linux-gnu/release/deps/libx.rlib"
 printf '\177ELF\002\001\001' > "$S/ct2/release/app"; chmod +x "$S/ct2/release/app"; echo '/t/ct2/release/app: src/main.rs' > "$S/ct2/release/app.d"; echo 'x' > "$S/ct2/release/libapp.rlib"; echo 'x' > "$S/ct2/release/libapp.dylib"; : > "$S/ct2/release/.cargo-lock"; : > "$S/ct2/release/.cargo-build-lock"; : > "$S/ct2/release/.cargo-artifact-lock"
 run bash "$CL" --target "$S/ct" --target "$S/ct2"
 if [ "$RC" = 0 ] && [ ! -e "$S/ct" ] && [ ! -e "$S/ct2" ] && echo "$OUT" | grep -q 'in 2 folder(s), kept 0'; then pass; else fail "rc=$RC out: $OUT"; fi
@@ -406,7 +406,7 @@ mk_target "$S/a"; mkdir -p "$S/a/debug"; echo 'fn main() {}' > "$S/a/debug/evil.
 mk_target "$S/b"; echo doc > "$S/b/release/README.md"
 mk_target "$S/c"; echo x > "$S/c/release/LICENSE"
 mk_target "$S/d"; mkdir -p "$S/d/release/src"
-mk_target "$S/e"; mkdir -p "$S/e/aarch64-apple-darwin/release/deps"; echo 'fn main() {}' > "$S/e/aarch64-apple-darwin/release/main.rs"
+mk_target "$S/e"; mkdir -p "$S/e/aarch64-apple-darwin/release/deps"; echo x > "$S/e/aarch64-apple-darwin/release/deps/libx.rlib"; echo 'fn main() {}' > "$S/e/aarch64-apple-darwin/release/main.rs"
 mk_target "$S/f"; mkdir -p "$S/f/release/.git"
 run bash "$CL" --target "$S/a" --target "$S/b" --target "$S/c" --target "$S/d" --target "$S/e" --target "$S/f"
 if [ "$RC" = 0 ] && [ -f "$S/a/debug/evil.rs" ] && [ -f "$S/b/release/README.md" ] && [ -f "$S/c/release/LICENSE" ] && [ -d "$S/d/release/src" ] \
@@ -447,11 +447,22 @@ lay r23_triple_stray KEEP 'mkdir -p x86_64-unknown-linux-gnu/release/deps; echo 
 lay c1_notes_in_deps KEEP 'echo notes > release/deps/notes.txt'
 lay c2_main_c_profile KEEP 'echo "int main(){}" > release/main.c'
 lay c3_rustdoc DELETE 'echo "{}" > .rustdoc_fingerprint.json; mkdir -p doc/demo; echo "<html>" > doc/demo/index.html'
-lay c4_cargo_out DELETE 'mkdir -p release/build/x-1/out release/.fingerprint/x-1 release/incremental/x-1/s-1 release/examples; echo "pub fn f(){}" > release/build/x-1/out/gen.rs; printf "\177ELF\002\001\001" > release/app; chmod +x release/app; : > release/.cargo-lock; : > release/.cargo-build-lock; : > release/.cargo-artifact-lock; echo "/t/release/app: src/main.rs" > release/app.d; echo x > release/examples/ex.d'
+lay c4_cargo_out DELETE 'mkdir -p release/build/x-1/out release/.fingerprint/x-1 release/incremental/x-1/s-1 release/examples; echo "pub fn f(){}" > release/build/x-1/out/gen.rs; printf "\177ELF\002\001\001" > release/app; chmod +x release/app; : > release/.cargo-lock; : > release/.cargo-build-lock; : > release/.cargo-artifact-lock; echo "/t/release/app: src/main.rs" > release/app.d; echo "/t/release/examples/ex: src/ex.rs" > release/examples/ex.d'
 lay c5_triple_cargo DELETE 'mkdir -p x86_64-unknown-linux-gnu/release/deps x86_64-unknown-linux-gnu/release/build/y-2/out x86_64-unknown-linux-gnu/doc; echo x > x86_64-unknown-linux-gnu/release/deps/libz.rmeta; echo "pub fn f(){}" > x86_64-unknown-linux-gnu/release/build/y-2/out/gen.rs; printf x > x86_64-unknown-linux-gnu/CACHEDIR.TAG'
 lay c6_empty_profiles DELETE 'rm -rf release; mkdir debug release'
+lay g1_empty_debug_triple KEEP 'mkdir -p proj/debug proj/doc/src; echo "fn main(){}" > proj/doc/src/main.rs'
+lay g2_empty_fingerprint KEEP 'mkdir -p notes/.fingerprint notes/build/pkg; echo "fn main(){}" > notes/build/pkg/main.rs'
+lay g3_mz_text KEEP 'printf "MZ notes about things\n" > release/NOTES'
+lay g4_elf_then_script KEEP 'printf "\177ELF\n#!/bin/sh\n" > release/deps/deploy'
+lay g5_mz_no_pe KEEP 'printf "MZ\0\0\0\0notes" > release/NOTES2'
+lay g6_d_source KEEP 'echo "void main(){}" > release/deps/main.d'
+lay g7_d_note KEEP 'echo "Note: buy milk" > release/todo.d'
+lay g8_d_relative KEEP 'echo "src/main.rs: src/lib.rs" > release/app.d'
+lay g9_d_wrong_stem KEEP 'echo "/t/release/other: src/lib.rs" > release/app.d'
+lay k1_binaries_and_depinfo DELETE 'mkdir -p release/examples; { printf "MZ"; head -c 58 /dev/zero; printf "\100\000\000\000PE\000\000"; } > release/deps/win-1; printf "\317\372\355\376\007\000" > release/deps/mach-1; printf "\312\376\272\276\000\000\000\002" > release/deps/fat-1; printf "\177ELF\002\001\001" > release/app; echo "/t/release/app: src/main.rs" > release/app.d; echo "/t/release/librc.rlib: src/lib.rs" > release/librc.d; echo "/t/release/deps/rc-1a2b.d: src/lib.rs" > release/deps/rc-1a2b.d; echo "/t/release/deps/librc-3c4d.rmeta: src/lib.rs" > release/deps/rc-3c4d.d'
+lay k2_fingerprint_and_out DELETE 'mkdir -p release/.fingerprint/app-1 release/build/app-1/out; echo "{}" > release/.fingerprint/app-1/lib-app.json; echo "pub fn f(){}" > release/build/app-1/out/gen.rs'
 lay c7_macho_exec DELETE 'printf "\317\372\355\376\007\000" > release/app; chmod +x release/app'
-lay c8_deps_d DELETE 'echo x > release/deps/dep.d; printf "\177ELF\002" > release/deps/test-1a2b3c; chmod +x release/deps/test-1a2b3c'
+lay c8_deps_d DELETE 'echo "/t/release/deps/dep.d: src/a.rs" > release/deps/dep.d; printf "\177ELF\002\001\001" > release/deps/test-1a2b3c; chmod +x release/deps/test-1a2b3c'
 lay f3a_text_exec_mainrs KEEP 'echo "fn main(){}" > release/deps/mainrs; chmod +x release/deps/mainrs'
 lay f3b_text_exec_readme KEEP 'echo notes > release/deps/README; chmod +x release/deps/README'
 lay f3c_text_exec_run KEEP 'mkdir -p debug; echo "cargo build" > debug/run; chmod +x debug/run'
@@ -507,5 +518,20 @@ EOF
 chmod +x "$FB/lsof"
 run env PATH="$FB:$PATH" bash "$CL" --target "$S/ct"
 if [ "$RC" = 0 ] && [ -d "$S/ct/release" ] && echo "$OUT" | grep -q 'in use: fake (pid 999999)'; then pass; else fail "rc=$RC out: $OUT"; fi
+
+t "F14: a volume mounted inside the target keeps the target, and nothing on the volume is deleted"
+S=$(new_dir); mk_target "$S/ct"; MNT="$S/ct/release/build/p/out/mnt"; mkdir -p "$MNT"; mounted=0
+if [ "$(uname)" = Darwin ] && command -v hdiutil >/dev/null 2>&1; then
+  hdiutil create -quiet -size 2m -fs HFS+ -volname t181 "$S/v.dmg" >/dev/null 2>&1 && hdiutil attach -quiet -nobrowse -mountpoint "$MNT" "$S/v.dmg" >/dev/null 2>&1 && mounted=1
+elif [ "$(uname)" = Linux ] && [ "$(id -u)" = 0 ] && command -v mount >/dev/null 2>&1; then
+  mount -t tmpfs tmpfs "$MNT" >/dev/null 2>&1 && mounted=1
+fi
+if [ "$mounted" != 1 ]; then skip "cannot mount a volume here (needs macOS hdiutil, or Linux as root)"; else
+  echo 'fn main() {}' > "$MNT/main.rs"
+  run bash "$CL" --target "$S/ct"
+  survived=0; [ -f "$MNT/main.rs" ] && survived=1
+  if [ "$(uname)" = Darwin ]; then hdiutil detach -quiet -force "$MNT" >/dev/null 2>&1; else umount "$MNT" >/dev/null 2>&1; fi
+  if [ "$RC" = 0 ] && [ "$survived" = 1 ] && [ -d "$S/ct/release" ] && echo "$OUT" | grep -q 'another device is mounted inside'; then pass; else fail "rc=$RC survived=$survived out: $OUT"; fi
+fi
 
 finish
