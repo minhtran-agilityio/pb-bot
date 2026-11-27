@@ -164,6 +164,28 @@ W=$NOTREPO expect ask  "cd $ON_MAIN && git push"
 W=$ON_MAIN expect pass "cd $ON_FEAT && git push"
 W=$NOTREPO expect ask  "cd $ON_MAIN; git push origin HEAD"
 HOME=$D W=$NOTREPO expect ask "cd ~/onmain && git push"
+# Round 1 of the review of #190: redirections and comments are no refspec; -c remote.<r>.push; text of another command
+for W in $ON_MAIN $FEAT_UP_MAIN; do
+  for c in 'git push origin 2>&1' 'git push origin 2>&1 | tail -5' 'git push -u origin 2>&1' 'git push origin > /tmp/log' 'git push origin >/tmp/log' \
+           'git push origin >> /tmp/log 2>&1' 'git push origin # ship' 'git push 2>/dev/null' 'git push --recurse-submodules check origin'; do
+    expect ask "$c"
+  done
+done
+W=$ON_FEAT expect ask  'git push origin main>/tmp/log'
+W=$ON_FEAT expect ask  'git -c remote.origin.push=HEAD:main push'
+W=$ON_FEAT expect ask  "git -c remote.origin.push=refs/heads/*:refs/heads/* push origin"
+W=$ON_FEAT expect pass 'git -c remote.origin.push=HEAD:feature/x push'
+W=$ON_FEAT expect pass 'git push origin 2>&1'
+W=$ON_FEAT expect pass 'git push origin feature/x > /tmp/main'
+W=$ON_FEAT expect pass 'git push origin feature/x && git commit -m "main"'
+W=$ON_FEAT expect pass 'git commit -m "git push origin main" -F /tmp/x; git push origin feature/x'
+git -C "$ON_FEAT" config remote.pushDefault up; git -C "$ON_FEAT" config remote.up.push 'HEAD:main'
+W=$ON_FEAT expect ask  'git push'
+git -C "$ON_FEAT" config --unset remote.pushDefault; git -C "$ON_FEAT" config --unset remote.up.push
+git -C "$ON_FEAT" config remote.origin.push ':'
+W=$ON_FEAT expect ask  'git push'
+git -C "$ON_FEAT" config --unset remote.origin.push
+W=$ON_FEAT expect pass 'git push'
 W=$ON_FEAT expect pass 'git status && echo "git push is next"'
 W=$ON_FEAT expect pass 'gh pr create --base main --title x --body-file /tmp/b.md'
 
