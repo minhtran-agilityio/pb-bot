@@ -8,6 +8,7 @@ main, where pd-shape pre-allowed `Bash(git -C *)`, `Bash(git push *)`, a bare `R
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -231,8 +232,8 @@ def test_baseline_entry_missing_on_the_base_ref_fails(tmp_path):
     assert "only shrinks" in result.stderr
 
 
-def _checker(*argv, cwd=None):
-    return subprocess.run([sys.executable, str(CHECKER), *argv], capture_output=True, text=True, cwd=cwd)
+def _checker(*argv, cwd=None, env=None):
+    return subprocess.run([sys.executable, str(CHECKER), *argv], capture_output=True, text=True, cwd=cwd, env=env)
 
 
 def test_shrink_check_fails_closed_when_the_base_ref_is_missing(tmp_path):
@@ -243,7 +244,7 @@ def test_shrink_check_fails_closed_when_the_base_ref_is_missing(tmp_path):
     subprocess.run([*git, "add", "-A"], check=True)
     subprocess.run([*git, "commit", "-q", "-m", "base"], check=True)
     result = _checker("--root", str(tmp_path), "--baseline", str(tmp_path / "baseline.json"),
-                      "--base-ref", "no-such-ref")
+                      "--base-ref", "no-such-ref", env={**os.environ, "REQUIRE_BASE_REF": "1"})
     assert result.returncode == 1
     assert "does not resolve" in result.stderr
 
@@ -296,3 +297,33 @@ def test_skill_without_frontmatter_fails(tmp_path):
     result = run(tmp_path)
     assert result.returncode == 1
     assert "no frontmatter" in result.stderr
+
+
+# ── a clone with no origin/main (fleet-check.sh mirror) vs CI (issue #192) ───────────────
+
+def run_without_base_ref(root: Path, **env: str) -> subprocess.CompletedProcess:
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    build(root, {"alpha": "Read(./**)"})
+    (root / "baseline.json").write_text("{}")
+    clean = {k: v for k, v in os.environ.items() if k not in ("REQUIRE_BASE_REF", "GITHUB_ACTIONS")}
+    return subprocess.run(
+        [sys.executable, str(CHECKER), "--root", str(root), "--baseline", str(root / "baseline.json")],
+        capture_output=True, text=True, env={**clean, **env},
+    )
+
+
+def test_missing_base_ref_skips_the_shrink_check_outside_ci(tmp_path):
+    result = run_without_base_ref(tmp_path)
+    assert result.returncode == 0, result.stderr
+    assert "shrink check skipped" in result.stdout + result.stderr
+
+
+def test_missing_base_ref_fails_when_required(tmp_path):
+    result = run_without_base_ref(tmp_path, REQUIRE_BASE_REF="1")
+    assert result.returncode == 1
+    assert "does not resolve" in result.stderr
+
+
+def test_missing_base_ref_fails_on_github_actions(tmp_path):
+    result = run_without_base_ref(tmp_path, GITHUB_ACTIONS="true")
+    assert result.returncode == 1
