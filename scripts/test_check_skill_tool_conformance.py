@@ -9,6 +9,8 @@ misfired on the live tree, and these tests pin the narrowing so it is not casual
 back.
 """
 
+from __future__ import annotations
+
 import json
 import subprocess
 import sys

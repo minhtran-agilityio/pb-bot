@@ -30,6 +30,8 @@ Exit 0 = every skill and agent on disk carries the contract. Exit 1 = one
 Run: python3 scripts/check_frontmatter_contract.py [--root DIR]
 """
 
+from __future__ import annotations
+
 import argparse
 import re
 import sys

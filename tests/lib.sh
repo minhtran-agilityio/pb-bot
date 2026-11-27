@@ -72,6 +72,13 @@ assert_rc_not_contains() { # assert_rc_not_contains <rc> <substring>
 # to prepend to PATH — hooks prefer `python`, macOS/CI often only have `python3`.
 ensure_pyenv() {
   PYENV_DIR="${TMPDIR:-/tmp}/pd-bot-tests-venv"
+  # A venv keeps the python it was built with. Rebuild it when python3 on PATH is another version.
+  if [ -x "$PYENV_DIR/bin/python" ]; then
+    local have want
+    have="$("$PYENV_DIR/bin/python" -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null)"
+    want="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null)"
+    if [ -n "$want" ] && [ "$have" != "$want" ]; then rm -rf "$PYENV_DIR"; fi
+  fi
   if [ ! -x "$PYENV_DIR/bin/python" ]; then
     python3 -m venv "$PYENV_DIR" >/dev/null 2>&1 || return 1
   fi

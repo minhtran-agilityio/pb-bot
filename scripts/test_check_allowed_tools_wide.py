@@ -5,6 +5,8 @@ main, where pd-shape pre-allowed `Bash(git -C *)`, `Bash(git push *)`, a bare `R
 `Edit`, and more; it passes once pd-shape keeps only narrow rules.
 """
 
+from __future__ import annotations
+
 import json
 import subprocess
 import sys
