@@ -37,7 +37,7 @@ fingerprint() {
   exist=$(printf '%s\n' "$paths" | while IFS= read -r p; do [ -n "$p" ] && [ -f "$REPO_DIR/$p" ] && printf '%s\n' "$p"; done)
   gone=$(printf '%s\n' "$paths" | while IFS= read -r p; do [ -n "$p" ] && [ ! -f "$REPO_DIR/$p" ] && printf '%s\n' "$p"; done)
   if [ -n "$exist" ]; then
-    paste -d '\t' <(printf '%s\n' "$exist" | git -C "$REPO_DIR" hash-object --stdin-paths 2>/dev/null) <(printf '%s\n' "$exist")
+    paste -d '\t' <(printf '%s\n' "$exist" | git -C "$REPO_DIR" hash-object --no-filters --stdin-paths 2>/dev/null) <(printf '%s\n' "$exist")
   fi
   if [ -n "$gone" ]; then printf '%s\n' "$gone" | awk '{print "gone\t" $0}'; fi
 }

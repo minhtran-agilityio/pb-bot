@@ -95,7 +95,7 @@ fingerprint() {
   exist=$(printf '%s\n' "$paths" | while IFS= read -r p; do [ -n "$p" ] && [ -f "$REPO_DIR/$p" ] && printf '%s\n' "$p"; done)
   gone=$(printf '%s\n' "$paths" | while IFS= read -r p; do [ -n "$p" ] && [ ! -f "$REPO_DIR/$p" ] && printf '%s\n' "$p"; done)
   if [ -n "$exist" ]; then
-    paste -d '\t' <(printf '%s\n' "$exist" | git -C "$REPO_DIR" hash-object --stdin-paths 2>/dev/null) <(printf '%s\n' "$exist")
+    paste -d '\t' <(printf '%s\n' "$exist" | git -C "$REPO_DIR" hash-object --no-filters --stdin-paths 2>/dev/null) <(printf '%s\n' "$exist")
   fi
   if [ -n "$gone" ]; then printf '%s\n' "$gone" | awk '{print "gone\t" $0}'; fi
 }
@@ -183,7 +183,7 @@ while IFS= read -r f; do PATHSPEC+=("$f"); done <<EOF
 $CODE_FILES
 EOF
 if [ "$FLOOR" = 0 ]; then
-  ADDED=$(git -C "$REPO_DIR" diff HEAD -- "${PATHSPEC[@]}" 2>/dev/null | grep -E '^\+[^+]' || true)
+  ADDED=$(GIT_LITERAL_PATHSPECS=1 git -C "$REPO_DIR" diff HEAD -- "${PATHSPEC[@]}" 2>/dev/null | grep -E '^\+[^+]' || true)
   if printf '%s\n%s\n' "$CODE_FILES" "$ADDED" | grep -qiE '\b(password|passwd|secret|api[_-]?key|credential|jwt|oauth|auth[a-z]*|login|sign[ -]?in)\b'; then FLOOR=1; fi
 fi
 
@@ -228,7 +228,7 @@ BUILD_PROMPT() {
   cat "$PROMPT_FILE" 2>/dev/null
   printf '\n\n## Session facts\n- Main model: %s\n- Risk floor matched: %s\n- Command output (Bash tool results, test-runner agent results) after the last edit: none\n' "$MODEL" "$([ "$FLOOR" = 1 ] && echo yes || echo no)"
   printf -- '- Changed code files:\n%s\n' "$(printf '%s\n' "$CODE_FILES" | sed 's/^/  - /')"
-  printf '\n## Diff summary\n%s\n' "$(git -C "$REPO_DIR" diff HEAD --stat -- "${PATHSPEC[@]}" 2>/dev/null | tail -20)"
+  printf '\n## Diff summary\n%s\n' "$(GIT_LITERAL_PATHSPECS=1 git -C "$REPO_DIR" diff HEAD --stat -- "${PATHSPEC[@]}" 2>/dev/null | tail -20)"
   printf '\n## Last assistant message\n%s\n' "$LAST_MSG"
 }
 default_judge() { STOP_EVIDENCE_GUARD=1 claude -p --model "$1"; }
@@ -236,7 +236,9 @@ default_judge() { STOP_EVIDENCE_GUARD=1 claude -p --model "$1"; }
 SEVERITY=""; REASON=""
 # No judge command and no claude on PATH: skip the judge. Waiting for a judge that cannot run only delays the stop.
 if [ -n "${STOP_EVIDENCE_JUDGE_CMD:-}" ] || command -v claude >/dev/null 2>&1; then
-  OUTFILE=$(mktemp 2>/dev/null) || exit 0
+  OUTFILE=$(mktemp 2>/dev/null) || OUTFILE=""
+fi
+if [ -n "${OUTFILE:-}" ]; then
   trap 'rm -f "$OUTFILE"' EXIT
   (
     if [ -n "${STOP_EVIDENCE_JUDGE_CMD:-}" ]; then
@@ -247,6 +249,7 @@ if [ -n "${STOP_EVIDENCE_JUDGE_CMD:-}" ] || command -v claude >/dev/null 2>&1; t
   ) >"$OUTFILE" 2>/dev/null &
   JPID=$!
   WAITED=0; LIMIT="${STOP_EVIDENCE_JUDGE_TIMEOUT:-90}"
+  case "$LIMIT" in ''|*[!0-9]*) LIMIT=90 ;; esac
   while kill -0 "$JPID" 2>/dev/null; do
     if [ "$WAITED" -ge "$LIMIT" ]; then pkill -P "$JPID" 2>/dev/null; kill "$JPID" 2>/dev/null; break; fi
     sleep 1; WAITED=$((WAITED + 1))

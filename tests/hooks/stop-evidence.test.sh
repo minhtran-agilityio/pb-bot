@@ -270,4 +270,14 @@ run_hook "$F" $H "$(stop_json "$TR" false)" STOP_EVIDENCE_JUDGE_CMD="$SEVERE"
 cp "$FX/sonnet-no-evidence.jsonl" "$TR"
 run_hook "$F" $H "$(stop_json "$TR" false)" STOP_EVIDENCE_JUDGE_CMD="$SEVERE"; assert_block
 
+# --- security review (#191): a file name must not switch off the auth/secret word scan ----------
+X=$(repo_with lib/x.py)
+printf 'password = 2\n' > "$X/lib/x.py"
+printf 'x\n' > "$X/:(exclude)*.py"
+t "an untracked file named like a pathspec magic does not hide a password change (no python3): blocks"
+run_stop "$X" "$FX/sonnet-no-evidence.jsonl" false "$PASSV" PATH="$(tools_dir no-python)"; assert_block
+
+t "a non-numeric STOP_EVIDENCE_JUDGE_TIMEOUT falls back to the default instead of hanging"
+run_stop "$F" "$FX/sonnet-no-evidence.jsonl" false "$SEVERE" STOP_EVIDENCE_JUDGE_TIMEOUT=abc; assert_block
+
 finish
