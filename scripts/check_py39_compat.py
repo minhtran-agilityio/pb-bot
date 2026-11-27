@@ -6,7 +6,8 @@ checked, from the source alone (this check runs on any Python 3.8 or newer):
   1. Every file parses with the 3.9 grammar (`match`, parenthesised `with`, `except*`).
   2. No `X | Y` union in an annotation unless the file has
      `from __future__ import annotations` (without it, 3.9 raises TypeError at import).
-     A `|` with a `None` operand is flagged anywhere, because it is the same crash at run time.
+     A `|` whose operand is a type (None, a builtin type name, a generic alias such as `list[int]`,
+     or a class-like name) is flagged anywhere else, because it is the same crash at run time.
 
 Usage: check_py39_compat.py [root]   (default: the repository root; lists files with git)
 Exit 0 clean, 1 on a finding.
@@ -37,8 +38,21 @@ def annotation_nodes(tree: ast.AST):
             yield n.annotation
 
 
-def is_none(n: ast.AST) -> bool:
-    return isinstance(n, ast.Constant) and n.value is None
+BUILTIN_TYPES = {"int", "str", "float", "bool", "bytes", "bytearray", "complex", "list", "dict",
+                 "set", "frozenset", "tuple", "type", "object", "range", "slice"}
+
+
+def is_type_like(n: ast.AST) -> bool:
+    """True for an operand that is a type, so `a | b` builds a union that 3.9 cannot: None, a
+    generic alias (`list[int]`), a builtin type name, or a Name/Attribute spelled like a class."""
+    if isinstance(n, ast.Constant):
+        return n.value is None
+    if isinstance(n, ast.Subscript):
+        return True
+    if isinstance(n, (ast.Name, ast.Attribute)):
+        ident = n.id if isinstance(n, ast.Name) else n.attr
+        return ident in BUILTIN_TYPES or (ident[:1].isupper() and not ident.isupper())
+    return False
 
 
 def check_source(text: str, name: str = "<src>") -> list[str]:
@@ -60,11 +74,11 @@ def check_source(text: str, name: str = "<src>") -> list[str]:
                                 "`from __future__ import annotations` on Python 3.9")
     for n in ast.walk(tree):
         if (isinstance(n, ast.BinOp) and isinstance(n.op, ast.BitOr)
-                and (is_none(n.left) or is_none(n.right)) and n.lineno not in seen
+                and (is_type_like(n.left) or is_type_like(n.right)) and n.lineno not in seen
                 and id(n) not in in_annotation):
             seen.add(n.lineno)
-            problems.append(f"{name}:{n.lineno}: `X | None` fails at run time on Python 3.9 "
-                            "unless it sits in an annotation under the __future__ import")
+            problems.append(f"{name}:{n.lineno}: `X | Y` between types fails at run time on Python "
+                            "3.9 unless it sits in an annotation under the __future__ import")
     return problems
 
 

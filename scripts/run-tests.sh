@@ -136,7 +136,8 @@ done
 echo ""
 echo "== L2: python unit tests =="
 # Prefer the shared venv lib.sh builds; else system python3; skip if pytest is unavailable.
-PYBIN="${TMPDIR:-/tmp}/pd-bot-tests-venv/bin/python"
+PYBIN=""
+[ -n "$PYENV_BIN" ] && PYBIN="$PYENV_BIN/python"
 [ -x "$PYBIN" ] || PYBIN="$(command -v python3 || true)"
 if [ -n "$PYBIN" ] && "$PYBIN" -c 'import pytest' >/dev/null 2>&1; then
   # Every unit test under scripts/ and plugins/pd-bot/ — collected, not hand-listed: the

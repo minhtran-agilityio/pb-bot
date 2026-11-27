@@ -24,6 +24,12 @@ def test_runtime_none_union_flagged_even_with_future_import():
     assert compat.check_source("from __future__ import annotations\nT = int | None\n")
 
 
+def test_runtime_type_unions_flagged_in_every_spelling():
+    for src in ("isinstance(1, int | str)\n", "T = list[int] | dict\n", "T = dict | None\n",
+                "import typing\nT = typing.Optional | Foo\n", "T = Foo | Bar\n"):
+        assert compat.check_source("from __future__ import annotations\n" + src), src
+
+
 def test_match_statement_flagged():
     assert compat.check_source("match 1:\n    case 1:\n        pass\n")
 
