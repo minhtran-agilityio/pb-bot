@@ -7,6 +7,12 @@
 # `git -C <dir>` and `cd <dir>` scan <dir>; a `cd` may not run as the hook assumes (subshell, `||`),
 # so the current directory is scanned too.
 # Fails open: no jq/git, a bad payload, or any other command passes. Exit 2 blocks.
+# Limits (ADR 0004: this stops habitual commits, not hostile ones):
+#  - a wrapper is not read: `bash -c '...'`, `find -exec git add`, `git --git-dir=D --work-tree=W commit`,
+#    `GIT_DIR=...`, `pushd`; a `git add` hidden in a wrapper is only seen as text (scanned as add -A);
+#  - the scan reads the repository it names (`-C`, `cd`). It turns off the common routes by which a
+#    repository's own config runs code (hooks, fsmonitor, filters, textconv, diff drivers, lazy fetch),
+#    but a hostile .git/config or .git/hooks is out of scope.
 command -v jq >/dev/null && command -v git >/dev/null || exit 0
 cmd=$(jq -r '.tool_input.command // empty' 2>/dev/null) || exit 0
 printf '%s' "$cmd" | grep -qE '(^|[;&|("'"'"']|[[:space:]])git[[:space:]]+([^;&|]*[[:space:]])?commit([[:space:]]|$)' || exit 0
@@ -21,14 +27,14 @@ RD=$'\002'   # marks a redirection (> < >> 2>&1 <<EOF); the word after it is its
 # A token must not start inside a longer name (`highs_...`, `task_test_...`): left boundary.
 TOKENS='AKIA[0-9A-Z]{16}|(^|[^a-z0-9_])(sk-[a-z0-9_-]{20,}|[rsp]k_(live|test)_[a-z0-9]{16,}|whsec_[a-z0-9]{16,}|AIza[a-z0-9_-]{30,}|gh[pousr]_[a-z0-9]{20,}|github_pat_[a-z0-9_]{20,}|glpat-[a-z0-9_-]{16,}|xox[baprs]-[a-z0-9-]{10,}|eyJ[a-z0-9_-]{8,}\.[a-z0-9_-]{8,}\.)'
 PEM='-----BEGIN [A-Z ]*PRIVATE KEY'
-AWS='aws_secret_access_key["'"'"']?[[:space:]]*[=:][[:space:]]*["'"'"']?[^[:space:]"'"'"',$]'
+AWS='aws_secret_access_key["'"'"']?[[:space:]]*[=:][[:space:]]*["'"'"']?[^[:space:]"'"'"',$][^[:space:]"'"'"',]*'
 OLD='password\s*=\s*["'"'"'][^"'"'"']+|passwd\s*=|api_key\s*=\s*["'"'"'][^"'"'"']+|apikey\s*=\s*["'"'"'][^"'"'"']+|client_secret\s*=\s*["'"'"'][^"'"'"']+|\bsecret\s*=\s*["'"'"'][^"'"'"']+'
 PATTERN="($TOKENS|$PEM|$OLD)"
 # A value that is a code expression (`os.environ["X"]`, `getenv(...)`) is not a secret.
 CODEVAL='=[[:space:]]*[A-Za-z_][A-Za-z0-9_.]*[(\[]'
 # Shell or .env style assignment at the start of an added line, with an unquoted value:
 # `export API_KEY=abcdefghijkl`. Upper case only, so `client(api_key=x)` is not a match.
-ENVPAT='^\+[[:space:]]*(export[[:space:]]+)?[A-Z][A-Z0-9_]*(KEY|SECRET|TOKEN|PASSWORD|PASSWD)=[^[:space:]"'"'"'$#]'
+ENVPAT='^\+[[:space:]]*(export[[:space:]]+)?[A-Z][A-Z0-9_]*(KEY|SECRET|TOKEN|PASSWORD|PASSWD)=[^[:space:]"'"'"'$#][^[:space:]]*'
 
 TMPD=
 # shellcheck disable=SC2329  # runs from the EXIT trap
@@ -97,19 +103,29 @@ tokenize() {
 }
 
 # gitx <dir> <git args>: git in <dir>, on the temporary index with a private object directory when
-# there is one. Nothing the repository configures may run: no fsmonitor, no clean/process filter.
+# there is one. It turns off the usual ways a repository's own config runs code: git hooks, fsmonitor,
+# clean/process filters, remote fetches for missing objects. The diff calls turn off textconv, external
+# diff and submodule diffs. A hostile .git/config is still out of scope (see the header).
 gitx() {
-  local gd=$1 k n c=()
+  local gd=$1 k n cnt=0
+  local e=()
   shift
-  c=(-c core.fsmonitor=false -c core.splitIndex=false)
+  _cfg() { e+=("GIT_CONFIG_KEY_$cnt=$1" "GIT_CONFIG_VALUE_$cnt=$2"); cnt=$((cnt + 1)); }
+  _cfg core.hooksPath /dev/null
+  _cfg core.fsmonitor false
+  _cfg core.splitIndex false
+  _cfg protocol.allow never
   while IFS= read -r k; do
     n=${k#filter.}; n=${n%.*}
-    c+=(-c "filter.$n.clean=cat" -c "filter.$n.process=cat" -c "filter.$n.required=false")
+    _cfg "filter.$n.clean" cat
+    _cfg "filter.$n.process" cat
+    _cfg "filter.$n.required" false
   done < <(git -C "$gd" config --name-only --get-regexp '^filter\.' 2>/dev/null | grep -E '\.(clean|process)$')
+  e+=("GIT_CONFIG_COUNT=$cnt" GIT_NO_LAZY_FETCH=1)
   if [ -n "$IDX" ]; then
-    env GIT_INDEX_FILE="$IDX" GIT_OBJECT_DIRECTORY="$TMPD/objects" GIT_ALTERNATE_OBJECT_DIRECTORIES="$OBJS" git -C "$gd" "${c[@]}" "$@"
+    env "${e[@]}" GIT_INDEX_FILE="$IDX" GIT_OBJECT_DIRECTORY="$TMPD/objects" GIT_ALTERNATE_OBJECT_DIRECTORIES="$OBJS" git -C "$gd" "$@"
   else
-    git -C "$gd" "${c[@]}" "$@"
+    env "${e[@]}" git -C "$gd" "$@"
   fi
 }
 
@@ -146,14 +162,14 @@ scan() {
     fi
   fi
   local diff
-  diff=$(gitx "$dir" diff --cached --no-textconv --no-ext-diff -U0 -- ':!*tests/*' ':!*__tests__/*' ':!*.example' ':!*.md' ':!docs/' 2>/dev/null)
+  diff=$(gitx "$dir" diff --cached --no-textconv --no-ext-diff --ignore-submodules=all -U0 -- ':!*tests/*' ':!*__tests__/*' ':!*.example' ':!*.md' ':!docs/' 2>/dev/null)
   if printf '%s\n' "$diff" | grep -qEi -e "$PATTERN" ||
-     printf '%s\n' "$diff" | grep -Ei -e "$AWS" | grep -qvEi -e "$CODEVAL" ||
-     printf '%s\n' "$diff" | grep -E -e "$ENVPAT" | grep -qvE -e "$CODEVAL"; then
+     printf '%s\n' "$diff" | grep -Eio -e "$AWS" | grep -qvEi -e "$CODEVAL" ||
+     printf '%s\n' "$diff" | grep -Eo -e "$ENVPAT" | grep -qvE -e "$CODEVAL"; then
     block "potential secret in the changes this commit would include. Run 'git diff HEAD', move the value to an env var, re-stage. If it is a fake test value, ask the owner."
   fi
   local envfile
-  envfile=$(gitx "$dir" -c core.quotepath=off diff --cached --no-textconv --no-ext-diff --name-only 2>/dev/null | grep -E '(^|/)([^/]*\.env|\.env\.[^/]*)$' | grep -vE '(^|/)[^/]*\.env\.example$' | head -n 1)
+  envfile=$(gitx "$dir" -c core.quotepath=off diff --cached --no-textconv --no-ext-diff --ignore-submodules=all --name-only 2>/dev/null | grep -E '(^|/)([^/]*\.env|\.env\.[^/]*)$' | grep -vE '(^|/)[^/]*\.env\.example$' | head -n 1)
   if [ -n "$envfile" ]; then
     block "a .env file is staged ($envfile). Unstage it (git restore --staged <file>), gitignore it, and commit a .env.example instead."
   fi
@@ -231,13 +247,6 @@ handle_segment() {
   done
   [ "$i" -lt "$n" ] || return 0
   case ${SEG[$i]} in
-    xargs)
-      # `... | xargs git add`: the paths are unknown, so scan as if everything were added
-      for ((j = i + 1; j + 1 < n; j++)); do
-        if [ "${SEG[$j]}" = git ]; then
-          case ${SEG[$((j + 1))]} in add|stage) handle_add "$dir" -A ;; esac
-        fi
-      done ;;
     cd)
       if [ $((i + 2)) -eq "$n" ] && d=$(resolve_dir "$CUR" "${SEG[$((i + 1))]}"); then CUR=$d; fi ;;
     git)
@@ -265,6 +274,17 @@ handle_segment() {
           # the cd tracking is a guess (subshell, ||, cd -): also scan where the hook started
           [ "$explicit" = 0 ] && [ "$dir" != "$CWD0" ] && handle_commit "$CWD0" "${SEG[@]:$((j + 1))}" ;;
       esac ;;
+    *)
+      # `xargs git add`, `find -exec git add`, `bash -c 'git add x'`: the paths are unknown, so scan
+      # as if everything were added (a literal `git add` in a wrapper's text can only over-block)
+      for ((j = i + 1; j < n; j++)); do
+        if [ "${SEG[$j]}" = git ] && [ $((j + 1)) -lt "$n" ]; then
+          case ${SEG[$((j + 1))]} in add|stage) handle_add "$dir" -A ;; esac
+        elif [[ ${SEG[$j]} =~ (^|[[:space:]])git[[:space:]]+(add|stage)([[:space:]]|$) ]]; then
+          handle_add "$dir" -A
+        fi
+      done
+      ;;
   esac
   return 0
 }

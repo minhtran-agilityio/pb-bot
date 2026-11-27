@@ -229,7 +229,7 @@ git -C "$O" config filter.f.process "$M/run.sh process"
 git -C "$O" config diff.t.textconv "$M/run.sh textconv"
 git -C "$O" config core.fsmonitor "$M/run.sh fsmonitor"
 git -C "$O" config core.splitIndex true
-printf 'v2\n' > "$O/a.txt"
+printf 'v2 changed content\n' > "$O/a.txt"
 run_hook "$R" $H "$(json_cmd "git -C $O commit -am x")"
 t "the scan runs no filter, textconv or fsmonitor command of the named repo"
 if [ -z "$(ls "$M" | grep -v '^run.sh$')" ]; then pass; else fail "ran: $(ls "$M" | grep -v '^run.sh$' | tr '\n' ' ')"; fi
@@ -262,6 +262,47 @@ run_hook "$R" $H "$(json_cmd 'env FOO=1 git commit -m x')"; assert_rc 0
 t "git commit --pathspec-from-file blocks a secret in a listed tracked file"
 printf 'src/app.py\n' > "$R/list"
 run_hook "$R" $H "$(json_cmd 'git commit --pathspec-from-file=list -m x')"; assert_rc 2
+
+
+# ---- reviewer round 2 of #189 ----
+# F8: the code-value exemption applies to the matched value only
+expect_block "boto3 one-liner with a quoted secret" src/a.py 's3 = boto3.client("s3", aws_access_key_id=os.environ["K"], aws_secret_access_key="wJalrXUtnFEMIK7MDENGbPxRfiCYEXAMPLEKEY")'
+expect_block "quoted aws secret followed by a call" src/a.py 'x(aws_secret_access_key="wJalrXUtnFEMIK7MDENGbPxRfiCYEXAMPLEKEY", config=Config(retries=3))'
+expect_block "unquoted token followed by a comment with a call" cfg/e.sh 'export API_TOKEN=s3cr3tvalue123456 # see=docs(1)'
+expect_block "unquoted key followed by an index" cfg/e.sh 'export API_KEY=abcd1234efgh5678 && x=arr[0]'
+
+# F9: git add inside bash -c or find -exec
+R=$(base_repo); mkdir -p "$R/sub"; printf '%s\n' 'export API_KEY=abcdefghijkl' > "$R/sub/conf.sh"
+for c in "bash -c 'git add sub/conf.sh' && git commit -m x" "find . -name '*.sh' -exec git add {} + ; git commit -m x"; do
+  t "add hidden in: $c"
+  run_hook "$R" $H "$(jq -n --arg c "$c" '{tool_input:{command:$c}}')"; assert_rc 2
+done
+
+# F1: hooks, config-value filter names, lazy fetch, submodule diffs
+R=$(base_repo); O=$(new_repo)
+printf 'v1\n' > "$O/a.cfg"; git -C "$O" add a.cfg; git -C "$O" commit -qm i
+M="$(mktemp -d)"; _CLEANUP_DIRS+=("$M")
+printf '#!/bin/sh\ntouch %s/$1\ncat\n' "$M" > "$M/run.sh"; chmod +x "$M/run.sh"
+printf '#!/bin/sh\ntouch %s/hook\n' "$M" > "$O/.git/hooks/post-index-change"; chmod +x "$O/.git/hooks/post-index-change"
+mkdir -p "$M/hp"; printf '#!/bin/sh\ntouch %s/hookspath\n' "$M" > "$M/hp/post-index-change"; chmod +x "$M/hp/post-index-change"
+git -C "$O" config core.hooksPath "$M/hp"
+printf '*.cfg filter=a=b\n' > "$O/.gitattributes"
+git -C "$O" config 'filter.a=b.clean' "$M/run.sh eqclean"
+printf 'v2 changed content\n' > "$O/a.cfg"
+run_hook "$R" $H "$(json_cmd "git -C $O add a.cfg && git -C $O commit -m x")"
+t "no git hook, hooksPath hook or '='-named filter runs during the scan"
+if [ -z "$(ls "$M" | grep -vE '^(run.sh|hp)$')" ]; then pass; else fail "ran: $(ls "$M" | grep -vE '^(run.sh|hp)$' | tr '\n' ' ')"; fi
+
+# lazy fetch and submodule diff: a git shim logs the environment and arguments of each call
+SH="$(mktemp -d)"; _CLEANUP_DIRS+=("$SH")
+REALGIT=$(command -v git)
+printf '#!/bin/sh\nprintf "%%s|%%s\\n" "$GIT_NO_LAZY_FETCH" "$*" >> %s/log\nexec %s "$@"\n' "$SH" "$REALGIT" > "$SH/git"; chmod +x "$SH/git"
+R=$(base_repo); printf '%s\n' "$FAKE" > "$R/src/app.py"
+run_hook "$R" $H "$(json_cmd 'git commit -am x')" PATH="$SH:$PATH"
+t "every add and diff of the scan sets GIT_NO_LAZY_FETCH=1"
+if grep -qE ' (add|diff) ' "$SH/log" && ! grep -E ' (add|diff) ' "$SH/log" | grep -v '^1|' | grep -q .; then pass; else fail "log: $(grep -E ' (add|diff) ' "$SH/log" | grep -v '^1|' | head -2 | tr '\n' ' ')"; fi
+t "the scan's diff calls use --ignore-submodules=all"
+if grep ' diff ' "$SH/log" | grep -q . && ! grep ' diff ' "$SH/log" | grep -v -e '--ignore-submodules=all' | grep -q .; then pass; else fail "$(grep ' diff ' "$SH/log" | head -2 | tr '\n' ' ')"; fi
 
 
 finish
