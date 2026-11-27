@@ -11,6 +11,16 @@ FAILED=0
 # failed instead of leaving it to be found in ~1000 lines of output.
 FAILED_STEPS=()
 fail() { FAILED=1; FAILED_STEPS+=("$1"); }
+# A skipped Python step is named in the final summary. With REQUIRE_PYTEST=1 (CI sets it) a skip
+# is a failure instead.
+SKIPPED_STEPS=()
+skip_python() { # skip_python <step> <reason>
+  if [ "${REQUIRE_PYTEST:-}" = 1 ]; then
+    echo "  ✗ $1: $2 (REQUIRE_PYTEST=1)"; fail "$1: $2"
+  else
+    echo "  skip — $2"; SKIPPED_STEPS+=("$1: $2")
+  fi
+}
 STEP_LOG="$(mktemp)"
 # Suites and pytest run through tee, so their stdout is a pipe; keep colour on a terminal.
 if [ -t 1 ]; then export PD_BOT_TEST_COLOR=1; PYTEST_COLOR=--color=yes; else PYTEST_COLOR=--color=no; fi
@@ -58,7 +68,14 @@ bash scripts/check-allowed-tools.sh || fail "scripts/check-allowed-tools.sh"
 if command -v python3 >/dev/null 2>&1; then
   python3 scripts/check_allowed_tools_wide.py || fail "scripts/check_allowed_tools_wide.py"
 else
-  echo "  skip — no python3"
+  skip_python "scripts/check_allowed_tools_wide.py" "no python3"
+fi
+
+echo "== L1: python 3.9 compatibility (macOS system python3) =="
+if command -v python3 >/dev/null 2>&1; then
+  python3 scripts/check_py39_compat.py || fail "scripts/check_py39_compat.py"
+else
+  skip_python "scripts/check_py39_compat.py" "no python3"
 fi
 
 echo "== L1: skill and agent registry (scanned from disk) =="
@@ -66,7 +83,7 @@ if command -v python3 >/dev/null 2>&1; then
   python3 scripts/check_frontmatter_contract.py || fail "scripts/check_frontmatter_contract.py"
   python3 scripts/check_skill_tool_conformance.py || fail "scripts/check_skill_tool_conformance.py"
 else
-  echo "  skip — no python3"
+  skip_python "frontmatter and tool-conformance checks" "no python3"
 fi
 
 echo "== L1: STE linter self-test and prose baseline =="
@@ -75,7 +92,7 @@ if command -v python3 >/dev/null 2>&1; then
   python3 plugins/pd-bot/skills/pd-asd-ste100/scripts/ste-lint.py --selftest || fail "ste-lint.py --selftest"
   python3 scripts/check_ste_baseline.py
 else
-  echo "  skip — no python3"
+  skip_python "ste-lint and STE baseline" "no python3"
 fi
 
 # Build the shared pytest venv once, before anything runs concurrently: on a fresh machine
@@ -119,7 +136,8 @@ done
 echo ""
 echo "== L2: python unit tests =="
 # Prefer the shared venv lib.sh builds; else system python3; skip if pytest is unavailable.
-PYBIN="${TMPDIR:-/tmp}/pd-bot-tests-venv/bin/python"
+PYBIN=""
+[ -n "$PYENV_BIN" ] && PYBIN="$PYENV_BIN/python"
 [ -x "$PYBIN" ] || PYBIN="$(command -v python3 || true)"
 if [ -n "$PYBIN" ] && "$PYBIN" -c 'import pytest' >/dev/null 2>&1; then
   # Every unit test under scripts/ and plugins/pd-bot/ — collected, not hand-listed: the
@@ -134,11 +152,17 @@ if [ -n "$PYBIN" ] && "$PYBIN" -c 'import pytest' >/dev/null 2>&1; then
     record_details '^(FAILED|ERROR) '
   fi
 else
-  echo "  skip — no python3 with pytest available"
+  skip_python "pytest layer" "no python3 with pytest available (offline pip install?)"
 fi
 
 echo ""
-if [ "$FAILED" -eq 0 ]; then
+if [ "${#SKIPPED_STEPS[@]}" -gt 0 ]; then
+  echo "SKIPPED (not run, so not proven):"
+  printf '  %s\n' "${SKIPPED_STEPS[@]}"
+fi
+if [ "$FAILED" -eq 0 ] && [ "${#SKIPPED_STEPS[@]}" -gt 0 ]; then
+  echo "GREEN WITH SKIPS (set REQUIRE_PYTEST=1 to make a skip fail)"
+elif [ "$FAILED" -eq 0 ]; then
   echo "ALL GREEN"
 else
   echo "FAILURES:"

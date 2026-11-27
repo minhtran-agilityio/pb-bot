@@ -59,7 +59,7 @@ Then, in the project, run `/pd-bot:pd-setup`. It scaffolds `specs/` and `docs/so
 ### Requirements
 
 - Pod Bay (`podbay-dev`, with `tmux`): pd-bot runs only with Pod Bay.
-- `git`, `python3`, and `gh` for issues and pull requests.
+- `git`, `python3` (3.9 or newer: the macOS system python3 works), and `gh` for issues and pull requests.
 - `jq` for `/pd-bot:pd-setup`.
 
 ### Known limits
@@ -83,7 +83,7 @@ Check it with `claude plugin validate plugins/pd-bot --strict` and `claude plugi
 
 ### Test
 
-`bash scripts/run-tests.sh` runs what CI runs: syntax checks, the doc-truth and markdown-link lints, the frontmatter and tool-conformance checks, hermetic hook and script tests, and the Python unit tests when `pytest` is available. The `pd-bot-ci` workflow runs it on ubuntu and macOS. `bash scripts/check-shellcheck.sh` runs shellcheck over the harness shell scripts; CI runs it with `REQUIRE_SHELLCHECK=1`.
+`bash scripts/run-tests.sh` runs what CI runs: syntax checks, the doc-truth and markdown-link lints, the frontmatter and tool-conformance checks, hermetic hook and script tests, and the Python unit tests when `pytest` is available. A skipped Python step is named under `SKIPPED` in the summary; `REQUIRE_PYTEST=1` turns a skip into a failure. The `pd-bot-ci` workflow runs it on ubuntu and macOS with `REQUIRE_PYTEST=1`. `bash scripts/check-shellcheck.sh` runs shellcheck over the harness shell scripts; CI runs it with `REQUIRE_SHELLCHECK=1`.
 
 ## Author
 

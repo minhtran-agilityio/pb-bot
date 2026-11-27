@@ -4,7 +4,7 @@ Skill framework for Claude Code (the only supported runtime) with Pod Bay (`podb
 
 ## Run and test
 
-`bash scripts/run-tests.sh` runs the whole suite. CI (`pd-bot-ci`) runs the same suite on ubuntu and macOS. Run it before you change `plugins/pd-bot/hooks/` or `scripts/`.
+`bash scripts/run-tests.sh` runs the whole suite. CI (`pd-bot-ci`) runs the same suite on ubuntu and macOS. Run it before you change `plugins/pd-bot/hooks/` or `scripts/`. Python files must run on 3.9 (macOS system python3): no `X | None` annotation without `from __future__ import annotations`, no `match`; `scripts/check_py39_compat.py` checks it. `REQUIRE_PYTEST=1` (CI sets it) makes a missing pytest fail instead of skip; a skip is named in the summary.
 
 `bash scripts/check-shellcheck.sh` runs shellcheck over the harness shell scripts. Run it before the PR; CI runs the same script with `REQUIRE_SHELLCHECK=1`, which fails instead of skipping when shellcheck is missing.
 
