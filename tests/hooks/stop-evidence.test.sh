@@ -187,10 +187,28 @@ S=$(session_repo src/app.py)
 t "no record for the session: falls back to git status (the dirty file counts)"
 stop_session "$S" sess-unknown "$LIGHT"; assert_block
 
+# Owner decision (#191): the baseline decides only whether code "changed". A dirty file on the risk floor
+# still needs evidence, also when it was already dirty at session start and has not changed since.
 S=$(session_repo src/app.py)
-t "a dirty hooks/ file at session start does not raise the risk floor of a read-only session"
 mkdir -p "$S/scripts"; printf 'echo hi\n' > "$S/scripts/old.sh"
-start_session "$S" sess3; stop_session "$S" sess3 "$SEVERE"; assert_pass_no_judge
+start_session "$S" sess3
+t "a hooks/scripts file dirty at session start and unchanged still needs evidence: blocks (judge fails)"
+stop_session "$S" sess3 "$BAD"; assert_block
+
+t "the same file with a Bash result after the last edit: passes"
+d=$(mktemp -d); _CLEANUP_DIRS+=("$d"); cp "$FX/sonnet-with-evidence.jsonl" "$d/sess3.jsonl"
+run_hook "$S" $H "$(printf '{"session_id":"sess3","transcript_path":"%s","cwd":".","stop_hook_active":false}' "$d/sess3.jsonl")" STOP_EVIDENCE_JUDGE_CMD="$BAD"; assert_pass
+
+S=$(session_repo src/app.py)
+printf 'password = request.get("password")\n' > "$S/src/app.py"
+start_session "$S" sess4
+t "an auth-word change dirty at session start and unchanged still needs evidence: blocks"
+stop_session "$S" sess4 "$BAD"; assert_block
+
+S=$(session_repo src/app.py)
+start_session "$S" sess5
+t "a dirty non-floor file at session start and unchanged: still passes without a judge"
+stop_session "$S" sess5 "$SEVERE"; assert_pass_no_judge
 
 # --- B6: the risk floor holds without a working python3 -----------------------------------------
 # tools_dir [with-python|no-python|broken-python] [with-claude]: a PATH of its own, so a tool can be absent.
@@ -230,9 +248,11 @@ R0=$(new_repo $H $J); stage "$R0" src/app.py v1; git -C "$R0" commit -qm base
 run_stop "$R0" "$FX/sonnet-no-evidence.jsonl" false "$LIGHT" PATH="$(tools_dir no-python)"; assert_pass
 
 # --- B7: a bounded number of blocks per transcript ----------------------------------------------
-loop_run() { # loop_run <repo> <transcript> <stub> <active> [VAR=val ...] -> prints the number of blocks in 8 stops
-  local r="$1" tr="$2" st="$3" act="$4" n=0; shift 4
-  for _ in 1 2 3 4 5 6 7 8; do
+loop_run() { # loop_run <repo> <transcript> <stub> <active> [VAR=val ...] -> number of blocks in 8 stops of one turn
+  # The first stop of a turn has stop_hook_active false; the stops after a block have it true.
+  local r="$1" tr="$2" st="$3" act="$4" n=0 i; shift 4
+  for i in 1 2 3 4 5 6 7 8; do
+    [ "$i" = 1 ] && act=false || act=true
     run_hook "$r" $H "$(stop_json "$tr" "$act")" STOP_EVIDENCE_JUDGE_CMD="$st" "$@"
     printf '%s' "$OUT" | grep -qF '"decision":"block"' && n=$((n + 1))
   done
@@ -279,5 +299,48 @@ run_stop "$X" "$FX/sonnet-no-evidence.jsonl" false "$PASSV" PATH="$(tools_dir no
 
 t "a non-numeric STOP_EVIDENCE_JUDGE_TIMEOUT falls back to the default instead of hanging"
 run_stop "$F" "$FX/sonnet-no-evidence.jsonl" false "$SEVERE" STOP_EVIDENCE_JUDGE_TIMEOUT=abc; assert_block
+
+# --- review round 1 (#191): F1-F5 and the per-turn bound ------------------------------------------
+t "F2: an agent that may have edited (implementer) after a Bash result makes it stale: blocks"
+R=$(repo_with src/app.py)
+run_stop "$R" "$FX/bash-then-implementer.jsonl" false "$LIGHT"; assert_block
+
+t "F2: edit, implementer agent, then a test-runner result: that result counts"
+run_stop "$R" "$FX/implementer-then-test-runner.jsonl" false "$SEVERE"; assert_pass_no_judge
+
+t "F3: a background test-runner launch notice is not evidence: blocks"
+run_stop "$R" "$FX/background-test-runner.jsonl" false "$LIGHT"; assert_block
+
+t "F4: a counter file that cannot be written does not open the risk floor (no python3): blocks"
+F=$(repo_with scripts/deploy.sh); TR=$(fresh "$FX/sonnet-no-evidence.jsonl")
+CD=$(git -C "$F" rev-parse --git-path pd-bot/stop-evidence); case "$CD" in /*) ;; *) CD="$F/$CD" ;; esac
+mkdir -p "$CD/$(basename "$TR" .jsonl).blocks"
+run_hook "$F" $H "$(stop_json "$TR" false)" PATH="$(tools_dir no-python)"; assert_block
+
+t "F4: unwritable counter in a continuation stop (active true): blocks nothing more"
+run_hook "$F" $H "$(stop_json "$TR" true)" PATH="$(tools_dir no-python)"; assert_pass
+
+t "F1: project in a subdirectory of the repository: a password change still blocks (python3 missing)"
+SUB=$(new_repo $H $J $B); stage "$SUB" app/lib/a.py 'v1'; git -C "$SUB" commit -qm base
+printf 'password = 2\n' > "$SUB/app/lib/a.py"
+run_stop "$SUB" "$FX/sonnet-no-evidence.jsonl" false "$PASSV" PATH="$(tools_dir no-python)" CLAUDE_PROJECT_DIR="$SUB/app"; assert_block
+
+t "F1: project in a subdirectory: the baseline keeps a dirty file unchanged since the start from counting"
+SUB=$(new_repo $H $J $B); stage "$SUB" app/lib/a.py 'v1'; git -C "$SUB" commit -qm base
+printf 'dirty-before\n' > "$SUB/app/lib/a.py"
+run_hook "$SUB" $B "$(SS_JSON subsess "$SESS_T")" CLAUDE_PROJECT_DIR="$SUB/app"
+d=$(mktemp -d); _CLEANUP_DIRS+=("$d"); cp "$SESS_T" "$d/subsess.jsonl"; : > "$STUBLOG"
+run_hook "$SUB" $H "$(printf '{"session_id":"subsess","transcript_path":"%s","cwd":".","stop_hook_active":false}' "$d/subsess.jsonl")" STOP_EVIDENCE_JUDGE_CMD="$SEVERE" CLAUDE_PROJECT_DIR="$SUB/app"
+assert_pass_no_judge
+
+t "F1: project in a subdirectory: an edit after the start counts"
+printf 'edited\n' > "$SUB/app/lib/a.py"
+run_hook "$SUB" $H "$(printf '{"session_id":"subsess","transcript_path":"%s","cwd":".","stop_hook_active":false}' "$d/subsess.jsonl")" STOP_EVIDENCE_JUDGE_CMD="$LIGHT" CLAUDE_PROJECT_DIR="$SUB/app"
+assert_block
+
+t "per-turn bound: after 3 blocks a new user turn (stop_hook_active false) can block again"
+F=$(repo_with scripts/deploy.sh); TR=$(fresh "$FX/sonnet-no-evidence.jsonl")
+loop_run "$F" "$TR" "$SEVERE" false >/dev/null
+run_hook "$F" $H "$(stop_json "$TR" false)" STOP_EVIDENCE_JUDGE_CMD="$SEVERE"; assert_block
 
 finish

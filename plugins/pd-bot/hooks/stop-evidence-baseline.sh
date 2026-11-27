@@ -27,6 +27,8 @@ SID=$(printf '%s' "$INPUT" | grep -o '"session_id"[[:space:]]*:[[:space:]]*"[^"]
 DIR=$(git -C "$REPO_DIR" rev-parse --git-path pd-bot/stop-evidence 2>/dev/null) || exit 0
 case "$DIR" in /*) ;; *) DIR="$REPO_DIR/$DIR" ;; esac
 mkdir -p "$DIR" 2>/dev/null || exit 0
+# git status paths are relative to the top of the repository, not to a project subdirectory
+TOP=$(cd "$REPO_DIR" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null) || TOP="$REPO_DIR"
 FILE="$DIR/$SID.baseline"
 [ -e "$FILE" ] && exit 0
 
@@ -34,16 +36,16 @@ FILE="$DIR/$SID.baseline"
 fingerprint() {
   local paths exist gone
   paths=$(cat)
-  exist=$(printf '%s\n' "$paths" | while IFS= read -r p; do [ -n "$p" ] && [ -f "$REPO_DIR/$p" ] && printf '%s\n' "$p"; done)
-  gone=$(printf '%s\n' "$paths" | while IFS= read -r p; do [ -n "$p" ] && [ ! -f "$REPO_DIR/$p" ] && printf '%s\n' "$p"; done)
+  exist=$(printf '%s\n' "$paths" | while IFS= read -r p; do [ -n "$p" ] && [ -f "$TOP/$p" ] && printf '%s\n' "$p"; done)
+  gone=$(printf '%s\n' "$paths" | while IFS= read -r p; do [ -n "$p" ] && [ ! -f "$TOP/$p" ] && printf '%s\n' "$p"; done)
   if [ -n "$exist" ]; then
-    paste -d '\t' <(printf '%s\n' "$exist" | git -C "$REPO_DIR" hash-object --no-filters --stdin-paths 2>/dev/null) <(printf '%s\n' "$exist")
+    paste -d '\t' <(printf '%s\n' "$exist" | git -C "$TOP" hash-object --no-filters --stdin-paths 2>/dev/null) <(printf '%s\n' "$exist")
   fi
   if [ -n "$gone" ]; then printf '%s\n' "$gone" | awk '{print "gone\t" $0}'; fi
 }
 
 TMP=$(mktemp "$DIR/.tmp.XXXXXX" 2>/dev/null) || exit 0
-git -C "$REPO_DIR" -c core.quotepath=off status --porcelain -uall 2>/dev/null \
+git -C "$TOP" -c core.quotepath=off status --porcelain -uall 2>/dev/null \
   | sed -E 's/^.{3}//; s/^.* -> //; s/^"(.*)"$/\1/' | fingerprint > "$TMP" 2>/dev/null
 mv -f "$TMP" "$FILE" 2>/dev/null || rm -f "$TMP"
 
