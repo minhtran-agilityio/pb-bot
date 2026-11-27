@@ -180,10 +180,17 @@ def moves_last_edit(inp):
         return True   # no path to judge: count it, as before
     try:
         top = os.path.realpath(sys.argv[2])
-        full = os.path.realpath(path if os.path.isabs(path) else os.path.join(top, path))
-        if full != top and not full.startswith(top.rstrip(os.sep) + os.sep):
+        absolute = os.path.isabs(path)
+        full = os.path.realpath(path if absolute else os.path.join(top, path))
+        prefix = top.rstrip(os.sep) + os.sep
+        if full == top or full.startswith(prefix):
+            return not NOT_CODE.search(os.path.relpath(full, top).replace(os.sep, "/"))
+        # Not inside by exact spelling. Only an absolute path that is also outside when case is ignored (the
+        # filesystem may ignore case) is truly outside. A relative path that leaves the top (a "../" path
+        # resolved from the wrong base) and a path that differs from the top only in case count as an edit.
+        if absolute and not (full.casefold() + os.sep).startswith(prefix.casefold()):
             return False
-        return not NOT_CODE.search(os.path.relpath(full, top).replace(os.sep, "/"))
+        return True
     except Exception:
         return True
 
