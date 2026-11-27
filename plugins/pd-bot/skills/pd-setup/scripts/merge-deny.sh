@@ -14,7 +14,10 @@ if [ "${1:-}" = "--dry-run" ]; then DRY=1; shift; fi
 FILE=$1
 command -v jq >/dev/null 2>&1 || { echo "merge-deny: jq is required (install jq, then re-run)" >&2; exit 3; }
 
-RULES='["Read(./.env)","Read(./.env.*)","Edit(./.env)","Edit(./.env.*)","Bash(git push --force*)","Bash(git push -f*)","Bash(git push * main)","Bash(git push * master)"]'
+RULES=$(cat <<'JSON'
+["Read(./.env)","Read(./.env.*)","Edit(./.env)","Edit(./.env.*)","Bash(git push --force*)","Bash(git push -f*)","Bash(git push * main)","Bash(git push * master)","Bash(git push *--all*)","Bash(git push *--mirror*)","Bash(git push *:main)","Bash(git push *:master)","Bash(git push *:refs/heads/main)","Bash(git push *:refs/heads/master)","Bash(git push * +main)","Bash(git push * +master)","Bash(git push * \"main\")","Bash(git push * \"master\")","Bash(git push * 'main')","Bash(git push * 'master')"]
+JSON
+)
 
 if [ -f "$FILE" ]; then
   jq -e 'type == "object"' "$FILE" >/dev/null 2>&1 \

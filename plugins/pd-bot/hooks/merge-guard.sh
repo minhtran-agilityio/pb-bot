@@ -6,7 +6,7 @@
 # command (escapes, scripts, interpreters, curl with a token); see docs/adr/0004-*.
 # Rule: doubt means ask. Anything that looks like a merge and is not a plain `gh pr merge <n>` or
 # `glab mr merge <n>` into feat/* is put to the owner. In a subagent nobody can answer, so ask = deny.
-# The hook never parses bash. A false ask on prose (`git commit -m "... gh pr merge ..."`): put the
+# The hook reads bash only as far as git push / checkout / switch words, never a merge command. A false ask on prose (`git commit -m "... gh pr merge ..."`): put the
 # text in a file (`git commit -F`, `--body-file`).
 set -u
 payload=$(cat)
@@ -30,10 +30,72 @@ case "$tool" in mcp__*) ask "The MCP tool '$tool' merges a pull or merge request
 cmd=$(field .tool_input.command)
 low=$(printf '%s' "$cmd" | tr '[:upper:]' '[:lower:]')
 
-# 2. A git push that names main or master (origin main, HEAD:main, refs/heads/main): ask.
-if printf '%s' "$low" | grep -qE '(^|[^a-z0-9_-])git([[:space:]]+-[^[:space:]]+([[:space:]]+[^-[:space:]][^[:space:]]*)?)*[[:space:]]+push[[:space:]].*[[:space:]:/+](main|master)([[:space:];&|)]|$)'; then
+# 2. A git push that reaches main or master: ask. Quotes are dropped first ("main", 'main').
+#    a. Named: origin main, HEAD:main, refs/heads/main.   b. --all and --mirror push every branch.
+#    c. No branch named (`git push`, `git push origin`, `git push origin HEAD`): the current branch and its
+#       upstream decide, read from the repository of the command (payload cwd, or git -C). A checkout of
+#       main earlier in the same command counts. Nothing to resolve (no repository, detached HEAD): pass.
+q=$(printf '%s' "$cmd" | tr -d "\"'")  # case kept: a path after -C is case-sensitive
+if printf '%s' "$q" | tr '[:upper:]' '[:lower:]' | grep -qE '(^|[^a-z0-9_-])git([[:space:]]+-[^[:space:]]+([[:space:]]+[^-[:space:]][^[:space:]]*)?)*[[:space:]]+push[[:space:]].*[[:space:]:/+](main|master)([[:space:];&|)]|$)'; then
   ask "This command pushes to main or master."
 fi
+is_main() { case "$1" in [Mm][Aa][Ii][Nn]|[Mm][Aa][Ss][Tt][Ee][Rr]) return 0 ;; esac; return 1; }
+resolves_to_main() {  # <dir> <push.default> <cur-branch or ""> <remote or "">; 0 = a push without a branch reaches main
+  local d="$1" pd="$2" cur="$3" remote="$4" up r base="${cwd:-$PWD}"
+  case "$d" in /*) ;; "") d="$base" ;; *) d="$base/$d" ;; esac
+  [ -n "$cur" ] || cur=$(git -C "$d" symbolic-ref --short -q HEAD 2>/dev/null) || return 1
+  is_main "$cur" && return 0
+  [ -n "$pd" ] || pd=$(git -C "$d" config push.default 2>/dev/null)
+  [ "$pd" != matching ] || return 0  # every branch that exists on both sides, main included
+  up=$(git -C "$d" config "branch.$cur.merge" 2>/dev/null); is_main "${up#refs/heads/}" && return 0
+  [ -n "$remote" ] || remote=$(git -C "$d" config "branch.$cur.remote" 2>/dev/null)
+  for r in $(git -C "$d" config --get-all "remote.${remote:-origin}.push" 2>/dev/null); do  # a configured refspec
+    is_main "${r##*[:/+]}" && return 0; [ "${r##*[:/+]}" != '*' ] || return 0
+  done
+  return 1
+}
+cwd=$(field .cwd); moved=""; tomain=0; nl=$'\n'; sep='[;&|()`]'  # one command per line
+while IFS= read -r seg; do
+  read -ra tk <<<"$seg"; i=0; n=${#tk[@]}
+  while [ "$i" -lt "$n" ] && ! [[ ${tk[i]##*/} =~ ^[Gg][Ii][Tt]$ ]]; do i=$((i+1)); done
+  [ "$i" -lt "$n" ] || continue
+  i=$((i+1)); dir=""; pd=""
+  while [ "$i" -lt "$n" ]; do case "${tk[i]}" in
+    -C) dir="${tk[i+1]:-}"; i=$((i+2)) ;;
+    -c) case "${tk[i+1]:-}" in push.default=*) pd="${tk[i+1]#push.default=}" ;; esac; i=$((i+2)) ;;
+    --git-dir|--work-tree|--namespace|--exec-path) i=$((i+2)) ;;
+    -*) i=$((i+1)) ;;
+    *) break ;; esac
+  done
+  case "${tk[i]:-}" in
+    checkout|switch)  # which branch is current after it: main counts as a push to main
+      br=""; j=$((i+1))
+      while [ "$j" -lt "$n" ]; do case "${tk[j]}" in
+        -b|-B|-c|-C|--orphan) br="${tk[j+1]:-}"; break ;;
+        -*) ;;
+        *) br="${tk[j]}"; break ;; esac; j=$((j+1))
+      done
+      if is_main "$br"; then tomain=1; else moved="$br"; tomain=0; fi ;;
+    push)
+      pos=0; remote=""; head=0; tags=0; j=$((i+1))
+      while [ "$j" -lt "$n" ]; do a="${tk[j]#+}"; case "$a" in
+        --all|--mirror) ask "git push $a pushes every branch, main included." ;;
+        --tags) tags=1 ;;
+        -o|--push-option|--repo|--receive-pack|--exec) j=$((j+1)) ;;
+        -*) ;;
+        *) pos=$((pos+1)); [ "$pos" -ne 1 ] || remote="$a"; case "$a" in [Hh][Ee][Aa][Dd]|@) [ "$pos" -lt 2 ] || head=1 ;; esac ;;
+      esac; j=$((j+1)); done
+      [ "$pos" -ge 2 ] && [ "$head" = 0 ] && continue  # a branch is named, and it is not main (2a)
+      [ "$pos" -ge 2 ] || [ "$tags" = 0 ] || continue   # --tags alone pushes no branch
+      [ "$tomain" = 0 ] || ask "This command checks out main or master, then pushes."
+      if [ "$pos" -ge 2 ]; then  # HEAD: the current branch itself; no refspec: its upstream and the config too
+        cur="$moved"; [ -n "$cur" ] || cur=$(git -C "${cwd:-$PWD}${dir:+/$dir}" symbolic-ref --short -q HEAD 2>/dev/null)
+        is_main "$cur" && ask "This command pushes the current branch, '$cur'."
+      else
+        resolves_to_main "$dir" "$pd" "$moved" "$remote" && ask "This push names no branch, and the current branch or its upstream is main or master."
+      fi ;;
+  esac
+done <<<"${q//$sep/$nl}"
 
 # 3. Not a merge: leave at once. `merge` must be a whole word, so mergeable and merged do not count.
 printf '%s' "$low" | grep -qE '(^|[^a-z0-9_-])(gh|glab)[[:space:]].*[^a-z]merge([^a-z]|$)|(pulls|merge_requests)/[0-9]+/merge|mergepullrequest' || exit 0

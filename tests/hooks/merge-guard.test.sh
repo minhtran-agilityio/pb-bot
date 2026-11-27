@@ -27,12 +27,13 @@ BASH_BIN=$(command -v bash)
 NL=$'\n'
 printf 'feat/x\n' > "$D/base.2"; printf 'main\n' > "$D/base.1"   # PR 3 has no readable base
 
-# run <command> [tool_name] : run the hook; AGENT=<id> sets agent_id (a subagent); P=<dir> sets PATH
+# run <command> [tool_name] : run the hook; AGENT=<id> sets agent_id (a subagent); P=<dir> sets PATH;
+# W=<dir> is the working directory (payload cwd), default the throwaway repo $R
 run() {
-  local json; json=$(jq -n --arg c "$1" --arg t "${2:-Bash}" --arg a "${AGENT-}" \
-    '{tool_name:$t, tool_input:{command:$c}, permission_mode:"default"} + (if $a == "" then {} else {agent_id:$a} end)')
+  local w="${W:-$R}" json; json=$(jq -n --arg c "$1" --arg t "${2:-Bash}" --arg a "${AGENT-}" --arg w "$w" \
+    '{tool_name:$t, tool_input:{command:$c}, cwd:$w, permission_mode:"default"} + (if $a == "" then {} else {agent_id:$a} end)')
   rm -f "$LOG"
-  OUT=$(cd "$R" && printf '%s' "$json" | env PATH="${P:-$STUB:$PATH}" "$BASH_BIN" hooks/merge-guard.sh 2>&1); RC=$?
+  OUT=$(cd "$w" && printf '%s' "$json" | env PATH="${P:-$STUB:$PATH}" "$BASH_BIN" "$R/hooks/merge-guard.sh" 2>&1); RC=$?
 }
 # expect <pass|ask|deny> <command> [tool_name]
 expect() {
@@ -104,6 +105,50 @@ AGENT=a1 expect deny 'git push origin HEAD:main'
 AGENT=a1 expect deny '' mcp__github__merge_pull_request
 AGENT=a1 expect deny 'gh pr merge 3 --repo o/r'
 
+# Pushes that name no branch (B3, ticket #190): the hook resolves the current branch and its upstream.
+# Three clones of one bare remote: on main, on feature/x (upstream feature/x), on feature/y (upstream main).
+REMOTE="$D/remote.git"; git init -q --bare -b main "$REMOTE" 2>/dev/null || git init -q --bare "$REMOTE"
+mkclone() { # <name> <branch> <upstream-branch>
+  local c="$D/$1"; git clone -q "$REMOTE" "$c" 2>/dev/null; git -C "$c" config user.email t@t; git -C "$c" config user.name t
+  git -C "$c" checkout -q -B main; git -C "$c" commit -q --allow-empty -m init; git -C "$c" push -q origin main 2>/dev/null
+  if [ "$2" != main ]; then git -C "$c" checkout -q -B "$2"; git -C "$c" push -q origin "$2" 2>/dev/null; fi
+  git -C "$c" branch -q --set-upstream-to="origin/$3" "$2" 2>/dev/null; echo "$c"
+}
+ON_MAIN=$(mkclone onmain main main); ON_FEAT=$(mkclone onfeat feature/x feature/x)
+FEAT_UP_MAIN=$(mkclone featmain feature/y main)
+NOTREPO="$D/notrepo"; mkdir -p "$NOTREPO"
+
+echo "== a push with no branch named: the current branch and its upstream decide (B3) =="
+for c in 'git push' 'git push origin' 'git push -u origin' 'git push origin HEAD' 'git push origin HEAD:refs/heads/main' \
+         'git -c push.default=current push' 'git push --force-with-lease' 'git push --all' 'git push --mirror' \
+         'git push origin --all' 'git merge feature/x && git push' 'git push --tags && git push' 'git -C . push'; do
+  W=$ON_MAIN expect ask "$c"
+done
+W=$ON_MAIN AGENT=a1 expect deny 'git push'
+for c in 'git push origin "main"' "git push origin 'main'" "git push origin 'master'" 'git push "origin" "main"' 'git push origin "HEAD:main"' \
+         'git push --all' 'git push --mirror' 'git push origin --mirror'; do
+  W=$ON_FEAT expect ask "$c"
+done
+for c in 'git push' 'git push origin' 'git push -u origin' 'git push origin HEAD' 'git push origin feature/x' 'git push -u origin feature/x' \
+         'git -c push.default=current push' 'git push --force-with-lease origin feature/x' 'git push -o ci.skip origin' 'git push --tags' \
+         'git -c user.name=x push origin' 'git push origin "feature/x"'; do
+  W=$ON_FEAT expect pass "$c"
+done
+W=$ON_FEAT expect ask  'git checkout main && git merge feature/x && git push'
+W=$ON_FEAT expect ask  'git switch master; git push origin'
+W=$ON_FEAT expect ask  'git -c push.default=matching push'
+W=$ON_FEAT expect ask  "git -C $ON_MAIN push"
+W=$ON_MAIN expect pass "git -C $ON_FEAT push"
+W=$ON_FEAT expect pass 'git checkout main && git push origin feature/x'
+W=$ON_FEAT expect pass 'git checkout -b feature/z && git push -u origin feature/z'
+W=$FEAT_UP_MAIN expect ask  'git push'                  # on feature/y, upstream is main: push.default=upstream would update main
+W=$FEAT_UP_MAIN expect ask  'git -c push.default=upstream push origin'
+W=$FEAT_UP_MAIN expect pass 'git push origin feature/y'
+W=$FEAT_UP_MAIN expect pass 'git push origin HEAD'
+W=$NOTREPO expect pass 'git push'                       # no repository: git itself stops, nothing to ask about
+W=$ON_FEAT expect pass 'git status && echo "git push is next"'
+W=$ON_FEAT expect pass 'gh pr create --base main --title x --body-file /tmp/b.md'
+
 echo "== no false question on ordinary commands =="
 for a in "" a1; do  # ship.js commands (ADR 0004): the slug, title and body stay in files, so merge in them is not seen
   AGENT=$a expect pass "gh api repos/o/r/pulls -X POST --input /tmp/pr.json --jq '{number, url: .html_url}'"
@@ -126,9 +171,13 @@ P=$NOJQ expect deny 'gh pr merge 2 --repo o/r'
 P=$NOJQ expect deny 'git push origin feat/x'
 P=$NOJQ expect pass 'ls -la'
 
-# Probe (opt-in: it starts real `claude -p` sessions, needs a login and costs tokens): what Claude Code does
-# with permissionDecision "ask" in each mode. Run with RUN_ASK_PROBE=1. Result (ADR 0004): headless,
-# nobody can answer the prompt, so in each mode the Bash call is NOT run.
+# Probe, MANUAL ONLY (ADR 0004). It is the one test of the claim that Claude Code does not turn
+# permissionDecision "ask" into an allow under default, auto, dontAsk and bypassPermissions. It starts real
+# `claude -p` sessions, needs a login and costs tokens, so CI never runs it and no CI job is planned (owner
+# decision, ticket #190). Without RUN_ASK_PROBE=1 its four cases skip, by design. Run it by hand, from the repo
+# root, after a Claude Code upgrade and when you change how the hook asks:
+#   RUN_ASK_PROBE=1 bash tests/hooks/merge-guard.test.sh
+# Result (ADR 0004): headless, nobody can answer the prompt, so in each mode the Bash call is NOT run.
 ask_probe() {
   local mode="$1" pd
   pd=$(mktemp -d); _CLEANUP_DIRS+=("$pd"); mkdir -p "$pd/.claude"
@@ -142,7 +191,7 @@ ask_probe() {
 }
 for mode in default auto dontAsk bypassPermissions; do
   t "probe: ask is not turned into an allow under $mode (headless claude -p)"
-  if [ "${RUN_ASK_PROBE:-}" != 1 ]; then skip "set RUN_ASK_PROBE=1 to run (starts a real claude session)"
+  if [ "${RUN_ASK_PROBE:-}" != 1 ]; then skip "manual-only: run RUN_ASK_PROBE=1 bash tests/hooks/merge-guard.test.sh (starts a real claude session; no CI job, ADR 0004)"
   elif ! command -v claude >/dev/null 2>&1; then skip "claude is not installed"
   else ask_probe "$mode"; fi
 done

@@ -101,8 +101,12 @@ t "no argument prints usage and exits 1"
 bash "$SCRIPT" >/dev/null 2>&1; rc=$?
 if [ "$rc" -eq 1 ]; then pass; else fail "rc=$rc"; fi
 
-t "exit 3 when jq is missing"
-skip "needs a PATH without jq; not simulated here (same as merge-deny.test.sh)"
+t "exit 3 when jq is missing, with the install hint, and the file is not created"
+# An empty directory as PATH hides jq on every machine (PATH=/bin still finds jq where /bin is /usr/bin).
+d=$(work); NOPATH="$d/empty"; mkdir "$NOPATH"
+out=$(PATH="$NOPATH" "$(command -v bash)" "$SCRIPT" "$d/s.json" 2>&1); rc=$?
+if [ "$rc" -eq 3 ] && printf '%s' "$out" | grep -q 'jq is required' && [ ! -e "$d/s.json" ]; then pass
+else fail "rc=$rc out=$out"; fi
 
 t "the script uses no bash 4 feature"
 if grep -nE 'declare -A|mapfile|readarray|\$\{[A-Za-z_]+(,,|\^\^)\}|&>>|\|&' "$SCRIPT"; then fail "bash 4 feature found"; else pass; fi
