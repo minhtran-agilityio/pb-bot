@@ -22,10 +22,7 @@ Does not verify: that a narrow rule is narrow enough in every Claude Code versio
                  ticket covers them).
 
 Shrink check: each baseline entry must also be in the baseline file at --base-ref (default
-origin/main). It fails closed: when git is missing, the run fails, and so does a ref that does not
-resolve when REQUIRE_BASE_REF=1 or GITHUB_ACTIONS=true (CI has the ref; a missing one must not
-disable the check). Outside CI an unresolved ref skips the check with a note, because a private
-mirror clone (fleet-check.sh) has no origin/main. A ref that has no
+origin/main). It fails closed: when git or the ref is missing, the run fails. A ref that has no
 baseline file yet (the change that adds it) passes with a note. `--base-ref ""` skips the check
 on purpose (tests on temp trees).
 
@@ -35,7 +32,6 @@ Run: python3 scripts/check_allowed_tools_wide.py [--root DIR] [--baseline FILE] 
 
 import argparse
 import json
-import os
 import re
 import subprocess
 import sys
@@ -208,9 +204,8 @@ def scan(root: Path) -> dict[str, list[tuple[str, str]]]:
 def base_baseline(ref: str, path: Path):
     """Return (state, data) for the baseline file at `ref`.
 
-    state is "ok" (data is the file), "absent" (the ref has no baseline file yet), "unresolved"
-    (data is the reason: the ref does not resolve), or "error" (data is the reason: no git, not
-    a repository, bad JSON).
+    state is "ok" (data is the file), "absent" (the ref has no baseline file yet), or "error"
+    (data is the reason: no git, not a repository, the ref does not resolve, bad JSON).
     """
     def git(*argv):
         return subprocess.run(["git", *argv], capture_output=True, text=True, timeout=10)
@@ -221,7 +216,7 @@ def base_baseline(ref: str, path: Path):
             return "error", f"{path.parent} is not in a git repository"
         root = top.stdout.strip()
         if git("-C", root, "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}").returncode != 0:
-            return "unresolved", f"the base ref {ref} does not resolve (fetch it, or pass --base-ref)"
+            return "error", f"the base ref {ref} does not resolve (fetch it, or pass --base-ref)"
         rel = path.resolve().relative_to(Path(root).resolve()).as_posix()
         if git("-C", root, "cat-file", "-e", f"{ref}:{rel}").returncode != 0:
             return "absent", None
@@ -271,16 +266,12 @@ def main() -> int:
             if entry not in allowed:
                 problems.append(f"{skill}: `{entry}` is wide ({reason})")
     note = ""
-    state = None
-    require_ref = os.environ.get("REQUIRE_BASE_REF") == "1" or os.environ.get("GITHUB_ACTIONS") == "true"
     if args.base_ref == "":
         note = "; shrink check skipped (--base-ref \"\")"
     else:
         state, base = base_baseline(args.base_ref, args.baseline)
-        if state == "error" or (state == "unresolved" and require_ref):
+        if state == "error":
             problems.append(f"shrink check cannot run: {base}")
-        elif state == "unresolved":
-            note = f"; shrink check skipped: {base} (set REQUIRE_BASE_REF=1 to fail instead)"
         elif state == "absent":
             note = f"; {args.base_ref} has no baseline yet, so this change adds it"
     if args.base_ref and state == "ok":

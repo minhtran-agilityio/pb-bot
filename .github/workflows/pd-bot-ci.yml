@@ -49,8 +49,6 @@ jobs:
           REQUIRE_CLAUDE_CLI: "1"
           # A missing pytest or python3 fails the run instead of skipping the python layer.
           REQUIRE_PYTEST: "1"
-          # origin/main exists in CI (fetch-depth 0): the allowed-tools shrink check must run, not skip.
-          REQUIRE_BASE_REF: "1"
         run: bash scripts/run-tests.sh
 
   # Plugin gates that must not degrade to a local-only skip. The suite above already runs the
