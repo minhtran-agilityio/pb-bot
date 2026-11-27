@@ -3,7 +3,9 @@
 # filenames, look like secrets. The hook runs BEFORE the command, so it works out what the commit
 # will hold: the index, plus the `git add ...` earlier in the same command, plus `-a` / `-am` /
 # `git commit <paths>`. It builds that in a temporary copy of the index; the real index is never
-# touched. `git -C <dir>` and `cd <dir>` scan <dir>.
+# touched, and the blobs it writes go to a temporary object directory, not into the repository.
+# `git -C <dir>` and `cd <dir>` scan <dir>; a `cd` may not run as the hook assumes (subshell, `||`),
+# so the current directory is scanned too.
 # Fails open: no jq/git, a bad payload, or any other command passes. Exit 2 blocks.
 command -v jq >/dev/null && command -v git >/dev/null || exit 0
 cmd=$(jq -r '.tool_input.command // empty' 2>/dev/null) || exit 0
@@ -12,6 +14,7 @@ printf '%s' "$cmd" | grep -qE '(^|[;&|(]|[[:space:]])git[[:space:]]+([^;&|]*[[:s
 export LC_ALL=C
 US=$'\037'   # separates the fields of one recorded `git add`
 OP=$'\001'   # marks an operator token (; & | ( ) newline) in the token list
+RD=$'\002'   # marks a redirection (> < >> 2>&1 <<EOF); the word after it is its target
 
 # Content patterns (case-insensitive). The first five are the retired commit-gate's patterns;
 # the token set follows pd-tickets/scripts/publish-check.sh.
@@ -40,13 +43,15 @@ block() { echo "BLOCKED: $1" >&2; exit 2; }
 resolve_dir() {
   local d=$2
   case $d in
-    *'$'*|*'`'*|'') return 1 ;;
+    *'$'*|*'`'*) return 2 ;;
+    '') return 1 ;;
     \~) d=$HOME ;;
     \~/*) d=$HOME/${d#\~/} ;;
     /*) ;;
     *) d=$1/$d ;;
   esac
-  [ -d "$d" ] && (cd "$d" 2>/dev/null && pwd -P)
+  [ -d "$d" ] || return 1
+  (cd "$d" 2>/dev/null && pwd -P)
 }
 
 # tokenize <string>: shell-like word split into TOK. Quotes and backslashes are honoured;
@@ -67,6 +72,16 @@ tokenize() {
         "'"|'"') q=$c; has=1 ;;
         "\\") i=$((i + 1)); cur+=${s:$i:1}; has=1 ;;
         ' '|$'\t') if [ "$has" = 1 ]; then TOK+=("$cur"); cur=''; has=0; fi ;;
+        '>'|'<')
+          # a leading file descriptor number belongs to the redirection, not to a word
+          if [ "$has" = 1 ]; then
+            case $cur in *[!0-9]*) TOK+=("$cur") ;; esac
+            cur=''; has=0
+          fi
+          while [ $((i + 1)) -lt "$n" ]; do
+            case ${s:$((i + 1)):1} in '>'|'<'|'&'|'|'|'-') i=$((i + 1)) ;; *) break ;; esac
+          done
+          TOK+=("$RD") ;;
         $'\n'|';'|'|'|'&'|'('|')')
           if [ "$has" = 1 ]; then TOK+=("$cur"); cur=''; has=0; fi
           TOK+=("$OP$c") ;;
@@ -80,9 +95,17 @@ tokenize() {
 
 # scan <dir> <all:0|1> <path>...: block when what a commit in <dir> would hold looks like a secret.
 scan() {
-  local dir=$1 all=$2 rec idx='' real a
+  local dir=$1 all=$2 rec idx='' real a objs=''
   shift 2
   local paths=("$@") need=0
+  # gitx: git in <dir>, on the temporary index and with a private object directory when there is one.
+  gitx() {
+    if [ -n "$idx" ]; then
+      env GIT_INDEX_FILE="$idx" GIT_OBJECT_DIRECTORY="$TMPD/objects" GIT_ALTERNATE_OBJECT_DIRECTORIES="$objs" git -C "$dir" "$@"
+    else
+      git -C "$dir" "$@"
+    fi
+  }
   [ "$all" = 1 ] && need=1
   [ "${#paths[@]}" -gt 0 ] && need=1
   for rec in "${ADDS[@]}"; do [ "${rec%%"$US"*}" = "$dir" ] && need=1; done
@@ -94,27 +117,28 @@ scan() {
       real=$(git -C "$dir" rev-parse --git-path index 2>/dev/null)
       case $real in /*) ;; *) real=$dir/$real ;; esac
       [ -f "$real" ] && cp "$real" "$idx"
+      objs=$(git -C "$dir" rev-parse --git-path objects 2>/dev/null)
+      case $objs in /*) ;; *) objs=$dir/$objs ;; esac
+      mkdir -p "$TMPD/objects"
       for rec in "${ADDS[@]}"; do
         [ "${rec%%"$US"*}" = "$dir" ] || continue
         IFS=$US read -r -a a <<<"$rec"
-        env GIT_INDEX_FILE="$idx" git -C "$dir" add "${a[@]:1}" >/dev/null 2>&1 ||
-          env GIT_INDEX_FILE="$idx" git -C "$dir" add -A >/dev/null 2>&1
+        gitx add "${a[@]:1}" >/dev/null 2>&1 || gitx add -A >/dev/null 2>&1
       done
-      if [ "${#paths[@]}" -gt 0 ]; then
-        env GIT_INDEX_FILE="$idx" git -C "$dir" add -u -- "${paths[@]}" >/dev/null 2>&1
-      elif [ "$all" = 1 ]; then
-        env GIT_INDEX_FILE="$idx" git -C "$dir" add -u >/dev/null 2>&1
+      if [ "$all" = 1 ]; then
+        gitx add -u >/dev/null 2>&1
+      elif [ "${#paths[@]}" -gt 0 ]; then
+        gitx add -u -- "${paths[@]}" >/dev/null 2>&1 || gitx add -u >/dev/null 2>&1
       fi
     fi
   fi
-  gitx() { if [ -n "$idx" ]; then env GIT_INDEX_FILE="$idx" git -C "$dir" "$@"; else git -C "$dir" "$@"; fi; }
   local diff
   diff=$(gitx diff --cached -U0 -- ':!*tests/*' ':!*__tests__/*' ':!*.example' ':!*.md' ':!docs/' 2>/dev/null)
   if printf '%s\n' "$diff" | grep -qEi -e "$PATTERN" || printf '%s\n' "$diff" | grep -qE -e "$ENVPAT"; then
     block "potential secret in the changes this commit would include. Run 'git diff HEAD', move the value to an env var, re-stage. If it is a fake test value, ask the owner."
   fi
   local envfile
-  envfile=$(gitx diff --cached --name-only 2>/dev/null | grep -E '(^|/)([^/]*\.env|\.env\.[^/]*)$' | grep -vE '(^|/)[^/]*\.env\.example$' | head -n 1)
+  envfile=$(gitx -c core.quotepath=off diff --cached --name-only 2>/dev/null | grep -E '(^|/)([^/]*\.env|\.env\.[^/]*)$' | grep -vE '(^|/)[^/]*\.env\.example$' | head -n 1)
   if [ -n "$envfile" ]; then
     block "a .env file is staged ($envfile). Unstage it (git restore --staged <file>), gitignore it, and commit a .env.example instead."
   fi
@@ -155,7 +179,7 @@ handle_commit() {
     case $a in
       --) endopts=1 ;;
       --all) all=1 ;;
-      --message|--file|--author|--date|--reuse-message|--reedit-message|--template|--fixup|--squash|--cleanup|--trailer|--gpg-sign|--pathspec-from-file) skip=1 ;;
+      --message|--file|--author|--date|--reuse-message|--reedit-message|--template|--fixup|--squash|--cleanup|--trailer|--pathspec-from-file) skip=1 ;;
       --*) ;;
       -?*) rest=${a#-}
            for ((j = 0; j < ${#rest}; j++)); do
@@ -174,7 +198,7 @@ handle_commit() {
 
 # handle_segment: SEG holds the words of one simple command.
 handle_segment() {
-  local n=${#SEG[@]} i=0 dir=$CUR j sub d
+  local n=${#SEG[@]} i=0 dir=$CUR j sub d rc explicit=0
   while [ "$i" -lt "$n" ] && [[ ${SEG[$i]} =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; do i=$((i + 1)); done
   [ "$i" -lt "$n" ] || return 0
   case ${SEG[$i]} in
@@ -184,7 +208,9 @@ handle_segment() {
       j=$((i + 1))
       while [ "$j" -lt "$n" ]; do
         case ${SEG[$j]} in
-          -C) j=$((j + 1)); d=$(resolve_dir "$dir" "${SEG[$j]:-}") && dir=$d || dir='' ;;
+          -C) j=$((j + 1)); explicit=1
+              d=$(resolve_dir "$dir" "${SEG[$j]:-}"); rc=$?
+              if [ "$rc" = 0 ]; then dir=$d; elif [ "$rc" = 2 ]; then dir=$CWD0; else dir=''; fi ;;
           -c|--git-dir|--work-tree|--namespace|--exec-path|--super-prefix|--config-env) j=$((j + 1)) ;;
           -*) ;;
           *) break ;;
@@ -198,7 +224,10 @@ handle_segment() {
       fi
       case $sub in
         add) handle_add "$dir" "${SEG[@]:$((j + 1))}" ;;
-        commit) handle_commit "$dir" "${SEG[@]:$((j + 1))}" ;;
+        commit)
+          handle_commit "$dir" "${SEG[@]:$((j + 1))}"
+          # the cd tracking is a guess (subshell, ||, cd -): also scan where the hook started
+          [ "$explicit" = 0 ] && [ "$dir" != "$CWD0" ] && handle_commit "$CWD0" "${SEG[@]:$((j + 1))}" ;;
       esac ;;
   esac
   return 0
@@ -206,8 +235,15 @@ handle_segment() {
 
 tokenize "$cmd"
 SEG=()
+skipnext=0
 for tok in "${TOK[@]}" "${OP};"; do
-  if [ "${tok#"$OP"}" != "$tok" ]; then
+  if [ "$skipnext" = 1 ]; then
+    skipnext=0
+    [ "${tok#"$OP"}" = "$tok" ] && [ "$tok" != "$RD" ] && continue
+  fi
+  if [ "$tok" = "$RD" ]; then
+    skipnext=1
+  elif [ "${tok#"$OP"}" != "$tok" ]; then
     [ "${#SEG[@]}" -gt 0 ] && handle_segment
     SEG=()
   else

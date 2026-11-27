@@ -171,4 +171,43 @@ expect_pass "an env var that references another" cfg/env.sh 'export API_KEY=$OTH
 expect_pass "a private key mentioned in prose without the marker" src/a.py '# the private key lives in the vault'
 
 
+# ---- security review of #189: redirects, $VAR directories, uncertain cd, --gpg-sign, objects ----
+R=$(base_repo)
+printf '%s\n' "$FAKE" > "$R/src/app.py"
+for c in 'git commit -am x 2>&1' 'git commit -a -m x > /dev/null' 'git commit -m x -a 2>&1 || true' \
+         'git commit -a -m x &>/dev/null' 'git commit -a -F - <<EOF
+msg
+EOF' 'git commit -a --gpg-sign -m x' 'git commit -a -S -m x'; do
+  t "-a still scanned with: $(printf '%s' "$c" | head -1)"
+  run_hook "$R" $H "$(jq -n --arg c "$c" '{tool_input:{command:$c}}')"; assert_rc 2
+done
+
+R=$(base_repo); printf '%s\n' "$FAKE" > "$R/src/new.py"
+t "git add . 2>&1 && git commit blocks"
+run_hook "$R" $H "$(json_cmd 'git add . 2>&1 && git commit -m x')"; assert_rc 2
+t "a redirect on git add of a clean path does not fall back to staging everything"
+run_hook "$R" $H "$(json_cmd 'git add src/app.py 2>&1 && git commit -m x')"; assert_rc 0
+
+R=$(base_repo); stage "$R" src/leak.py "$FAKE"
+t 'git -C "$PWD" commit (unknown directory) scans the current directory'
+run_hook "$R" $H "$(jq -n '{tool_input:{command:"git -C \"$PWD\" commit -m x"}}')"; assert_rc 2
+O=$(new_repo); stage "$O" src/ok.py 'print(1)'
+t "(cd <other>); git commit still scans the current directory"
+run_hook "$R" $H "$(json_cmd "(cd $O); git commit -m x")"; assert_rc 2
+t "false && cd <other>; git commit still scans the current directory"
+run_hook "$R" $H "$(json_cmd "false && cd $O; git commit -m x")"; assert_rc 2
+
+R=$(base_repo)
+printf '%s\n' "$FAKE" > "$R/src/app.py"
+before=$(find "$R/.git/objects" -type f | wc -l)
+run_hook "$R" $H "$(json_cmd 'git commit -am x')"
+after=$(find "$R/.git/objects" -type f | wc -l)
+t "the scan writes no object into the repository"
+if [ "$before" = "$after" ]; then pass; else fail "objects $before -> $after"; fi
+
+R=$(new_repo $H); stage "$R" "café/.env" 'FOO=bar'
+t "a .env under a non-ASCII directory is blocked"
+run_hook "$R" $H "$COMMIT"; assert_rc 2
+
+
 finish
