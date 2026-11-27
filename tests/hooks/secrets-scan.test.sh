@@ -210,4 +210,58 @@ t "a .env under a non-ASCII directory is blocked"
 run_hook "$R" $H "$COMMIT"; assert_rc 2
 
 
+# ---- reviewer round 1 of #189 ----
+# F4: ordinary code the base hook passed must still pass
+expect_pass "boto3 style aws key read from the environment" src/a.py 'aws_secret_access_key = os.environ["AWS_SECRET"]'
+expect_pass "Django SECRET_KEY read from the environment"   src/s.py 'SECRET_KEY=os.environ.get("X")'
+expect_pass "a name that ends in ghs_ / highs_"            src/a.py 'x = "highs_abcdefghijklmnopqrstuvwxyz"'
+expect_pass "a name that ends in sk_test_"                 src/a.py 'def task_test_abcdefghijklmnopqrst(): pass'
+expect_block "a real unquoted AWS key line still blocks"   cfg/a.sh 'export AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMIK7MDENGbPxRfiCYEXAMPLEKEY'
+
+# F1: no repo-configured command runs in the scanned repo; F6: no split index file
+R=$(base_repo); O=$(new_repo)
+printf 'v1\n' > "$O/a.txt"; git -C "$O" add a.txt; git -C "$O" commit -qm i
+printf '*.txt filter=f diff=t\n' > "$O/.gitattributes"
+M="$(mktemp -d)"; _CLEANUP_DIRS+=("$M")
+printf '#!/bin/sh\ntouch %s/$1\ncat\n' "$M" > "$M/run.sh"; chmod +x "$M/run.sh"
+git -C "$O" config filter.f.clean "$M/run.sh clean"
+git -C "$O" config filter.f.process "$M/run.sh process"
+git -C "$O" config diff.t.textconv "$M/run.sh textconv"
+git -C "$O" config core.fsmonitor "$M/run.sh fsmonitor"
+git -C "$O" config core.splitIndex true
+printf 'v2\n' > "$O/a.txt"
+run_hook "$R" $H "$(json_cmd "git -C $O commit -am x")"
+t "the scan runs no filter, textconv or fsmonitor command of the named repo"
+if [ -z "$(ls "$M" | grep -v '^run.sh$')" ]; then pass; else fail "ran: $(ls "$M" | grep -v '^run.sh$' | tr '\n' ' ')"; fi
+t "the scan leaves no split-index file in the repository"
+if ! ls "$O"/.git/sharedindex.* >/dev/null 2>&1; then pass; else fail "sharedindex written"; fi
+
+# F2 + F7: an add from a subdirectory, with git stage, or through xargs
+R=$(base_repo); mkdir -p "$R/sub"; printf '%s\n' 'export API_KEY=abcdefghijkl' > "$R/sub/conf.sh"
+t "git -C sub add . && git commit blocks"
+run_hook "$R" $H "$(json_cmd "git -C $R/sub add . && git commit -m x")"; assert_rc 2
+t "cd sub && git add . && cd .. && git commit blocks"
+run_hook "$R" $H "$(json_cmd "cd $R/sub && git add . && cd .. && git commit -m x")"; assert_rc 2
+t "git stage sub && git commit blocks"
+run_hook "$R" $H "$(json_cmd 'git stage sub && git commit -m x')"; assert_rc 2
+t "git ls-files -o | xargs git add && git commit blocks"
+run_hook "$R" $H "$(json_cmd 'git ls-files -o | xargs git add && git commit -m x')"; assert_rc 2
+
+# F3: -a behind a prefix, a keyword or a shell -c string
+R=$(base_repo); printf '%s\n' "$FAKE" > "$R/src/app.py"
+for c in 'env FOO=1 git commit -am x' 'command git commit -am x' 'sudo git commit -am x' 'time git commit -am x' \
+         'nohup git commit -am x' '{ git commit -am x; }' 'if git commit -am x; then echo ok; fi' \
+         'bash -c "git commit -am x"' '! git commit -am x'; do
+  t "-a still scanned with: $c"
+  run_hook "$R" $H "$(jq -n --arg c "$c" '{tool_input:{command:$c}}')"; assert_rc 2
+done
+t "a prefix without -a does not scan unstaged changes"
+run_hook "$R" $H "$(json_cmd 'env FOO=1 git commit -m x')"; assert_rc 0
+
+# F5: --pathspec-from-file
+t "git commit --pathspec-from-file blocks a secret in a listed tracked file"
+printf 'src/app.py\n' > "$R/list"
+run_hook "$R" $H "$(json_cmd 'git commit --pathspec-from-file=list -m x')"; assert_rc 2
+
+
 finish
