@@ -149,6 +149,39 @@ run_stop "$R" "$FX/subagent-explore.jsonl" false "$LIGHT"; assert_block
 t "a test-runner agent result before the last edit is stale: blocks"
 run_stop "$R" "$FX/subagent-before-edit.jsonl" false "$LIGHT"; assert_block
 
+# --- #203: an edit that is not code does not move the last edit ----------------------------------
+# The "code changed" gate leaves out docs/, specs/, .md and .txt (NOT_CODE); the last-edit rule must too,
+# and a file outside the repository is not code of this repository.
+# repo_fx <fixture>: a copy of the fixture with __REPO__ set to the repo $R
+repo_fx() { local f; f=$(fresh "$1"); sed -i.bak "s#__REPO__#$R#g" "$f"; rm -f "$f.bak"; echo "$f"; }
+
+t "#203: tests ran after the last code edit, then a specs/ file was written: passes, no judge"
+run_stop "$R" "$FX/bash-then-spec-write.jsonl" false "$SEVERE"; assert_pass_no_judge
+
+t "#203: tests ran, then a docs/ file was edited: passes, no judge"
+run_stop "$R" "$FX/bash-then-doc-edit.jsonl" false "$SEVERE"; assert_pass_no_judge
+
+t "#203: tests ran, then a notebook under docs/ was edited (notebook_path): passes, no judge"
+run_stop "$R" "$FX/bash-then-doc-notebook.jsonl" false "$SEVERE"; assert_pass_no_judge
+
+t "#203: tests ran, then a file outside the repository was written: passes, no judge"
+run_stop "$R" "$FX/bash-then-outside-write.jsonl" false "$SEVERE"; assert_pass_no_judge
+
+t "#203: tests ran, then a file under a specs/ folder outside the repository was written: passes, no judge"
+run_stop "$R" "$FX/bash-then-outside-specs-write.jsonl" false "$SEVERE"; assert_pass_no_judge
+
+t "#203: tests ran, then an absolute path to specs/ inside the repository was written: passes, no judge"
+run_stop "$R" "$(repo_fx "$FX/bash-then-abs-doc-write.jsonl")" false "$SEVERE"; assert_pass_no_judge
+
+t "#203: tests ran, then code was edited (relative path): still blocks"
+run_stop "$R" "$FX/bash-then-edit.jsonl" false "$LIGHT"; assert_block
+
+t "#203: tests ran, then code was written by absolute path inside the repository: still blocks"
+run_stop "$R" "$(repo_fx "$FX/bash-then-abs-code-write.jsonl")" false "$LIGHT"; assert_block
+
+t "#203: tests ran, then a notebook outside docs/ was edited (notebook_path): still blocks"
+run_stop "$R" "$FX/bash-then-code-notebook.jsonl" false "$LIGHT"; assert_block
+
 # --- B5.3: only files changed after session start count -----------------------------------------
 B=stop-evidence-baseline.sh
 SS_JSON() { printf '{"session_id":"%s","transcript_path":"%s","cwd":".","hook_event_name":"SessionStart","source":"startup"}' "$1" "$2"; }
