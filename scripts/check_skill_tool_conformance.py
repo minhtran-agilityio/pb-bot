@@ -33,6 +33,8 @@ written on every one of those paths.
 Run: python3 scripts/check_skill_tool_conformance.py [--root DIR] [--json]
 """
 
+from __future__ import annotations
+
 import argparse
 import fnmatch
 import json

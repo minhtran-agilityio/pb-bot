@@ -44,4 +44,8 @@ t "permissions.deny holds the approved rules and settings.json has no allow rule
 if jq -e '(.permissions.deny | index("Read(./.env)") and index("Edit(./.env)") and index("Bash(git push --force*)") and index("Bash(git push * main)")) and (.permissions | has("allow") | not)' settings.json >/dev/null; then pass
 else fail "permissions: $(jq -c .permissions settings.json)"; fi
 
+t "permissions.deny also covers the push forms that name main or master by other spellings (ticket #190)"
+if jq -e '.permissions.deny as $d | ["Bash(git push *--all*)","Bash(git push *--mirror*)","Bash(git push *:main)","Bash(git push *:refs/heads/master)","Bash(git push * +main)","Bash(git push * \"main\")","Bash(git push * '"'"'master'"'"')"] | all(. as $r | $d | index($r))' settings.json >/dev/null; then pass
+else fail "missing push deny rule(s): $(jq -c '.permissions.deny' settings.json)"; fi
+
 finish
