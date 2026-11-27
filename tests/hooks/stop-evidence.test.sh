@@ -16,7 +16,8 @@
 #   start   hooks/stop-evidence-baseline.sh (SessionStart) records the files dirty at session start;
 #           the Stop hook counts only files that differ from that record (#191 B5).
 #   floor   holds without a working python3 (#191 B6).
-#   bound   at most STOP_EVIDENCE_MAX_BLOCKS (3) blocks per transcript; no judge wait without claude (#191 B7).
+#   bound   at most STOP_EVIDENCE_MAX_BLOCKS (3) blocks per user turn and STOP_EVIDENCE_MAX_TOTAL (9) per
+#           transcript; no judge wait without claude (#191 B7).
 source "$(dirname "$0")/../lib.sh"
 
 H=stop-evidence.sh
@@ -44,7 +45,7 @@ repo_with() {
 stop_json() { # stop_json <transcript-file> <active true|false>
   printf '{"session_id":"s","transcript_path":"%s","cwd":".","hook_event_name":"Stop","stop_hook_active":%s}' "$1" "$2"
 }
-# The hook counts its blocks per transcript, so each run gets its own copy of a fixture; a case
+# The hook counts its blocks per transcript and turn, so each run gets its own copy of a fixture; a case
 # that needs the same transcript again (the block bound) passes a file it made itself.
 fresh() { local f; f=$(mktemp -d)/t-$RANDOM$RANDOM.jsonl; _CLEANUP_DIRS+=("$(dirname "$f")"); cp "$1" "$f" 2>/dev/null; echo "$f"; }
 run_stop() { # run_stop <repo> <transcript> <active> <stub> [VAR=val ...]
@@ -282,13 +283,17 @@ if [ "$N" -ge 1 ] && [ "$N" -le 3 ] && [ $((SECONDS - START)) -lt 20 ]; then pas
 t "claude missing, no risk floor: fails open at once"
 run_hook "$LT" $H "$(stop_json "$(fresh "$FX/sonnet-no-evidence.jsonl")" false)" PATH="$(tools_dir with-python)" STOP_EVIDENCE_JUDGE_CMD=; assert_pass
 
+# F7: every stop after the first is a continuation (stop_hook_active true), so the per-turn reset cannot
+# explain the last block: only the reset on evidence can.
 TR=$(fresh "$FX/sonnet-no-evidence.jsonl")
-t "evidence after a block resets the count: the next missing-evidence stop blocks again"
+t "evidence after 3 blocks resets the count: a later continuation stop blocks again"
 loop_run "$F" "$TR" "$SEVERE" false >/dev/null
+run_hook "$F" $H "$(stop_json "$TR" true)" STOP_EVIDENCE_JUDGE_CMD="$SEVERE"; BEFORE_RC=$RC; BEFORE_OUT=$OUT
 cp "$FX/sonnet-with-evidence.jsonl" "$TR"
-run_hook "$F" $H "$(stop_json "$TR" false)" STOP_EVIDENCE_JUDGE_CMD="$SEVERE"
+run_hook "$F" $H "$(stop_json "$TR" true)" STOP_EVIDENCE_JUDGE_CMD="$SEVERE"; EV_OUT=$OUT
 cp "$FX/sonnet-no-evidence.jsonl" "$TR"
-run_hook "$F" $H "$(stop_json "$TR" false)" STOP_EVIDENCE_JUDGE_CMD="$SEVERE"; assert_block
+run_hook "$F" $H "$(stop_json "$TR" true)" STOP_EVIDENCE_JUDGE_CMD="$SEVERE"
+if [ -z "$BEFORE_OUT" ] && [ -z "$EV_OUT" ] && printf '%s' "$OUT" | grep -qF '"decision":"block"'; then pass; else fail "capped before=[$BEFORE_OUT] evidence=[$EV_OUT] after=[$OUT]"; fi
 
 # --- security review (#191): a file name must not switch off the auth/secret word scan ----------
 X=$(repo_with lib/x.py)
@@ -342,5 +347,60 @@ t "per-turn bound: after 3 blocks a new user turn (stop_hook_active false) can b
 F=$(repo_with scripts/deploy.sh); TR=$(fresh "$FX/sonnet-no-evidence.jsonl")
 loop_run "$F" "$TR" "$SEVERE" false >/dev/null
 run_hook "$F" $H "$(stop_json "$TR" false)" STOP_EVIDENCE_JUDGE_CMD="$SEVERE"; assert_block
+
+# --- review round 2 (#191): F3, F6, F8 ----------------------------------------------------------
+R=$(repo_with src/app.py)
+t "F3: a test-runner launch notice without a run_in_background flag is not evidence: blocks"
+run_stop "$R" "$FX/noflag-test-runner-launch.jsonl" false "$LIGHT"; assert_block
+
+t "F3: the same call with its completion notice after it: counts, passes without a judge"
+run_stop "$R" "$FX/noflag-test-runner-completed.jsonl" false "$SEVERE"; assert_pass_no_judge
+
+t "F3: an edit between the launch and the completion notice makes the run stale: blocks"
+run_stop "$R" "$FX/noflag-test-runner-stale.jsonl" false "$LIGHT"; assert_block
+
+t "F3: a failed background test-runner is no evidence: blocks"
+run_stop "$R" "$FX/noflag-test-runner-failed.jsonl" false "$LIGHT"; assert_block
+
+t "F3: a background Bash launch notice is not evidence: blocks"
+run_stop "$R" "$FX/bash-bg-launch.jsonl" false "$LIGHT"; assert_block
+
+t "F3: a background Bash with its completion notice counts: passes without a judge"
+run_stop "$R" "$FX/bash-bg-completed.jsonl" false "$SEVERE"; assert_pass_no_judge
+
+t "F6: a background editing agent: a Bash result before its completion notice is stale: blocks"
+run_stop "$R" "$FX/editor-bg-then-bash-then-done.jsonl" false "$LIGHT"; assert_block
+
+t "F6: a background editing agent that never reported back: the earlier Bash result is stale: blocks"
+run_stop "$R" "$FX/editor-bg-never-done.jsonl" false "$LIGHT"; assert_block
+
+t "F6: an editing agent whose result is an error still counts as an edit: blocks"
+run_stop "$R" "$FX/editor-error.jsonl" false "$LIGHT"; assert_block
+
+t "F6: a Bash result after a background editor's completion notice counts: passes without a judge"
+run_stop "$R" "$FX/editor-bg-done-then-bash.jsonl" false "$SEVERE"; assert_pass_no_judge
+
+# F8: a python3-less session with a floor file dirty since the start cannot clear the gate; the per-turn
+# bound resets on each user turn, so a cap per transcript keeps the blocks finite.
+S=$(session_repo src/app.py)
+mkdir -p "$S/scripts"; printf 'echo hi\n' > "$S/scripts/old.sh"
+start_session "$S" capsess
+d=$(mktemp -d); _CLEANUP_DIRS+=("$d"); cp "$SESS_T" "$d/capsess.jsonl"
+t "F8: several user turns, python3 missing, floor file dirty since the start: blocks stop at the transcript cap"
+TOTAL=0
+for turn in 1 2 3 4 5 6; do
+  N=$(loop_run "$S" "$d/capsess.jsonl" "$BAD" false PATH="$(tools_dir no-python)")
+  TOTAL=$((TOTAL + N))
+done
+if [ "$TOTAL" = 9 ]; then pass; else fail "blocks over 6 turns: $TOTAL (want 9 = STOP_EVIDENCE_MAX_TOTAL)"; fi
+
+t "F8: STOP_EVIDENCE_MAX_TOTAL lowers the cap"
+d2=$(mktemp -d); _CLEANUP_DIRS+=("$d2"); cp "$SESS_T" "$d2/capsess2.jsonl"
+TOTAL=0
+for turn in 1 2 3; do
+  N=$(loop_run "$S" "$d2/capsess2.jsonl" "$BAD" false PATH="$(tools_dir no-python)" STOP_EVIDENCE_MAX_TOTAL=4)
+  TOTAL=$((TOTAL + N))
+done
+if [ "$TOTAL" = 4 ]; then pass; else fail "blocks over 3 turns: $TOTAL (want 4)"; fi
 
 finish
