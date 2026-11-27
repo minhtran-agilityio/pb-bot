@@ -11,7 +11,8 @@
 #         from the record stop-evidence-baseline.sh made at session start (file dirty at the start and
 #         unchanged since: not counted). With no record for the session: every file in `git status`.
 # Evidence  a Bash tool result, or the result of a test-runner or qa-verifier agent call, that came AFTER
-#         the last successful Edit/Write/MultiEdit/NotebookEdit or the last agent call that may have edited
+#         the last successful Edit/Write/MultiEdit/NotebookEdit of a code file (a docs, specs, .md or .txt file,
+#         or a file outside the repository, does not move it; #203) or the last agent call that may have edited
 #         files (any agent but a read-only or test one). A call that runs in the background gives only a
 #         launch notice, which is not evidence. Older output does not count.
 # Floor   a dirty path under hooks/ or scripts/ (also one dirty before the session started), or an auth or secret word in the added lines. It holds
@@ -152,8 +153,8 @@ fi
 # The transcript format is not documented by Claude Code; read it defensively.
 MODEL=unknown; EVIDENCE=0; ANALYZED=0
 if [ "$HAVE_PY" = 1 ] && [ -r "$TRANSCRIPT" ]; then
-  if ANALYSIS=$(python3 -I - "$TRANSCRIPT" <<'PY'
-import json, re, sys
+  if ANALYSIS=$(python3 -I - "$TRANSCRIPT" "$TOP" "$NOT_CODE" <<'PY'
+import json, os, re, sys
 EDIT_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit")
 AGENT_TOOLS = ("Agent", "Task")
 TEST_AGENT = re.compile(r"(^|:)(test-runner|qa-verifier)$")
@@ -169,6 +170,29 @@ starts = {}      # tool_use id -> (kind, sequence number of the call)
 pending = {}     # background call id -> kind, launched and not yet finished
 last_edit = -1   # sequence number of the last edit that succeeded (or of the end of an editing agent)
 last_evidence = -1  # sequence number of the latest call whose output counts as evidence
+
+NOT_CODE = re.compile(sys.argv[3])
+
+def moves_last_edit(inp):
+    """An edit of a docs or specs file (NOT_CODE), or of a file outside the repository, is not code (#203)."""
+    path = inp.get("file_path") or inp.get("notebook_path")
+    if not isinstance(path, str) or not path:
+        return True   # no path to judge: count it, as before
+    try:
+        top = os.path.realpath(sys.argv[2])
+        absolute = os.path.isabs(path)
+        full = os.path.realpath(path if absolute else os.path.join(top, path))
+        prefix = top.rstrip(os.sep) + os.sep
+        if full == top or full.startswith(prefix):
+            return not NOT_CODE.search(os.path.relpath(full, top).replace(os.sep, "/"))
+        # Not inside by exact spelling. Only an absolute path that is also outside when case is ignored (the
+        # filesystem may ignore case) is truly outside. A relative path that leaves the top (a "../" path
+        # resolved from the wrong base) and a path that differs from the top only in case count as an edit.
+        if absolute and not (full.casefold() + os.sep).startswith(prefix.casefold()):
+            return False
+        return True
+    except Exception:
+        return True
 
 def text_of(content):
     if isinstance(content, str):
@@ -219,7 +243,8 @@ try:
                     name, inp = b.get("name"), b.get("input")
                     inp = inp if isinstance(inp, dict) else {}
                     if name in EDIT_TOOLS:
-                        starts[b.get("id")] = ("edit", seq)
+                        if moves_last_edit(inp):
+                            starts[b.get("id")] = ("edit", seq)
                     elif name == "Bash":
                         starts[b.get("id")] = ("bash", seq)
                     elif name in AGENT_TOOLS:
