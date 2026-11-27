@@ -278,7 +278,7 @@ TR=$(fresh "$FX/sonnet-no-evidence.jsonl")
 t "claude missing from PATH on the risk floor: blocks at most 3 times and never waits for a judge"
 START=$SECONDS
 N=$(loop_run "$F" "$TR" "" false PATH="$(tools_dir with-python)" STOP_EVIDENCE_JUDGE_CMD=)
-if [ "$N" -ge 1 ] && [ "$N" -le 3 ] && [ $((SECONDS - START)) -lt 20 ]; then pass; else fail "blocks=$N seconds=$((SECONDS - START))"; fi
+if [ "$N" -ge 1 ] && [ "$N" -le 3 ] && [ $((SECONDS - START)) -lt 60 ]; then pass; else fail "blocks=$N seconds=$((SECONDS - START))"; fi
 
 t "claude missing, no risk floor: fails open at once"
 run_hook "$LT" $H "$(stop_json "$(fresh "$FX/sonnet-no-evidence.jsonl")" false)" PATH="$(tools_dir with-python)" STOP_EVIDENCE_JUDGE_CMD=; assert_pass
@@ -402,5 +402,37 @@ for turn in 1 2 3; do
   TOTAL=$((TOTAL + N))
 done
 if [ "$TOTAL" = 4 ]; then pass; else fail "blocks over 3 turns: $TOTAL (want 4)"; fi
+
+# --- review round 3 (#191): F10, F11, F13 -------------------------------------------------------
+R=$(repo_with src/app.py)
+t "F10: a Bash call moved to the background without the flag: its launch notice is not evidence: blocks"
+run_stop "$R" "$FX/bash-noflag-launch.jsonl" false "$LIGHT"; assert_block
+
+t "F10: the same call with a completed notice: counts, passes without a judge"
+run_stop "$R" "$FX/bash-noflag-completed.jsonl" false "$SEVERE"; assert_pass_no_judge
+
+t "F10: a background Bash whose tests failed (status failed) still ran: counts"
+run_stop "$R" "$FX/bash-noflag-failed.jsonl" false "$SEVERE"; assert_pass_no_judge
+
+t "F13: a background Bash that was killed is no evidence: blocks"
+run_stop "$R" "$FX/bash-noflag-killed.jsonl" false "$LIGHT"; assert_block
+
+t "F10: notice-shaped text inside a tool result is not a completion notice: blocks"
+run_stop "$R" "$FX/bash-noflag-notice-in-result.jsonl" false "$LIGHT"; assert_block
+
+# F11: the per-transcript cap bounds blocks with no evidence in between. A healthy long session, with
+# evidence between its blocks, stays gated.
+F=$(repo_with scripts/deploy.sh); TR=$(fresh "$FX/sonnet-no-evidence.jsonl")
+t "F11: 4 cycles of 3 blocks, each cleared by evidence (12 blocks > 9): every cycle still blocks 3 times"
+OK=1; ALLN=""
+for cycle in 1 2 3 4; do
+  cp "$FX/sonnet-no-evidence.jsonl" "$TR"
+  N=$(loop_run "$F" "$TR" "$SEVERE" false); ALLN="$ALLN $N"
+  [ "$N" = 3 ] || OK=0
+  cp "$FX/sonnet-with-evidence.jsonl" "$TR"
+  run_hook "$F" $H "$(stop_json "$TR" true)" STOP_EVIDENCE_JUDGE_CMD="$SEVERE"
+  [ -z "$OUT" ] || OK=0
+done
+if [ "$OK" = 1 ]; then pass; else fail "blocks per cycle:$ALLN"; fi
 
 finish

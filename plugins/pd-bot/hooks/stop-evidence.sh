@@ -10,16 +10,19 @@
 # Code    "Code changed" = a file in `git status` (docs, specs and .md/.txt files left out) that differs
 #         from the record stop-evidence-baseline.sh made at session start (file dirty at the start and
 #         unchanged since: not counted). With no record for the session: every file in `git status`.
-# Evidence  a Bash tool result, or the result of a test-runner or qa-verifier agent call, that came AFTER
-#         the last successful Edit/Write/MultiEdit/NotebookEdit or the last agent call that may have edited
-#         files (any agent but a read-only or test one). A call that runs in the background gives only a
-#         launch notice, which is not evidence. Older output does not count.
+# Evidence  the result of a Bash call, or of a test-runner or qa-verifier agent call, for a call made AFTER
+#         the last successful Edit/Write/MultiEdit/NotebookEdit or after the end of the last agent call that
+#         may have edited files (any agent but a read-only or test one). A call that runs in the background
+#         (flag or not) first gives only a launch notice, which is not evidence; its result counts when a
+#         <task-notification> for it says completed (a Bash call: any status but killed or stopped).
+#         Older output does not count.
 # Floor   a dirty path under hooks/ or scripts/ (also one dirty before the session started), or an auth or secret word in the added lines. It holds
 #         when python3 is missing or broken: the block and the check need only bash, git, sed and grep.
 # Bound   at most STOP_EVIDENCE_MAX_BLOCKS blocks (default 3) per user turn, counted in
 #         <git dir>/pd-bot/stop-evidence/<transcript name>.blocks; evidence, no code change or a new user
 #         turn (stop_hook_active false) resets that count. On top of it, at most STOP_EVIDENCE_MAX_TOTAL
-#         blocks (default 9) per transcript (<transcript name>.total, never reset), so a session that
+#         blocks (default 9) per transcript (<transcript name>.total; evidence or a clean tree resets it
+#         too, so only blocks with no evidence in between add up), so a session that
 #         cannot clear the gate (python3 missing, a risk-floor file dirty since the start) is not blocked
 #         on every turn for ever. A counter that cannot be written blocks once per turn.
 # Judge   $STOP_EVIDENCE_JUDGE_CMD <model> (prompt on stdin) prints {"severity":"pass|light|severe","reason":"..."}.
@@ -98,6 +101,8 @@ MAX_TOTAL="${STOP_EVIDENCE_MAX_TOTAL:-9}"
 case "$MAX_TOTAL" in ''|*[!0-9]*) MAX_TOTAL=9 ;; esac
 TOTAL_FILE=""; [ -n "$COUNT_FILE" ] && TOTAL_FILE="${COUNT_FILE%.blocks}.total"
 reset_blocks() { [ -n "$COUNT_FILE" ] && rm -f "$COUNT_FILE" 2>/dev/null; return 0; }
+# Evidence or a clean tree: the session can clear the gate, so the per-transcript cap starts again too.
+reset_all() { reset_blocks; [ -n "$TOTAL_FILE" ] && rm -f "$TOTAL_FILE" 2>/dev/null; return 0; }
 # A stop without stop_hook_active is a new turn of the user: the bound counts the blocks of one turn.
 [ "$ACTIVE" = true ] || reset_blocks
 
@@ -144,7 +149,7 @@ EOF
 if [ -z "$CODE_FILES" ]; then
   # nothing changed since the start; a dirty file on the risk floor still needs evidence
   compute_floor
-  if [ "$FLOOR" = 0 ]; then reset_blocks; exit 0; fi
+  if [ "$FLOOR" = 0 ]; then reset_all; exit 0; fi
   CODE_FILES="$ALL_CODE"
 fi
 
@@ -163,7 +168,8 @@ READ_ONLY = re.compile(r"(^|:)(test-runner|qa-verifier|Explore|Plan|researcher|i
 #   <task-notification> ... <tool-use-id>ID</tool-use-id> ... <status>completed</status> ... </task-notification>
 # in a queue-operation, attachment or user entry of the transcript.
 NOTICE = re.compile(r"<tool-use-id>([^<]+)</tool-use-id>.*?<status>(\w+)</status>", re.S)
-LAUNCH = re.compile(r"launched successfully|running in (the )?background", re.I)
+# the whole result of a call that was moved to the background: an agent launch or a Bash launch
+LAUNCH = re.compile(r"\s*(Async agent launched successfully|Command running in background with ID:)")
 model, seq = "unknown", 0
 starts = {}      # tool_use id -> (kind, sequence number of the call)
 pending = {}     # background call id -> kind, launched and not yet finished
@@ -178,12 +184,13 @@ def text_of(content):
     return ""
 
 def finish(kind, at, ok):
-    """A call of this kind finished at the current sequence number."""
+    """A call of this kind finished at the current sequence number. ok: it ended normally
+    (a Bash call that failed still ran; one that was killed or stopped did not finish)."""
     global last_edit, last_evidence
     if kind == "edit" and ok:
         last_edit = max(last_edit, at)
     elif kind in ("bash", "agent"):
-        if ok or kind == "bash":
+        if ok:
             last_evidence = max(last_evidence, at)   # evidence counts from the call, not from its end
     elif kind == "editor":
         last_edit = max(last_edit, seq)              # the agent may have edited until it finished, even on error
@@ -197,12 +204,17 @@ try:
                 continue
             if not isinstance(o, dict):
                 continue
-            if o.get("type") != "assistant" and "<tool-use-id>" in line and pending:
+            mc = (o.get("message") or {}).get("content") if isinstance(o.get("message"), dict) else None
+            has_result = isinstance(mc, list) and any(isinstance(x, dict) and x.get("type") == "tool_result" for x in mc)
+            if o.get("type") != "assistant" and not has_result and "<tool-use-id>" in line and pending:
                 for nid, status in NOTICE.findall(line):
                     if nid in pending:
                         seq += 1
                         kind, at = pending.pop(nid)
-                        finish(kind, at, status == "completed")
+                        if kind == "bash":
+                            finish(kind, at, status not in ("killed", "stopped"))
+                        else:
+                            finish(kind, at, status == "completed")
             m = o.get("message")
             if not isinstance(m, dict):
                 continue
@@ -241,12 +253,13 @@ try:
                     bg = kind.startswith("bg:")
                     kind = kind[3:] if bg else kind
                     body = text_of(b.get("content"))
-                    if kind in ("agent", "editor", "readonly") and not bg and LAUNCH.search(body[:300]):
-                        bg = True   # Agent calls run in the background without saying so in their input
+                    if not bg and LAUNCH.match(body):
+                        bg = True   # a call can be moved to the background without saying so in its input
                     if bg:
                         pending[b.get("tool_use_id")] = (kind, at)
                     else:
-                        finish(kind, at, not b.get("is_error"))
+                        # a foreground Bash result is evidence whatever its exit status
+                        finish(kind, at, True if kind == "bash" else not b.get("is_error"))
 except Exception:
     pass
 # A background editing agent that never reported back may still have edited: its edits come last.
@@ -259,7 +272,7 @@ PY
     MODEL="${ANALYSIS%%$'\t'*}"; EVIDENCE="${ANALYSIS##*$'\t'}"; ANALYZED=1
   fi
 fi
-if [ "$EVIDENCE" = 1 ]; then reset_blocks; exit 0; fi
+if [ "$EVIDENCE" = 1 ]; then reset_all; exit 0; fi
 
 # --- Risk floor: hooks/ and scripts/ paths, or auth/secret words in added lines ----------------------
 compute_floor
@@ -276,8 +289,8 @@ block() {
     [ "$n" -ge "$MAX_BLOCKS" ] && exit 0
     [ "$total" -ge "$MAX_TOTAL" ] && exit 0
     # a counter that cannot be written is as good as none: block once, not forever
-    { echo $((total + 1)) > "$TOTAL_FILE"; } 2>/dev/null
     if ! { echo $((n + 1)) > "$COUNT_FILE"; } 2>/dev/null && [ "$ACTIVE" = true ]; then exit 0; fi
+    { echo $((total + 1)) > "$TOTAL_FILE"; } 2>/dev/null
   elif [ "$ACTIVE" = true ]; then
     exit 0 # nowhere to count: block at most once, so a failing hook cannot loop
   fi
