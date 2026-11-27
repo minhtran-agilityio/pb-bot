@@ -7,7 +7,7 @@
 # gone and its tip is an ancestor of <remote>/main; (3) a `worktree-*` agent branch that no worktree
 # has checked out and whose tip is in a <remote>/* branch (only after a successful fetch). Every rule except (1) uses `git branch -d` only (never a force delete or update-ref).
 # `git worktree remove` has no force flag: it refuses a dirty or locked worktree.
-# Never touches main, master, develop, development, staging, production, release/*, release-*, CLEAN_KEEP names, the current branch, or the worktree the session runs in. A SessionStart sweep also keeps any worktree that another running process has as its working directory.
+# Never touches main, master, develop, development, staging, production, release/*, release-*, CLEAN_KEEP names, the current branch, or the worktree the session runs in. Every mode (the post-merge run too) also keeps any worktree that another running process has as its working directory.
 # A branch matching CLEAN_STRICT gets only rule (1). Settings (env): CLEAN_REMOTE (default origin),
 # CLEAN_KEEP, CLEAN_STRICT, CLEAN_RECREATE (space separated; a CLEAN_RECREATE name must be a valid plain
 # branch name, and the push is never forced, so a branch another session created in the race is not overwritten). It runs `git fetch --prune` first.
@@ -126,17 +126,20 @@ if [ -n "$base" ]; then
     else out+="could not recreate $remote/$name"$'\n'; fi
   done
 fi
-# SessionStart only: the working directories of every running process, one per line, so a worktree that
-# another live session (or shell) is using is kept. /proc on Linux, lsof elsewhere; with neither, nothing is known.
-live_cwds=""
-if [ "${1:-}" = SessionStart ]; then
+# Every mode (SessionStart, PostToolUse after a merge, a run by hand): the working directories of every
+# running process, one per line, so a worktree that another live session (or shell) is using is kept.
+# /proc on Linux, lsof elsewhere; with neither, nothing is known. The scan runs once, on the first
+# worktree that is about to be removed, so a run with nothing to remove never pays for it.
+live_cwds=""; live_scanned=""
+scan_cwds() {
+  live_scanned=1
   if [ -d /proc/self ]; then
     set +f; live_cwds=$(for l in /proc/[0-9]*/cwd; do readlink "$l" 2>/dev/null; done); set -f
   elif command -v lsof >/dev/null; then
     live_cwds=$(lsof -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')
   fi
-fi
-in_use() { [ -n "$live_cwds" ] && printf '%s\n' "$live_cwds" | awk -v p="$1" '$0==p || index($0, p "/")==1 {f=1; exit} END{exit !f}'; }
+}
+in_use() { [ -n "$live_scanned" ] || scan_cwds; [ -n "$live_cwds" ] && printf '%s\n' "$live_cwds" | awk -v p="$1" '$0==p || index($0, p "/")==1 {f=1; exit} END{exit !f}'; }
 # Dry run only: true when `git worktree remove` would refuse the worktree $1 because it holds submodules
 # (git checks the worktree's git dir for `modules`, and the index for a gitlink whose directory has a .git).
 # Fails toward true: an unreadable worktree counts as holding one.

@@ -257,6 +257,16 @@ hook 'gh pr merge 9'
 if [ "$RC" = 0 ] && [ -z "$OUT" ] && [ -d "$WT" ] && [ -d "$WT2" ]; then pass; else fail "rc=$RC out=$OUT"; fi
 
 setup2
+t "#193: a post-merge run keeps a merged worktree that another live process uses, and removes it once the process is gone"
+(cd "$WT" && exec sleep 60) & LIVEPID=$!
+sleep 1
+hook 'gh pr merge 7'; OUT1=$OUT
+KEPT=""; if [ -d "$WT" ] && git -C "$MAIN" rev-parse -q --verify feat >/dev/null; then KEPT=1; fi
+kill "$LIVEPID" 2>/dev/null; wait "$LIVEPID" 2>/dev/null
+hook 'gh pr merge 7'
+if [ -n "$KEPT" ] && printf '%s' "$OUT1" | grep -q 'a running process uses' && [ ! -d "$WT" ] && ! git -C "$MAIN" rev-parse -q --verify feat >/dev/null && [ -d "$WT2" ]; then pass; else fail "kept=$KEPT out1=$OUT1 out2=$OUT"; fi
+
+setup2
 t "manual run with no argument still sweeps every merged branch"
 OUT=$(cd "$MAIN" && PATH="$STUB:$PATH" bash hooks/clean-worktrees.sh 2>&1); RC=$?
 if [ ! -d "$WT" ] && [ ! -d "$WT2" ]; then pass; else fail "out=$OUT"; fi
@@ -448,12 +458,12 @@ t "item 8: CLEAN_RECREATE ignores an unsafe branch name (leading dash)"
 rrun "" CLEAN_RECREATE="-f"
 if ! git -C "$REM" rev-parse -q --verify refs/heads/-f >/dev/null; then pass; else fail "out=$OUT"; fi
 
-t "docs: skills README ties the live-process skip to the SessionStart sweep only"
+t "docs: skills README says every run skips a worktree another live process uses"
 README_ROW=$(grep 'removes merged worktrees and branches after a merge' "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/plugins/pd-bot/skills/README.md")
-if printf '%s' "$README_ROW" | grep -q 'session-start sweep also skips a worktree another live process uses' && ! printf '%s' "$README_ROW" | grep -q 'and a worktree another live process uses'; then pass; else fail "row=$README_ROW"; fi
+if printf '%s' "$README_ROW" | grep -q 'every run (post-merge and session start) also skips a worktree another live process uses' && ! printf '%s' "$README_ROW" | grep -q 'session-start sweep also skips a worktree another live process uses'; then pass; else fail "row=$README_ROW"; fi
 
-t "docs: CLAUDE.md hook row ties the live-process skip to the SessionStart sweep only"
+t "docs: CLAUDE.md hook row says every run skips a worktree a live process uses"
 ROW=$(grep '^| `clean-worktrees.sh`' "$ROOT/CLAUDE.md")
-if printf '%s' "$ROW" | grep -q 'session-start sweep also skips a worktree a live process uses' && ! printf '%s' "$ROW" | grep -q 'protected names ([^)]*) and a worktree a live process uses'; then pass; else fail "row=$ROW"; fi
+if printf '%s' "$ROW" | grep -q 'every run (post-merge and session start) also skips a worktree a live process uses' && ! printf '%s' "$ROW" | grep -q 'session-start sweep also skips a worktree a live process uses'; then pass; else fail "row=$ROW"; fi
 
 finish
