@@ -231,8 +231,8 @@ run_stop "$R0" "$FX/sonnet-no-evidence.jsonl" false "$LIGHT" PATH="$(tools_dir n
 
 # --- B7: a bounded number of blocks per transcript ----------------------------------------------
 loop_run() { # loop_run <repo> <transcript> <stub> <active> [VAR=val ...] -> prints the number of blocks in 8 stops
-  local r="$1" tr="$2" st="$3" act="$4" n=0 i; shift 4
-  for i in 1 2 3 4 5 6 7 8; do
+  local r="$1" tr="$2" st="$3" act="$4" n=0; shift 4
+  for _ in 1 2 3 4 5 6 7 8; do
     run_hook "$r" $H "$(stop_json "$tr" "$act")" STOP_EVIDENCE_JUDGE_CMD="$st" "$@"
     printf '%s' "$OUT" | grep -qF '"decision":"block"' && n=$((n + 1))
   done
