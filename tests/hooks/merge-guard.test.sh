@@ -146,6 +146,24 @@ W=$FEAT_UP_MAIN expect ask  'git -c push.default=upstream push origin'
 W=$FEAT_UP_MAIN expect pass 'git push origin feature/y'
 W=$FEAT_UP_MAIN expect pass 'git push origin HEAD'
 W=$NOTREPO expect pass 'git push'                       # no repository: git itself stops, nothing to ask about
+# Found by the security review of #190: absolute -C with HEAD, a file checkout, --branches, --track, matching refspecs, cd
+W=$ON_FEAT expect ask  "git -C $ON_MAIN push origin HEAD"
+W=$ON_FEAT expect ask  "git -C $ON_MAIN push"
+W=$ON_MAIN expect pass "git -C $ON_FEAT push origin HEAD"
+W=$ON_MAIN expect ask  'git checkout -- README.md && git commit -am x && git push'
+W=$ON_MAIN expect ask  'git checkout . && git push'
+W=$ON_MAIN expect ask  'git checkout -b feature/z && git push -u origin main'
+W=$ON_MAIN expect pass 'git checkout -b feature/z && git push -u origin HEAD'
+W=$ON_FEAT expect ask  'git push --branches'
+W=$ON_MAIN expect ask  'git push --branches'
+W=$ON_FEAT expect ask  'git checkout -t origin/main && git push'
+W=$ON_FEAT expect ask  'git switch --track origin/master && git push origin'
+W=$ON_FEAT expect ask  'git push origin :'
+W=$ON_FEAT expect ask  "git push origin 'refs/heads/*:refs/heads/*'"
+W=$NOTREPO expect ask  "cd $ON_MAIN && git push"
+W=$ON_MAIN expect pass "cd $ON_FEAT && git push"
+W=$NOTREPO expect ask  "cd $ON_MAIN; git push origin HEAD"
+HOME=$D W=$NOTREPO expect ask "cd ~/onmain && git push"
 W=$ON_FEAT expect pass 'git status && echo "git push is next"'
 W=$ON_FEAT expect pass 'gh pr create --base main --title x --body-file /tmp/b.md'
 

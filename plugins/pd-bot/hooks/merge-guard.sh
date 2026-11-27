@@ -40,9 +40,11 @@ if printf '%s' "$q" | tr '[:upper:]' '[:lower:]' | grep -qE '(^|[^a-z0-9_-])git(
   ask "This command pushes to main or master."
 fi
 is_main() { case "$1" in [Mm][Aa][Ii][Nn]|[Mm][Aa][Ss][Tt][Ee][Rr]) return 0 ;; esac; return 1; }
+abs_dir() {  # <dir or ""> : the directory of a git -C or cd, as a path ("~" expanded, relative to the command's cwd)
+  case "$1" in "") echo "${cwd:-$PWD}" ;; \~|\~/*) echo "$HOME${1#\~}" ;; /*) echo "$1" ;; *) echo "${cwd:-$PWD}/$1" ;; esac
+}
 resolves_to_main() {  # <dir> <push.default> <cur-branch or ""> <remote or "">; 0 = a push without a branch reaches main
-  local d="$1" pd="$2" cur="$3" remote="$4" up r base="${cwd:-$PWD}"
-  case "$d" in /*) ;; "") d="$base" ;; *) d="$base/$d" ;; esac
+  local d up r pd="$2" cur="$3" remote="$4"; d=$(abs_dir "$1")
   [ -n "$cur" ] || cur=$(git -C "$d" symbolic-ref --short -q HEAD 2>/dev/null) || return 1
   is_main "$cur" && return 0
   [ -n "$pd" ] || pd=$(git -C "$d" config push.default 2>/dev/null)
@@ -57,6 +59,7 @@ resolves_to_main() {  # <dir> <push.default> <cur-branch or ""> <remote or "">; 
 cwd=$(field .cwd); moved=""; tomain=0; nl=$'\n'; sep='[;&|()`]'  # one command per line
 while IFS= read -r seg; do
   read -ra tk <<<"$seg"; i=0; n=${#tk[@]}
+  case "${tk[0]:-}" in cd|pushd) [ -z "${tk[1]:-}" ] || [ "${tk[1]}" = - ] || cwd=$(abs_dir "${tk[1]}"); continue ;; esac  # a later push runs there
   while [ "$i" -lt "$n" ] && ! [[ ${tk[i]##*/} =~ ^[Gg][Ii][Tt]$ ]]; do i=$((i+1)); done
   [ "$i" -lt "$n" ] || continue
   i=$((i+1)); dir=""; pd=""
@@ -69,27 +72,34 @@ while IFS= read -r seg; do
   done
   case "${tk[i]:-}" in
     checkout|switch)  # which branch is current after it: main counts as a push to main
-      br=""; j=$((i+1))
+      br=""; track=0; new=0; j=$((i+1))
       while [ "$j" -lt "$n" ]; do case "${tk[j]}" in
-        -b|-B|-c|-C|--orphan) br="${tk[j+1]:-}"; break ;;
+        --) break ;;  # what follows is a file, not a branch
+        -b|-B|-c|-C|--orphan) br="${tk[j+1]:-}"; new=1; break ;;
+        -t|--track|--track=*) track=1 ;;
         -*) ;;
         *) br="${tk[j]}"; break ;; esac; j=$((j+1))
       done
-      if is_main "$br"; then tomain=1; else moved="$br"; tomain=0; fi ;;
+      [ "$track" = 0 ] || br="${br##*/}"  # --track origin/main makes a local main
+      if [ -z "$br" ]; then :
+      elif is_main "$br"; then tomain=1
+      elif [ "$new" = 1 ] || git -C "$(abs_dir "$dir")" show-ref --verify -q "refs/heads/$br" 2>/dev/null; then moved="$br"; tomain=0
+      fi ;;  # anything else (a file, a tag, a commit) leaves the current branch as it is
     push)
       pos=0; remote=""; head=0; tags=0; j=$((i+1))
       while [ "$j" -lt "$n" ]; do a="${tk[j]#+}"; case "$a" in
-        --all|--mirror) ask "git push $a pushes every branch, main included." ;;
+        --all|--mirror|--branches) ask "git push $a pushes every branch, main included." ;;
         --tags) tags=1 ;;
         -o|--push-option|--repo|--receive-pack|--exec) j=$((j+1)) ;;
         -*) ;;
+        :|*\**) ask "git push $a pushes every matching branch, main included." ;;
         *) pos=$((pos+1)); [ "$pos" -ne 1 ] || remote="$a"; case "$a" in [Hh][Ee][Aa][Dd]|@) [ "$pos" -lt 2 ] || head=1 ;; esac ;;
       esac; j=$((j+1)); done
       [ "$pos" -ge 2 ] && [ "$head" = 0 ] && continue  # a branch is named, and it is not main (2a)
       [ "$pos" -ge 2 ] || [ "$tags" = 0 ] || continue   # --tags alone pushes no branch
       [ "$tomain" = 0 ] || ask "This command checks out main or master, then pushes."
       if [ "$pos" -ge 2 ]; then  # HEAD: the current branch itself; no refspec: its upstream and the config too
-        cur="$moved"; [ -n "$cur" ] || cur=$(git -C "${cwd:-$PWD}${dir:+/$dir}" symbolic-ref --short -q HEAD 2>/dev/null)
+        cur="$moved"; [ -n "$cur" ] || cur=$(git -C "$(abs_dir "$dir")" symbolic-ref --short -q HEAD 2>/dev/null)
         is_main "$cur" && ask "This command pushes the current branch, '$cur'."
       else
         resolves_to_main "$dir" "$pd" "$moved" "$remote" && ask "This push names no branch, and the current branch or its upstream is main or master."
